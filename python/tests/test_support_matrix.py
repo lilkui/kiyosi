@@ -14,6 +14,7 @@ from kiyosi.market import (
     PricingContext,
     all_days_calendar,
 )
+from support.history import dated as dated_history
 
 HESTON_ENGINES = (
     "AnalyticHestonEuropeanEngine",
@@ -298,14 +299,19 @@ class SupportMatrixTests(unittest.TestCase):
                     continue
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     with self.assertRaises(UnsupportedOperationError):
-                        self.engines[name].price(instrument, context)
+                        self.engines[name].price(
+                            dated_history(instrument, context), context
+                        )
                     with self.assertRaises(UnsupportedOperationError):
                         self.engines[name].price_with_greeks(
-                            instrument, context, "delta"
+                            dated_history(instrument, context), context, "delta"
                         )
                     with self.assertRaises(UnsupportedOperationError):
                         pricing.implied_volatility(
-                            self.engines[name], instrument, context, 1
+                            self.engines[name],
+                            dated_history(instrument, context),
+                            context,
+                            1,
                         )
 
     def context_for(self, name):
@@ -332,13 +338,15 @@ class SupportMatrixTests(unittest.TestCase):
                 engine = self.engines[name]
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     with self.assertRaises(InvalidInputError):
-                        engine.price(instrument, expired)
+                        engine.price(dated_history(instrument, expired), expired)
                     with self.assertRaises(
                         UnsupportedOperationError
                         if name in HESTON_ENGINES
                         else InvalidInputError
                     ):
-                        pricing.implied_volatility(engine, instrument, expired, 1)
+                        pricing.implied_volatility(
+                            engine, dated_history(instrument, expired), expired, 1
+                        )
         self.assertEqual(self.context.valuation_time, datetime(2026, 1, 1))
 
     def test_solver_rejects_unregistered_engine_representations(self):
@@ -354,7 +362,9 @@ class SupportMatrixTests(unittest.TestCase):
             pricing.AnalyticEuropeanEngine,
         ):
             with self.subTest(engine=engine), self.assertRaises(TypeError):
-                pricing.implied_volatility(engine, instrument, self.context, 1)
+                pricing.implied_volatility(
+                    engine, dated_history(instrument, self.context), self.context, 1
+                )
 
     def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(self):
         for instrument, supported, expected in self.cases:
@@ -362,8 +372,13 @@ class SupportMatrixTests(unittest.TestCase):
                 engine = self.engines[name]
                 context = self.context_for(name)
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    self.assertAlmostEqual(engine.price(instrument, context), expected)
-                    result = engine.price_with_greeks(instrument, context, ["delta"])
+                    self.assertAlmostEqual(
+                        engine.price(dated_history(instrument, context), context),
+                        expected,
+                    )
+                    result = engine.price_with_greeks(
+                        dated_history(instrument, context), context, ["delta"]
+                    )
                     self.assertAlmostEqual(result.price, expected)
                     if name in HESTON_ENGINES:
                         self.assertIsNone(result.delta)
@@ -379,7 +394,10 @@ class SupportMatrixTests(unittest.TestCase):
                     self.assertEqual(result.status("gamma"), "not_requested")
                     with self.assertRaises(UnsupportedOperationError) as error:
                         pricing.implied_volatility(
-                            engine, instrument, self.context, expected
+                            engine,
+                            dated_history(instrument, self.context),
+                            self.context,
+                            expected,
                         )
                     self.assertIs(type(error.exception), UnsupportedOperationError)
 
@@ -401,7 +419,7 @@ class SupportMatrixTests(unittest.TestCase):
                     continue
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     result = self.engines[name].price_with_greeks(
-                        instrument, local, ["delta", "vega"]
+                        dated_history(instrument, local), local, ["delta", "vega"]
                     )
                     self.assertEqual(result.requested, ["delta", "vega"])
                     self.assertEqual(result.supported, ["delta", "gamma"])
@@ -419,11 +437,22 @@ class SupportMatrixTests(unittest.TestCase):
                     continue
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     with self.assertRaises(UnsupportedOperationError):
-                        engine.price(instrument, self.context)
+                        engine.price(
+                            dated_history(instrument, self.context), self.context
+                        )
                     with self.assertRaises(UnsupportedOperationError):
-                        engine.price_with_greeks(instrument, self.context, ["delta"])
+                        engine.price_with_greeks(
+                            dated_history(instrument, self.context),
+                            self.context,
+                            ["delta"],
+                        )
                     with self.assertRaises(UnsupportedOperationError):
-                        pricing.implied_volatility(engine, instrument, self.context, 1)
+                        pricing.implied_volatility(
+                            engine,
+                            dated_history(instrument, self.context),
+                            self.context,
+                            1,
+                        )
 
     def test_invalid_instrument_representations_keep_native_errors(self):
         for name, engine in self.engines.items():
@@ -438,11 +467,22 @@ class SupportMatrixTests(unittest.TestCase):
             ):
                 with self.subTest(engine=name, instrument=instrument):
                     with self.assertRaises(TypeError):
-                        engine.price(instrument, self.context)
+                        engine.price(
+                            dated_history(instrument, self.context), self.context
+                        )
                     with self.assertRaises(TypeError):
-                        engine.price_with_greeks(instrument, self.context, ["delta"])
+                        engine.price_with_greeks(
+                            dated_history(instrument, self.context),
+                            self.context,
+                            ["delta"],
+                        )
                     with self.assertRaises(TypeError):
-                        pricing.implied_volatility(engine, instrument, self.context, 1)
+                        pricing.implied_volatility(
+                            engine,
+                            dated_history(instrument, self.context),
+                            self.context,
+                            1,
+                        )
 
     def test_autocallable_instrument_conversion_precedes_greek_name_validation(self):
         for name, engine in self.engines.items():
@@ -454,7 +494,11 @@ class SupportMatrixTests(unittest.TestCase):
             ):
                 with self.subTest(engine=name, instrument=type(instrument).__name__):
                     with self.assertRaises(expected_error) as error:
-                        engine.price_with_greeks(instrument, self.context, ["invalid"])
+                        engine.price_with_greeks(
+                            dated_history(instrument, self.context),
+                            self.context,
+                            ["invalid"],
+                        )
                     self.assertIs(type(error.exception), expected_error)
 
     def test_statistics_reject_unsupported_products_as_domain_errors(self):
@@ -477,9 +521,13 @@ class SupportMatrixTests(unittest.TestCase):
                     self.subTest(engine=name, instrument=type(instrument).__name__),
                     self.assertRaises(UnsupportedOperationError),
                 ):
-                    engine.price_with_statistics(instrument, self.context)
+                    engine.price_with_statistics(
+                        dated_history(instrument, self.context), self.context
+                    )
             with self.assertRaises(TypeError):
-                engine.price_with_statistics(object(), self.context)
+                engine.price_with_statistics(
+                    dated_history(object(), self.context), self.context
+                )
 
     def test_coupon_solver_rejects_unsupported_products_and_engines(self):
         for solver, accepted, keywords in (

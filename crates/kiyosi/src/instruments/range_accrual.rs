@@ -57,6 +57,7 @@ impl RangeAccrualTerms {
 /// See [`Self::new`] for an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RangeAccrualOption {
+    history_time: Option<Timestamp>,
     terms: RangeAccrualTerms,
 }
 
@@ -110,7 +111,10 @@ impl RangeAccrualOption {
                 "range accrual requires a positive contract term".into(),
             ));
         }
-        let option = Self { terms };
+        let option = Self {
+            terms,
+            history_time: None,
+        };
         option.validate_calendar()?;
         Ok(option)
     }
@@ -253,6 +257,14 @@ impl RangeAccrualOption {
 }
 
 impl OptionContract for RangeAccrualOption {
+    fn history_time(&self) -> Option<Timestamp> {
+        self.history_time
+    }
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+        self.history_time = time;
+        self
+    }
+
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -391,6 +403,6 @@ impl RangeAccrualOption {
                 && self.observation_schedule()? != updated.observation_schedule()?,
             "realized_hit_count",
         )?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.history_time))
     }
 }

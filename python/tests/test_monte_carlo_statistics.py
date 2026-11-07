@@ -9,6 +9,7 @@ from kiyosi import ComputationFailureError, InvalidInputError, UnsupportedOperat
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
+from support.history import dated as dated_history
 
 START, END = datetime(2025, 1, 2), datetime(2026, 1, 2)
 LIFE = {"effective_time": START, "expiry_time": END}
@@ -115,7 +116,9 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                             sampling=sampling,
                             antithetic=True,
                         )
-                        estimate = sampler.price_with_statistics(option, snapshot)
+                        estimate = sampler.price_with_statistics(
+                            dated_history(option, snapshot), snapshot
+                        )
                         self.assertIsNotNone(estimate.seed)
                         self.assertGreaterEqual(estimate.seed, 0)
                         self.assertLessEqual(estimate.seed, 2**64 - 1)
@@ -131,14 +134,22 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                             thread_count=4,
                         )
                         self.assertEqual(
-                            replay.price_with_statistics(option, snapshot), estimate
+                            replay.price_with_statistics(
+                                dated_history(option, snapshot), snapshot
+                            ),
+                            estimate,
                         )
-                        self.assertEqual(replay.price(option, snapshot), estimate.price)
+                        self.assertEqual(
+                            replay.price(dated_history(option, snapshot), snapshot),
+                            estimate.price,
+                        )
                         restored = pickle.loads(pickle.dumps(estimate))
                         self.assertEqual(restored, estimate)
                         self.assertEqual(restored.seed, estimate.seed)
                         self.assertIsNone(
-                            sampler.price_with_statistics(option, deterministic).seed
+                            sampler.price_with_statistics(
+                                dated_history(option, deterministic), deterministic
+                            ).seed
                         )
 
     def test_statistics_preserve_prices_and_uncertainty_across_products_and_threads(
@@ -149,8 +160,13 @@ class MonteCarloStatisticsTests(unittest.TestCase):
             for antithetic in (False, True):
                 with self.subTest(product=name, antithetic=antithetic):
                     serial = engine(factory, antithetic=antithetic)
-                    estimate = serial.price_with_statistics(option, snapshot)
-                    self.assertEqual(estimate.price, serial.price(option, snapshot))
+                    estimate = serial.price_with_statistics(
+                        dated_history(option, snapshot), snapshot
+                    )
+                    self.assertEqual(
+                        estimate.price,
+                        serial.price(dated_history(option, snapshot), snapshot),
+                    )
                     self.assertGreater(estimate.standard_error, 0)
                     self.assertEqual(estimate.uncertainty_status, "available")
                     lower, upper = estimate.confidence_interval
@@ -158,7 +174,9 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                     self.assertLess(estimate.price, upper)
                     parallel = engine(factory, thread_count=4, antithetic=antithetic)
                     for other in (
-                        parallel.price_with_statistics(option, snapshot),
+                        parallel.price_with_statistics(
+                            dated_history(option, snapshot), snapshot
+                        ),
                         pickle.loads(pickle.dumps(estimate)),
                     ):
                         self.assertEqual(other.price, estimate.price)
@@ -174,7 +192,7 @@ class MonteCarloStatisticsTests(unittest.TestCase):
             with self.subTest(antithetic=antithetic):
                 estimate = engine(
                     p.MonteCarloDigitalEngine, antithetic=antithetic
-                ).price_with_statistics(option, context())
+                ).price_with_statistics(dated_history(option, context()), context())
                 probability = estimate.price / amount
                 scale, count = amount, 4096
                 if antithetic:
@@ -203,8 +221,12 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                 continue
             with self.subTest(product=name):
                 snapshot = context()
-                estimate = engine(factory).price_with_statistics(option, snapshot)
-                expected = references[name].price(option, snapshot)
+                estimate = engine(factory).price_with_statistics(
+                    dated_history(option, snapshot), snapshot
+                )
+                expected = references[name].price(
+                    dated_history(option, snapshot), snapshot
+                )
                 self.assertLess(
                     abs(estimate.price - expected), 6 * estimate.standard_error
                 )
@@ -228,8 +250,13 @@ class MonteCarloStatisticsTests(unittest.TestCase):
             for name, factory, option in contracts():
                 with self.subTest(case=case, product=name):
                     sampler = engine(factory, **settings)
-                    estimate = sampler.price_with_statistics(option, context())
-                    self.assertEqual(estimate.price, sampler.price(option, context()))
+                    estimate = sampler.price_with_statistics(
+                        dated_history(option, context()), context()
+                    )
+                    self.assertEqual(
+                        estimate.price,
+                        sampler.price(dated_history(option, context()), context()),
+                    )
                     self.assertIsNone(estimate.standard_error)
                     self.assertIsNone(estimate.confidence_interval)
                     self.assertEqual(estimate.uncertainty_status, status)
@@ -249,7 +276,7 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                 with self.subTest(product=name, sampling=sampling):
                     estimate = engine(
                         factory, path_count=1, sampling=sampling
-                    ).price_with_statistics(option, snapshot)
+                    ).price_with_statistics(dated_history(option, snapshot), snapshot)
                     self.assertEqual(estimate.price, expected_price)
                     if sampling == "sobol":
                         self.assertIsNone(estimate.standard_error)
@@ -273,11 +300,15 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                 else p.AnalyticDoubleBarrierEngine()
             )
             with self.subTest(product=name):
-                base = sampler.price_with_statistics(zero, snapshot)
-                actual = sampler.price_with_statistics(rebate, snapshot)
-                shift = reference.price(rebate, snapshot) - reference.price(
-                    zero, snapshot
+                base = sampler.price_with_statistics(
+                    dated_history(zero, snapshot), snapshot
                 )
+                actual = sampler.price_with_statistics(
+                    dated_history(rebate, snapshot), snapshot
+                )
+                shift = reference.price(
+                    dated_history(rebate, snapshot), snapshot
+                ) - reference.price(dated_history(zero, snapshot), snapshot)
                 self.assertEqual(actual.standard_error, base.standard_error)
                 self.assertAlmostEqual(actual.price - base.price, shift, delta=1e-12)
 
@@ -290,8 +321,13 @@ class MonteCarloStatisticsTests(unittest.TestCase):
             )
             with self.subTest(product=name):
                 sampler = engine(factory)
-                estimate = sampler.price_with_statistics(option, context())
-                self.assertEqual(estimate.price, sampler.price(option, context()))
+                estimate = sampler.price_with_statistics(
+                    dated_history(option, context()), context()
+                )
+                self.assertEqual(
+                    estimate.price,
+                    sampler.price(dated_history(option, context()), context()),
+                )
                 self.assertGreater(estimate.standard_error, 0)
 
     def test_resolved_barriers_report_zero_error_before_expiry(self):
@@ -306,12 +342,16 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                 )
                 option = original.replace(barrier_type=kind, rebate=7)
                 expected = (
-                    p.AnalyticEuropeanEngine().price(vanilla, snapshot)
+                    p.AnalyticEuropeanEngine().price(
+                        dated_history(vanilla, snapshot), snapshot
+                    )
                     if knock_in
                     else 7 * math.exp(-0.05)
                 )
                 with self.subTest(product=name, knock_in=knock_in):
-                    estimate = engine(factory).price_with_statistics(option, snapshot)
+                    estimate = engine(factory).price_with_statistics(
+                        dated_history(option, snapshot), snapshot
+                    )
                     self.assertAlmostEqual(estimate.price, expected, delta=1e-12)
                     self.assertEqual(estimate.standard_error, 0)
                     self.assertEqual(
@@ -321,11 +361,13 @@ class MonteCarloStatisticsTests(unittest.TestCase):
     def test_uncertainty_failure_does_not_prevent_scalar_pricing(self):
         option = contracts()[0][2].replace(payout=1.6e308)
         sampler = engine(p.MonteCarloDigitalEngine, path_count=2, seed=0)
-        price = sampler.price(option, context())
+        price = sampler.price(dated_history(option, context()), context())
         self.assertAlmostEqual(price / (8e307 * math.exp(-0.05)), 1, delta=1e-13)
         with self.assertRaises(ComputationFailureError):
-            sampler.price_with_statistics(option, context())
-        self.assertEqual(sampler.price(option, context()), price)
+            sampler.price_with_statistics(dated_history(option, context()), context())
+        self.assertEqual(
+            sampler.price(dated_history(option, context()), context()), price
+        )
 
     def test_arithmetic_statistics_support_curves_and_known_history(self):
         option = contracts()[3][2]
@@ -336,8 +378,12 @@ class MonteCarloStatisticsTests(unittest.TestCase):
             )
         )
         sampler = engine(p.MonteCarloAsianEngine)
-        estimate = sampler.price_with_statistics(option, snapshot)
-        self.assertEqual(estimate.price, sampler.price(option, snapshot))
+        estimate = sampler.price_with_statistics(
+            dated_history(option, snapshot), snapshot
+        )
+        self.assertEqual(
+            estimate.price, sampler.price(dated_history(option, snapshot), snapshot)
+        )
         self.assertGreater(estimate.standard_error, 0)
         snapshot = context().replace(
             valuation_time=START + timedelta(days=182, hours=12)
@@ -345,7 +391,9 @@ class MonteCarloStatisticsTests(unittest.TestCase):
         for direction in ("call", "put"):
             with self.subTest(direction=direction):
                 seasoned = option.replace(option_type=direction, realized_average=1000)
-                estimate = sampler.price_with_statistics(seasoned, snapshot)
+                estimate = sampler.price_with_statistics(
+                    dated_history(seasoned, snapshot), snapshot
+                )
                 expected = (
                     (400 + 50 * math.expm1(0.015) / 0.015) * math.exp(-0.025)
                     if direction == "call"
@@ -370,18 +418,32 @@ class MonteCarloStatisticsTests(unittest.TestCase):
             with self.subTest(product=name):
                 with self.assertRaises(InvalidInputError):
                     sampler.price_with_statistics(
-                        option, snapshot.replace(valuation_time=END + timedelta(days=1))
+                        dated_history(
+                            option,
+                            snapshot.replace(valuation_time=END + timedelta(days=1)),
+                        ),
+                        snapshot.replace(valuation_time=END + timedelta(days=1)),
                     )
                 with self.assertRaises(UnsupportedOperationError):
                     sampler.price_with_statistics(
-                        option, snapshot.replace(model_parameters=heston)
+                        dated_history(
+                            option, snapshot.replace(model_parameters=heston)
+                        ),
+                        snapshot.replace(model_parameters=heston),
                     )
                 if name not in ("cash", "asset"):
                     with self.assertRaises(InvalidInputError):
                         sampler.price_with_statistics(
-                            option,
+                            dated_history(
+                                option,
+                                snapshot.replace(
+                                    valuation_time=START + timedelta(days=1)
+                                ),
+                            ),
                             snapshot.replace(valuation_time=START + timedelta(days=1)),
                         )
         american = i.AmericanOption(option_type="put", strike=100, **LIFE)
         with self.assertRaises(UnsupportedOperationError):
-            engine(p.MonteCarloVanillaEngine).price_with_statistics(american, snapshot)
+            engine(p.MonteCarloVanillaEngine).price_with_statistics(
+                dated_history(american, snapshot), snapshot
+            )

@@ -12,6 +12,7 @@ from kiyosi import (
 from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import implied_volatility, numerical_greeks
+from support.history import dated as dated_history
 
 
 class AsianRegressionTests(unittest.TestCase):
@@ -46,7 +47,12 @@ class AsianRegressionTests(unittest.TestCase):
                                     spot_price=50 * scale,
                                     valuation_time=valuation,
                                 )
-                                values.append(engine.price(option, context) / scale)
+                                values.append(
+                                    engine.price(
+                                        dated_history(option, context), context
+                                    )
+                                    / scale
+                                )
                             self.assertTrue(
                                 math.isclose(values[0], values[1], rel_tol=1e-10),
                                 values,
@@ -81,7 +87,7 @@ class AsianRegressionTests(unittest.TestCase):
                 )
                 result = numerical_greeks(
                     engine,
-                    option,
+                    dated_history(option, context),
                     context,
                     greeks="vanna",
                     spot_shift=1e-201,
@@ -122,7 +128,9 @@ class AsianRegressionTests(unittest.TestCase):
             )
 
             def calculate(selection, engine=engine, option=option):
-                return numerical_greeks(engine, option, context, **selection)
+                return numerical_greeks(
+                    engine, dated_history(option, context), context, **selection
+                )
 
             selections = [
                 {"greeks": "delta"},
@@ -144,7 +152,11 @@ class AsianRegressionTests(unittest.TestCase):
                 for selection in selections[:3]:
                     with self.assertRaises(InvalidInputError) as error:
                         numerical_greeks(
-                            engine, option, context, **selection, spot_shift=0
+                            engine,
+                            dated_history(option, context),
+                            context,
+                            **selection,
+                            spot_shift=0,
                         )
                     self.assertIs(type(error.exception), InvalidInputError)
 
@@ -181,7 +193,7 @@ class AsianRegressionTests(unittest.TestCase):
                         spot_price=amount,
                         valuation_time=valuation,
                     )
-                    actual = engine.price(option, context)
+                    actual = engine.price(dated_history(option, context), context)
                     if direction == "call":
                         self.assertAlmostEqual(actual, expected, delta=expected * 1e-12)
                     else:
@@ -202,7 +214,7 @@ class AsianRegressionTests(unittest.TestCase):
             valuation_time=start + timedelta(days=365),
         )
         with self.assertRaises(ComputationFailureError) as error:
-            engine.price(option, context)
+            engine.price(dated_history(option, context), context)
         self.assertIs(type(error.exception), ComputationFailureError)
 
     def test_asian_terms_preserve_validation_precedence(self):
@@ -269,7 +281,7 @@ class AsianRegressionTests(unittest.TestCase):
                         )
                         actual = (
                             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
-                                option, context
+                                dated_history(option, context), context
                             )
                         )
                         self.assertAlmostEqual(actual, expected, delta=expected * 1e-12)
@@ -311,12 +323,14 @@ class AsianRegressionTests(unittest.TestCase):
                     with self.subTest(
                         direction=direction, scale=scale, engine=type(engine).__name__
                     ):
-                        actual = engine.price(option, context)
+                        actual = engine.price(dated_history(option, context), context)
                         self.assertTrue(
                             math.isclose(actual, expected * scale, rel_tol=1e-8)
                         )
                         self.assertEqual(
-                            engine.price_with_greeks(option, context, "delta").price,
+                            engine.price_with_greeks(
+                                dated_history(option, context), context, "delta"
+                            ).price,
                             actual,
                         )
 
@@ -346,12 +360,12 @@ class AsianRegressionTests(unittest.TestCase):
                     option = ArithmeticAveragePriceOption(
                         **terms, realized_average=realized
                     )
-                    quote = engine.price(option, context)
+                    quote = engine.price(dated_history(option, context), context)
                     if realized < 200:
                         self.assertAlmostEqual(
                             implied_volatility(
                                 engine,
-                                option,
+                                dated_history(option, context),
                                 context,
                                 quote,
                                 lower_bound=0.05,
@@ -363,7 +377,12 @@ class AsianRegressionTests(unittest.TestCase):
                     else:
                         for observed in (quote, quote + 1):
                             with self.assertRaises(UnsupportedOperationError) as error:
-                                implied_volatility(engine, option, context, observed)
+                                implied_volatility(
+                                    engine,
+                                    dated_history(option, context),
+                                    context,
+                                    observed,
+                                )
                             self.assertIs(
                                 type(error.exception),
                                 UnsupportedOperationError,
@@ -375,9 +394,9 @@ class AsianRegressionTests(unittest.TestCase):
             self.assertAlmostEqual(
                 implied_volatility(
                     geometric_engine,
-                    geometric,
+                    dated_history(geometric, context),
                     context,
-                    geometric_engine.price(geometric, context),
+                    geometric_engine.price(dated_history(geometric, context), context),
                     lower_bound=0.05,
                     upper_bound=0.4,
                     price_tolerance=1e-30,
@@ -438,7 +457,9 @@ class AsianRegressionTests(unittest.TestCase):
                                 expiry_time=end,
                                 realized_average=spot if window == 2 else None,
                             )
-                            actual = engine.price(option, context)
+                            actual = engine.price(
+                                dated_history(option, context), context
+                            )
                             self.assertAlmostEqual(
                                 actual, expected, delta=max(1e-24, expected * 1e-9)
                             )
@@ -480,7 +501,7 @@ class AsianRegressionTests(unittest.TestCase):
                     )
                     actual = (
                         pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
-                            option, context
+                            dated_history(option, context), context
                         )
                     )
                     self.assertAlmostEqual(actual, expected, delta=5e-7)
@@ -503,7 +524,7 @@ class AsianRegressionTests(unittest.TestCase):
         )
         self.assertEqual(
             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
-                oversized, context
+                dated_history(oversized, context), context
             ),
             0,
         )
@@ -561,7 +582,7 @@ class AsianRegressionTests(unittest.TestCase):
                                 realized_average=spot if window == 2 else None,
                             )
                             price = pricing.AnalyticGeometricAveragePriceEngine().price(
-                                option, context
+                                dated_history(option, context), context
                             )
                             self.assertAlmostEqual(
                                 price, expected, delta=max(expected * 1e-9, 1e-170)
@@ -589,14 +610,22 @@ class AsianRegressionTests(unittest.TestCase):
                         "averaging_start_time": end,
                         "expiry_time": end,
                     }
-                    actual = engine.price(GeometricAveragePriceOption(**terms), context)
+                    actual = engine.price(
+                        dated_history(GeometricAveragePriceOption(**terms), context),
+                        context,
+                    )
                     expected = 1e14 * math.erf(sigma / (2 * math.sqrt(2)))
                     self.assertAlmostEqual(
                         actual, expected, delta=max(1e-12, expected * 1e-12)
                     )
                     with self.assertRaises(InvalidInputError) as error:
                         engine.price(
-                            GeometricAveragePriceOption(**terms, realized_average=1e14),
+                            dated_history(
+                                GeometricAveragePriceOption(
+                                    **terms, realized_average=1e14
+                                ),
+                                context,
+                            ),
                             context,
                         )
                     self.assertIs(type(error.exception), InvalidInputError)
@@ -610,12 +639,15 @@ class AsianRegressionTests(unittest.TestCase):
                 valuation_time=end,
             )
             settled = engine.price(
-                GeometricAveragePriceOption(
-                    option_type=direction,
-                    strike=100,
-                    effective_time=start,
-                    averaging_start_time=end,
-                    expiry_time=end,
+                dated_history(
+                    GeometricAveragePriceOption(
+                        option_type=direction,
+                        strike=100,
+                        effective_time=start,
+                        averaging_start_time=end,
+                        expiry_time=end,
+                    ),
+                    expired,
                 ),
                 expired,
             )

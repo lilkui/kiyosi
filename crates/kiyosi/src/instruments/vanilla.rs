@@ -131,6 +131,27 @@ pub trait OptionContract {
     /// Returns the inclusive expiry timestamp. See [`DigitalOption::expiry_time`].
     fn expiry_time(&self) -> Timestamp;
 
+    /// Returns the timestamp through which supplied history is known, if dated.
+    ///
+    /// History describes events strictly before this timestamp. See [`Self::with_history_time`].
+    fn history_time(&self) -> Option<Timestamp> {
+        None
+    }
+
+    /// Dates supplied history at `time`, consuming and returning this contract.
+    ///
+    /// Built-in path-dependent contracts require dated history at pricing. Reuse across
+    /// observations is rejected; continuously accumulated history requires the same instant.
+    /// Dates outside the contract life or after valuation are rejected at pricing. Contracts without history
+    /// retain their value. See the [crate-level history example](crate).
+    #[must_use]
+    fn with_history_time(self, _time: Option<Timestamp>) -> Self
+    where
+        Self: Sized,
+    {
+        self
+    }
+
     /// Returns the earliest valuation time, or `None` when pre-effective valuation is valid.
     ///
     /// European vanilla and digital contracts allow earlier valuation. Other built-in contracts

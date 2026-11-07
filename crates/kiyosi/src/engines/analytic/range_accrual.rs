@@ -47,11 +47,13 @@ impl AnalyticRangeAccrualEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
+    /// # use kiyosi::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace_history(Some(1))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     95.0, option.expiry_time().into())?;
+    /// let option = option.with_history_time(Some(context.valuation_time()));
     /// assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - 240.0 / 365.0).abs() < 1e-12);
     /// # Ok(()) }
     /// ```
@@ -75,6 +77,12 @@ impl AnalyticRangeAccrualEngine {
                 "missing or excessive prior hits".into(),
             ));
         }
+        crate::instruments::validate_history_time(
+            option,
+            option.realized_hit_count().is_some(),
+            context,
+            false,
+        )?;
         let mut hits = f64::from(option.realized_hit_count().unwrap_or(0));
         let mut future = first;
         if dates.get(future).is_some_and(|date| *date == valuation) {

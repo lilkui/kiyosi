@@ -20,6 +20,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, contract, market
 
@@ -33,11 +34,13 @@ class AutocallableMonteCarloTests(unittest.TestCase):
     def test_terminal_price_matches_quadrature_with_sampling_error(self):
         note, context = contract(), market()
         engine = MC(path_count=32768, seed=42)
-        result = engine.price_with_statistics(note, context)
-        self.assertEqual(result.price, engine.price(note, context))
+        result = engine.price_with_statistics(dated_history(note, context), context)
+        self.assertEqual(
+            result.price, engine.price(dated_history(note, context), context)
+        )
         self.assertAlmostEqual(
             result.price,
-            QuadratureAutocallableEngine().price(note, context),
+            QuadratureAutocallableEngine().price(dated_history(note, context), context),
             delta=4 * result.standard_error,
         )
         lower, upper = result.confidence_interval
@@ -79,27 +82,44 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             engine.seed = 42
         note, context = phoenix(), market()
         for operation in (
-            lambda: engine.price(object(), context),
-            lambda: engine.price_with_statistics(object(), context),
-            lambda: numerical_greeks(engine, note, context, "delta", spot_shift=True),
-            lambda: implied_volatility(engine, note, context, True),
-            lambda: implied_volatility(engine, note, context, 1, max_iterations=2.5),
-            lambda: implied_phoenix_coupon(engine, note, context, True),
-            lambda: implied_phoenix_coupon(
-                engine, note, context, 1, max_iterations=True
+            lambda: engine.price(dated_history(object(), context), context),
+            lambda: engine.price_with_statistics(
+                dated_history(object(), context), context
+            ),
+            lambda: numerical_greeks(
+                engine, dated_history(note, context), context, "delta", spot_shift=True
+            ),
+            lambda: implied_volatility(
+                engine, dated_history(note, context), context, True
+            ),
+            lambda: implied_volatility(
+                engine, dated_history(note, context), context, 1, max_iterations=2.5
             ),
             lambda: implied_phoenix_coupon(
-                engine, note, context, 1, quote_convention="shift_maturity_coupon"
+                engine, dated_history(note, context), context, True
+            ),
+            lambda: implied_phoenix_coupon(
+                engine, dated_history(note, context), context, 1, max_iterations=True
+            ),
+            lambda: implied_phoenix_coupon(
+                engine,
+                dated_history(note, context),
+                context,
+                1,
+                quote_convention="shift_maturity_coupon",
             ),
         ):
             with self.assertRaises(TypeError):
                 operation()
         self.assert_rejection(
-            InvalidInputError, lambda: engine.price_with_greeks(note, context, [])
+            InvalidInputError,
+            lambda: engine.price_with_greeks(dated_history(note, context), context, []),
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: numerical_greeks(engine, note, context, "delta", spot_shift=0),
+            lambda: numerical_greeks(
+                engine, dated_history(note, context), context, "delta", spot_shift=0
+            ),
         )
         curve = RateTermStructure(
             reference_time=START,
@@ -110,11 +130,12 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )
         self.assert_rejection(
-            UnsupportedOperationError, lambda: engine.price(note, curved)
+            UnsupportedOperationError,
+            lambda: engine.price(dated_history(note, curved), curved),
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: engine.price_with_greeks(note, curved, []),
+            lambda: engine.price_with_greeks(dated_history(note, curved), curved, []),
         )
 
     def test_statistics_counts_sobol_and_shared_engine_concurrency(self):
@@ -129,14 +150,14 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                         "antithetic": antithetic,
                     }
                     serial = MC(**fields, thread_count=1).price_with_statistics(
-                        note, context
+                        dated_history(note, context), context
                     )
                     engine = MC(**fields, thread_count=3)
                     with ThreadPoolExecutor(max_workers=2) as pool:
                         results = list(
                             pool.map(
                                 lambda _, engine=engine: engine.price_with_statistics(
-                                    note, context
+                                    dated_history(note, context), context
                                 ),
                                 range(2),
                             )
@@ -161,7 +182,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                     )
         self.assertIsNone(
             MC(path_count=31, antithetic=True, seed=42)
-            .price_with_statistics(note, context)
+            .price_with_statistics(dated_history(note, context), context)
             .standard_error
         )
 
@@ -177,11 +198,15 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             100, datetime(2025, 2, 3), volatility=1e-12, rate=0, dividend=0
         )
         self.assertAlmostEqual(
-            engine.price(note, at_event), 1 + 0.365 * 90 / 365, delta=1e-14
+            engine.price(dated_history(note, at_event), at_event),
+            1 + 0.365 * 90 / 365,
+            delta=1e-14,
         )
         after_event = at_event.replace(valuation_time=datetime(2025, 2, 3, 0, 0, 0, 1))
         self.assertAlmostEqual(
-            engine.price(note, after_event), 1 + 0.365 * 57 / 365, delta=1e-14
+            engine.price(dated_history(note, after_event), after_event),
+            1 + 0.365 * 57 / 365,
+            delta=1e-14,
         )
         weekend = datetime(2025, 1, 4)
         snow = contract(
@@ -193,22 +218,38 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                 [datetime(2025, 1, 6)], [120], knock_out_coupon_rates=[0.12]
             ),
         )
-        first = engine.price(snow, market(79, weekend, volatility=0.2))
+        first = engine.price(
+            dated_history(snow, market(79, weekend, volatility=0.2)),
+            market(79, weekend, volatility=0.2),
+        )
         later = engine.price(
-            snow, market(79, weekend + timedelta(microseconds=1), volatility=0.2)
+            dated_history(
+                snow, market(79, weekend + timedelta(microseconds=1), volatility=0.2)
+            ),
+            market(79, weekend + timedelta(microseconds=1), volatility=0.2),
         )
         self.assertAlmostEqual(first, later, delta=1e-7)
 
     def test_solvers_reject_fixed_cashflows_and_preserve_state(self):
         engine, note, context = MC(path_count=4096, seed=42), phoenix(), market()
         snapshot = repr(note), repr(context)
-        quote = engine.price(note, context)
+        quote = engine.price(dated_history(note, context), context)
         sigma = implied_volatility(
-            engine, note, context, quote, lower_bound=0.2, upper_bound=0.4
+            engine,
+            dated_history(note, context),
+            context,
+            quote,
+            lower_bound=0.2,
+            upper_bound=0.4,
         )
         self.assertAlmostEqual(sigma, 0.3, delta=1e-6)
         coupon = implied_phoenix_coupon(
-            engine, note, context, quote, lower_bound=-0.1, upper_bound=0.5
+            engine,
+            dated_history(note, context),
+            context,
+            quote,
+            lower_bound=-0.1,
+            upper_bound=0.5,
         )
         self.assertAlmostEqual(coupon, note.coupon_rate, delta=1e-8)
         self.assertEqual((repr(note), repr(context)), snapshot)
@@ -224,7 +265,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         for _ in range(3):
             solved = implied_phoenix_coupon(
                 unseeded,
-                exposed,
+                dated_history(exposed, market(rate=0)),
                 market(rate=0),
                 1.01,
                 lower_bound=0,
@@ -242,20 +283,24 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                 [END], [110], knock_out_coupon_rates=[0]
             ),
         )
-        estimate = MC(path_count=1).price_with_statistics(fixed, market(rate=0))
+        estimate = MC(path_count=1).price_with_statistics(
+            dated_history(fixed, market(rate=0)), market(rate=0)
+        )
         self.assertEqual(
             (estimate.price, estimate.standard_error, estimate.confidence_interval),
             (1, 0, (1, 1)),
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: implied_volatility(engine, fixed, market(rate=0), 1),
+            lambda: implied_volatility(
+                engine, dated_history(fixed, market(rate=0)), market(rate=0), 1
+            ),
         )
         self.assert_rejection(
             UnsupportedOperationError,
             lambda: implied_snowball_coupon(
                 engine,
-                fixed,
+                dated_history(fixed, market(100, END)),
                 market(100, END),
                 1,
                 quote_convention="preserve_maturity_coupon",
@@ -263,11 +308,15 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: implied_phoenix_coupon(engine, note, context, math.nan),
+            lambda: implied_phoenix_coupon(
+                engine, dated_history(note, context), context, math.nan
+            ),
         )
         self.assert_rejection(
             RootNotBracketedError,
-            lambda: implied_phoenix_coupon(engine, note, context, 100),
+            lambda: implied_phoenix_coupon(
+                engine, dated_history(note, context), context, 100
+            ),
         )
 
     def test_quantlib_terminal_payoff_portfolios(self):
@@ -290,7 +339,9 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         engine = MC(path_count=65536, seed=42, antithetic=True)
         for row in rows:
             with self.subTest(case=row["case_id"]):
-                result = engine.price_with_statistics(contract(row), market(row))
+                result = engine.price_with_statistics(
+                    dated_history(contract(row), market(row)), market(row)
+                )
                 self.assertAlmostEqual(
                     result.price,
                     float(row["outputs"]["price"]),
@@ -311,8 +362,15 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             lambda: engine.price(
-                contract(**fields, knock_in_observation_mode="every_trading_day"),
+                dated_history(
+                    contract(**fields, knock_in_observation_mode="every_trading_day"),
+                    market(),
+                ),
                 market(),
             ),
         )
-        self.assertTrue(math.isfinite(engine.price(contract(**fields), market())))
+        self.assertTrue(
+            math.isfinite(
+                engine.price(dated_history(contract(**fields), market()), market())
+            )
+        )

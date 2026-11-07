@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {
@@ -30,9 +33,9 @@ fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
             ..Default::default()
         };
         let engine = MonteCarloAsianEngine::with_step_count(settings, 2).unwrap();
-        let price = engine.price(&option, &context).unwrap();
+        let price = engine.price(&dated(&option, &context), &context).unwrap();
         let reference = AnalyticGeometricAveragePriceEngine
-            .price(&option, &context)
+            .price(&dated(&option, &context), &context)
             .unwrap();
         assert!((price - reference).abs() < 0.01, "{price} vs {reference}");
         let changed = MonteCarloAsianEngine::with_step_count(
@@ -43,7 +46,10 @@ fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
             10000,
         )
         .unwrap();
-        assert_eq!(price, changed.price(&option, &context).unwrap());
+        assert_eq!(
+            price,
+            changed.price(&dated(&option, &context), &context).unwrap()
+        );
     }
 }
 
@@ -69,11 +75,11 @@ fn arithmetic_retains_conditioned_integration_and_converges() {
         .unwrap();
         let fine = MonteCarloAsianEngine::with_step_count(settings, 64)
             .unwrap()
-            .price(&option, &context)
+            .price(&dated(&option, &context), &context)
             .unwrap();
         let coarse = MonteCarloAsianEngine::with_step_count(settings, 2)
             .unwrap()
-            .price(&option, &context)
+            .price(&dated(&option, &context), &context)
             .unwrap();
         assert!((fine - expected).abs() < 0.001, "{fine} vs {expected}");
         assert!((fine - expected).abs() < (coarse - expected).abs());
@@ -121,15 +127,24 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
             .unwrap();
             let context = market(100.0, 0.2, valuation);
             let result = engine
-                .price_with_greeks(&a, &context, GreeksRequest::all())
+                .price_with_greeks(&dated(&a, &context), &context, GreeksRequest::all())
                 .unwrap();
-            assert_eq!(result.price(), engine.price(&a, &context).unwrap());
+            assert_eq!(
+                result.price(),
+                engine.price(&dated(&a, &context), &context).unwrap()
+            );
             for h in [0.05, 0.025] {
                 let up = engine
-                    .price(&a, &market(100.0 + h, 0.2, valuation))
+                    .price(
+                        &dated(&a, &market(100.0 + h, 0.2, valuation)),
+                        &market(100.0 + h, 0.2, valuation),
+                    )
                     .unwrap();
                 let down = engine
-                    .price(&a, &market(100.0 - h, 0.2, valuation))
+                    .price(
+                        &dated(&a, &market(100.0 - h, 0.2, valuation)),
+                        &market(100.0 - h, 0.2, valuation),
+                    )
                     .unwrap();
                 assert!(
                     (result.require(Greek::Delta).unwrap() - (up - down) / (2.0 * h)).abs()
@@ -149,10 +164,10 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
                 );
             }
             let actual = engine
-                .price_with_greeks(&g, &context, GreeksRequest::all())
+                .price_with_greeks(&dated(&g, &context), &context, GreeksRequest::all())
                 .unwrap();
             let expected = AnalyticGeometricAveragePriceEngine
-                .price_with_greeks(&g, &context, GreeksRequest::all())
+                .price_with_greeks(&dated(&g, &context), &context, GreeksRequest::all())
                 .unwrap();
             for (greek, budget) in [(Greek::Delta, 0.002), (Greek::Gamma, 0.001)] {
                 assert!(
@@ -162,7 +177,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
             }
             let scalar = numerical_greeks(
                 &engine,
-                &a,
+                &dated(&a, &context),
                 &context,
                 GreeksRequest::new([Greek::Vega, Greek::Theta]),
                 Default::default(),
@@ -173,7 +188,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
             let quote = result.price();
             let solved = implied_volatility(
                 &engine,
-                &a,
+                &dated(&a, &market(100.0, 0.35, valuation)),
                 &market(100.0, 0.35, valuation),
                 quote,
                 ImpliedVolatilitySettings {
@@ -225,24 +240,28 @@ fn sampling_exact_counts_threads_and_shared_calls_agree() {
             )
             .unwrap();
             let expected = serial
-                .price_with_greeks(&a, &context, GreeksRequest::all())
+                .price_with_greeks(&dated(&a, &context), &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(
                 expected,
                 parallel
-                    .price_with_greeks(&a, &context, GreeksRequest::all())
+                    .price_with_greeks(&dated(&a, &context), &context, GreeksRequest::all())
                     .unwrap()
             );
             assert_eq!(
-                serial.price(&g, &context).unwrap(),
-                parallel.price(&g, &context).unwrap()
+                serial.price(&dated(&g, &context), &context).unwrap(),
+                parallel.price(&dated(&g, &context), &context).unwrap()
             );
             std::thread::scope(|scope| {
                 let handles: Vec<_> = (0..4)
                     .map(|_| {
                         scope.spawn(|| {
                             parallel
-                                .price_with_greeks(&a, &context, GreeksRequest::all())
+                                .price_with_greeks(
+                                    &dated(&a, &context),
+                                    &context,
+                                    GreeksRequest::all(),
+                                )
                                 .unwrap()
                         })
                     })
@@ -267,12 +286,12 @@ fn sampling_exact_counts_threads_and_shared_calls_agree() {
         })
         .unwrap();
         assert_eq!(
-            plain.price(&a, &context).unwrap(),
-            paired.price(&a, &context).unwrap()
+            plain.price(&dated(&a, &context), &context).unwrap(),
+            paired.price(&dated(&a, &context), &context).unwrap()
         );
         assert_eq!(
-            plain.price(&g, &context).unwrap(),
-            paired.price(&g, &context).unwrap()
+            plain.price(&dated(&g, &context), &context).unwrap(),
+            paired.price(&dated(&g, &context), &context).unwrap()
         );
     }
 }
@@ -328,14 +347,18 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
         )
         .unwrap();
         let context = market(100.0, 0.2, valuation);
-        for result in [engine.price(&a, &context), engine.price(&g, &context)] {
+        for result in [
+            engine.price(&dated(&a, &context), &context),
+            engine.price(&dated(&g, &context), &context),
+        ] {
             if rejects {
                 assert!(matches!(result.unwrap_err(), Error::InvalidInput(_)));
             } else {
                 assert!(result.unwrap() >= 0.0);
             }
         }
-        let invalid = engine.price_with_greeks(&a, &context, GreeksRequest::new([]));
+        let invalid =
+            engine.price_with_greeks(&dated(&a, &context), &context, GreeksRequest::new([]));
         assert!(matches!(invalid.unwrap_err(), Error::InvalidInput(_)));
         assert_eq!(a.realized_average(), (history != 0.0).then_some(history));
     }
@@ -360,8 +383,8 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
         .unwrap();
         let context = market(100.0, 0.2, end);
         for result in [
-            engine.price_with_greeks(&a, &context, GreeksRequest::all()),
-            engine.price_with_greeks(&g, &context, GreeksRequest::all()),
+            engine.price_with_greeks(&dated(&a, &context), &context, GreeksRequest::all()),
+            engine.price_with_greeks(&dated(&g, &context), &context, GreeksRequest::all()),
         ] {
             let result = result.unwrap();
             assert_eq!(result.price(), expected);
@@ -375,7 +398,14 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             }
         }
         assert!(matches!(
-            implied_volatility(&engine, &a, &context, expected, Default::default()).unwrap_err(),
+            implied_volatility(
+                &engine,
+                &dated(&a, &context),
+                &context,
+                expected,
+                Default::default()
+            )
+            .unwrap_err(),
             Error::UnsupportedOperation(_)
         ));
     }
@@ -440,8 +470,8 @@ fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
             let g =
                 GeometricAveragePriceOption::new(direction, spot, start, start, end, None).unwrap();
             for price in [
-                engine.price(&a, &context).unwrap(),
-                engine.price(&g, &context).unwrap(),
+                engine.price(&dated(&a, &context), &context).unwrap(),
+                engine.price(&dated(&g, &context), &context).unwrap(),
             ] {
                 assert!(
                     (price / expected - 1.0).abs() < 0.002,
@@ -454,10 +484,18 @@ fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
         GeometricAveragePriceOption::new(OptionType::Call, 10.0, start, start, end, 100.0).unwrap();
     let context = market(100.0, 0.2, date(7, 1));
     let actual = engine
-        .price_with_greeks(&g, &context, GreeksRequest::new([Greek::Gamma]))
+        .price_with_greeks(
+            &dated(&g, &context),
+            &context,
+            GreeksRequest::new([Greek::Gamma]),
+        )
         .unwrap();
     let expected = AnalyticGeometricAveragePriceEngine
-        .price_with_greeks(&g, &context, GreeksRequest::new([Greek::Gamma]))
+        .price_with_greeks(
+            &dated(&g, &context),
+            &context,
+            GreeksRequest::new([Greek::Gamma]),
+        )
         .unwrap();
     assert!(actual.require(Greek::Gamma).unwrap() < 0.0);
     assert!(
@@ -513,36 +551,41 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
         )
         .unwrap();
         let context = PricingContext::new(model.clone(), 100.0, valuation).unwrap();
-        let actual = engine.price(&a, &context).unwrap();
-        let expected = engine.price(&a, &market(100.0, 0.2, valuation)).unwrap();
+        let actual = engine.price(&dated(&a, &context), &context).unwrap();
+        let expected = engine
+            .price(
+                &dated(&a, &market(100.0, 0.2, valuation)),
+                &market(100.0, 0.2, valuation),
+            )
+            .unwrap();
         assert!((actual - expected).abs() < 1e-10);
         assert!(matches!(
-            engine.price(&g, &context).unwrap_err(),
+            engine.price(&dated(&g, &context), &context).unwrap_err(),
             Error::UnsupportedOperation(_)
         ));
     }
     let context = PricingContext::new(model, 100.0, end).unwrap();
     let g = GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 110.0)
         .unwrap();
-    assert_eq!(engine.price(&g, &context).unwrap(), 10.0);
+    assert_eq!(engine.price(&dated(&g, &context), &context).unwrap(), 10.0);
     let affine =
         ArithmeticAveragePriceOption::new(OptionType::Call, 25.0, start, start, end, 100.0)
             .unwrap();
     let context = market(100.0, 0.2, knot);
     let result = engine
-        .price_with_greeks(&affine, &context, GreeksRequest::all())
+        .price_with_greeks(&dated(&affine, &context), &context, GreeksRequest::all())
         .unwrap();
     assert_eq!(
         result.price(),
         TurnbullWakemanArithmeticAveragePriceEngine
-            .price(&affine, &context)
+            .price(&dated(&affine, &context), &context)
             .unwrap()
     );
     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
     assert!(matches!(
         implied_volatility(
             &engine,
-            &affine,
+            &dated(&affine, &context),
             &context,
             result.price(),
             Default::default()
@@ -556,7 +599,14 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
         knot,
     )
     .unwrap();
-    assert!((engine.price(&affine, &node_context).unwrap() - result.price()).abs() < 1e-11);
+    assert!(
+        (engine
+            .price(&dated(&affine, &node_context), &node_context)
+            .unwrap()
+            - result.price())
+        .abs()
+            < 1e-11
+    );
     let short = RateTermStructure::new(start, vec![knot], vec![0.98]).unwrap();
     let short_context = PricingContext::new(
         BlackScholesMertonParameters::new(short, 0.01, 0.2).unwrap(),
@@ -566,11 +616,15 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
     .unwrap();
     let a = affine.replace_history(None).unwrap();
     assert!(matches!(
-        engine.price(&a, &short_context).unwrap_err(),
+        engine
+            .price(&dated(&a, &short_context), &short_context)
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        engine.price(&affine, &short_context).unwrap_err(),
+        engine
+            .price(&dated(&affine, &short_context), &short_context)
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
 }
@@ -659,7 +713,7 @@ fn conditioned_arithmetic_agrees_with_independent_raw_path_statistics() {
             .unwrap();
             let result = engine
                 .price_with_greeks(
-                    &option,
+                    &dated(&option, &market(100.0, 0.2, valuation)),
                     &market(100.0, 0.2, valuation),
                     GreeksRequest::all(),
                 )
@@ -713,12 +767,12 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        prepared.price(&option, &context).unwrap(),
-        prepared.price(&option, &context).unwrap()
+        prepared.price(&dated(&option, &context), &context).unwrap(),
+        prepared.price(&dated(&option, &context), &context).unwrap()
     );
     let result = numerical_greeks(
         &engine,
-        &option,
+        &dated(&option, &context),
         &context,
         GreeksRequest::new([Greek::Delta, Greek::Vega]),
         Default::default(),
@@ -728,7 +782,7 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
     assert!((18.0..28.0).contains(&result.require(Greek::Vega).unwrap()));
     let sigma = implied_volatility(
         &engine,
-        &option,
+        &dated(&option, &context),
         &context,
         5.25,
         ImpliedVolatilitySettings {
@@ -770,7 +824,7 @@ fn arithmetic_validates_interval_drift_without_rejecting_a_finite_payoff() {
     )
     .unwrap();
     // Every sampled future contribution vanishes; the initial trapezoid fixes 0.5.
-    assert!((engine.price(&option, &context).unwrap() - 99.5).abs() < 1e-12);
+    assert!((engine.price(&dated(&option, &context), &context).unwrap() - 99.5).abs() < 1e-12);
 }
 
 #[test]
@@ -801,5 +855,7 @@ fn node_curve_affine_history_preserves_the_fused_accrual_residual() {
     .unwrap();
     // Exact residual of the binary64 elapsed weight times history minus rounded strike.
     let expected = 2.048_766_664_048_984_7e291;
-    assert!((engine.price(&option, &context).unwrap() / expected - 1.0).abs() < 1e-12);
+    assert!(
+        (engine.price(&dated(&option, &context), &context).unwrap() / expected - 1.0).abs() < 1e-12
+    );
 }

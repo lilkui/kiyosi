@@ -14,6 +14,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, market
 from test_snowball import contract as snowball
@@ -52,24 +53,42 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             engine.time_step_count = 1
         with self.assertRaises(TypeError):
-            engine.price(object(), market())
+            engine.price(dated_history(object(), market()), market())
         note = phoenix()
         for operation in (
-            lambda: numerical_greeks(engine, note, market(), "delta", spot_shift=True),
-            lambda: implied_volatility(engine, note, market(), True),
-            lambda: implied_volatility(engine, note, market(), 1, max_iterations=2.5),
-            lambda: implied_phoenix_coupon(engine, note, market(), True),
-            lambda: implied_phoenix_coupon(
-                engine, note, market(), 1, max_iterations=True
+            lambda: numerical_greeks(
+                engine,
+                dated_history(note, market()),
+                market(),
+                "delta",
+                spot_shift=True,
+            ),
+            lambda: implied_volatility(
+                engine, dated_history(note, market()), market(), True
+            ),
+            lambda: implied_volatility(
+                engine, dated_history(note, market()), market(), 1, max_iterations=2.5
             ),
             lambda: implied_phoenix_coupon(
-                engine, note, market(), 1, quote_convention="shift_maturity_coupon"
+                engine, dated_history(note, market()), market(), True
+            ),
+            lambda: implied_phoenix_coupon(
+                engine, dated_history(note, market()), market(), 1, max_iterations=True
+            ),
+            lambda: implied_phoenix_coupon(
+                engine,
+                dated_history(note, market()),
+                market(),
+                1,
+                quote_convention="shift_maturity_coupon",
             ),
         ):
             with self.assertRaises(TypeError):
                 operation()
         with self.assertRaises(OverflowError):
-            implied_phoenix_coupon(engine, note, market(), 1, max_iterations=2**40)
+            implied_phoenix_coupon(
+                engine, dated_history(note, market()), market(), 1, max_iterations=2**40
+            )
 
     def test_native_spot_greeks_survive_infeasible_scalar_bumps(self):
         for coupon in (0, 0.1):
@@ -82,10 +101,16 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
                 ),
             )
             engine, context = FD(), market()
-            reference = engine.price_with_greeks(note, context, ["delta", "gamma"])
+            reference = engine.price_with_greeks(
+                dated_history(note, context), context, ["delta", "gamma"]
+            )
             for shift in (200, 1e-300):
                 result = numerical_greeks(
-                    engine, note, context, ["delta", "gamma", "speed"], spot_shift=shift
+                    engine,
+                    dated_history(note, context),
+                    context,
+                    ["delta", "gamma", "speed"],
+                    spot_shift=shift,
                 )
                 self.assertIsNotNone(reference.delta)
                 self.assertIsNotNone(reference.gamma)
@@ -111,13 +136,18 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             scheme="explicit_euler",
             asset_upper_boundary=400,
         )
-        self.assert_rejection(InvalidInputError, lambda: engine.price(note, market()))
+        self.assert_rejection(
+            InvalidInputError,
+            lambda: engine.price(dated_history(note, market()), market()),
+        )
 
     def test_event_greeks_node_curves_and_failed_replacement(self):
         engine = FD()
         note = phoenix()
         context = market(90, datetime(2025, 2, 3))
-        result = engine.price_with_greeks(note, context, greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(note, context), context, greeks="all"
+        )
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
         self.assertIsNone(result.speed)
@@ -136,17 +166,24 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )
         self.assertAlmostEqual(
-            engine.price(note, curved), engine.price(note, context), delta=1e-12
+            engine.price(dated_history(note, curved), curved),
+            engine.price(dated_history(note, context), context),
+            delta=1e-12,
         )
         short = RateTermStructure(
             reference_time=START, times=[datetime(2025, 2, 3)], factors=[0.99]
         )
-        original_price = engine.price(note, context)
+        original_price = engine.price(dated_history(note, context), context)
         invalid = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=short)
         )
-        self.assert_rejection(InvalidInputError, lambda: engine.price(note, invalid))
-        self.assertEqual(engine.price(note, context), original_price)
+        self.assert_rejection(
+            InvalidInputError,
+            lambda: engine.price(dated_history(note, invalid), invalid),
+        )
+        self.assertEqual(
+            engine.price(dated_history(note, context), context), original_price
+        )
 
     def test_fixed_prices_and_unidentifiable_parameters_validate_first(self):
         note = BinarySnowballOption(
@@ -159,7 +196,9 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         )
         context = market(rate=0)
         engine = FD(asset_upper_boundary=1)
-        result = engine.price_with_greeks(note, context, ["delta", "gamma", "vega"])
+        result = engine.price_with_greeks(
+            dated_history(note, context), context, ["delta", "gamma", "vega"]
+        )
         self.assertEqual(
             (
                 result.price,
@@ -171,13 +210,15 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: implied_volatility(engine, note, context, 1),
+            lambda: implied_volatility(
+                engine, dated_history(note, context), context, 1
+            ),
         )
         self.assert_rejection(
             UnsupportedOperationError,
             lambda: implied_snowball_coupon(
                 engine,
-                note,
+                dated_history(note, market(100, END)),
                 market(100, END),
                 1,
                 quote_convention="preserve_maturity_coupon",
@@ -187,7 +228,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             InvalidInputError,
             lambda: implied_snowball_coupon(
                 engine,
-                note,
+                dated_history(note, context),
                 context,
                 math.nan,
                 quote_convention="preserve_maturity_coupon",
@@ -197,7 +238,10 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             knock_in_observation_mode="every_trading_day", barrier_state=None
         )
         later = market(100, datetime(2025, 2, 3))
-        self.assert_rejection(InvalidInputError, lambda: engine.price(missing, later))
+        self.assert_rejection(
+            InvalidInputError,
+            lambda: engine.price(dated_history(missing, later), later),
+        )
         self.assertIsNone(missing.barrier_state)
 
 
@@ -225,7 +269,7 @@ class AutocallableQuantLibTests(unittest.TestCase):
                 row["inputs"]["uncertainty_price"]
             )
             with self.subTest(case=row["case_id"]):
-                refined = FD(**fine).price(note, context)
+                refined = FD(**fine).price(dated_history(note, context), context)
                 self.assertAlmostEqual(
                     refined, float(row["outputs"]["price"]), delta=budget
                 )
@@ -241,7 +285,9 @@ class AutocallableQuantLibTests(unittest.TestCase):
                     ):
                         with self.subTest(settings=configuration):
                             self.assertAlmostEqual(
-                                FD(**configuration).price(note, context),
+                                FD(**configuration).price(
+                                    dated_history(note, context), context
+                                ),
                                 refined,
                                 delta=budget,
                             )

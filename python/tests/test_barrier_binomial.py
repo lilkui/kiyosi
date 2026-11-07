@@ -24,6 +24,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -88,34 +89,38 @@ class BarrierBinomialTests(unittest.TestCase):
         self.assert_rejection(
             UnsupportedOperationError,
             pricing.CoxRossRubinsteinBarrierEngine(step_count=256).price,
-            contract,
+            dated_history(contract, market()),
             market(),
         )
         aligned = pricing.CoxRossRubinsteinBarrierEngine(step_count=360)
-        self.assertGreater(aligned.price(contract, market()), 0)
+        self.assertGreater(
+            aligned.price(dated_history(contract, market()), market()), 0
+        )
         intraday = datetime(2025, 1, 1, 12)
         self.assert_rejection(
             UnsupportedOperationError,
             aligned.price,
-            contract,
+            dated_history(contract, market(valuation=intraday)),
             market(valuation=intraday),
         )
 
     def test_history_is_required_and_failure_does_not_change_engine(self):
         for engine in engines():
             contract = option()
-            expected = engine.price(contract, market())
+            expected = engine.price(dated_history(contract, market()), market())
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                contract,
+                dated_history(contract, market(valuation=START + timedelta(days=1))),
                 market(valuation=START + timedelta(days=1)),
             )
-            self.assertEqual(engine.price(contract, market()), expected)
+            self.assertEqual(
+                engine.price(dated_history(contract, market()), market()), expected
+            )
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                option(touch_state="touched"),
+                dated_history(option(touch_state="touched"), market()),
                 market(),
             )
 
@@ -143,18 +148,31 @@ class BarrierBinomialTests(unittest.TestCase):
                 current = (
                     5
                     if kind.endswith("out")
-                    else pricing.AnalyticEuropeanEngine().price(vanilla, at_observation)
+                    else pricing.AnalyticEuropeanEngine().price(
+                        dated_history(vanilla, at_observation), at_observation
+                    )
                 )
                 later = (
-                    pricing.AnalyticEuropeanEngine().price(vanilla, after_observation)
+                    pricing.AnalyticEuropeanEngine().price(
+                        dated_history(vanilla, after_observation), after_observation
+                    )
                     if kind.endswith("out")
                     else 5 * math.exp(-0.03 * 269.5 / 365)
                 )
                 self.assertAlmostEqual(
-                    engine.price(contract, at_observation), current, delta=1e-12
+                    engine.price(
+                        dated_history(contract, at_observation), at_observation
+                    ),
+                    current,
+                    delta=1e-12,
                 )
                 self.assertAlmostEqual(
-                    engine.price(prior_untouched, after_observation), later, delta=1e-12
+                    engine.price(
+                        dated_history(prior_untouched, after_observation),
+                        after_observation,
+                    ),
+                    later,
+                    delta=1e-12,
                 )
 
     def test_completed_monitoring_returns_vanilla_or_expiry_rebate(self):
@@ -164,7 +182,9 @@ class BarrierBinomialTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
-        value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
+        value = pricing.AnalyticEuropeanEngine().price(
+            dated_history(vanilla, context), context
+        )
         for engine in engines():
             for kind in KINDS:
                 contract = option(
@@ -178,7 +198,9 @@ class BarrierBinomialTests(unittest.TestCase):
                     3 * math.exp(-0.03 * 180 / 365) if kind.endswith("in") else value
                 )
                 self.assertAlmostEqual(
-                    engine.price(contract, context), expected, delta=1e-12
+                    engine.price(dated_history(contract, context), context),
+                    expected,
+                    delta=1e-12,
                 )
 
     def test_valuation_and_greek_validation_preserve_core_errors(self):
@@ -187,13 +209,13 @@ class BarrierBinomialTests(unittest.TestCase):
                 self.assert_rejection(
                     InvalidInputError,
                     engine.price,
-                    option(),
+                    dated_history(option(), market(valuation=valuation)),
                     market(valuation=valuation),
                 )
             self.assert_rejection(
                 InvalidInputError,
                 engine.price_with_greeks,
-                option(),
+                dated_history(option(), market()),
                 market(),
                 [],
             )
@@ -203,7 +225,9 @@ class BarrierBinomialTests(unittest.TestCase):
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")
                 result = engine.price_with_greeks(
-                    contract, market(spot=110, valuation=END), greeks="all"
+                    dated_history(contract, market(spot=110, valuation=END)),
+                    market(spot=110, valuation=END),
+                    greeks="all",
                 )
                 self.assertEqual(result.price, 3 if kind.endswith("in") else 10)
                 assert_terminal_greeks(self, result, int(kind.endswith("out")))
@@ -212,10 +236,10 @@ class BarrierBinomialTests(unittest.TestCase):
         context = market()
         contract = option(barrier_level=60)
         for engine in engines():
-            quote = engine.price(contract, context)
+            quote = engine.price(dated_history(contract, context), context)
             volatility = pricing.implied_volatility(
                 engine,
-                contract,
+                dated_history(contract, context),
                 context,
                 quote,
                 lower_bound=0.15,
@@ -229,9 +253,9 @@ class BarrierBinomialTests(unittest.TestCase):
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                fixed,
+                dated_history(fixed, later),
                 later,
-                engine.price(fixed, later),
+                engine.price(dated_history(fixed, later), later),
             )
 
     def test_expiry_only_observation_matches_one_step_payment(self):
@@ -247,7 +271,7 @@ class BarrierBinomialTests(unittest.TestCase):
         up = math.exp(0.2 * math.sqrt(2 / 365))
         self.assertAlmostEqual(
             pricing.CoxRossRubinsteinBarrierEngine(step_count=1).price(
-                contract, context
+                dated_history(contract, context), context
             ),
             2 / (1 + up),
             delta=1e-12,
@@ -288,14 +312,16 @@ class BarrierBinomialTests(unittest.TestCase):
         for steps in (1, 2, 256):
             engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=steps)
             contract, context = option(), market()
-            result = engine.price_with_greeks(contract, context, greeks="all")
+            result = engine.price_with_greeks(
+                dated_history(contract, context), context, greeks="all"
+            )
             self.assertIsNotNone(result.delta)
             self.assertEqual(result.gamma is not None, steps >= 2)
             for name in OTHER_GREEKS:
                 self.assertIsNone(getattr(result, name))
             for name in ("delta", "gamma", *OTHER_GREEKS):
                 selected = engine.price_with_greeks(
-                    contract,
+                    dated_history(contract, context),
                     context,
                     name,
                 )
@@ -317,15 +343,25 @@ class BarrierBinomialTests(unittest.TestCase):
                     observation_times=[START, START + timedelta(days=1), END],
                 )
                 context = market(spot=level)
-                expected = pricing.AnalyticBarrierEngine().price(contract, context)
-                self.assertEqual(engine.price(contract, context), expected)
-                result = engine.price_with_greeks(contract, context, greeks="all")
+                expected = pricing.AnalyticBarrierEngine().price(
+                    dated_history(contract, context), context
+                )
+                self.assertEqual(
+                    engine.price(dated_history(contract, context), context), expected
+                )
+                result = engine.price_with_greeks(
+                    dated_history(contract, context), context, greeks="all"
+                )
                 for name in ("delta", "gamma", *OTHER_GREEKS):
                     self.assertIsNone(getattr(result, name))
                 touched = contract.replace_history(touch_state="touched")
                 context = market(valuation=START + timedelta(days=2))
-                expected = pricing.AnalyticBarrierEngine().price(touched, context)
-                result = engine.price_with_greeks(touched, context, greeks="all")
+                expected = pricing.AnalyticBarrierEngine().price(
+                    dated_history(touched, context), context
+                )
+                result = engine.price_with_greeks(
+                    dated_history(touched, context), context, greeks="all"
+                )
                 self.assertEqual(result.price, expected)
                 self.assertIsNotNone(result.delta)
                 self.assertIsNotNone(result.gamma)
@@ -333,7 +369,10 @@ class BarrierBinomialTests(unittest.TestCase):
                     self.assertEqual(result.delta, 0)
                 self.assertIsNone(contract.touch_state)
                 self.assert_rejection(
-                    InvalidInputError, engine.price, touched, market()
+                    InvalidInputError,
+                    engine.price,
+                    dated_history(touched, market()),
+                    market(),
                 )
 
     def test_microsecond_alignment_and_inclusive_noncentral_node_hits(self):
@@ -347,11 +386,11 @@ class BarrierBinomialTests(unittest.TestCase):
         engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=7)
         time = datetime(2025, 1, 1, 12)
         context = market(valuation=time)
-        self.assertGreater(engine.price(contract, context), 0)
+        self.assertGreater(engine.price(dated_history(contract, context), context), 0)
         self.assert_rejection(
             UnsupportedOperationError,
             engine.price,
-            contract,
+            dated_history(contract, market(valuation=time + timedelta(microseconds=1))),
             market(valuation=time + timedelta(microseconds=1)),
         )
         for sigma in (0.1, 0.2, 0.3, 0.4):
@@ -368,7 +407,8 @@ class BarrierBinomialTests(unittest.TestCase):
                 # The sole ITM path is knocked out at its first move, including equality.
                 self.assertAlmostEqual(
                     pricing.CoxRossRubinsteinBarrierEngine(step_count=2).price(
-                        contract, market(volatility=sigma)
+                        dated_history(contract, market(volatility=sigma)),
+                        market(volatility=sigma),
                     ),
                     0,
                     delta=1e-12,
@@ -387,13 +427,13 @@ class BarrierBinomialTests(unittest.TestCase):
                 self.assert_rejection(
                     UnsupportedOperationError,
                     engine.price,
-                    option(),
+                    dated_history(option(), context),
                     context,
                 )
                 self.assert_rejection(
                     UnsupportedOperationError,
                     engine.price_with_greeks,
-                    option(),
+                    dated_history(option(), context),
                     context,
                     [],
                 )
@@ -401,7 +441,7 @@ class BarrierBinomialTests(unittest.TestCase):
                     UnsupportedOperationError,
                     pricing.implied_volatility,
                     engine,
-                    option(),
+                    dated_history(option(), context),
                     context,
                     math.nan,
                 )
@@ -415,7 +455,7 @@ class BarrierBinomialTests(unittest.TestCase):
             self.assert_rejection(
                 ComputationFailureError,
                 engine.price,
-                option(),
+                dated_history(option(), market(volatility=sigma, rate=rate)),
                 market(volatility=sigma, rate=rate),
             )
         for kwargs in (
@@ -425,9 +465,21 @@ class BarrierBinomialTests(unittest.TestCase):
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
-                numerical_greeks(engine, option(), market(), "delta", **kwargs)
+                numerical_greeks(
+                    engine,
+                    dated_history(option(), market()),
+                    market(),
+                    "delta",
+                    **kwargs,
+                )
         with self.assertRaises(TypeError):
-            numerical_greeks(engine, option(), market(), "delta", time_shift=2**31)
+            numerical_greeks(
+                engine,
+                dated_history(option(), market()),
+                market(),
+                "delta",
+                time_shift=2**31,
+            )
         mismatch = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
@@ -442,12 +494,22 @@ class BarrierBinomialTests(unittest.TestCase):
     def test_solver_tree_domain_and_failures_preserve_inputs(self):
         engine = pricing.CoxRossRubinsteinBarrierEngine()
         contract, context = option(barrier_level=60), market()
-        quote = engine.price(contract, context)
+        quote = engine.price(dated_history(contract, context), context)
         solved = pricing.implied_volatility(
-            engine, contract, context, quote, lower_bound=1e-8, upper_bound=0.5
+            engine,
+            dated_history(contract, context),
+            context,
+            quote,
+            lower_bound=1e-8,
+            upper_bound=0.5,
         )
         self.assertAlmostEqual(
-            engine.price(contract, market(volatility=solved)), quote, delta=2e-7
+            engine.price(
+                dated_history(contract, market(volatility=solved)),
+                market(volatility=solved),
+            ),
+            quote,
+            delta=2e-7,
         )
         for price, controls, expected_error in (
             (
@@ -463,32 +525,40 @@ class BarrierBinomialTests(unittest.TestCase):
                 expected_error,
                 pricing.implied_volatility,
                 engine,
-                contract,
+                dated_history(contract, context),
                 context,
                 price,
                 **controls,
             )
         with self.assertRaises(TypeError):
-            pricing.implied_volatility(engine, contract, context, True)
+            pricing.implied_volatility(
+                engine, dated_history(contract, context), context, True
+            )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
-                engine, contract, context, quote, max_iterations=1.5
+                engine,
+                dated_history(contract, context),
+                context,
+                quote,
+                max_iterations=1.5,
             )
-        self.assertEqual(engine.price(contract, context), quote)
+        self.assertEqual(engine.price(dated_history(contract, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)
         self.assertEqual(engine.step_count, 256)
 
     def test_shared_and_distinct_instances_allow_concurrent_pricing_and_solving(self):
         engine = pricing.CoxRossRubinsteinBarrierEngine()
         contract, context = option(barrier_level=60), market()
-        quote = engine.price(contract, context)
+        quote = engine.price(dated_history(contract, context), context)
 
         def evaluate(index):
             selected = engine if index % 2 else pricing.CoxRossRubinsteinBarrierEngine()
-            result = selected.price_with_greeks(contract, context, ("delta", "gamma"))
+            result = selected.price_with_greeks(
+                dated_history(contract, context), context, ("delta", "gamma")
+            )
             sigma = pricing.implied_volatility(
                 selected,
-                contract,
+                dated_history(contract, context),
                 context,
                 result.price,
                 lower_bound=0.15,
@@ -545,7 +615,9 @@ class BarrierBinomialTests(unittest.TestCase):
                             "gamma": (high - 2 * center + low) / 0.01**2,
                         }
                         result = engine.price_with_greeks(
-                            contract,
+                            dated_history(
+                                contract, market(rate=rate, dividend=dividend)
+                            ),
                             market(rate=rate, dividend=dividend),
                             ("delta", "gamma"),
                         )

@@ -23,6 +23,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import MonteCarloAccumulatorEngine as MC
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
@@ -45,19 +46,28 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         context = market(spot=100, valuation=START, volatility=1, rate=0.01, dividend=0)
         engine = MC(path_count=2, seed=0, thread_count=1)
         quantity = 6e307
-        expected = engine.price_with_statistics(note, context).price * quantity
+        expected = (
+            engine.price_with_statistics(dated_history(note, context), context).price
+            * quantity
+        )
         scaled = note.replace_history(accumulated_quantity=quantity)
         self.assertTrue(math.isfinite(expected))
         self.assertGreater(expected, 0)
-        self.assertAlmostEqual(engine.price(scaled, context) / expected, 1, delta=1e-12)
+        self.assertAlmostEqual(
+            engine.price(dated_history(scaled, context), context) / expected,
+            1,
+            delta=1e-12,
+        )
         with self.assertRaises(ComputationFailureError):
-            engine.price_with_statistics(scaled, context)
+            engine.price_with_statistics(dated_history(scaled, context), context)
 
     def test_current_events_settle_before_sampling(self):
         end = datetime(2025, 1, 6)
         engine = MC()
         for spot, expected in ((90, -50), (100, 0), (105, 20), (110, 30)):
-            result = engine.price_with_statistics(contract(end), market(spot, end))
+            result = engine.price_with_statistics(
+                dated_history(contract(end), market(spot, end)), market(spot, end)
+            )
             self.assertEqual(result.price, expected)
             self.assertEqual(result.standard_error, 0)
             self.assertEqual(result.confidence_interval, (expected, expected))
@@ -77,12 +87,16 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             ),
             (contract(), market(111), pricing.QuadratureAccumulatorEngine().price),
         ):
-            result = engine.price_with_statistics(option, context)
-            self.assertEqual(result.price, engine.price(option, context))
+            result = engine.price_with_statistics(
+                dated_history(option, context), context
+            )
+            self.assertEqual(
+                result.price, engine.price(dated_history(option, context), context)
+            )
             self.assertGreater(result.standard_error, 0)
             self.assertAlmostEqual(
                 result.price,
-                reference(option, context),
+                reference(dated_history(option, context), context),
                 delta=4 * result.standard_error + 0.02,
             )
             lower, upper = result.confidence_interval
@@ -131,13 +145,21 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             engine.seed = 42
         note, context = contract(), market()
         for operation in (
-            lambda: engine.price(object(), context),
-            lambda: engine.price_with_statistics(object(), context),
-            lambda: numerical_greeks(engine, note, context, "delta", spot_shift=True),
-            lambda: pricing.implied_volatility(engine, object(), context, 1),
-            lambda: pricing.implied_volatility(engine, note, context, True),
+            lambda: engine.price(dated_history(object(), context), context),
+            lambda: engine.price_with_statistics(
+                dated_history(object(), context), context
+            ),
+            lambda: numerical_greeks(
+                engine, dated_history(note, context), context, "delta", spot_shift=True
+            ),
             lambda: pricing.implied_volatility(
-                engine, note, context, 1, max_iterations=2.5
+                engine, dated_history(object(), context), context, 1
+            ),
+            lambda: pricing.implied_volatility(
+                engine, dated_history(note, context), context, True
+            ),
+            lambda: pricing.implied_volatility(
+                engine, dated_history(note, context), context, 1, max_iterations=2.5
             ),
         ):
             with self.assertRaises(TypeError):
@@ -155,14 +177,14 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                         "antithetic": antithetic,
                     }
                     serial = MC(**fields, thread_count=1).price_with_statistics(
-                        note, context
+                        dated_history(note, context), context
                     )
                     engine = MC(**fields, thread_count=3)
                     with ThreadPoolExecutor(max_workers=2) as pool:
                         results = list(
                             pool.map(
                                 lambda _, engine=engine: engine.price_with_statistics(
-                                    note, context
+                                    dated_history(note, context), context
                                 ),
                                 range(2),
                             )
@@ -186,15 +208,17 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                         and paths > (2 if antithetic else 1),
                     )
         odd = MC(path_count=31, seed=42, antithetic=True).price_with_statistics(
-            note, context
+            dated_history(note, context), context
         )
         self.assertIsNone(odd.standard_error)
         self.assertIsNone(odd.confidence_interval)
-        reference = pricing.QuadratureAccumulatorEngine().price(note, context)
+        reference = pricing.QuadratureAccumulatorEngine().price(
+            dated_history(note, context), context
+        )
         for antithetic in (False, True):
             result = MC(
                 path_count=16384, seed=42, sampling="sobol", antithetic=antithetic
-            ).price_with_statistics(note, context)
+            ).price_with_statistics(dated_history(note, context), context)
             self.assertAlmostEqual(result.price, reference, delta=1)
             self.assertIsNone(result.standard_error)
 
@@ -221,10 +245,13 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         ):
             self.assertEqual(
                 engine.price(
-                    note.replace(
-                        calendar=calendar,
-                        accumulated_quantity=note.accumulated_quantity,
-                        knock_out_settled=note.knock_out_settled,
+                    dated_history(
+                        note.replace(
+                            calendar=calendar,
+                            accumulated_quantity=note.accumulated_quantity,
+                            knock_out_settled=note.knock_out_settled,
+                        ),
+                        context,
                     ),
                     context,
                 ),
@@ -241,12 +268,18 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price(omitted, market(90, omitted.expiry_time)),
+            lambda: engine.price(
+                dated_history(omitted, market(90, omitted.expiry_time)),
+                market(90, omitted.expiry_time),
+            ),
         )
         self.assertEqual(
             engine.price(
-                omitted.replace_history(
-                    accumulated_quantity=0, knock_out_settled=False
+                dated_history(
+                    omitted.replace_history(
+                        accumulated_quantity=0, knock_out_settled=False
+                    ),
+                    market(90, omitted.expiry_time),
                 ),
                 market(90, omitted.expiry_time),
             ),
@@ -258,10 +291,20 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         note = contract(datetime(2025, 1, 6))
         context = market(valuation=datetime(2025, 1, 3, 12))
         engine = MC(path_count=4096, seed=42)
-        result = numerical_greeks(engine, note, context, greeks="all", spot_shift=0.25)
-        self.assertEqual(result.price, engine.price(note, context))
-        up = engine.price(note, context.replace(spot_price=100.5))
-        down = engine.price(note, context.replace(spot_price=100))
+        result = numerical_greeks(
+            engine, dated_history(note, context), context, greeks="all", spot_shift=0.25
+        )
+        self.assertEqual(
+            result.price, engine.price(dated_history(note, context), context)
+        )
+        up = engine.price(
+            dated_history(note, context.replace(spot_price=100.5)),
+            context.replace(spot_price=100.5),
+        )
+        down = engine.price(
+            dated_history(note, context.replace(spot_price=100)),
+            context.replace(spot_price=100),
+        )
         self.assertEqual(result.delta, (up - down) / 0.5)
         # Equivalent second-difference groupings can round differently.
         rounding = (
@@ -284,12 +327,19 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         for greek in ("theta", "charm", "color"):
             self.assertTrue(math.isfinite(result.require(greek)))
         sigma = pricing.implied_volatility(
-            engine, note, context, result.price, lower_bound=0.1, upper_bound=0.3
+            engine,
+            dated_history(note, context),
+            context,
+            result.price,
+            lower_bound=0.1,
+            upper_bound=0.3,
         )
         self.assertAlmostEqual(sigma, 0.2, delta=1e-6)
         for spot in (100, 110):
             boundary = engine.price_with_greeks(
-                note, market(spot, START + timedelta(days=1)), greeks="all"
+                dated_history(note, market(spot, START + timedelta(days=1))),
+                market(spot, START + timedelta(days=1)),
+                greeks="all",
             )
             for greek in (
                 "delta",
@@ -305,7 +355,9 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             self.assertIsNotNone(boundary.vega)
             self.assertIsNotNone(boundary.rho)
         expired = engine.price_with_greeks(
-            note, market(90, note.expiry_time), greeks="all"
+            dated_history(note, market(90, note.expiry_time)),
+            market(90, note.expiry_time),
+            greeks="all",
         )
         assert_terminal_greeks(self, expired, 5)
         self.assertEqual(engine.seed, 42)
@@ -316,7 +368,11 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             datetime(2025, 1, 6), knock_out=1e300, acceleration=1, quantity=0
         )
         shared = numerical_greeks(
-            unseeded, smooth, context, ["delta", "gamma"], spot_shift=0.25
+            unseeded,
+            dated_history(smooth, context),
+            context,
+            ["delta", "gamma"],
+            spot_shift=0.25,
         )
         self.assertAlmostEqual(shared.gamma, 0, delta=1e-10)
         self.assertIsNone(unseeded.seed)
@@ -340,15 +396,18 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             self.assert_rejection(
                 expected_error,
                 lambda instrument=instrument, invalid=invalid: engine.price(
-                    instrument, invalid
+                    dated_history(instrument, invalid), invalid
                 ),
             )
         self.assert_rejection(
-            InvalidInputError, lambda: engine.price_with_greeks(note, context, [])
+            InvalidInputError,
+            lambda: engine.price_with_greeks(dated_history(note, context), context, []),
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: numerical_greeks(engine, note, context, "delta", spot_shift=0),
+            lambda: numerical_greeks(
+                engine, dated_history(note, context), context, "delta", spot_shift=0
+            ),
         )
         curve = RateTermStructure(
             reference_time=START,
@@ -361,16 +420,18 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             )
             self.assert_rejection(
                 UnsupportedOperationError,
-                lambda curved=curved: engine.price(note, curved),
+                lambda curved=curved: engine.price(dated_history(note, curved), curved),
             )
             self.assert_rejection(
                 UnsupportedOperationError,
-                lambda curved=curved: engine.price_with_greeks(note, curved, []),
+                lambda curved=curved: engine.price_with_greeks(
+                    dated_history(note, curved), curved, []
+                ),
             )
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda curved=curved: pricing.implied_volatility(
-                    engine, note, curved, math.nan
+                    engine, dated_history(note, curved), curved, math.nan
                 ),
             )
         for instrument, fixed, expected in (
@@ -384,13 +445,17 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             (contract(daily=0, quantity=0), context, 0),
             (contract(knock_out=100, acceleration=0, quantity=0), context, 0),
         ):
-            result = engine.price_with_statistics(instrument, fixed)
+            result = engine.price_with_statistics(
+                dated_history(instrument, fixed), fixed
+            )
             self.assertEqual(result.price, expected)
             self.assertEqual(result.standard_error, 0)
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda instrument=instrument, fixed=fixed, expected=expected: (
-                    pricing.implied_volatility(engine, instrument, fixed, expected)
+                    pricing.implied_volatility(
+                        engine, dated_history(instrument, fixed), fixed, expected
+                    )
                 ),
             )
         for quote, expected_error in (
@@ -400,10 +465,16 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             self.assert_rejection(
                 expected_error,
                 lambda quote=quote: pricing.implied_volatility(
-                    engine, note, context, quote
+                    engine, dated_history(note, context), context, quote
                 ),
             )
-        self.assertEqual(engine.price(note, market(110, START + timedelta(days=1))), 30)
+        self.assertEqual(
+            engine.price(
+                dated_history(note, market(110, START + timedelta(days=1))),
+                market(110, START + timedelta(days=1)),
+            ),
+            30,
+        )
         self.assertEqual(note.accumulated_quantity, 3)
 
     def test_sobol_dimension_limit_preserves_known_settlements(self):
@@ -415,13 +486,19 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             accumulated_quantity=note.accumulated_quantity,
             knock_out_settled=note.knock_out_settled,
         )
-        self.assert_rejection(InvalidInputError, lambda: engine.price(note, context))
-        result = engine.price_with_statistics(note, context.replace(spot_price=110))
+        self.assert_rejection(
+            InvalidInputError,
+            lambda: engine.price(dated_history(note, context), context),
+        )
+        result = engine.price_with_statistics(
+            dated_history(note, context.replace(spot_price=110)),
+            context.replace(spot_price=110),
+        )
         self.assertEqual(result.price, 30)
         self.assertIsNone(result.standard_error)
         self.assertIsNone(result.confidence_interval)
         zero = contract(datetime(2090, 1, 2), daily=0, quantity=0)
-        self.assertEqual(engine.price(zero, context), 0)
+        self.assertEqual(engine.price(dated_history(zero, context), context), 0)
 
     def test_rate_volatility_and_mixed_greeks_match_seeded_scalar_repricing(self):
         note = contract(datetime(2025, 1, 13))
@@ -433,7 +510,15 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
 
         def price(spot=100.25, volatility=0.2, rate=0.04):
             return engine.price(
-                note,
+                dated_history(
+                    note,
+                    context.replace(
+                        spot_price=spot,
+                        model_parameters=context.model_parameters.replace(
+                            volatility=volatility, risk_free_rate=rate
+                        ),
+                    ),
+                ),
                 context.replace(
                     spot_price=spot,
                     model_parameters=context.model_parameters.replace(
@@ -444,7 +529,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
 
         result = numerical_greeks(
             engine,
-            note,
+            dated_history(note, context),
             context,
             greeks="all",
             spot_shift=h,

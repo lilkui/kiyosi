@@ -17,6 +17,7 @@ from kiyosi import (
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from test_double_barrier import END, START, contract, market, reference
 from test_double_barrier_finite_difference import (
     FIRST,
@@ -47,7 +48,9 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             expected = spot * sigma / math.sqrt(math.tau)
             with self.subTest(spot=spot, direction=direction, mode=mode):
                 self.assertAlmostEqual(
-                    engine.price(option, context), expected, delta=1e-3 * expected
+                    engine.price(dated_history(option, context), context),
+                    expected,
+                    delta=1e-3 * expected,
                 )
 
     def test_at_hit_rebate_greeks_require_a_usable_spot_stencil(self):
@@ -60,18 +63,26 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         )
         context = market(1e16)
         engine = pricing.MonteCarloDoubleBarrierEngine(path_count=32, seed=42)
-        result = engine.price_with_greeks(option, context, ("delta", "gamma"))
-        self.assertEqual(result.price, engine.price(option, context))
+        result = engine.price_with_greeks(
+            dated_history(option, context), context, ("delta", "gamma")
+        )
+        self.assertEqual(
+            result.price, engine.price(dated_history(option, context), context)
+        )
         for name in ("delta", "gamma"):
             self.assertIsNone(getattr(result, name))
             with self.assertRaises(UnsupportedOperationError):
                 result.require(name)
         actual = numerical_greeks(
-            engine, option, context, ("delta", "gamma"), spot_shift=1e12
+            engine,
+            dated_history(option, context),
+            context,
+            ("delta", "gamma"),
+            spot_shift=1e12,
         )
         expected = numerical_greeks(
             pricing.AnalyticDoubleBarrierEngine(),
-            option,
+            dated_history(option, context),
             context,
             ("delta", "gamma"),
             spot_shift=1e12,
@@ -91,16 +102,23 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         for direction in ("call", "put"):
             for kind in ("knock_in", "knock_out"):
                 option = contract(option_type=direction, barrier_type=kind)
-                actual = engine.price_with_greeks(option, market(), greeks="all")
+                actual = engine.price_with_greeks(
+                    dated_history(option, market()), market(), greeks="all"
+                )
                 self.assertAlmostEqual(
-                    actual.price, reference(direction, kind), delta=0.01
+                    actual.price,
+                    reference(dated_history(direction, kind), kind),
+                    delta=0.01,
                 )
                 expected = pricing.AnalyticDoubleBarrierEngine().price_with_greeks(
-                    option, market(), ("delta", "gamma")
+                    dated_history(option, market()), market(), ("delta", "gamma")
                 )
                 self.assertAlmostEqual(actual.delta, expected.delta, delta=0.003)
                 self.assertAlmostEqual(actual.gamma, expected.gamma, delta=0.003)
-                self.assertEqual(actual.price, engine.price(option, market()))
+                self.assertEqual(
+                    actual.price,
+                    engine.price(dated_history(option, market()), market()),
+                )
                 self.assertIsNone(actual.vega)
 
     def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd(self):
@@ -127,11 +145,15 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             )
             self.assertAlmostEqual(expected, refined, delta=1e-8)
             context = market(100.25)
-            result = engine.price_with_greeks(option, context, greeks="all")
+            result = engine.price_with_greeks(
+                dated_history(option, context), context, greeks="all"
+            )
             self.assertAlmostEqual(result.price, expected, delta=0.025)
             fd = pricing.FiniteDifferenceDoubleBarrierEngine(
                 asset_step_count=1200, time_step_count=1200
-            ).price_with_greeks(option, context, ("delta", "gamma"))
+            ).price_with_greeks(
+                dated_history(option, context), context, ("delta", "gamma")
+            )
             self.assertAlmostEqual(result.delta, fd.delta, delta=0.025)
             self.assertAlmostEqual(result.gamma, fd.gamma, delta=0.01)
         for direction in ("call", "put"):
@@ -142,7 +164,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 observation_times=[END],
             )
             self.assertAlmostEqual(
-                engine.price(option, market()),
+                engine.price(dated_history(option, market()), market()),
                 terminal_reference(100, direction, 80, 120, 1),
                 delta=0.002,
             )
@@ -164,12 +186,16 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     )
                 )
                 self.assertAlmostEqual(
-                    engine.price(inside, market(100.25)), expected, delta=0.025
+                    engine.price(dated_history(inside, market(100.25)), market(100.25)),
+                    expected,
+                    delta=0.025,
                 )
         option = contract(
             strike=130, observation_mode="scheduled", observation_times=[FIRST]
         )
-        self.assertGreater(engine.price(option, market()), 0.01)
+        self.assertGreater(
+            engine.price(dated_history(option, market()), market()), 0.01
+        )
 
     def test_series_switch_extreme_bands_and_tiny_volatility(self):
         engine = pricing.MonteCarloDoubleBarrierEngine(
@@ -196,7 +222,9 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             ),
         ):
             result = engine.price_with_greeks(
-                contract(), market(volatility=volatility), greeks="all"
+                dated_history(contract(), market(volatility=volatility)),
+                market(volatility=volatility),
+                greeks="all",
             )
             for actual, expected in (
                 (result.price, price),
@@ -205,14 +233,21 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             ):
                 self.assertAlmostEqual(actual, expected, delta=0.003)
         self.assertAlmostEqual(
-            engine.price(contract(lower_barrier=99.99, upper_barrier=100.01), market()),
+            engine.price(
+                dated_history(
+                    contract(lower_barrier=99.99, upper_barrier=100.01), market()
+                ),
+                market(),
+            ),
             0,
             delta=1e-12,
         )
         wide = contract(lower_barrier=0.01, upper_barrier=10000)
         self.assertAlmostEqual(
-            engine.price(wide, market()),
-            pricing.AnalyticDoubleBarrierEngine().price(wide, market()),
+            engine.price(dated_history(wide, market()), market()),
+            pricing.AnalyticDoubleBarrierEngine().price(
+                dated_history(wide, market()), market()
+            ),
             delta=0.025,
         )
         for up, timing in product((False, True), ("at_hit", "at_expiry")):
@@ -227,7 +262,10 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             )
             self.assertAlmostEqual(
                 engine.price(
-                    option, market(dividend=0.01 if up else 0.07, volatility=1e-12)
+                    dated_history(
+                        option, market(dividend=0.01 if up else 0.07, volatility=1e-12)
+                    ),
+                    market(dividend=0.01 if up else 0.07, volatility=1e-12),
                 ),
                 3 * math.exp(-0.04 * time),
                 delta=1e-7,
@@ -273,14 +311,17 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     "rebate_timing": timing,
                 }
                 option = contract(**terms, rebate=3)
-                actual = engine.price_with_greeks(option, context, greeks="all")
+                actual = engine.price_with_greeks(
+                    dated_history(option, context), context, greeks="all"
+                )
                 self.assertAlmostEqual(
-                    actual.price - engine.price(contract(**terms), context),
+                    actual.price
+                    - engine.price(dated_history(contract(**terms), context), context),
                     refs[index],
                     delta=0.004,
                 )
                 expected = pricing.AnalyticDoubleBarrierEngine().price_with_greeks(
-                    option, context, ("delta", "gamma")
+                    dated_history(option, context), context, ("delta", "gamma")
                 )
                 self.assertAlmostEqual(actual.delta, expected.delta, delta=0.006)
                 self.assertAlmostEqual(actual.gamma, expected.gamma, delta=0.003)
@@ -308,11 +349,13 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             }
             serial = pricing.MonteCarloDoubleBarrierEngine(thread_count=1, **settings)
             parallel = pricing.MonteCarloDoubleBarrierEngine(thread_count=4, **settings)
-            expected = serial.price_with_greeks(option, context, greeks="all")
+            expected = serial.price_with_greeks(
+                dated_history(option, context), context, greeks="all"
+            )
 
             def evaluate(index, parallel=parallel, serial=serial, option=option):
                 result = (parallel if index % 2 else serial).price_with_greeks(
-                    option, context, greeks="all"
+                    dated_history(option, context), context, greeks="all"
                 )
                 return result.price, result.delta, result.gamma
 
@@ -329,10 +372,14 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             engine = pricing.MonteCarloDoubleBarrierEngine(**settings)
             self.assertAlmostEqual(
                 sum(
-                    engine.price(contract(barrier_type=kind), context)
+                    engine.price(
+                        dated_history(contract(barrier_type=kind), context), context
+                    )
                     for kind in ("knock_in", "knock_out")
                 ),
-                pricing.MonteCarloVanillaEngine(**settings).price(vanilla, context),
+                pricing.MonteCarloVanillaEngine(**settings).price(
+                    dated_history(vanilla, context), context
+                ),
                 delta=1e-12,
             )
 
@@ -348,10 +395,13 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             for spot in (79, 80, 120, 121):
                 context = market(spot)
                 self.assertEqual(
-                    engine.price(option, context), analytic.price(option, context)
+                    engine.price(dated_history(option, context), context),
+                    analytic.price(dated_history(option, context), context),
                 )
                 if spot in (80, 120):
-                    result = engine.price_with_greeks(option, context, greeks="all")
+                    result = engine.price_with_greeks(
+                        dated_history(option, context), context, greeks="all"
+                    )
                     self.assertIsNone(result.delta)
                     self.assertIsNone(result.gamma)
                 later = context.replace(
@@ -361,14 +411,22 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 touched = option.replace_history(touch_state="touched")
                 self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
-                    engine.price(touched, later), analytic.price(touched, later)
+                    engine.price(dated_history(touched, later), later),
+                    analytic.price(dated_history(touched, later), later),
                 )
                 for history in ("touched", "untouched"):
                     known = option.replace_history(touch_state=history)
                     expired = market(spot, time=END)
-                    result = engine.price_with_greeks(known, expired, greeks="all")
-                    self.assertEqual(result.price, analytic.price(known, expired))
-                    reference = analytic.price_with_greeks(known, expired, "all")
+                    result = engine.price_with_greeks(
+                        dated_history(known, expired), expired, greeks="all"
+                    )
+                    self.assertEqual(
+                        result.price,
+                        analytic.price(dated_history(known, expired), expired),
+                    )
+                    reference = analytic.price_with_greeks(
+                        dated_history(known, expired), expired, "all"
+                    )
                     self.assertEqual(result.delta, reference.delta)
                     self.assertEqual(result.gamma, reference.gamma)
             scheduled = contract(
@@ -380,7 +438,8 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             )
             on_date = market(120, time=FIRST)
             self.assertEqual(
-                engine.price(scheduled, on_date), analytic.price(scheduled, on_date)
+                engine.price(dated_history(scheduled, on_date), on_date),
+                analytic.price(dated_history(scheduled, on_date), on_date),
             )
             after = on_date.replace(
                 valuation_time=datetime.combine(FIRST, datetime.min.time())
@@ -388,11 +447,14 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             )
             untouched = scheduled.replace_history(touch_state="untouched")
             self.assertEqual(
-                engine.price(untouched, after), analytic.price(untouched, after)
+                engine.price(dated_history(untouched, after), after),
+                analytic.price(dated_history(untouched, after), after),
             )
             self.assertIsNone(option.touch_state)
         for spot in (80.005, 119.995):
-            result = engine.price_with_greeks(contract(), market(spot), greeks="all")
+            result = engine.price_with_greeks(
+                dated_history(contract(), market(spot)), market(spot), greeks="all"
+            )
             self.assertIsNone(result.delta)
             self.assertIsNone(result.gamma)
 
@@ -452,7 +514,13 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
-                numerical_greeks(engine, contract(), market(), "delta", **fields)
+                numerical_greeks(
+                    engine,
+                    dated_history(contract(), market()),
+                    market(),
+                    "delta",
+                    **fields,
+                )
         option = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
@@ -482,7 +550,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
     def test_errors_validation_order_and_failure_state(self):
         engine = pricing.MonteCarloDoubleBarrierEngine(path_count=32, seed=42)
         option, context = contract(), market()
-        quote = engine.price(option, context)
+        quote = engine.price(dated_history(option, context), context)
         curve = RateTermStructure(
             reference_time=START,
             times=[END, END + (END - START)],
@@ -504,7 +572,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                option,
+                dated_history(option, curved),
                 curved,
                 math.nan,
             )
@@ -538,9 +606,9 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 market(rate=rate, dividend=rate, volatility=volatility),
             )
         tiny = market(volatility=1e-200)
-        price = engine.price(option, tiny)
+        price = engine.price(dated_history(option, tiny), tiny)
         self.assertEqual(
-            engine.price_with_greeks(option, tiny, "rho").price,
+            engine.price_with_greeks(dated_history(option, tiny), tiny, "rho").price,
             price,
         )
         self.assert_rejection(
@@ -555,7 +623,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 observation_mode="scheduled",
                 observation_times=[START + timedelta(days=3)],
             )
-        self.assertEqual(engine.price(option, context), quote)
+        self.assertEqual(engine.price(dated_history(option, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)
         self.assertIsNone(option.touch_state)
 
@@ -565,11 +633,16 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         )
         option = contract(lower_barrier=50, upper_barrier=200)
         context = market()
-        quote = engine.price(option, context)
+        quote = engine.price(dated_history(option, context), context)
 
         def solve(index):
             return pricing.implied_volatility(
-                engine, option, context, quote, lower_bound=0.15, upper_bound=0.25
+                engine,
+                dated_history(option, context),
+                context,
+                quote,
+                lower_bound=0.15,
+                upper_bound=0.25,
             )
 
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -584,7 +657,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 expected_error,
                 pricing.implied_volatility,
                 engine,
-                option,
+                dated_history(option, context),
                 context,
                 observed,
                 **controls,
@@ -608,12 +681,16 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                option,
+                dated_history(option, context),
                 context,
-                engine.price(option, context),
+                engine.price(dated_history(option, context), context),
             )
         self.assertEqual(
-            engine.price(contract(lower_barrier=50, upper_barrier=200), market()), quote
+            engine.price(
+                dated_history(contract(lower_barrier=50, upper_barrier=200), market()),
+                market(),
+            ),
+            quote,
         )
 
     def test_sobol_dimension_limit_includes_unobserved_expiry_leg(self):

@@ -20,6 +20,7 @@ from kiyosi.market import (
     monthly_schedule,
     sse_calendar,
 )
+from support.history import dated as dated_history
 
 
 class AutocallableAccuracyTests(unittest.TestCase):
@@ -47,7 +48,9 @@ class AutocallableAccuracyTests(unittest.TestCase):
                     [middle, end], [100, barrier], knock_out_coupon_rates=[0.08, 0.08]
                 ),
             )
-            return engine.price_with_greeks(option, context, ["delta", "gamma"])
+            return engine.price_with_greeks(
+                dated_history(option, context), context, ["delta", "gamma"]
+            )
 
         expected = price(100)
         for barrier in (math.nextafter(100, 200), 100 + 1e-12, 100 + 1e-8, 100 + 1e-4):
@@ -96,10 +99,10 @@ class AutocallableAccuracyTests(unittest.TestCase):
                             valuation_time=valuation,
                         )
                         actual = engine.price_with_greeks(
-                            option, context, ["delta", "gamma"]
+                            dated_history(option, context), context, ["delta", "gamma"]
                         )
                         expected = pricing.AnalyticDigitalEngine().price_with_greeks(
-                            digital, context, ["delta", "gamma"]
+                            dated_history(digital, context), context, ["delta", "gamma"]
                         )
                         self.assertAlmostEqual(
                             actual.price,
@@ -167,12 +170,18 @@ class AutocallableAccuracyTests(unittest.TestCase):
         ):
             with self.subTest(spot=spot):
                 result = engine.price_with_greeks(
-                    note, context(spot), ["delta", "gamma"]
+                    dated_history(note, context(spot)),
+                    context(spot),
+                    ["delta", "gamma"],
                 )
                 self.assertAlmostEqual(-10000 * result.gamma, expected, delta=tolerance)
                 bump = 0.005
-                low = engine.price(note, context(spot - bump))
-                high = engine.price(note, context(spot + bump))
+                low = engine.price(
+                    dated_history(note, context(spot - bump)), context(spot - bump)
+                )
+                high = engine.price(
+                    dated_history(note, context(spot + bump)), context(spot + bump)
+                )
                 self.assertAlmostEqual(
                     100 * result.delta, 100 * (high - low) / (2 * bump), delta=1e-5
                 )
@@ -206,12 +215,15 @@ class AutocallableAccuracyTests(unittest.TestCase):
                         asset_step_count=count, time_step_count=2000
                     )
                     result = engine.price_with_greeks(
-                        option, context, ["delta", "gamma"]
+                        dated_history(option, context), context, ["delta", "gamma"]
                     )
                     self.assertGreaterEqual(result.price, 1 - 1e-10)
                     self.assertLessEqual(result.price, 1.1 + 1e-10)
                     self.assertAlmostEqual(result.price, 1.1, delta=1e-6)
-                    self.assertEqual(engine.price(option, context), result.price)
+                    self.assertEqual(
+                        engine.price(dated_history(option, context), context),
+                        result.price,
+                    )
                     self.assertAlmostEqual(result.delta, 0, delta=1e-8)
                     self.assertAlmostEqual(result.gamma, 0, delta=1e-8)
 
@@ -249,9 +261,9 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 asset_upper_boundary=upper,
             )
             expected = math.exp(-0.05) + pricing.AnalyticDigitalEngine().price(
-                digital, context
+                dated_history(digital, context), context
             )
-            return abs(engine.price(option, context) - expected)
+            return abs(engine.price(dated_history(option, context), context) - expected)
 
         coarse = error(200, 2000, 400)
         for assets in (400, 800, 1600):
@@ -303,7 +315,9 @@ class AutocallableAccuracyTests(unittest.TestCase):
                     spot_price=spot,
                     valuation_time=end,
                 )
-                result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+                result = engine.price_with_greeks(
+                    dated_history(option, context), context, ["delta", "gamma"]
+                )
                 self.assertEqual(result.price, expected)
                 self.assertIsNone(result.delta)
                 self.assertIsNone(result.gamma)
@@ -351,8 +365,12 @@ class AutocallableAccuracyTests(unittest.TestCase):
                     scheme=scheme,
                     asset_upper_boundary=400,
                 )
-                result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+                result = engine.price_with_greeks(
+                    dated_history(option, context), context, ["delta", "gamma"]
+                )
                 self.assertAlmostEqual(result.price, 1, delta=1e-5)
                 self.assertAlmostEqual(result.delta, 0, delta=1e-6)
                 self.assertAlmostEqual(result.gamma, 0, delta=1e-7)
-                self.assertEqual(engine.price(option, context), result.price)
+                self.assertEqual(
+                    engine.price(dated_history(option, context), context), result.price
+                )

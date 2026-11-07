@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 #[test]
@@ -26,7 +29,7 @@ fn barrier_crr_prices_an_expiry_only_observation() {
     // One up move pays the rebate; one down move expires worthless.
     let up = (0.2_f64 * (2.0_f64 / 365.0).sqrt()).exp();
     let expected = 2.0 / (1.0 + up);
-    assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-12);
+    assert!((engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 1e-12);
 }
 
 fn terms(kind: BarrierType, days: u32) -> BarrierOptionTerms {
@@ -175,7 +178,11 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                             let mut observed = vec![!scheduled; steps + 1];
                             observed[steps] = true;
                             let result = engine
-                                .price_with_greeks(&option, &context, GreeksRequest::all())
+                                .price_with_greeks(
+                                    &dated(&option, &context),
+                                    &context,
+                                    GreeksRequest::all(),
+                                )
                                 .unwrap();
                             assert!(
                                 (result.price()
@@ -183,7 +190,10 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                                 .abs()
                                     < 2e-12
                             );
-                            assert_eq!(result.price(), engine.price(&option, &context).unwrap());
+                            assert_eq!(
+                                result.price(),
+                                engine.price(&dated(&option, &context), &context).unwrap()
+                            );
                             let low = enumerated(&option, &context, steps, &observed, (1, 0));
                             let high = enumerated(&option, &context, steps, &observed, (1, 1));
                             assert!(
@@ -241,7 +251,9 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
             &[false, false, false, true, false, false, false, false],
             (0, 0),
         );
-        assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-11);
+        assert!(
+            (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 1e-11
+        );
         let shifted = context
             .replace(PricingContextChanges {
                 valuation_time: Some(
@@ -251,7 +263,9 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
             })
             .unwrap();
         assert!(matches!(
-            engine.price(&option, &shifted).unwrap_err(),
+            engine
+                .price(&dated(&option, &shifted), &shifted)
+                .unwrap_err(),
             Error::UnsupportedOperation(_)
         ));
     }
@@ -279,7 +293,7 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
             let engine =
                 CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 2 }).unwrap();
             assert!(
-                (engine.price(&option, &context).unwrap()
+                (engine.price(&dated(&option, &context), &context).unwrap()
                     - enumerated(&option, &context, 2, &[false, true, false], (0, 0)))
                 .abs()
                     < 1e-12
@@ -301,7 +315,7 @@ fn continuous_refinement_matches_analytic_prices_and_node_greeks() {
             let option = BarrierOption::new(t).unwrap();
             let expected = AnalyticBarrierEngine
                 .price_with_greeks(
-                    &option,
+                    &dated(&option, &context),
                     &context,
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
                 )
@@ -310,7 +324,11 @@ fn continuous_refinement_matches_analytic_prices_and_node_greeks() {
                 let result =
                     CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: steps })
                         .unwrap()
-                        .price_with_greeks(&option, &context, GreeksRequest::all())
+                        .price_with_greeks(
+                            &dated(&option, &context),
+                            &context,
+                            GreeksRequest::all(),
+                        )
                         .unwrap();
                 assert!((result.price() - expected.price()).abs() < 0.25);
                 assert!(
@@ -371,31 +389,41 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     })
     .unwrap();
     assert!(matches!(
-        engine.price(&unknown, &context).unwrap_err(),
+        engine
+            .price(&dated(&unknown, &context), &context)
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let untouched = unknown.replace_history(Some(BarrierTouchState::Untouched));
     assert!(matches!(
-        engine.price(&untouched, &context).unwrap_err(),
+        engine
+            .price(&dated(&untouched, &context), &context)
+            .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     let touched = unknown.replace_history(Some(BarrierTouchState::Touched));
-    assert_eq!(engine.price(&touched, &context).unwrap(), 0.0);
+    assert_eq!(
+        engine.price(&dated(&touched, &context), &context).unwrap(),
+        0.0
+    );
     assert!(matches!(
         engine
-            .price(&touched, &market(t.effective_time, 100.0, 0.04, 0.2))
+            .price(
+                &dated(&touched, &market(t.effective_time, 100.0, 0.04, 0.2)),
+                &market(t.effective_time, 100.0, 0.04, 0.2)
+            )
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let hit = market(t.effective_time, 120.0, 0.04, 0.2);
     let result = engine
-        .price_with_greeks(&unknown, &hit, GreeksRequest::all())
+        .price_with_greeks(&dated(&unknown, &hit), &hit, GreeksRequest::all())
         .unwrap();
     assert_eq!(result.price(), 3.0);
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
     assert!(matches!(
         engine
-            .price_with_greeks(&unknown, &hit, GreeksRequest::new([]))
+            .price_with_greeks(&dated(&unknown, &hit), &hit, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -415,12 +443,14 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     )
     .unwrap();
     assert!(matches!(
-        engine.price(&unknown, &nonflat).unwrap_err(),
+        engine
+            .price(&dated(&unknown, &nonflat), &nonflat)
+            .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&unknown, &nonflat, GreeksRequest::new([]))
+            .price_with_greeks(&dated(&unknown, &nonflat), &nonflat, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -428,7 +458,10 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     for (rate, sigma) in [(0.04, 1e-200), (0.04, 1e6), (-1e6, 0.2)] {
         assert!(matches!(
             engine
-                .price(&live, &market(t.effective_time, 100.0, rate, sigma))
+                .price(
+                    &dated(&live, &market(t.effective_time, 100.0, rate, sigma)),
+                    &market(t.effective_time, 100.0, rate, sigma)
+                )
                 .unwrap_err(),
             Error::ComputationFailure(_)
         ));
@@ -439,7 +472,10 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     ] {
         assert!(matches!(
             engine
-                .price(&live, &market(time, 100.0, 0.04, 0.2))
+                .price(
+                    &dated(&live, &market(time, 100.0, 0.04, 0.2)),
+                    &market(time, 100.0, 0.04, 0.2)
+                )
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
@@ -468,11 +504,13 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
             };
             let context = market(time, 100.0, 0.04, 0.2);
             let result = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all())
+                .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(
                 result.price(),
-                AnalyticBarrierEngine.price(&option, &context).unwrap()
+                AnalyticBarrierEngine
+                    .price(&dated(&option, &context), &context)
+                    .unwrap()
             );
             if time == t.expiry_time {
                 assert_eq!(result.get(Greek::Theta), None);
@@ -488,11 +526,13 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
                 let option = BarrierOption::new(t.clone()).unwrap();
                 let context = market(t.expiry_time, spot, 0.04, 0.2);
                 let result = engine
-                    .price_with_greeks(&option, &context, GreeksRequest::all())
+                    .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(
                     result.price(),
-                    AnalyticBarrierEngine.price(&option, &context).unwrap()
+                    AnalyticBarrierEngine
+                        .price(&dated(&option, &context), &context)
+                        .unwrap()
                 );
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                     assert_eq!(result.get(greek), None);
@@ -503,7 +543,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
                     }
                 }
                 let reference = AnalyticBarrierEngine
-                    .price_with_greeks(&option, &context, GreeksRequest::all())
+                    .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(result.get(Greek::Delta), reference.get(Greek::Delta));
                 assert_eq!(result.get(Greek::Gamma), reference.get(Greek::Gamma));
@@ -521,10 +561,10 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     let context = market(t.effective_time, 100.0, 0.04, 0.2);
     let option = BarrierOption::new(t.clone()).unwrap();
     let engine = CoxRossRubinsteinBarrierEngine::default();
-    let quote = engine.price(&option, &context).unwrap();
+    let quote = engine.price(&dated(&option, &context), &context).unwrap();
     let sigma = implied_volatility(
         &engine,
-        &option,
+        &dated(&option, &context),
         &context,
         quote,
         ImpliedVolatilitySettings {
@@ -551,11 +591,11 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
             ..Default::default()
         })
         .unwrap();
-    assert!((engine.price(&option, &shifted).unwrap() - quote).abs() < 2e-7);
+    assert!((engine.price(&dated(&option, &shifted), &shifted).unwrap() - quote).abs() < 2e-7);
     assert!(matches!(
         implied_volatility(
             &engine,
-            &option,
+            &dated(&option, &context),
             &context,
             quote,
             ImpliedVolatilitySettings {
@@ -569,7 +609,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     ));
     let result = numerical_greeks(
         &engine,
-        &option,
+        &dated(&option, &context),
         &context,
         GreeksRequest::new([Greek::Vega, Greek::Rho]),
         Default::default(),
@@ -578,7 +618,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     let vanilla =
         EuropeanOption::new(t.option_type, t.strike, t.effective_time, t.expiry_time).unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&vanilla, &context, GreeksRequest::all())
+        .price_with_greeks(&dated(&vanilla, &context), &context, GreeksRequest::all())
         .unwrap();
     assert!(
         (result.require(Greek::Vega).unwrap() - expected.require(Greek::Vega).unwrap()).abs() < 0.5
@@ -598,15 +638,18 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     assert!(matches!(
         implied_volatility(
             &engine,
-            &fixed,
+            &dated(&fixed, &later),
             &later,
-            engine.price(&fixed, &later).unwrap(),
+            engine.price(&dated(&fixed, &later), &later).unwrap(),
             Default::default()
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    assert_eq!(engine.price(&option, &context).unwrap(), quote);
+    assert_eq!(
+        engine.price(&dated(&option, &context), &context).unwrap(),
+        quote
+    );
     assert_eq!(
         context.model_parameters().as_bsm().unwrap().volatility(),
         0.2

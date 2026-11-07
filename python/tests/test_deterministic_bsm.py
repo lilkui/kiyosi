@@ -12,6 +12,7 @@ from kiyosi.market import (
     PricingContext,
     all_days_calendar,
 )
+from support.history import dated as dated_history
 
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
 
@@ -235,9 +236,13 @@ class DeterministicBsmTests(unittest.TestCase):
                         )
                     )
                     self.assertAlmostEqual(
-                        engine.price(option, context), expected, delta=1e-10
+                        engine.price(dated_history(option, context), context),
+                        expected,
+                        delta=1e-10,
                     )
-                    result = engine.price_with_greeks(option, context, "all")
+                    result = engine.price_with_greeks(
+                        dated_history(option, context), context, "all"
+                    )
                     self.assertAlmostEqual(result.price, expected, delta=1e-10)
                     if isinstance(option, ins.RangeAccrualOption):
                         self.assertEqual(result.status("delta"), "undefined")
@@ -280,7 +285,9 @@ class DeterministicBsmTests(unittest.TestCase):
                     if name.startswith("MonteCarlo") and not isinstance(
                         option, ins.AmericanOption
                     ):
-                        estimate = engine.price_with_statistics(option, context)
+                        estimate = engine.price_with_statistics(
+                            dated_history(option, context), context
+                        )
                         self.assertAlmostEqual(estimate.price, expected, delta=1e-10)
                         self.assertEqual(estimate.standard_error, 0)
 
@@ -386,7 +393,9 @@ class DeterministicBsmTests(unittest.TestCase):
             for name in engines:
                 with self.subTest(contract=type(option).__name__, engine=name):
                     self.assertAlmostEqual(
-                        getattr(pricing, name)().price(option, context),
+                        getattr(pricing, name)().price(
+                            dated_history(option, context), context
+                        ),
                         expected,
                         delta=1e-10,
                     )
@@ -417,13 +426,17 @@ class DeterministicBsmTests(unittest.TestCase):
             settlement_timing="at_hit",
         )
         engine = pricing.FiniteDifferenceBinaryBarrierEngine()
-        self.assertAlmostEqual(engine.price(continuous, context), 7 / 1.05, delta=1e-10)
+        self.assertAlmostEqual(
+            engine.price(dated_history(continuous, context), context),
+            7 / 1.05,
+            delta=1e-10,
+        )
         scheduled = continuous.replace(
             observation_mode="scheduled",
             observation_times=[end],
             touch_state=continuous.touch_state,
         )
-        self.assertEqual(engine.price(scheduled, context), 0)
+        self.assertEqual(engine.price(dated_history(scheduled, context), context), 0)
 
     def test_american_exercise_and_seasoned_asian_averages_are_exact(self):
         end = START + timedelta(days=365)
@@ -448,7 +461,9 @@ class DeterministicBsmTests(unittest.TestCase):
         ):
             with self.subTest(engine=name):
                 self.assertAlmostEqual(
-                    getattr(pricing, name)().price(american, context),
+                    getattr(pricing, name)().price(
+                        dated_history(american, context), context
+                    ),
                     expected,
                     delta=1e-10,
                 )
@@ -487,7 +502,9 @@ class DeterministicBsmTests(unittest.TestCase):
             for name in (analytic, "MonteCarloAsianEngine"):
                 with self.subTest(engine=name, contract=cls.__name__):
                     self.assertAlmostEqual(
-                        getattr(pricing, name)().price(option, context),
+                        getattr(pricing, name)().price(
+                            dated_history(option, context), context
+                        ),
                         (average - 85) * math.exp(-0.08 * remaining),
                         delta=1e-10,
                     )
@@ -531,13 +548,15 @@ class DeterministicBsmTests(unittest.TestCase):
             for name in (analytic, "MonteCarloAsianEngine"):
                 with self.subTest(engine=name, contract=cls.__name__):
                     self.assertAlmostEqual(
-                        getattr(pricing, name)().price(option, context),
+                        getattr(pricing, name)().price(
+                            dated_history(option, context), context
+                        ),
                         expected,
                         delta=1e-10,
                     )
             estimate = pricing.MonteCarloAsianEngine(
                 path_count=1, sampling="sobol", antithetic=True
-            ).price_with_statistics(option, context)
+            ).price_with_statistics(dated_history(option, context), context)
             self.assertAlmostEqual(estimate.price, expected, delta=1e-10)
             self.assertIsNone(estimate.standard_error)
             self.assertIsNone(estimate.confidence_interval)
@@ -567,7 +586,7 @@ class DeterministicBsmTests(unittest.TestCase):
             with self.subTest(product="snowball", engine=family):
                 self.assertAlmostEqual(
                     getattr(pricing, family + "AutocallableEngine")().price(
-                        note, context
+                        dated_history(note, context), context
                     ),
                     (1 + 0.1 * 180 / 365) * math.exp(-0.1 * 180 / 365),
                     delta=1e-10,
@@ -590,7 +609,7 @@ class DeterministicBsmTests(unittest.TestCase):
             with self.subTest(product="accumulator", engine=family):
                 self.assertAlmostEqual(
                     getattr(pricing, family + "AccumulatorEngine")().price(
-                        accumulator, context
+                        dated_history(accumulator, context), context
                     ),
                     expected,
                     delta=1e-8,
@@ -624,7 +643,7 @@ class DeterministicBsmTests(unittest.TestCase):
             with self.subTest(engine=family):
                 self.assertAlmostEqual(
                     getattr(pricing, family + "AutocallableEngine")().price(
-                        note, context
+                        dated_history(note, context), context
                     ),
                     1.1 * math.exp(-0.6),
                     delta=1e-10,
@@ -648,11 +667,15 @@ class DeterministicBsmTests(unittest.TestCase):
         ):
             engine = getattr(pricing, name)()
             with self.subTest(engine=name):
-                result = engine.price_with_greeks(option, context, "all")
+                result = engine.price_with_greeks(
+                    dated_history(option, context), context, "all"
+                )
                 self.assertEqual(result.status("delta"), "undefined")
                 self.assertEqual(result.status("vega"), "undefined")
                 self.assertEqual(
-                    pricing.implied_volatility(engine, option, context, 0),
+                    pricing.implied_volatility(
+                        engine, dated_history(option, context), context, 0
+                    ),
                     0,
                 )
                 digital = ins.CashOrNothingOption(
@@ -663,11 +686,14 @@ class DeterministicBsmTests(unittest.TestCase):
                     expiry_time=END,
                 )
                 self.assertEqual(
-                    pricing.AnalyticDigitalEngine().price(digital, context), 0
+                    pricing.AnalyticDigitalEngine().price(
+                        dated_history(digital, context), context
+                    ),
+                    0,
                 )
         regular = option.replace(strike=90)
         result = pricing.AnalyticEuropeanEngine().price_with_greeks(
-            regular, context, "all"
+            dated_history(regular, context), context, "all"
         )
         self.assertAlmostEqual(result.delta, 1, delta=1e-10)
         self.assertAlmostEqual(result.gamma, 0, delta=1e-10)

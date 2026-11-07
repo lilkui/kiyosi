@@ -31,6 +31,12 @@ Integer inputs accept the ``__index__`` protocol, excluding booleans; fractional
 values raise ``TypeError`` and values outside the target integer range raise
 ``OverflowError``.
 
+Supplied contract history requires an explicit ``history_time`` when pricing.
+History covers events strictly before that timestamp; pricing rejects stale rolls
+across observations. Continuously accumulated history requires the same instant.
+Set the timestamp alongside updated history with ``replace_history``. Numerical
+time sensitivities hold the observed history fixed for their hypothetical rolls.
+
 Values own their data and expose read-only properties. Default representations
 show contract terms, market inputs, engine controls and result values, with
 large arrays abbreviated through bounded native previews for interactive inspection.

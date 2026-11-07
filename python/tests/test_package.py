@@ -13,6 +13,7 @@ from pathlib import Path
 import kiyosi
 from kiyosi import _native, instruments, market, pricing
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 
 
 class PackageTests(unittest.TestCase):
@@ -112,7 +113,7 @@ class PackageTests(unittest.TestCase):
             engine,
             option,
             context,
-            engine.price(option, context),
+            engine.price(dated_history(option, context), context),
         )
         arguments.apply_defaults()
         self.assertAlmostEqual(
@@ -134,7 +135,10 @@ class PackageTests(unittest.TestCase):
         arguments.apply_defaults()
         result = engine.price_with_greeks(*arguments.args, **arguments.kwargs)
         self.assertEqual(
-            result.delta, engine.price_with_greeks(digital, context, "delta").delta
+            result.delta,
+            engine.price_with_greeks(
+                dated_history(digital, context), context, "delta"
+            ).delta,
         )
 
     def test_replacements_expose_declared_keyword_fields(self):
@@ -304,7 +308,9 @@ class PackageTests(unittest.TestCase):
             (instruments.AmericanOption, 8.0),
         ):
             option = kind(**terms)
-            default = engine.price_with_greeks(option, context, "delta")
+            default = engine.price_with_greeks(
+                dated_history(option, context), context, "delta"
+            )
             shift_default = (
                 inspect.signature(numerical_greeks).parameters["spot_shift"].default
             )
@@ -312,20 +318,32 @@ class PackageTests(unittest.TestCase):
                 self.assertIs(shift_default, None)
                 self.assertEqual(
                     numerical_greeks(
-                        engine, option, context, "delta", spot_shift=shift_default
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        "delta",
+                        spot_shift=shift_default,
                     ).require("delta"),
                     default.require("delta"),
                 )
                 self.assertEqual(
                     numerical_greeks(
-                        engine, option, context, "delta", spot_shift=shift
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        "delta",
+                        spot_shift=shift,
                     ).require("delta"),
                     default.require("delta"),
                 )
                 for invalid in (True, "invalid", Ellipsis):
                     with self.assertRaises(TypeError):
                         numerical_greeks(
-                            engine, option, context, "delta", spot_shift=invalid
+                            engine,
+                            dated_history(option, context),
+                            context,
+                            "delta",
+                            spot_shift=invalid,
                         )
 
     def test_numerical_spot_shift_none_uses_the_core_default(self):
@@ -344,11 +362,21 @@ class PackageTests(unittest.TestCase):
             valuation_time=start,
         )
         engine = pricing.QuadratureVanillaEngine()
-        automatic = engine.price_with_greeks(option, context, "delta")
-        explicit = numerical_greeks(engine, option, context, "delta", spot_shift=0.01)
+        automatic = engine.price_with_greeks(
+            dated_history(option, context), context, "delta"
+        )
+        explicit = numerical_greeks(
+            engine, dated_history(option, context), context, "delta", spot_shift=0.01
+        )
         self.assertEqual(automatic.delta, explicit.delta)
         self.assertEqual(
-            numerical_greeks(engine, option, context, "delta", spot_shift=None).delta,
+            numerical_greeks(
+                engine,
+                dated_history(option, context),
+                context,
+                "delta",
+                spot_shift=None,
+            ).delta,
             explicit.delta,
         )
         for invalid in (0, -1, float("nan"), float("inf")):
@@ -356,7 +384,13 @@ class PackageTests(unittest.TestCase):
                 self.subTest(invalid=invalid),
                 self.assertRaises(kiyosi.InvalidInputError),
             ):
-                numerical_greeks(engine, option, context, "delta", spot_shift=invalid)
+                numerical_greeks(
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    "delta",
+                    spot_shift=invalid,
+                )
 
     def test_native_greek_methods_reject_numerical_controls(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -413,7 +447,7 @@ class PackageTests(unittest.TestCase):
                 )
                 result = numerical_greeks(
                     engine,
-                    option,
+                    dated_history(option, context),
                     context,
                     "delta",
                     spot_shift=0.2,
@@ -421,7 +455,9 @@ class PackageTests(unittest.TestCase):
                     rate_shift=0.001,
                     time_shift=timedelta(days=2),
                 )
-                self.assertEqual(result.price, engine.price(option, context))
+                self.assertEqual(
+                    result.price, engine.price(dated_history(option, context), context)
+                )
                 for control in (
                     "spot_shift",
                     "volatility_shift",
@@ -430,13 +466,20 @@ class PackageTests(unittest.TestCase):
                 ):
                     with self.subTest(control=control), self.assertRaises(TypeError):
                         engine.price_with_greeks(
-                            option, context, "delta", **{control: 1}
+                            dated_history(option, context),
+                            context,
+                            "delta",
+                            **{control: 1},
                         )
                 for invalid in (1, None, True):
                     with self.assertRaises(TypeError):
-                        engine.price_with_greeks(option, context, greeks=invalid)
+                        engine.price_with_greeks(
+                            dated_history(option, context), context, greeks=invalid
+                        )
                 with self.assertRaises(TypeError):
-                    engine.price_with_greeks(option, context, "delta", unknown=True)
+                    engine.price_with_greeks(
+                        dated_history(option, context), context, "delta", unknown=True
+                    )
 
     def test_all_engines_expose_the_same_native_greek_signature(self):
         for name in pricing.__all__:

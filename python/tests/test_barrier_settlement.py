@@ -5,6 +5,7 @@ from datetime import datetime
 
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
+from support.history import dated as dated_history
 
 
 class BarrierSettlementTests(unittest.TestCase):
@@ -62,6 +63,8 @@ class BarrierSettlementTests(unittest.TestCase):
             ),
         ):
             with self.subTest(contract=type(settled).__name__):
-                self.assertEqual(engine.price(settled, context), 0)
+                self.assertEqual(
+                    engine.price(dated_history(settled, context), context), 0
+                )
                 with self.assertRaises(InvalidInputError):
-                    engine.price(unpaid, context)
+                    engine.price(dated_history(unpaid, context), context)

@@ -22,6 +22,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -57,24 +58,33 @@ class TerminationHistoryTests(unittest.TestCase):
         ):
             with self.subTest(engine=type(engine).__name__):
                 with self.assertRaises(InvalidInputError):
-                    engine.price(option, context)
-                self.assertEqual(engine.price(active, context), 25)
-                self.assertEqual(engine.price(settled, context), 0)
+                    engine.price(dated_history(option, context), context)
+                self.assertEqual(
+                    engine.price(dated_history(active, context), context), 25
+                )
+                self.assertEqual(
+                    engine.price(dated_history(settled, context), context), 0
+                )
                 initial = context.replace(valuation_time=option.effective_time)
                 self.assertEqual(
                     engine.price(
-                        option.replace_history(accumulated_quantity=None), initial
+                        dated_history(
+                            option.replace_history(accumulated_quantity=None), initial
+                        ),
+                        initial,
                     ),
                     25,
                 )
                 with self.assertRaises(InvalidInputError):
-                    engine.price(settled, initial)
+                    engine.price(dated_history(settled, initial), initial)
                 no_knock_out = option.replace(
                     knock_out_observation_times=[],
                     accumulated_quantity=2,
                     knock_out_settled=None,
                 )
-                self.assertEqual(engine.price(no_knock_out, context), 25)
+                self.assertEqual(
+                    engine.price(dated_history(no_knock_out, context), context), 25
+                )
         for invalid in (0, 1, "yes"):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
                 option.replace_history(knock_out_settled=invalid)
@@ -193,40 +203,63 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 with self.subTest(start=start, engine=type(engine).__name__):
                     self.assertIsNone(option.accumulated_quantity)
                     current = market(spot=100, valuation=first, rate=0, dividend=0)
-                    self.assertTrue(math.isfinite(engine.price(option, current)))
+                    self.assertTrue(
+                        math.isfinite(
+                            engine.price(dated_history(option, current), current)
+                        )
+                    )
                     for valuation in (start, first):
                         self.assert_rejection(
                             InvalidInputError,
                             engine.price,
-                            option.replace_history(accumulated_quantity=3),
+                            dated_history(
+                                option.replace_history(accumulated_quantity=3),
+                                current.replace(valuation_time=valuation),
+                            ),
                             current.replace(valuation_time=valuation),
                         )
                     prior = current.replace(
                         valuation_time=datetime.combine(first, time(12))
                     )
                     self.assert_rejection(
-                        InvalidInputError, engine.price, option, prior
+                        InvalidInputError,
+                        engine.price,
+                        dated_history(option, prior),
+                        prior,
                     )
                     self.assertTrue(
                         math.isfinite(
                             engine.price(
-                                option.replace_history(accumulated_quantity=0), prior
+                                dated_history(
+                                    option.replace_history(accumulated_quantity=0),
+                                    prior,
+                                ),
+                                prior,
                             )
                         )
                     )
                     expiry = current.replace(valuation_time=option.expiry_time)
                     self.assert_rejection(
-                        InvalidInputError, engine.price, option, expiry
+                        InvalidInputError,
+                        engine.price,
+                        dated_history(option, expiry),
+                        expiry,
                     )
                     self.assertEqual(
                         engine.price(
-                            option.replace_history(accumulated_quantity=0), expiry
+                            dated_history(
+                                option.replace_history(accumulated_quantity=0), expiry
+                            ),
+                            expiry,
                         ),
                         10,
                     )
                     self.assertEqual(
                         engine.price(
-                            option.replace_history(accumulated_quantity=10), expiry
+                            dated_history(
+                                option.replace_history(accumulated_quantity=10), expiry
+                            ),
+                            expiry,
                         ),
                         110,
                     )
@@ -341,7 +374,10 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         )
         self.assertEqual(
             pricing.QuadratureAccumulatorEngine().price(
-                contract(datetime(2025, 1, 6), quantity=0),
+                dated_history(
+                    contract(datetime(2025, 1, 6), quantity=0),
+                    market(110, START + timedelta(days=1)),
+                ),
                 market(110, START + timedelta(days=1)),
             ),
             0,
@@ -364,12 +400,15 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 model_parameters=context.model_parameters.replace(**{field: curve})
             )
             self.assert_rejection(
-                UnsupportedOperationError, engine.price, option, curved
+                UnsupportedOperationError,
+                engine.price,
+                dated_history(option, curved),
+                curved,
             )
             self.assert_rejection(
                 UnsupportedOperationError,
                 engine.price_with_greeks,
-                option,
+                dated_history(option, curved),
                 curved,
                 [],
             )
@@ -377,7 +416,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                option,
+                dated_history(option, curved),
                 curved,
                 math.nan,
             )
@@ -387,19 +426,19 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             (contract(daily=0), market(90, rate=0, dividend=0)),
             (contract(daily=0, quantity=0), market()),
         ):
-            quote = engine.price(instrument, scenario)
+            quote = engine.price(dated_history(instrument, scenario), scenario)
             self.assert_rejection(
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                instrument,
+                dated_history(instrument, scenario),
                 scenario,
                 quote,
             )
         self.assert_rejection(
             InvalidInputError,
             engine.price_with_greeks,
-            option,
+            dated_history(option, market()),
             market(),
             [],
         )
@@ -413,9 +452,15 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         )
         for value in (True, "1", None):
             with self.assertRaises(TypeError):
-                pricing.implied_volatility(engine, option, market(), value)
+                pricing.implied_volatility(
+                    engine, dated_history(option, market()), market(), value
+                )
         self.assertEqual(
-            engine.price(option, market(110, START + timedelta(days=1))), 30
+            engine.price(
+                dated_history(option, market(110, START + timedelta(days=1))),
+                market(110, START + timedelta(days=1)),
+            ),
+            30,
         )
 
     def test_two_events_match_independent_conditional_terminal_integral(self):
@@ -462,7 +507,11 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 )
                 reference += total * step / 3
             reference *= math.exp(0.02 * t)
-            self.assertAlmostEqual(engine.price(option, context), reference, delta=2e-5)
+            self.assertAlmostEqual(
+                engine.price(dated_history(option, context), context),
+                reference,
+                delta=2e-5,
+            )
 
     def test_configuration_protocols_and_ownership(self):
         engine = pricing.QuadratureAccumulatorEngine()
@@ -497,7 +546,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             expiry_time=datetime(2025, 2, 3),
         )
         with self.assertRaises(UnsupportedOperationError):
-            engine.price(vanilla, market())
+            engine.price(dated_history(vanilla, market()), market())
 
     def test_single_observation_matches_independent_cash_asset_decomposition(self):
         valuation = datetime(2025, 1, 3, 12)
@@ -513,15 +562,18 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     ):
                         option = contract(datetime(2025, 1, 6), knock_out, acceleration)
                         context = market(spot, valuation, 0.6, -0.02, 0.03)
-                        actual = default.price(option, context)
+                        actual = default.price(dated_history(option, context), context)
                         self.assertAlmostEqual(
                             actual, terminal_reference(option, context), delta=1e-9
                         )
-                        self.assertEqual(actual, minimal.price(option, context))
+                        self.assertEqual(
+                            actual,
+                            minimal.price(dated_history(option, context), context),
+                        )
         option = contract(datetime(2025, 1, 6))
         context = market(100, datetime(2025, 1, 5, 23, 59, 59))
         self.assertAlmostEqual(
-            default.price(option, context),
+            default.price(dated_history(option, context), context),
             terminal_reference(option, context),
             delta=1e-9,
         )
@@ -533,8 +585,12 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         for spot, expected in ((90, -50), (100, 0), (109, 36), (110, 30), (111, 33)):
             with self.subTest(spot=spot):
                 context = market(spot, end)
-                self.assertEqual(engine.price(option, context), expected)
-                result = engine.price_with_greeks(option, context, greeks="all")
+                self.assertEqual(
+                    engine.price(dated_history(option, context), context), expected
+                )
+                result = engine.price_with_greeks(
+                    dated_history(option, context), context, greeks="all"
+                )
                 self.assertEqual(result.price, expected)
                 assert_terminal_greeks(
                     self,
@@ -542,7 +598,11 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     None if spot in (100, 110) else expected / (spot - 100),
                 )
         self.assertEqual(
-            engine.price(option, market(110, START + timedelta(days=1))), 30
+            engine.price(
+                dated_history(option, market(110, START + timedelta(days=1))),
+                market(110, START + timedelta(days=1)),
+            ),
+            30,
         )
         for instrument, context, expected_error in (
             (
@@ -560,45 +620,77 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 self.subTest(expected_error=expected_error),
                 self.assertRaises(expected_error) as error,
             ):
-                engine.price(instrument, context)
+                engine.price(dated_history(instrument, context), context)
             self.assertIs(type(error.exception), expected_error)
-        self.assertEqual(engine.price(option, market(110, end)), 30)
+        self.assertEqual(
+            engine.price(dated_history(option, market(110, end)), market(110, end)), 30
+        )
 
     def test_quantity_affinity_exact_limits_and_shared_instance_threads(self):
         engine = pricing.QuadratureAccumulatorEngine()
         context = market(90)
         values = [
-            engine.price(contract(quantity=quantity), context) for quantity in (0, 3, 6)
+            engine.price(dated_history(contract(quantity=quantity), context), context)
+            for quantity in (0, 3, 6)
         ]
         self.assertAlmostEqual(
             values[2] - values[1], values[1] - values[0], delta=1e-10
         )
-        self.assertEqual(engine.price(contract(daily=0, quantity=0), context), 0)
         self.assertEqual(
-            engine.price(contract(daily=0), market(90, rate=0, dividend=0)), -30
+            engine.price(
+                dated_history(contract(daily=0, quantity=0), context), context
+            ),
+            0,
+        )
+        self.assertEqual(
+            engine.price(
+                dated_history(contract(daily=0), market(90, rate=0, dividend=0)),
+                market(90, rate=0, dividend=0),
+            ),
+            -30,
         )
         self.assertAlmostEqual(
             engine.price(
-                contract(datetime(2025, 1, 2)),
+                dated_history(
+                    contract(datetime(2025, 1, 2)),
+                    market(90, volatility=1e-8, rate=0, dividend=0),
+                ),
                 market(90, volatility=1e-8, rate=0, dividend=0),
             ),
             -50,
             delta=1e-9,
         )
         self.assertAlmostEqual(
-            engine.price(contract(), market(90, volatility=1e-8, rate=0, dividend=0)),
+            engine.price(
+                dated_history(
+                    contract(), market(90, volatility=1e-8, rate=0, dividend=0)
+                ),
+                market(90, volatility=1e-8, rate=0, dividend=0),
+            ),
             -490,
             delta=1e-9,
         )
         self.assertAlmostEqual(
-            engine.price(contract(), market(120, volatility=1e-8, rate=0, dividend=0)),
+            engine.price(
+                dated_history(
+                    contract(), market(120, volatility=1e-8, rate=0, dividend=0)
+                ),
+                market(120, volatility=1e-8, rate=0, dividend=0),
+            ),
             60,
             delta=1e-9,
         )
         option = contract()
         with ThreadPoolExecutor(max_workers=2) as pool:
-            values = list(pool.map(lambda _: engine.price(option, context), range(2)))
-        self.assertEqual(values, [engine.price(option, context)] * 2)
+            values = list(
+                pool.map(
+                    lambda _: engine.price(dated_history(option, context), context),
+                    range(2),
+                )
+            )
+        self.assertEqual(
+            values, [engine.price(dated_history(option, context), context)] * 2
+        )
 
     def test_current_observation_adjacent_thresholds_and_extreme_result(self):
         end = datetime(2025, 1, 6)
@@ -607,7 +699,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         for spot, quantity in ((90, 5), (100, 4), (109, 4)):
             context = market(spot, datetime(2025, 1, 3))
             self.assertAlmostEqual(
-                engine.price(option, context),
+                engine.price(dated_history(option, context), context),
                 terminal_reference(contract(end, quantity=quantity), context),
                 delta=1e-9,
             )
@@ -618,24 +710,42 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             (math.nextafter(110, 120), 3),
         ):
             self.assertEqual(
-                engine.price(option, market(spot, end)), quantity * (spot - 100)
+                engine.price(
+                    dated_history(option, market(spot, end)), market(spot, end)
+                ),
+                quantity * (spot - 100),
             )
-        self.assertEqual(engine.price(contract(end, 90), market(90, end)), -30)
-        self.assertEqual(engine.price(contract(end, 90), market(89, end)), -55)
+        self.assertEqual(
+            engine.price(
+                dated_history(contract(end, 90), market(90, end)), market(90, end)
+            ),
+            -30,
+        )
+        self.assertEqual(
+            engine.price(
+                dated_history(contract(end, 90), market(89, end)), market(89, end)
+            ),
+            -55,
+        )
         with self.assertRaises(ComputationFailureError) as error:
-            engine.price(option, market(volatility=1e308))
+            engine.price(
+                dated_history(option, market(volatility=1e308)),
+                market(volatility=1e308),
+            )
         self.assertIs(type(error.exception), ComputationFailureError)
 
     def test_greek_availability_and_normalized_convergence(self):
         option = contract()
         engine = pricing.QuadratureAccumulatorEngine()
         boundary = engine.price_with_greeks(
-            option, market(100, START + timedelta(days=1)), greeks="all"
+            dated_history(option, market(100, START + timedelta(days=1))),
+            market(100, START + timedelta(days=1)),
+            greeks="all",
         )
         for greek in ("delta", "gamma", "speed", "theta"):
             self.assertIsNone(getattr(boundary, greek))
         small = engine.price_with_greeks(
-            option,
+            dated_history(option, market(90, volatility=1e-4)),
             market(90, volatility=1e-4),
             greeks=[
                 "vega",
@@ -665,11 +775,15 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 spot=context.spot_price,
                 volatility=context.model_parameters.volatility,
             ):
-                base = engine.price_with_greeks(option, context, greeks="all")
-                fine = refined.price_with_greeks(option, context, greeks="all")
+                base = engine.price_with_greeks(
+                    dated_history(option, context), context, greeks="all"
+                )
+                fine = refined.price_with_greeks(
+                    dated_history(option, context), context, greeks="all"
+                )
                 smaller = numerical_greeks(
                     refined,
-                    option,
+                    dated_history(option, context),
                     context,
                     greeks="all",
                     spot_shift=0.005,
@@ -708,7 +822,12 @@ class AccumulatorQuadratureTests(unittest.TestCase):
 
         def values(vol):
             return [
-                engine.price(option, market(spot + offset * h, valuation, vol, -0.02))
+                engine.price(
+                    dated_history(
+                        option, market(spot + offset * h, valuation, vol, -0.02)
+                    ),
+                    market(spot + offset * h, valuation, vol, -0.02),
+                )
                 for offset in (0, 1, -1, 2, -2)
             ]
 
@@ -739,7 +858,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         def evaluate(volatility):
             return numerical_greeks(
                 engine,
-                option,
+                dated_history(option, market(spot, valuation, volatility, -0.02)),
                 market(spot, valuation, volatility, -0.02),
                 [
                     "delta",
@@ -766,9 +885,14 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         option = contract(datetime(2025, 1, 6))
         context = market(100, datetime(2025, 1, 3, 12), volatility=0.4)
         engine = pricing.QuadratureAccumulatorEngine()
-        quote = engine.price(option, context)
+        quote = engine.price(dated_history(option, context), context)
         volatility = pricing.implied_volatility(
-            engine, option, context, quote, lower_bound=0.2, upper_bound=0.6
+            engine,
+            dated_history(option, context),
+            context,
+            quote,
+            lower_bound=0.2,
+            upper_bound=0.6,
         )
         self.assertAlmostEqual(volatility, 0.4, delta=1e-6)
 

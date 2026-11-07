@@ -11,6 +11,7 @@ from fractions import Fraction
 from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
 from kiyosi import instruments as ins
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 
 
 class ApiConsistencyTests(unittest.TestCase):
@@ -54,20 +55,32 @@ class ApiConsistencyTests(unittest.TestCase):
                                 at=at,
                                 engine=type(engine).__name__,
                             ):
-                                price = engine.price(future, context)
-                                self.assertEqual(price, engine.price(existing, context))
+                                price = engine.price(
+                                    dated_history(future, context), context
+                                )
+                                self.assertEqual(
+                                    price,
+                                    engine.price(
+                                        dated_history(existing, context), context
+                                    ),
+                                )
                                 native = engine.price_with_greeks(
-                                    future, context, "delta"
+                                    dated_history(future, context), context, "delta"
                                 )
                                 self.assertEqual(
                                     native,
                                     engine.price_with_greeks(
-                                        existing, context, "delta"
+                                        dated_history(existing, context),
+                                        context,
+                                        "delta",
                                     ),
                                 )
                                 self.assertTrue(math.isfinite(native.require("delta")))
                                 numerical = numerical_greeks(
-                                    engine, future, context, "theta"
+                                    engine,
+                                    dated_history(future, context),
+                                    context,
+                                    "theta",
                                 )
                                 self.assertTrue(
                                     math.isfinite(numerical.require("theta"))
@@ -75,14 +88,17 @@ class ApiConsistencyTests(unittest.TestCase):
                                 self.assertEqual(
                                     numerical,
                                     numerical_greeks(
-                                        engine, existing, context, "theta"
+                                        engine,
+                                        dated_history(existing, context),
+                                        context,
+                                        "theta",
                                     ),
                                 )
                                 if volatility:
                                     self.assertAlmostEqual(
                                         pricing.implied_volatility(
                                             engine,
-                                            future,
+                                            dated_history(future, context),
                                             context,
                                             price,
                                             lower_bound=0.2,
@@ -92,8 +108,12 @@ class ApiConsistencyTests(unittest.TestCase):
                                         delta=1e-12,
                                     )
                         self.assertEqual(
-                            mc.price_with_statistics(future, context),
-                            mc.price_with_statistics(existing, context),
+                            mc.price_with_statistics(
+                                dated_history(future, context), context
+                            ),
+                            mc.price_with_statistics(
+                                dated_history(existing, context), context
+                            ),
                         )
                     short = market.RateTermStructure.bounded_flat(
                         0.05, reference_time=start, max_time=expiry - timedelta(days=1)
@@ -108,7 +128,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     for engine in engines:
                         for invalid in (uncovered, expired):
                             with self.assertRaises(InvalidInputError):
-                                engine.price(future, invalid)
+                                engine.price(dated_history(future, invalid), invalid)
                 surface = market.LocalVolatilitySurface(
                     times=[start, expiry],
                     spots=[50, 150],
@@ -120,7 +140,10 @@ class ApiConsistencyTests(unittest.TestCase):
                     ),
                     valuation_time=start,
                 )
-                self.assertEqual(fd.price(future, local), fd.price(existing, local))
+                self.assertEqual(
+                    fd.price(dated_history(future, local), local),
+                    fd.price(dated_history(existing, local), local),
+                )
                 self.assertEqual(future.effective_time, effective)
 
     def test_european_pre_effective_pricing_preserves_contract_and_model_coverage(self):
@@ -150,20 +173,24 @@ class ApiConsistencyTests(unittest.TestCase):
             for engine in engines:
                 with self.subTest(engine=type(engine).__name__, volatility=volatility):
                     self.assertEqual(
-                        engine.price(future, context), engine.price(existing, context)
+                        engine.price(dated_history(future, context), context),
+                        engine.price(dated_history(existing, context), context),
                     )
                     self.assertTrue(
                         math.isfinite(
-                            engine.price_with_greeks(future, context, "delta").require(
-                                "delta"
-                            )
+                            engine.price_with_greeks(
+                                dated_history(future, context), context, "delta"
+                            ).require("delta")
                         )
                     )
             if volatility:
                 engine = engines[0]
                 self.assertAlmostEqual(
                     pricing.implied_volatility(
-                        engine, future, context, engine.price(future, context)
+                        engine,
+                        dated_history(future, context),
+                        context,
+                        engine.price(dated_history(future, context), context),
                     ),
                     volatility,
                     delta=1e-7,
@@ -185,7 +212,8 @@ class ApiConsistencyTests(unittest.TestCase):
             ),
         ):
             self.assertEqual(
-                engine.price(future, context), engine.price(existing, context)
+                engine.price(dated_history(future, context), context),
+                engine.price(dated_history(existing, context), context),
             )
         surface = market.LocalVolatilitySurface(
             times=[valuation, expiry], spots=[50, 150], values=[[0.2, 0.2], [0.2, 0.2]]
@@ -195,14 +223,20 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         context = context.replace(model_parameters=local)
         self.assertEqual(
-            engines[2].price(future, context), engines[2].price(existing, context)
+            engines[2].price(dated_history(future, context), context),
+            engines[2].price(dated_history(existing, context), context),
         )
         bounded = market.RateTermStructure.bounded_flat(
             0.05, reference_time=effective, max_time=expiry
         )
         with self.assertRaises(InvalidInputError):
             engines[0].price(
-                future,
+                dated_history(
+                    future,
+                    context.replace(
+                        model_parameters=model.replace(risk_free_rate=bounded)
+                    ),
+                ),
                 context.replace(model_parameters=model.replace(risk_free_rate=bounded)),
             )
         self.assertEqual(future.effective_time, effective)
@@ -313,15 +347,25 @@ class ApiConsistencyTests(unittest.TestCase):
             for family in ("FiniteDifference", "Quadrature", "MonteCarlo"):
                 engine = getattr(pricing, family + kind + "Engine")()
                 with self.subTest(kind=kind, engine=family):
-                    self.assertEqual(engine.price(settled, context), 0)
-                    self.assertEqual(engine.price(contract, context), current_value)
                     self.assertEqual(
-                        engine.price_with_greeks(settled, context, "delta").delta, 0
+                        engine.price(dated_history(settled, context), context), 0
+                    )
+                    self.assertEqual(
+                        engine.price(dated_history(contract, context), context),
+                        current_value,
+                    )
+                    self.assertEqual(
+                        engine.price_with_greeks(
+                            dated_history(settled, context), context, "delta"
+                        ).delta,
+                        0,
                     )
                     with self.assertRaises(InvalidInputError):
-                        engine.price(active, context)
+                        engine.price(dated_history(active, context), context)
                     if family == "MonteCarlo":
-                        estimate = engine.price_with_statistics(settled, context)
+                        estimate = engine.price_with_statistics(
+                            dated_history(settled, context), context
+                        )
                         self.assertEqual(estimate.price, 0)
                         self.assertEqual(estimate.standard_error, 0)
 
@@ -363,28 +407,35 @@ class ApiConsistencyTests(unittest.TestCase):
                         schedule=times, valuation=valuation, engine=family
                     ):
                         if first is not None and first < valuation:
-                            self.assertEqual(engine.price(settled, context), 0)
+                            self.assertEqual(
+                                engine.price(dated_history(settled, context), context),
+                                0,
+                            )
                             self.assertEqual(
                                 engine.price_with_greeks(
-                                    settled, context, "delta"
+                                    dated_history(settled, context), context, "delta"
                                 ).delta,
                                 0,
                             )
                             if family == "MonteCarlo":
                                 self.assertEqual(
                                     engine.price_with_statistics(
-                                        settled, context
+                                        dated_history(settled, context), context
                                     ).price,
                                     0,
                                 )
                         else:
                             with self.assertRaises(InvalidInputError):
-                                engine.price(settled, context)
+                                engine.price(dated_history(settled, context), context)
                             with self.assertRaises(InvalidInputError):
-                                engine.price_with_greeks(settled, context, "delta")
+                                engine.price_with_greeks(
+                                    dated_history(settled, context), context, "delta"
+                                )
                             if family == "MonteCarlo":
                                 with self.assertRaises(InvalidInputError):
-                                    engine.price_with_statistics(settled, context)
+                                    engine.price_with_statistics(
+                                        dated_history(settled, context), context
+                                    )
             self.assertFalse(original.knock_out_settled)
             self.assertIsNone(original.accumulated_quantity)
             self.assertEqual(original.knock_out_observation_times, times)
@@ -523,7 +574,9 @@ class ApiConsistencyTests(unittest.TestCase):
             double = ins.DoubleBarrierOption(
                 **terms, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
             )
-            expected = pricing.AnalyticBarrierEngine().price(single, context)
+            expected = pricing.AnalyticBarrierEngine().price(
+                dated_history(single, context), context
+            )
             previous = None
             for upper in (121, 400, 10_000):
                 settings = {
@@ -533,10 +586,10 @@ class ApiConsistencyTests(unittest.TestCase):
                 }
                 actual = (
                     pricing.FiniteDifferenceBarrierEngine(**settings).price(
-                        single, context
+                        dated_history(single, context), context
                     ),
                     pricing.FiniteDifferenceDoubleBarrierEngine(**settings).price(
-                        double, context
+                        dated_history(double, context), context
                     ),
                 )
                 with self.subTest(direction=direction, upper=upper):
@@ -576,9 +629,14 @@ class ApiConsistencyTests(unittest.TestCase):
         ):
             engine = factory()
             with self.subTest(engine=factory.__name__):
-                self.assertEqual(engine.price(settled, context), 0)
                 self.assertEqual(
-                    engine.price_with_greeks(settled, context, "delta").delta, 0
+                    engine.price(dated_history(settled, context), context), 0
+                )
+                self.assertEqual(
+                    engine.price_with_greeks(
+                        dated_history(settled, context), context, "delta"
+                    ).delta,
+                    0,
                 )
                 for changes in (
                     {"touch_state": "untouched"},
@@ -587,7 +645,9 @@ class ApiConsistencyTests(unittest.TestCase):
                     {"touch_state": None},
                 ):
                     with self.assertRaises(InvalidInputError):
-                        engine.price(settled.replace(**changes), context)
+                        engine.price(
+                            dated_history(settled.replace(**changes), context), context
+                        )
 
     def test_structured_contract_calendars_control_observations_and_survive_reconstruction(
         self,
@@ -611,13 +671,15 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         expiry = context.replace(valuation_time=end)
         engine = pricing.AnalyticRangeAccrualEngine()
-        price = engine.price(accrual, expiry)
+        price = engine.price(dated_history(accrual, expiry), expiry)
         self.assertAlmostEqual(price, 360 / 365, delta=1e-12)
         daily = accrual.replace(
             calendar=market.all_days_calendar(),
             realized_hit_count=accrual.realized_hit_count,
         )
-        self.assertAlmostEqual(engine.price(daily, expiry), price / 3, delta=1e-12)
+        self.assertAlmostEqual(
+            engine.price(dated_history(daily, expiry), expiry), price / 3, delta=1e-12
+        )
         accumulator = ins.Accumulator(
             observation_clock_time=clock_time(),
             strike=90,
@@ -688,12 +750,12 @@ class ApiConsistencyTests(unittest.TestCase):
         ):
             with self.subTest(engine=type(engine).__name__):
                 self.assertAlmostEqual(
-                    engine.price(option, context),
-                    engine.price(option, nodes),
+                    engine.price(dated_history(option, context), context),
+                    engine.price(dated_history(option, nodes), nodes),
                     delta=1e-9,
                 )
                 with self.assertRaises(InvalidInputError):
-                    engine.price(option, short)
+                    engine.price(dated_history(option, short), short)
 
     def test_heston_greeks_check_model_before_request_controls(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -717,7 +779,11 @@ class ApiConsistencyTests(unittest.TestCase):
                     self.assertRaises(UnsupportedOperationError),
                 ):
                     numerical_greeks(
-                        engine, option, context, request, time_shift=timedelta(days=0)
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        request,
+                        time_shift=timedelta(days=0),
                     )
 
     def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(self):
@@ -762,15 +828,22 @@ class ApiConsistencyTests(unittest.TestCase):
                 )
                 with self.subTest(instrument=type(option).__name__, at=at):
                     if valid:
-                        self.assertGreaterEqual(engine.price(option, context), 0)
                         self.assertGreaterEqual(
-                            engine.price_with_greeks(option, context, "delta").price, 0
+                            engine.price(dated_history(option, context), context), 0
+                        )
+                        self.assertGreaterEqual(
+                            engine.price_with_greeks(
+                                dated_history(option, context), context, "delta"
+                            ).price,
+                            0,
                         )
                     else:
                         with self.assertRaises(InvalidInputError):
-                            engine.price(option, context)
+                            engine.price(dated_history(option, context), context)
                         with self.assertRaises(InvalidInputError):
-                            engine.price_with_greeks(option, context, "delta")
+                            engine.price_with_greeks(
+                                dated_history(option, context), context, "delta"
+                            )
 
     def test_observation_construction_validates_numeric_terms_before_note_creation(
         self,
@@ -840,10 +913,12 @@ class ApiConsistencyTests(unittest.TestCase):
                 )
                 self.assertIsNone(original.realized_average)
                 with self.assertRaises(InvalidInputError):
-                    engine.price(original, context)
+                    engine.price(dated_history(original, context), context)
                 seasoned = original.replace_history(realized_average=110)
                 self.assertEqual(seasoned.realized_average, 110)
-                self.assertGreater(engine.price(seasoned, context), 0)
+                self.assertGreater(
+                    engine.price(dated_history(seasoned, context), context), 0
+                )
                 self.assertEqual(seasoned.replace_history(), seasoned)
                 self.assertEqual(
                     seasoned.replace_history(realized_average=None), original
@@ -963,11 +1038,11 @@ class ApiConsistencyTests(unittest.TestCase):
                 expiry_time=expiry,
             )
             engine = pricing.AnalyticEuropeanEngine()
-            quote = engine.price(option, context)
+            quote = engine.price(dated_history(option, context), context)
             self.assertAlmostEqual(
                 pricing.implied_volatility(
                     engine,
-                    option,
+                    dated_history(option, context),
                     context,
                     Decimal.from_float(quote),
                     lower_bound=Decimal("0.125"),
@@ -1042,22 +1117,34 @@ class ApiConsistencyTests(unittest.TestCase):
         ):
             engine = factory()
             with self.subTest(engine=factory.__name__):
-                self.assertEqual(engine.price(settled, context), 0)
+                self.assertEqual(
+                    engine.price(dated_history(settled, context), context), 0
+                )
                 self.assertEqual(
                     engine.price(
-                        settled.replace_history(accumulated_quantity=3), context
+                        dated_history(
+                            settled.replace_history(accumulated_quantity=3), context
+                        ),
+                        context,
                     ),
                     0,
                 )
                 active = settled.replace_history(
                     knock_out_settled=False, accumulated_quantity=0
                 )
-                self.assertGreater(engine.price(active, context), 0)
+                self.assertGreater(
+                    engine.price(dated_history(active, context), context), 0
+                )
                 with self.assertRaises(InvalidInputError):
                     engine.price(
-                        settled.replace_history(knock_out_settled=False), context
+                        dated_history(
+                            settled.replace_history(knock_out_settled=False), context
+                        ),
+                        context,
                     )
-                result = engine.price_with_greeks(settled, context, "all")
+                result = engine.price_with_greeks(
+                    dated_history(settled, context), context, "all"
+                )
                 for greek in (
                     "delta",
                     "gamma",
@@ -1067,7 +1154,9 @@ class ApiConsistencyTests(unittest.TestCase):
                 ):
                     self.assertEqual(result.require(greek), 0)
                 with self.assertRaises(UnsupportedOperationError):
-                    pricing.implied_volatility(engine, settled, context, 0)
+                    pricing.implied_volatility(
+                        engine, dated_history(settled, context), context, 0
+                    )
         for invalid in (0, 1, "yes"):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
                 option.replace_history(knock_out_settled=invalid)
@@ -1084,21 +1173,32 @@ class ApiConsistencyTests(unittest.TestCase):
             model_parameters=model, spot_price=100, valuation_time=start
         )
         engine = pricing.AnalyticEuropeanEngine()
-        unavailable = numerical_greeks(engine, option, context, "vega")
+        unavailable = numerical_greeks(
+            engine, dated_history(option, context), context, "vega"
+        )
         self.assertEqual(unavailable.status("vega"), "stencil_unavailable")
         self.assertIsNone(unavailable.vega)
         restored = pickle.loads(pickle.dumps(unavailable))
         self.assertEqual(restored, unavailable)
         self.assertEqual(restored.status("vega"), "stencil_unavailable")
         recovered = numerical_greeks(
-            engine, option, context, "vega", volatility_shift=0.00001
+            engine,
+            dated_history(option, context),
+            context,
+            "vega",
+            volatility_shift=0.00001,
         )
-        exact = engine.price_with_greeks(option, context, "vega")
+        exact = engine.price_with_greeks(
+            dated_history(option, context), context, "vega"
+        )
         self.assertEqual(recovered.status("vega"), "available")
         self.assertAlmostEqual(recovered.vega, exact.vega, delta=1e-7)
         zero = context.replace(model_parameters=model.replace(volatility=0))
         self.assertEqual(
-            numerical_greeks(engine, option, zero, "vega").status("vega"), "undefined"
+            numerical_greeks(engine, dated_history(option, zero), zero, "vega").status(
+                "vega"
+            ),
+            "undefined",
         )
 
     def test_greek_status_distinguishes_requests_support_and_stencils(self):
@@ -1114,17 +1214,23 @@ class ApiConsistencyTests(unittest.TestCase):
             valuation_time=start,
         )
         result = pricing.AnalyticEuropeanEngine().price_with_greeks(
-            option, context, "delta"
+            dated_history(option, context), context, "delta"
         )
         self.assertEqual(result.status("delta"), "available")
         self.assertEqual(result.status("gamma"), "not_requested")
         self.assertEqual(result.requested, ["delta"])
         terminal = pricing.AnalyticEuropeanEngine().price_with_greeks(
-            option, context.replace(valuation_time=end), "delta"
+            dated_history(option, context.replace(valuation_time=end)),
+            context.replace(valuation_time=end),
+            "delta",
         )
         self.assertEqual(terminal.status("delta"), "undefined")
         collapsed = numerical_greeks(
-            pricing.QuadratureVanillaEngine(), option, context, "delta", spot_shift=400
+            pricing.QuadratureVanillaEngine(),
+            dated_history(option, context),
+            context,
+            "delta",
+            spot_shift=400,
         )
         self.assertEqual(collapsed.status("delta"), "stencil_unavailable")
         heston = context.replace(
@@ -1139,7 +1245,7 @@ class ApiConsistencyTests(unittest.TestCase):
             )
         )
         unsupported = pricing.AnalyticHestonEuropeanEngine().price_with_greeks(
-            option, heston, "delta"
+            dated_history(option, heston), heston, "delta"
         )
         self.assertEqual(unsupported.status("delta"), "unsupported")
         self.assertEqual(unsupported.status("gamma"), "not_requested")
@@ -1153,7 +1259,7 @@ class ApiConsistencyTests(unittest.TestCase):
             )
         )
         partial = pricing.FiniteDifferenceVanillaEngine().price_with_greeks(
-            option, local, ["delta", "vega"]
+            dated_history(option, local), local, ["delta", "vega"]
         )
         self.assertEqual(partial.status("delta"), "available")
         self.assertEqual(partial.status("vega"), "unsupported")
@@ -1198,7 +1304,7 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         expected = (
             pricing.AnalyticEuropeanEngine()
-            .price_with_greeks(option, context, "delta")
+            .price_with_greeks(dated_history(option, context), context, "delta")
             .require("delta")
         )
         for engine in (
@@ -1211,19 +1317,29 @@ class ApiConsistencyTests(unittest.TestCase):
         ):
             with self.subTest(engine=type(engine).__name__):
                 result = pricing.numerical_greeks(
-                    engine, option, context, "delta", spot_shift=0.2
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    "delta",
+                    spot_shift=0.2,
                 )
-                self.assertEqual(result.price, engine.price(option, context))
+                self.assertEqual(
+                    result.price, engine.price(dated_history(option, context), context)
+                )
                 self.assertAlmostEqual(result.require("delta"), expected, delta=0.03)
                 self.assertEqual(result.requested, ["delta"])
                 with self.assertRaises(InvalidInputError):
                     pricing.numerical_greeks(
-                        engine, option, context, "delta", rate_shift=0
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        "delta",
+                        rate_shift=0,
                     )
         with self.assertRaises(TypeError):
             pricing.numerical_greeks(
                 pricing.AnalyticEuropeanEngine(),
-                option,
+                dated_history(option, context),
                 context,
                 "delta",
                 spot_shift=True,
@@ -1231,18 +1347,24 @@ class ApiConsistencyTests(unittest.TestCase):
         with self.assertRaises(UnsupportedOperationError):
             pricing.numerical_greeks(
                 pricing.AnalyticEuropeanEngine(),
-                ins.AmericanOption(
-                    option_type="call",
-                    strike=100,
-                    effective_time=start,
-                    expiry_time=end,
+                dated_history(
+                    ins.AmericanOption(
+                        option_type="call",
+                        strike=100,
+                        effective_time=start,
+                        expiry_time=end,
+                    ),
+                    context,
                 ),
                 context,
                 "unknown",
             )
         with self.assertRaises(InvalidInputError):
             pricing.numerical_greeks(
-                pricing.AnalyticEuropeanEngine(), option, context, []
+                pricing.AnalyticEuropeanEngine(),
+                dated_history(option, context),
+                context,
+                [],
             )
 
     def test_double_touch_barrier_type_roundtrips_through_replacement(self):
@@ -1342,7 +1464,10 @@ class GreekShiftValidationTests(unittest.TestCase):
                 )
                 with self.subTest(engine=type(engine).__name__, at=at):
                     self.assertGreaterEqual(
-                        engine.price_with_greeks(option, context, "delta").price, 0
+                        engine.price_with_greeks(
+                            dated_history(option, context), context, "delta"
+                        ).price,
+                        0,
                     )
                     for field in (
                         "spot_shift",
@@ -1361,7 +1486,11 @@ class GreekShiftValidationTests(unittest.TestCase):
                                 self.assertRaises(InvalidInputError),
                             ):
                                 numerical_greeks(
-                                    engine, option, context, "delta", **{field: bad}
+                                    engine,
+                                    dated_history(option, context),
+                                    context,
+                                    "delta",
+                                    **{field: bad},
                                 )
 
 
@@ -1464,7 +1593,9 @@ class GreekMethodTests(unittest.TestCase):
                 engine=type(engine).__name__, option=type(option).__name__
             ):
                 self.assertEqual(engine.greek_method(option, context), method)
-                self.assertTrue(math.isfinite(engine.price(option, context)))
+                self.assertTrue(
+                    math.isfinite(engine.price(dated_history(option, context), context))
+                )
                 for dividend in (False, True):
                     for volatility in (0, 0.2):
                         unsupported = context.replace(
@@ -1475,7 +1606,9 @@ class GreekMethodTests(unittest.TestCase):
                             )
                         )
                         with self.assertRaises(UnsupportedOperationError):
-                            engine.price(option, unsupported)
+                            engine.price(
+                                dated_history(option, unsupported), unsupported
+                            )
                         with self.assertRaises(UnsupportedOperationError):
                             engine.greek_method(option, unsupported)
                         with self.assertRaises(UnsupportedOperationError):
@@ -1484,10 +1617,14 @@ class GreekMethodTests(unittest.TestCase):
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )
         self.assertEqual(mc.greek_method(arithmetic, curved), "native")
-        self.assertTrue(math.isfinite(mc.price(arithmetic, curved)))
+        self.assertTrue(
+            math.isfinite(mc.price(dated_history(arithmetic, curved), curved))
+        )
         analytic = pricing.AnalyticGeometricAveragePriceEngine()
         self.assertEqual(analytic.greek_method(geometric, curved), "numerical")
-        self.assertTrue(math.isfinite(analytic.price(geometric, curved)))
+        self.assertTrue(
+            math.isfinite(analytic.price(dated_history(geometric, curved), curved))
+        )
         terminal = curved.replace(valuation_time=end)
         for engine, option in (
             (mc, geometric),
@@ -1495,7 +1632,9 @@ class GreekMethodTests(unittest.TestCase):
         ):
             option = option.replace_history(realized_average=110)
             self.assertEqual(engine.greek_method(option, terminal), "terminal")
-            self.assertEqual(engine.price(option, terminal), 10)
+            self.assertEqual(
+                engine.price(dated_history(option, terminal), terminal), 10
+            )
 
     def test_greek_methods_report_estimators_and_active_controls(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)

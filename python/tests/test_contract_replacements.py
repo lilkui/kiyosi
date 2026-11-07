@@ -226,6 +226,7 @@ UPDATES = {
     "realized_average": 105,
 }
 NULLABLE = {
+    "history_time",
     "touch_state",
     "barrier_state",
     "realized_hit_count",

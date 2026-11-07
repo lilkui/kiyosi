@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn terms(kind: DoubleBarrierType) -> DoubleTouchOptionTerms {
@@ -49,9 +52,18 @@ fn analytic_cashflows_match_series_pde_and_payout_scaling() {
             let mut t = terms(kind);
             t.settlement_timing = timing;
             let option = DoubleTouchOption::cash(t, payout).unwrap();
-            let price = engine.price(&option, &market(100.0)).unwrap();
+            let price = engine
+                .price(&dated(&option, &market(100.0)), &market(100.0))
+                .unwrap();
             assert!((price - payout * expected).abs() < payout * 1e-11);
-            assert!((price - pde.price(&option, &market(100.0)).unwrap()).abs() < payout * 1e-5);
+            assert!(
+                (price
+                    - pde
+                        .price(&dated(&option, &market(100.0)), &market(100.0))
+                        .unwrap())
+                .abs()
+                    < payout * 1e-5
+            );
         }
     }
     for rate in [-0.01, 0.0, 0.04] {
@@ -68,7 +80,8 @@ fn analytic_cashflows_match_series_pde_and_payout_scaling() {
         let one = DoubleTouchOption::cash(terms(DoubleBarrierType::KnockIn), 1.0).unwrap();
         let no = DoubleTouchOption::cash(terms(DoubleBarrierType::KnockOut), 1.0).unwrap();
         assert!(
-            (engine.price(&one, &context).unwrap() + engine.price(&no, &context).unwrap()
+            (engine.price(&dated(&one, &context), &context).unwrap()
+                + engine.price(&dated(&no, &context), &context).unwrap()
                 - (-rate).exp())
             .abs()
                 < 1e-13
@@ -77,7 +90,9 @@ fn analytic_cashflows_match_series_pde_and_payout_scaling() {
         hit.settlement_timing = SettlementTiming::AtHit;
         let hit = DoubleTouchOption::cash(hit, 1.0).unwrap();
         assert!(
-            (engine.price(&hit, &context).unwrap() - pde.price(&hit, &context).unwrap()).abs()
+            (engine.price(&dated(&hit, &context), &context).unwrap()
+                - pde.price(&dated(&hit, &context), &context).unwrap())
+            .abs()
                 < 1e-5
         );
     }
@@ -130,7 +145,7 @@ fn analytic_discount_and_payout_scaling_preserve_representable_prices() {
             let mut t = terms(kind);
             t.settlement_timing = timing;
             let option = DoubleTouchOption::cash(t.clone(), payout).unwrap();
-            let actual = engine.price(&option, &context).unwrap();
+            let actual = engine.price(&dated(&option, &context), &context).unwrap();
             let tolerance = if timing == SettlementTiming::AtHit {
                 1e-8
             } else {
@@ -143,7 +158,7 @@ fn analytic_discount_and_payout_scaling_preserve_representable_prices() {
             if rate < 0.0 {
                 let unrepresentable = DoubleTouchOption::cash(t, 1.0).unwrap();
                 assert!(matches!(
-                    engine.price(&unrepresentable, &context),
+                    engine.price(&dated(&unrepresentable, &context), &context),
                     Err(Error::ComputationFailure(_))
                 ));
             }
@@ -184,7 +199,7 @@ fn analytic_early_at_hit_payments_avoid_negative_rate_cancellation() {
                 / (towards + (towards * towards + 2.0 * rate * sigma * sigma).sqrt()))
             .exp();
             let actual = engine
-                .price(&option, &context)
+                .price(&dated(&option, &context), &context)
                 .unwrap_or_else(|error| panic!("{up} {sigma}: {error}"));
             assert!(
                 (actual / expected - 1.0).abs() < 1e-9,
@@ -216,7 +231,7 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
                 ..Default::default()
             })
             .unwrap();
-        let actual = engine.price(&option, &context).unwrap();
+        let actual = engine.price(&dated(&option, &context), &context).unwrap();
         assert!(
             (actual - expected).abs() < 1e-11,
             "{sigma} {rate}: {actual} != {expected}"
@@ -240,7 +255,7 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
             - (100.0 * band).cosh().ln())
         .exp();
         let option = DoubleTouchOption::cash(t.clone(), payout).unwrap();
-        let actual = engine.price(&option, &context).unwrap();
+        let actual = engine.price(&dated(&option, &context), &context).unwrap();
         assert!((actual / expected - 1.0).abs() < 1e-10);
     }
     t.lower_barrier = 99.5;
@@ -265,7 +280,9 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
         } else {
             (k * offset).cos() / (k * half_band).cos()
         };
-        assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-11);
+        assert!(
+            (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 1e-11
+        );
     }
     let mut t = terms(DoubleBarrierType::KnockIn);
     t.expiry_time = Date::new(2025, 1, 2).unwrap().start_of_day();
@@ -284,7 +301,10 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
         .unwrap();
     for payout in [1.0, 1e300] {
         let option = DoubleTouchOption::cash(t.clone(), payout).unwrap();
-        assert_eq!(engine.price(&option, &context).unwrap(), 0.0);
+        assert_eq!(
+            engine.price(&dated(&option, &context), &context).unwrap(),
+            0.0
+        );
     }
 }
 
@@ -309,14 +329,27 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
             } else {
                 3.0 * (-0.03_f64).exp()
             };
-            assert!((engine.price(&option, &market(spot)).unwrap() - expected).abs() < 1e-12);
+            assert!(
+                (engine
+                    .price(&dated(&option, &market(spot)), &market(spot))
+                    .unwrap()
+                    - expected)
+                    .abs()
+                    < 1e-12
+            );
             assert!(matches!(
-                engine.price(&option, &context(spot, later)),
+                engine.price(
+                    &dated(&option, &context(spot, later)),
+                    &context(spot, later)
+                ),
                 Err(Error::InvalidInput(_))
             ));
             assert_eq!(
                 engine
-                    .price(&known, &context(spot, option.expiry_time()))
+                    .price(
+                        &dated(&known, &context(spot, option.expiry_time())),
+                        &context(spot, option.expiry_time())
+                    )
                     .unwrap(),
                 if kind == DoubleBarrierType::KnockIn {
                     3.0
@@ -327,7 +360,7 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
         }
         let paid = option.replace_history(Some(BarrierTouchState::Touched));
         assert!(matches!(
-            engine.price(&paid, &market(100.0)),
+            engine.price(&dated(&paid, &market(100.0)), &market(100.0)),
             Err(Error::InvalidInput(_))
         ));
         let expected = if timing == SettlementTiming::AtHit || kind == DoubleBarrierType::KnockOut {
@@ -335,10 +368,20 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
         } else {
             3.0 * (-0.03_f64 * 364.0 / 365.0).exp()
         };
-        assert!((engine.price(&paid, &context(100.0, later)).unwrap() - expected).abs() < 1e-12);
+        assert!(
+            (engine
+                .price(
+                    &dated(&paid, &context(100.0, later)),
+                    &context(100.0, later)
+                )
+                .unwrap()
+                - expected)
+                .abs()
+                < 1e-12
+        );
         let terminal = engine
             .price_with_greeks(
-                &known,
+                &dated(&known, &context(100.0, option.expiry_time())),
                 &context(100.0, option.expiry_time()),
                 GreeksRequest::all(),
             )
@@ -362,7 +405,7 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
         assert!(matches!(
             implied_volatility(
                 &engine,
-                &paid,
+                &dated(&paid, &context(100.0, later)),
                 &context(100.0, later),
                 expected,
                 Default::default()
@@ -382,28 +425,38 @@ fn analytic_schedules_validate_then_resolve_or_reject() {
     t.observation_times = vec![fixing];
     let option = DoubleTouchOption::cash(t.clone(), 2.0).unwrap();
     assert!(matches!(
-        engine.price(&option, &market(125.0)),
+        engine.price(&dated(&option, &market(125.0)), &market(125.0)),
         Err(Error::UnsupportedOperation(_))
     ));
     let after = context(100.0, Date::new(2025, 7, 1).unwrap().start_of_day());
     assert!(matches!(
-        engine.price(&option, &after),
+        engine.price(&dated(&option, &after), &after),
         Err(Error::InvalidInput(_))
     ));
     let no_history = option.replace_history(Some(BarrierTouchState::Untouched));
     assert!(
-        (engine.price(&no_history, &context(120.0, fixing)).unwrap()
+        (engine
+            .price(
+                &dated(&no_history, &context(120.0, fixing)),
+                &context(120.0, fixing)
+            )
+            .unwrap()
             - 2.0 * (-0.03_f64 * 185.0 / 365.0).exp())
         .abs()
             < 1e-12
     );
-    assert_eq!(engine.price(&no_history, &after).unwrap(), 0.0);
+    assert_eq!(
+        engine.price(&dated(&no_history, &after), &after).unwrap(),
+        0.0
+    );
     t.barrier_type = DoubleBarrierType::KnockOut;
     let no = DoubleTouchOption::cash(t.clone(), 2.0)
         .unwrap()
         .replace_history(Some(BarrierTouchState::Untouched));
     assert!(
-        (engine.price(&no, &after).unwrap() - 2.0 * (-0.03_f64 * 184.0 / 365.0).exp()).abs()
+        (engine.price(&dated(&no, &after), &after).unwrap()
+            - 2.0 * (-0.03_f64 * 184.0 / 365.0).exp())
+        .abs()
             < 1e-12
     );
     t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
@@ -452,15 +505,21 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
                 })
                 .unwrap();
             assert!(matches!(
-                engine.price(&option, &context),
+                engine.price(&dated(&option, &context), &context),
                 Err(Error::UnsupportedOperation(_))
             ));
             assert!(matches!(
-                engine.price_with_greeks(&option, &context, GreeksRequest::all()),
+                engine.price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all()),
                 Err(Error::UnsupportedOperation(_))
             ));
             assert!(matches!(
-                implied_volatility(&engine, &option, &context, f64::NAN, Default::default()),
+                implied_volatility(
+                    &engine,
+                    &dated(&option, &context),
+                    &context,
+                    f64::NAN,
+                    Default::default()
+                ),
                 Err(Error::UnsupportedOperation(_))
             ));
         }
@@ -476,7 +535,7 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
         })
         .unwrap();
     assert!(matches!(
-        engine.price(&option, &enormous),
+        engine.price(&dated(&option, &enormous), &enormous),
         Err(Error::ComputationFailure(_))
     ));
     for date in [
@@ -484,7 +543,10 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
         Date::new(2026, 1, 2).unwrap().start_of_day(),
     ] {
         assert!(matches!(
-            engine.price(&option, &context(100.0, date)),
+            engine.price(
+                &dated(&option, &context(100.0, date)),
+                &context(100.0, date)
+            ),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -504,7 +566,11 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
         t.touch_state = Some(BarrierTouchState::Untouched);
         let option = DoubleTouchOption::cash(t, 1.0).unwrap();
         let result = engine
-            .price_with_greeks(&option, &market(100.0), GreeksRequest::all())
+            .price_with_greeks(
+                &dated(&option, &market(100.0)),
+                &market(100.0),
+                GreeksRequest::all(),
+            )
             .unwrap();
         for greek in [
             Greek::Delta,
@@ -517,7 +583,7 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
         }
         let solved = implied_volatility(
             &engine,
-            &option,
+            &dated(&option, &market(100.0)),
             &market(100.0),
             result.price(),
             ImpliedVolatilitySettings {
@@ -530,7 +596,11 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
         assert!((solved - 0.2).abs() < 1e-7);
         for spot in [80.0, 120.0] {
             let boundary = engine
-                .price_with_greeks(&option, &market(spot), GreeksRequest::all())
+                .price_with_greeks(
+                    &dated(&option, &market(spot)),
+                    &market(spot),
+                    GreeksRequest::all(),
+                )
                 .unwrap();
             assert!(Greek::ALL.into_iter().all(|g| !boundary.has(g)));
         }
@@ -566,14 +636,22 @@ fn analytic_tiny_volatility_preserves_drift_hit_timing_and_narrow_band_survival(
                     })
                 .exp();
             let option = DoubleTouchOption::cash(t.clone(), 3.0).unwrap();
-            assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-7);
+            assert!(
+                (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs()
+                    < 1e-7
+            );
         }
     }
     let mut t = terms(DoubleBarrierType::KnockOut);
     t.lower_barrier = 99.5;
     t.upper_barrier = 100.5;
     let option = DoubleTouchOption::cash(t, 1.0).unwrap();
-    assert!(engine.price(&option, &market(100.0)).unwrap() < 1e-100);
+    assert!(
+        engine
+            .price(&dated(&option, &market(100.0)), &market(100.0))
+            .unwrap()
+            < 1e-100
+    );
     let still = market(100.0)
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -584,7 +662,9 @@ fn analytic_tiny_volatility_preserves_drift_hit_timing_and_narrow_band_survival(
             ..Default::default()
         })
         .unwrap();
-    assert!((engine.price(&option, &still).unwrap() - (-0.03_f64).exp()).abs() < 1e-12);
+    assert!(
+        (engine.price(&dated(&option, &still), &still).unwrap() - (-0.03_f64).exp()).abs() < 1e-12
+    );
 }
 
 #[test]
@@ -612,15 +692,26 @@ fn continuous_touch_cashflows_match_independent_series_and_converge() {
         (&at_hit, 0.611_941_520_996_109_3),
         (&no, 0.367_261_563_519_071_74),
     ] {
-        let price = fine.price(option, &market(100.0)).unwrap();
+        let price = fine
+            .price(&dated(option, &market(100.0)), &market(100.0))
+            .unwrap();
         assert!((price - expected).abs() < 1e-5, "{price} != {expected}");
         assert!(
             (price - expected).abs()
-                < (coarse.price(option, &market(100.0)).unwrap() - expected).abs()
+                < (coarse
+                    .price(&dated(option, &market(100.0)), &market(100.0))
+                    .unwrap()
+                    - expected)
+                    .abs()
         );
     }
     assert!(
-        (fine.price(&one, &market(100.0)).unwrap() + fine.price(&no, &market(100.0)).unwrap()
+        (fine
+            .price(&dated(&one, &market(100.0)), &market(100.0))
+            .unwrap()
+            + fine
+                .price(&dated(&no, &market(100.0)), &market(100.0))
+                .unwrap()
             - (-0.03_f64).exp())
         .abs()
             < 1e-8
@@ -739,7 +830,9 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
         let option = DoubleTouchOption::cash(t, 3.0).unwrap();
         let paid = option.replace_history(Some(BarrierTouchState::Touched));
         assert!(matches!(
-            engine.price(&paid, &market(100.0)).unwrap_err(),
+            engine
+                .price(&dated(&paid, &market(100.0)), &market(100.0))
+                .unwrap_err(),
             Error::InvalidInput(_)
         ));
         for spot in [79.0, 80.0, 120.0, 121.0] {
@@ -748,9 +841,21 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
             } else {
                 3.0 * (-0.03_f64).exp()
             };
-            assert!((engine.price(&option, &market(spot)).unwrap() - expected).abs() < 1e-12);
+            assert!(
+                (engine
+                    .price(&dated(&option, &market(spot)), &market(spot))
+                    .unwrap()
+                    - expected)
+                    .abs()
+                    < 1e-12
+            );
             assert!(matches!(
-                engine.price(&option, &context(spot, later)).unwrap_err(),
+                engine
+                    .price(
+                        &dated(&option, &context(spot, later)),
+                        &context(spot, later)
+                    )
+                    .unwrap_err(),
                 Error::InvalidInput(_)
             ));
         }
@@ -759,11 +864,21 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
         } else {
             3.0 * (-0.03_f64 * 364.0 / 365.0).exp()
         };
-        assert!((engine.price(&paid, &context(100.0, later)).unwrap() - expected).abs() < 1e-12);
+        assert!(
+            (engine
+                .price(
+                    &dated(&paid, &context(100.0, later)),
+                    &context(100.0, later)
+                )
+                .unwrap()
+                - expected)
+                .abs()
+                < 1e-12
+        );
         assert!(matches!(
             implied_volatility(
                 &engine,
-                &paid,
+                &dated(&paid, &context(100.0, later)),
                 &context(100.0, later),
                 expected,
                 Default::default(),
@@ -779,7 +894,7 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
         for spot in [80.0, 100.0, 120.0] {
             let at = context(spot, option.expiry_time());
             let result = engine
-                .price_with_greeks(&option, &at, GreeksRequest::all())
+                .price_with_greeks(&dated(&option, &at), &at, GreeksRequest::all())
                 .unwrap();
             let touched = spot != 100.0;
             assert_eq!(
@@ -854,7 +969,9 @@ fn scheduled_one_two_and_early_fixings_match_independent_integrals() {
             t.observation_times = dates.clone();
             t.settlement_timing = timing;
             let option = DoubleTouchOption::cash(t, 1.0).unwrap();
-            let price = engine.price(&option, &market(100.25)).unwrap();
+            let price = engine
+                .price(&dated(&option, &market(100.25)), &market(100.25))
+                .unwrap();
             assert!(
                 (price - expected[index]).abs() < 3e-5,
                 "{dates:?} {kind:?} {timing:?}: {price} != {}",
@@ -872,10 +989,23 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_times = vec![first];
     let option = DoubleTouchOption::cash(t.clone(), 2.0).unwrap();
-    assert_eq!(engine.price(&option, &context(120.0, first)).unwrap(), 0.0);
+    assert_eq!(
+        engine
+            .price(
+                &dated(&option, &context(120.0, first)),
+                &context(120.0, first)
+            )
+            .unwrap(),
+        0.0
+    );
     let after = Timestamp::new(first.date(), 0, 0, 0, 1).unwrap();
     assert!(matches!(
-        engine.price(&option, &context(130.0, after)).unwrap_err(),
+        engine
+            .price(
+                &dated(&option, &context(130.0, after)),
+                &context(130.0, after)
+            )
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let known = option.replace_history(Some(BarrierTouchState::Untouched));
@@ -883,14 +1013,21 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
     let remaining = (185.0_f64 - 1e-6 / 86400.0) / 365.0;
     let expected = 2.0 * (-0.03 * remaining).exp();
     let result = engine
-        .price_with_greeks(&known, &ctx, GreeksRequest::all())
+        .price_with_greeks(&dated(&known, &ctx), &ctx, GreeksRequest::all())
         .unwrap();
     assert!((result.price() - expected).abs() < 1e-12);
     assert_eq!(result.require(Greek::Delta).unwrap(), 0.0);
     assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
     assert!((result.require(Greek::Rho).unwrap() + remaining * expected).abs() < 1e-8);
     assert!(matches!(
-        implied_volatility(&engine, &known, &ctx, expected, Default::default()).unwrap_err(),
+        implied_volatility(
+            &engine,
+            &dated(&known, &ctx),
+            &ctx,
+            expected,
+            Default::default()
+        )
+        .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
@@ -900,7 +1037,10 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
     ));
     let at = engine
         .price_with_greeks(
-            &option.replace_history(Some(BarrierTouchState::Untouched)),
+            &dated(
+                &option.replace_history(Some(BarrierTouchState::Untouched)),
+                &context(100.0, first),
+            ),
             &context(100.0, first),
             GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]),
         )
@@ -926,12 +1066,12 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
         let option = DoubleTouchOption::cash(t, 1.0).unwrap();
         let ctx = market(100.0);
         let result = engine
-            .price_with_greeks(&option, &ctx, GreeksRequest::all())
+            .price_with_greeks(&dated(&option, &ctx), &ctx, GreeksRequest::all())
             .unwrap();
         assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
         let scalar = numerical_greeks(
             &engine,
-            &option,
+            &dated(&option, &ctx),
             &ctx,
             GreeksRequest::all(),
             Default::default(),
@@ -948,22 +1088,29 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
             upper_bound: 0.25,
             ..Default::default()
         };
-        let sigma = implied_volatility(&engine, &option, &ctx, result.price(), controls).unwrap();
+        let sigma = implied_volatility(
+            &engine,
+            &dated(&option, &ctx),
+            &ctx,
+            result.price(),
+            controls,
+        )
+        .unwrap();
         assert!((sigma - 0.2).abs() < 1e-6);
         assert!(matches!(
-            implied_volatility(&engine, &option, &ctx, 2.0, controls).unwrap_err(),
+            implied_volatility(&engine, &dated(&option, &ctx), &ctx, 2.0, controls).unwrap_err(),
             Error::RootNotBracketed(_)
         ));
         assert!(matches!(
             engine
-                .price_with_greeks(&option, &ctx, GreeksRequest::new([]))
+                .price_with_greeks(&dated(&option, &ctx), &ctx, GreeksRequest::new([]))
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
         assert!(matches!(
             kiyosi::numerical_greeks(
                 &engine,
-                &option,
+                &dated(&option, &ctx),
                 &ctx,
                 GreeksRequest::all(),
                 NumericalShiftSettings {
@@ -976,15 +1123,22 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
         ));
         for spot in [80.0, 120.0] {
             let at = engine
-                .price_with_greeks(&option, &market(spot), GreeksRequest::all())
+                .price_with_greeks(
+                    &dated(&option, &market(spot)),
+                    &market(spot),
+                    GreeksRequest::all(),
+                )
                 .unwrap();
             assert!(Greek::ALL.into_iter().all(|g| !at.has(g)));
         }
-        assert_eq!(engine.price(&option, &ctx).unwrap(), result.price());
+        assert_eq!(
+            engine.price(&dated(&option, &ctx), &ctx).unwrap(),
+            result.price()
+        );
         assert_eq!(ctx, market(100.0));
         std::thread::scope(|scope| {
             let handles: Vec<_> = (0..2)
-                .map(|_| scope.spawn(|| engine.price(&option, &ctx).unwrap()))
+                .map(|_| scope.spawn(|| engine.price(&dated(&option, &ctx), &ctx).unwrap()))
                 .collect();
             for handle in handles {
                 assert_eq!(handle.join().unwrap(), result.price());
@@ -1036,22 +1190,29 @@ fn node_curves_and_early_at_hit_horizons_match_digital_cash_portfolios() {
             let digital =
                 DigitalOption::cash_or_nothing(direction, level, 1.0, t.effective_time, horizon)
                     .unwrap();
-            touched += AnalyticDigitalEngine.price(&digital, &ctx).unwrap();
+            touched += AnalyticDigitalEngine
+                .price(&dated(&digital, &ctx), &ctx)
+                .unwrap();
         }
         let option = DoubleTouchOption::cash(t.clone(), 1.0).unwrap();
-        assert!((engine.price(&option, &ctx).unwrap() - touched).abs() < 3e-5);
+        assert!((engine.price(&dated(&option, &ctx), &ctx).unwrap() - touched).abs() < 3e-5);
         t.settlement_timing = SettlementTiming::AtExpiry;
         if early {
             assert!(matches!(
                 engine
-                    .price(&DoubleTouchOption::cash(t, 1.0).unwrap(), &ctx)
+                    .price(
+                        &dated(&DoubleTouchOption::cash(t, 1.0).unwrap(), &ctx),
+                        &ctx
+                    )
                     .unwrap_err(),
                 Error::InvalidInput(_)
             ));
         } else {
             t.barrier_type = DoubleBarrierType::KnockOut;
             let no = DoubleTouchOption::cash(t, 1.0).unwrap();
-            assert!((engine.price(&no, &ctx).unwrap() - (0.99 - touched)).abs() < 3e-5);
+            assert!(
+                (engine.price(&dated(&no, &ctx), &ctx).unwrap() - (0.99 - touched)).abs() < 3e-5
+            );
         }
     }
 }
@@ -1068,7 +1229,12 @@ fn narrow_band_tiny_volatility_and_grid_validation() {
         ..Default::default()
     })
     .unwrap();
-    assert!(engine.price(&option, &market(100.0)).unwrap() < 1e-8);
+    assert!(
+        engine
+            .price(&dated(&option, &market(100.0)), &market(100.0))
+            .unwrap()
+            < 1e-8
+    );
     let still = market(100.0)
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -1079,7 +1245,9 @@ fn narrow_band_tiny_volatility_and_grid_validation() {
             ..Default::default()
         })
         .unwrap();
-    assert!((engine.price(&option, &still).unwrap() - (-0.03_f64).exp()).abs() < 1e-8);
+    assert!(
+        (engine.price(&dated(&option, &still), &still).unwrap() - (-0.03_f64).exp()).abs() < 1e-8
+    );
     for settings in [
         FiniteDifferenceSettings {
             asset_step_count: 2,
@@ -1112,7 +1280,9 @@ fn narrow_band_tiny_volatility_and_grid_validation() {
     ] {
         let engine = FiniteDifferenceDoubleTouchEngine::new(settings).unwrap();
         assert!(matches!(
-            engine.price(&option, &market(100.0)).unwrap_err(),
+            engine
+                .price(&dated(&option, &market(100.0)), &market(100.0))
+                .unwrap_err(),
             Error::InvalidInput(_)
         ));
     }

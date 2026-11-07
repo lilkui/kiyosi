@@ -21,6 +21,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
@@ -80,9 +81,11 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             expiry_time=datetime(2025, 2, 3),
         )
         with self.assertRaises(UnsupportedOperationError):
-            engine.price(wrong, market())
+            engine.price(dated_history(wrong, market()), market())
         with self.assertRaises(UnsupportedOperationError):
-            pricing.implied_volatility(engine, wrong, market(), 1)
+            pricing.implied_volatility(
+                engine, dated_history(wrong, market()), market(), 1
+            )
 
     def test_settlement_history_boundaries_and_failure_reuse(self):
         engine = pricing.FiniteDifferenceAccumulatorEngine()
@@ -101,7 +104,9 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         ):
             with self.subTest(spot=spot):
                 result = engine.price_with_greeks(
-                    option, market(spot, end), greeks="all"
+                    dated_history(option, market(spot, end)),
+                    market(spot, end),
+                    greeks="all",
                 )
                 self.assertEqual(result.price, quantity * (spot - 100))
                 assert_terminal_greeks(
@@ -110,7 +115,11 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                     None if min(abs(spot - 100), abs(spot - 110)) <= 0.01 else quantity,
                 )
         self.assertEqual(
-            engine.price(option, market(110, START + timedelta(days=1))), 30
+            engine.price(
+                dated_history(option, market(110, START + timedelta(days=1))),
+                market(110, START + timedelta(days=1)),
+            ),
+            30,
         )
         for value in (-1, math.nan, math.inf):
             self.assert_rejection(
@@ -142,8 +151,15 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 ComputationFailureError,
             ),
         ):
-            self.assert_rejection(expected_error, engine.price, instrument, context)
-        self.assertEqual(engine.price(option, market(110, end)), 30)
+            self.assert_rejection(
+                expected_error,
+                engine.price,
+                dated_history(instrument, context),
+                context,
+            )
+        self.assertEqual(
+            engine.price(dated_history(option, market(110, end)), market(110, end)), 30
+        )
 
     def test_midnight_intraday_and_calendar_events_are_applied_once(self):
         engine = pricing.FiniteDifferenceAccumulatorEngine(
@@ -156,13 +172,15 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 option.replace_history(accumulated_quantity=quantity), market(spot, at)
             )
             self.assertAlmostEqual(
-                engine.price(option, market(spot, at)), expected, delta=0.001
+                engine.price(dated_history(option, market(spot, at)), market(spot, at)),
+                expected,
+                delta=0.001,
             )
         early = market(90, datetime(2025, 1, 3, 0, 0, 0, 1))
         late = market(90, datetime(2025, 1, 3, 12))
         for context in (early, late, market(90, datetime(2025, 1, 4))):
             self.assertAlmostEqual(
-                engine.price(option, context),
+                engine.price(dated_history(option, context), context),
                 terminal_reference(option, context),
                 delta=0.001,
             )
@@ -176,35 +194,46 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             knock_out_settled=option.knock_out_settled,
         )
         self.assertAlmostEqual(
-            engine.price(option, context),
+            engine.price(dated_history(option, context), context),
             terminal_reference(option, context),
             delta=0.001,
         )
         weekend = contract(datetime(2025, 1, 5), calendar=all_days_calendar())
         self.assertTrue(
             math.isfinite(
-                engine.price(weekend.replace(calendar=all_days_calendar()), market())
+                engine.price(
+                    dated_history(
+                        weekend.replace(calendar=all_days_calendar()), market()
+                    ),
+                    market(),
+                )
             )
         )
 
     def test_validation_precedes_state_and_bumped_failures_leave_inputs_intact(self):
         option, context = contract(), market()
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110)
-        self.assert_rejection(InvalidInputError, engine.price, option, context)
+        self.assert_rejection(
+            InvalidInputError, engine.price, dated_history(option, context), context
+        )
         # Immediate settlement needs no spatial domain.
         self.assertEqual(
-            engine.price(option, market(110, START + timedelta(days=1))), 30
+            engine.price(
+                dated_history(option, market(110, START + timedelta(days=1))),
+                market(110, START + timedelta(days=1)),
+            ),
+            30,
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price_with_greeks,
-            option,
+            dated_history(option, context),
             context,
             [],
         )
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110.1)
         context = market(110.05)
-        quote = engine.price(option, context)
+        quote = engine.price(dated_history(option, context), context)
         self.assert_rejection(
             InvalidInputError,
             partial(numerical_greeks, engine),
@@ -221,23 +250,30 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             "speed",
             spot_shift=0.2,
         )
-        self.assertEqual(engine.price(option, context), quote)
+        self.assertEqual(engine.price(dated_history(option, context), context), quote)
         self.assertEqual(engine.asset_upper_boundary, 110.1)
         self.assertEqual(option.accumulated_quantity, 3)
         self.assertEqual(context.spot_price, 110.05)
         unstable = pricing.FiniteDifferenceAccumulatorEngine(
             asset_step_count=800, time_step_count=1, scheme="explicit_euler"
         )
-        self.assert_rejection(InvalidInputError, unstable.price, option, market())
+        self.assert_rejection(
+            InvalidInputError, unstable.price, dated_history(option, market()), market()
+        )
 
     def test_native_interpolation_mixed_greeks_and_event_availability(self):
         option = contract(datetime(2025, 4, 1))
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=440)
         context = market(100.25, datetime(2025, 1, 4, 12))
-        result = engine.price_with_greeks(option, context, greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(option, context), context, greeks="all"
+        )
         h = 0.01
         high, low = (
-            engine.price(option, context.replace(spot_price=100.25 + sign * h))
+            engine.price(
+                dated_history(option, context.replace(spot_price=100.25 + sign * h)),
+                context.replace(spot_price=100.25 + sign * h),
+            )
             for sign in (1, -1)
         )
         self.assertAlmostEqual(result.delta, (high - low) / (2 * h), delta=1e-6)
@@ -263,7 +299,9 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 )
                 bumped.append(
                     getattr(
-                        engine.price_with_greeks(option, shifted, dependency),
+                        engine.price_with_greeks(
+                            dated_history(option, shifted), shifted, dependency
+                        ),
                         dependency,
                     )
                 )
@@ -275,7 +313,13 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         for greek, dependency in (("charm", "delta"), ("color", "gamma")):
             before, after = [
                 engine.price_with_greeks(
-                    option,
+                    dated_history(
+                        option,
+                        context.replace(
+                            valuation_time=context.valuation_time
+                            + timedelta(days=offset)
+                        ),
+                    ),
                     context.replace(
                         valuation_time=context.valuation_time + timedelta(days=offset)
                     ),
@@ -290,7 +334,11 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             )
         for bump in (200, 1e-300):
             native = numerical_greeks(
-                engine, option, context, ["delta", "gamma", "speed"], spot_shift=bump
+                engine,
+                dated_history(option, context),
+                context,
+                ["delta", "gamma", "speed"],
+                spot_shift=bump,
             )
             self.assertIsNotNone(result.delta)
             self.assertIsNone(native.delta)
@@ -299,7 +347,9 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             self.assertIsNone(native.speed)
         for spot in (100, 110):
             boundary = engine.price_with_greeks(
-                option, market(spot, START + timedelta(days=1)), greeks="all"
+                dated_history(option, market(spot, START + timedelta(days=1))),
+                market(spot, START + timedelta(days=1)),
+                greeks="all",
             )
             for greek in (
                 "delta",
@@ -315,13 +365,13 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             self.assertIsNotNone(boundary.vega)
             self.assertIsNotNone(boundary.rho)
         sunday = engine.price_with_greeks(
-            option,
+            dated_history(option, market(90, datetime(2025, 1, 5, 23, 59, 59))),
             market(90, datetime(2025, 1, 5, 23, 59, 59)),
             greeks="all",
         )
         self.assertTrue(math.isfinite(sunday.require("theta")))
         small = engine.price_with_greeks(
-            option,
+            dated_history(option, market(90, volatility=0.0001)),
             market(90, volatility=0.0001),
             [
                 "vega",
@@ -359,7 +409,9 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             asset_upper_boundary=400, time_step_count=800
         )
         self.assertAlmostEqual(
-            engine.price(option, context), 2 * (98 - 94), delta=0.002
+            engine.price(dated_history(option, context), context),
+            2 * (98 - 94),
+            delta=0.002,
         )
         short = RateTermStructure(
             reference_time=START, times=[datetime(2025, 2, 3)], factors=[0.99]
@@ -367,17 +419,30 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         context = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=short)
         )
-        self.assert_rejection(InvalidInputError, engine.price, option, context)
-        self.assertEqual(engine.price(option, context.replace(spot_price=399)), 598)
+        self.assert_rejection(
+            InvalidInputError, engine.price, dated_history(option, context), context
+        )
+        self.assertEqual(
+            engine.price(
+                dated_history(option, context.replace(spot_price=399)),
+                context.replace(spot_price=399),
+            ),
+            598,
+        )
 
     def test_implied_solver_identifiability_protocols_and_failure_state(self):
         engine = pricing.FiniteDifferenceAccumulatorEngine()
         option = contract(datetime(2025, 1, 6))
         context = market(100, datetime(2025, 1, 3, 12), volatility=0.4)
-        quote = engine.price(option, context)
+        quote = engine.price(dated_history(option, context), context)
         self.assertAlmostEqual(
             pricing.implied_volatility(
-                engine, option, context, quote, lower_bound=0.2, upper_bound=0.6
+                engine,
+                dated_history(option, context),
+                context,
+                quote,
+                lower_bound=0.2,
+                upper_bound=0.6,
             ),
             0.4,
             delta=1e-6,
@@ -386,7 +451,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             RootNotBracketedError,
             pricing.implied_volatility,
             engine,
-            option,
+            dated_history(option, context),
             context,
             1e10,
             lower_bound=0.2,
@@ -396,7 +461,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             NonConvergenceError,
             pricing.implied_volatility,
             engine,
-            option,
+            dated_history(option, context),
             context,
             quote,
             lower_bound=0.2,
@@ -415,70 +480,95 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                instrument,
+                dated_history(instrument, scenario),
                 scenario,
-                engine.price(instrument, scenario),
+                engine.price(dated_history(instrument, scenario), scenario),
             )
         for value in (None, True, "1"):
             with self.assertRaises(TypeError):
-                pricing.implied_volatility(engine, option, context, value)
+                pricing.implied_volatility(
+                    engine, dated_history(option, context), context, value
+                )
         for value in (True, 1.5):
             with self.assertRaises(TypeError):
                 pricing.implied_volatility(
-                    engine, option, context, quote, max_iterations=value
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    quote,
+                    max_iterations=value,
                 )
         with self.assertRaises(OverflowError):
             pricing.implied_volatility(
-                engine, option, context, quote, max_iterations=2**40
+                engine,
+                dated_history(option, context),
+                context,
+                quote,
+                max_iterations=2**40,
             )
         self.assert_rejection(
             InvalidInputError,
             pricing.implied_volatility,
             engine,
-            option,
+            dated_history(option, context),
             context,
             math.nan,
         )
-        self.assertEqual(engine.price(option, context), quote)
+        self.assertEqual(engine.price(dated_history(option, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.4)
 
     def test_speed_propagates_nonfinite_shifted_prices_and_preserves_inputs(self):
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=440)
         option = contract(datetime(2025, 1, 6), daily=0, quantity=sys.float_info.max)
         context = market(100, datetime(2025, 1, 3, 12))
-        quote = engine.price(option, context)
+        quote = engine.price(dated_history(option, context), context)
         for spot in (98, 102):
             self.assert_rejection(
                 ComputationFailureError,
                 engine.price,
-                option,
+                dated_history(option, context.replace(spot_price=spot)),
                 context.replace(spot_price=spot),
             )
         self.assert_rejection(
             ComputationFailureError,
             partial(numerical_greeks, engine),
-            option,
+            dated_history(option, context),
             context,
             "speed",
             spot_shift=2,
         )
-        self.assertEqual(engine.price(option, context), quote)
+        self.assertEqual(engine.price(dated_history(option, context), context), quote)
         self.assertEqual(option.accumulated_quantity, sys.float_info.max)
         self.assertEqual(context.spot_price, 100)
 
     def test_quantity_affinity_and_concurrent_shared_engine(self):
         engine, context = pricing.FiniteDifferenceAccumulatorEngine(), market(90)
-        values = [engine.price(contract(quantity=q), context) for q in (0, 3, 6)]
+        values = [
+            engine.price(dated_history(contract(quantity=q), context), context)
+            for q in (0, 3, 6)
+        ]
         self.assertAlmostEqual(
             values[2] - values[1], values[1] - values[0], delta=1e-10
         )
-        self.assertEqual(engine.price(contract(daily=0, quantity=0), context), 0)
         self.assertEqual(
-            engine.price(contract(daily=0), market(90, rate=0, dividend=0)), -30
+            engine.price(
+                dated_history(contract(daily=0, quantity=0), context), context
+            ),
+            0,
+        )
+        self.assertEqual(
+            engine.price(
+                dated_history(contract(daily=0), market(90, rate=0, dividend=0)),
+                market(90, rate=0, dividend=0),
+            ),
+            -30,
         )
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(
-                pool.map(lambda _: engine.price(contract(), context), range(2))
+                pool.map(
+                    lambda _: engine.price(dated_history(contract(), context), context),
+                    range(2),
+                )
             )
         self.assertEqual(results, [values[1]] * 2)
 
@@ -499,7 +589,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             )
             with self.subTest(case=row["case_id"]):
                 refined = pricing.FiniteDifferenceAccumulatorEngine(**fine).price(
-                    option, context
+                    dated_history(option, context), context
                 )
                 self.assertAlmostEqual(
                     refined, float(row["outputs"]["price"]), delta=budget
@@ -517,7 +607,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                         self.assertAlmostEqual(
                             pricing.FiniteDifferenceAccumulatorEngine(
                                 **configuration
-                            ).price(option, context),
+                            ).price(dated_history(option, context), context),
                             refined,
                             delta=budget,
                         )

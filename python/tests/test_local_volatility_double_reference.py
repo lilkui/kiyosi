@@ -7,6 +7,7 @@ from pathlib import Path
 
 from kiyosi import instruments as ins
 from kiyosi import pricing
+from support.history import dated as dated_history
 from test_local_volatility_structured import END, OBSERVATIONS, START, market
 
 
@@ -83,7 +84,9 @@ class LocalVolatilityDoubleReferenceTests(unittest.TestCase):
                         self.assertLess(first, second)
                     budget = 5 * ref["standard_error"] + bias + 0.003
                     self.assertAlmostEqual(
-                        engine(name).price(contract, market()), expected, delta=budget
+                        engine(name).price(dated_history(contract, market()), market()),
+                        expected,
+                        delta=budget,
                     )
 
     def test_double_boundaries_refine_and_supply_fixed_surface_greeks(self):
@@ -91,17 +94,22 @@ class LocalVolatilityDoubleReferenceTests(unittest.TestCase):
             for name, contract in contracts(scheduled).items():
                 with self.subTest(name=name, scheduled=scheduled):
                     e = engine(name)
-                    result = e.price_with_greeks(contract, market(), ["delta", "gamma"])
+                    result = e.price_with_greeks(
+                        dated_history(contract, market()), market(), ["delta", "gamma"]
+                    )
                     for other in [
                         engine(name, time=800),
                         engine(name, space=800),
                         engine(name, space=2400, upper=660),
                     ]:
                         self.assertAlmostEqual(
-                            other.price(contract, market()), result.price, delta=0.005
+                            other.price(dated_history(contract, market()), market()),
+                            result.price,
+                            delta=0.005,
                         )
                     up, down = [
-                        e.price(contract, market(spot)) for spot in [101.1, 100.9]
+                        e.price(dated_history(contract, market(spot)), market(spot))
+                        for spot in [101.1, 100.9]
                     ]
                     self.assertAlmostEqual(
                         result.delta, (up - down) / 0.2, delta=0.0002

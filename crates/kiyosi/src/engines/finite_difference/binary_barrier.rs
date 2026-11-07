@@ -51,12 +51,14 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
+    /// # use kiyosi::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = TouchOption::cash(TouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
     ///     120.0, BarrierType::UpAndIn), 10.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
+    /// let option = option.with_history_time(Some(context.valuation_time()));
     /// let engine = FiniteDifferenceBinaryBarrierEngine::default();
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta]))?;
@@ -190,6 +192,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
+    /// # use kiyosi::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let mut terms = DoubleTouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
@@ -198,6 +201,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// let option = DoubleTouchOption::cash(terms, 1.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
     ///     100.0, start.into())?;
+    /// let option = option.with_history_time(Some(context.valuation_time()));
     /// let result = FiniteDifferenceDoubleTouchEngine::default().price_with_greeks(
     ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
     /// assert!((result.price() - 0.36726156351907174).abs() < 0.00001);

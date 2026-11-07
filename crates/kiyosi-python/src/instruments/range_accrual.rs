@@ -56,6 +56,17 @@ pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
 
 #[pymethods]
 impl RangeAccrualOption {
+    /// Return the timestamp through which supplied history is known, or None.
+    #[getter]
+    fn history_time<'py>(
+        &self,
+        py: pyo3::Python<'py>,
+    ) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::PyAny>>> {
+        kiyosi::OptionContract::history_time(&self.0)
+            .map(|time| crate::conversions::python_timestamp(py, time))
+            .transpose()
+    }
+
     /// Returns a validated replacement without changing this contract.
     ///
     /// Parameters
@@ -88,7 +99,7 @@ impl RangeAccrualOption {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation or field name is invalid.
-    #[pyo3(signature = (*, notional=crate::conversions::OMITTED, annual_coupon_rate=crate::conversions::OMITTED, lower_bound=crate::conversions::OMITTED, upper_bound=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, realized_hit_count=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, notional=crate::conversions::OMITTED, annual_coupon_rate=crate::conversions::OMITTED, lower_bound=crate::conversions::OMITTED, upper_bound=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, realized_hit_count=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -110,7 +121,16 @@ impl RangeAccrualOption {
             &Bound<'_, PyAny>,
         >,
         #[pyo3(from_py_with = supplied)] calendar: Option<&Bound<'_, PyAny>>,
+
+        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<
+            &pyo3::Bound<'_, pyo3::PyAny>,
+        >,
     ) -> PyResult<Self> {
+        let history_time = history_time
+            .map(crate::conversions::optional_timestamp)
+            .transpose()?
+            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+
         let changes = kiyosi::RangeAccrualOptionChanges {
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
@@ -138,11 +158,14 @@ impl RangeAccrualOption {
                 })
                 .transpose()?,
         };
-        Ok(Self(domain(self.0.replace(changes))?))
+        Ok(Self(kiyosi::OptionContract::with_history_time(
+            domain(self.0.replace(changes))?,
+            history_time,
+        )))
     }
     #[new]
     #[expect(clippy::too_many_arguments, reason = "explicit Python contract terms")]
-    #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time, observation_clock_time, realized_hit_count=None, calendar=TradingCalendar::default()))]
+    #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time, observation_clock_time, realized_hit_count=None, calendar=TradingCalendar::default(), history_time=None))]
     fn new(
         notional: &Bound<'_, PyAny>,
         annual_coupon_rate: &Bound<'_, PyAny>,
@@ -153,6 +176,10 @@ impl RangeAccrualOption {
         observation_clock_time: &Bound<'_, PyAny>,
         realized_hit_count: Option<&Bound<'_, PyAny>>,
         calendar: TradingCalendar,
+
+        #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<
+            kiyosi::Timestamp,
+        >,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::RangeAccrualTerms::new(
             real(notional)?,
@@ -167,7 +194,10 @@ impl RangeAccrualOption {
             terms.realized_hit_count = history(value)?;
         }
         terms.calendar = calendar.0;
-        Ok(Self(domain(kiyosi::RangeAccrualOption::new(terms))?))
+        Ok(Self(kiyosi::OptionContract::with_history_time(
+            domain(kiyosi::RangeAccrualOption::new(terms))?,
+            history_time,
+        )))
     }
 
     /// Return a validated replacement without changing this value.
@@ -186,16 +216,28 @@ impl RangeAccrualOption {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, realized_hit_count=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, realized_hit_count=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     fn replace_history(
         &self,
         #[pyo3(from_py_with = supplied)] realized_hit_count: Option<&Bound<'_, PyAny>>,
+
+        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<
+            &pyo3::Bound<'_, pyo3::PyAny>,
+        >,
     ) -> PyResult<Self> {
+        let history_time = history_time
+            .map(crate::conversions::optional_timestamp)
+            .transpose()?
+            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+
         let count = match realized_hit_count {
             Some(value) => history(value)?,
             None => self.0.realized_hit_count(),
         };
-        Ok(Self(domain(self.0.replace_history(count))?))
+        Ok(Self(kiyosi::OptionContract::with_history_time(
+            domain(self.0.replace_history(count))?,
+            history_time,
+        )))
     }
     /// Returns the explicitly specified daily observation clock time.
     #[getter]

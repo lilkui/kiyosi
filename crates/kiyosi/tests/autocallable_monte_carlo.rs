@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {
@@ -26,15 +29,23 @@ fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
     let digital =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 0.1, date(1, 1), end).unwrap();
     let context = market(100.0, date(1, 1));
-    let expected = (-0.04_f64).exp() + AnalyticDigitalEngine.price(&digital, &context).unwrap();
+    let expected = (-0.04_f64).exp()
+        + AnalyticDigitalEngine
+            .price(&dated(&digital, &context), &context)
+            .unwrap();
     let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
         path_count: 32768,
         seed: Some(42),
         ..Default::default()
     })
     .unwrap();
-    let estimate = engine.price_with_statistics(&note, &context).unwrap();
-    assert_eq!(engine.price(&note, &context).unwrap(), estimate.price());
+    let estimate = engine
+        .price_with_statistics(&dated(&note, &context), &context)
+        .unwrap();
+    assert_eq!(
+        engine.price(&dated(&note, &context), &context).unwrap(),
+        estimate.price()
+    );
     let error = estimate.standard_error().unwrap();
     assert!((estimate.price() - expected).abs() < 4.0 * error);
     let (lower, upper) = estimate.confidence_interval().unwrap();
@@ -70,12 +81,14 @@ fn scalar_price_survives_confidence_interval_overflow() {
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 1.5e308, start, end).unwrap();
     let expected = MonteCarloDigitalEngine::new(settings)
         .unwrap()
-        .price(&digital, &context)
+        .price(&dated(&digital, &context), &context)
         .unwrap();
     assert!((expected / 7.5e307 - 1.0).abs() < 1e-12);
-    assert!((engine.price(&note, &context).unwrap() / expected - 1.0).abs() < 1e-12);
+    assert!(
+        (engine.price(&dated(&note, &context), &context).unwrap() / expected - 1.0).abs() < 1e-12
+    );
     assert!(matches!(
-        engine.price_with_statistics(&note, &context),
+        engine.price_with_statistics(&dated(&note, &context), &context),
         Err(Error::ComputationFailure(_))
     ));
 }
@@ -106,7 +119,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         )
         .unwrap();
         let expected = (principal.ln() - rate).exp();
-        let actual = engine.price(&note, &context).unwrap();
+        let actual = engine.price(&dated(&note, &context), &context).unwrap();
         assert!(
             (actual / expected - 1.0).abs() < 1e-12,
             "{actual} != {expected}"
@@ -131,7 +144,10 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         start,
     )
     .unwrap();
-    assert_eq!(engine.price(&note, &context).unwrap(), 0.0);
+    assert_eq!(
+        engine.price(&dated(&note, &context), &context).unwrap(),
+        0.0
+    );
 }
 
 #[test]
@@ -162,14 +178,14 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
                 };
                 let serial = MonteCarloAutocallableEngine::new(settings)
                     .unwrap()
-                    .price_with_statistics(&note, &context)
+                    .price_with_statistics(&dated(&note, &context), &context)
                     .unwrap();
                 let parallel = MonteCarloAutocallableEngine::new(MonteCarloSettings {
                     thread_count: 3,
                     ..settings
                 })
                 .unwrap()
-                .price_with_statistics(&note, &context)
+                .price_with_statistics(&dated(&note, &context), &context)
                 .unwrap();
                 assert_eq!(serial, parallel);
                 assert_eq!(
@@ -188,7 +204,7 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
     })
     .unwrap();
     assert!(
-        odd.price_with_statistics(&note, &context)
+        odd.price_with_statistics(&dated(&note, &context), &context)
             .unwrap()
             .standard_error()
             .is_none()
@@ -244,12 +260,26 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         spot_shift: Some(0.25),
         ..Default::default()
     };
-    let result =
-        kiyosi::numerical_greeks(&engine, &note, &context, GreeksRequest::all(), shifts).unwrap();
+    let result = kiyosi::numerical_greeks(
+        &engine,
+        &dated(&note, &context),
+        &context,
+        GreeksRequest::all(),
+        shifts,
+    )
+    .unwrap();
     let bump = |spot| {
         engine
             .price(
-                &note,
+                &dated(
+                    &note,
+                    &context
+                        .replace(PricingContextChanges {
+                            spot_price: Some(spot),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                ),
                 &context
                     .replace(PricingContextChanges {
                         spot_price: Some(spot),
@@ -267,7 +297,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
     );
     let volatility = implied_volatility(
         &engine,
-        &note,
+        &dated(&note, &context),
         &context,
         result.price(),
         ImpliedVolatilitySettings {
@@ -284,13 +314,16 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
     ] {
         let quote = engine
             .price(
-                &note.with_shifted_coupons(0.12, convention).unwrap(),
+                &dated(
+                    &note.with_shifted_coupons(0.12, convention).unwrap(),
+                    &context,
+                ),
                 &context,
             )
             .unwrap();
         let coupon = implied_snowball_coupon(
             &engine,
-            &note,
+            &dated(&note, &context),
             &context,
             quote,
             convention,
@@ -324,12 +357,15 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
     smooth_terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     smooth_terms.observation_clock_time = None;
     let smooth = SnowballOption::new(smooth_terms).unwrap();
-    let price = prepared.price(&smooth, &context).unwrap();
-    assert_eq!(price, prepared.price(&smooth, &context).unwrap());
+    let price = prepared.price(&dated(&smooth, &context), &context).unwrap();
+    assert_eq!(
+        price,
+        prepared.price(&dated(&smooth, &context), &context).unwrap()
+    );
     assert!(prepared.prepare_request().unwrap().is_none());
     let sigma = implied_volatility(
         prepared.as_ref(),
-        &smooth,
+        &dated(&smooth, &context),
         &context,
         price,
         ImpliedVolatilitySettings {
@@ -373,25 +409,36 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
     let missing = SnowballOption::new(terms.clone()).unwrap();
     assert!(matches!(
         engine
-            .price(&missing, &market(100.0, date(1, 2)))
+            .price(
+                &dated(&missing, &market(100.0, date(1, 2))),
+                &market(100.0, date(1, 2))
+            )
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     terms.barrier_state = Some(AutocallableBarrierState::KnockedOut);
     let out = SnowballOption::new(terms.clone()).unwrap();
     assert!(matches!(
-        engine.price(&out, &market(100.0, date(1, 1))).unwrap_err(),
+        engine
+            .price(
+                &dated(&out, &market(100.0, date(1, 1))),
+                &market(100.0, date(1, 1))
+            )
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let estimate = engine
-        .price_with_statistics(&out, &market(100.0, date(3, 3)))
+        .price_with_statistics(
+            &dated(&out, &market(100.0, date(3, 3))),
+            &market(100.0, date(3, 3)),
+        )
         .unwrap();
     assert_eq!(estimate.price(), 0.0);
     assert_eq!(estimate.standard_error(), Some(0.0));
     assert!(matches!(
         implied_volatility(
             &engine,
-            &out,
+            &dated(&out, &market(100.0, date(3, 3))),
             &market(100.0, date(3, 3)),
             0.0,
             Default::default()
@@ -407,9 +454,11 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         (110.0, 1.0 + 0.08 * 90.0 / 365.0),
     ] {
         let context = market(spot, date(4, 1));
-        assert!((engine.price(&note, &context).unwrap() - expected).abs() < 1e-14);
+        assert!(
+            (engine.price(&dated(&note, &context), &context).unwrap() - expected).abs() < 1e-14
+        );
         let result = engine
-            .price_with_greeks(&note, &context, GreeksRequest::all())
+            .price_with_greeks(&dated(&note, &context), &context, GreeksRequest::all())
             .unwrap();
         for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
             assert_eq!(result.get(greek), None);
@@ -445,7 +494,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         })
         .unwrap();
     assert!(matches!(
-        engine.price(&note, &curved).unwrap_err(),
+        engine.price(&dated(&note, &curved), &curved).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
 }
@@ -474,14 +523,19 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
     })
     .unwrap();
     assert!(matches!(
-        engine.price(&note, &market(100.0, start)).unwrap_err(),
+        engine
+            .price(&dated(&note, &market(100.0, start)), &market(100.0, start))
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     assert!(
         engine
-            .price(&SnowballOption::new(terms).unwrap(), &market(100.0, start))
+            .price(
+                &dated(&SnowballOption::new(terms).unwrap(), &market(100.0, start)),
+                &market(100.0, start)
+            )
             .unwrap()
             .is_finite()
     );
@@ -495,7 +549,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             ..Default::default()
         })
         .unwrap()
-        .price(note, context)
+        .price(&dated(note, context), context)
         .unwrap();
         let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
             path_count: 65536,
@@ -504,7 +558,9 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             ..Default::default()
         })
         .unwrap();
-        let actual = engine.price_with_statistics(note, context).unwrap();
+        let actual = engine
+            .price_with_statistics(&dated(note, context), context)
+            .unwrap();
         assert!(
             (actual.price() - reference).abs() < 4.0 * actual.standard_error().unwrap() + 1e-5,
             "{} != {reference}",

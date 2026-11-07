@@ -20,6 +20,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 
 
 class AutocallableMonteCarloRegressionTests(unittest.TestCase):
@@ -44,9 +45,13 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         engine = pricing.MonteCarloAutocallableEngine(
             path_count=2, seed=0, thread_count=1
         )
-        self.assertAlmostEqual(engine.price(note, context) / 7.5e307, 1, delta=1e-12)
+        self.assertAlmostEqual(
+            engine.price(dated_history(note, context), context) / 7.5e307,
+            1,
+            delta=1e-12,
+        )
         with self.assertRaises(ComputationFailureError):
-            engine.price_with_statistics(note, context)
+            engine.price_with_statistics(dated_history(note, context), context)
 
     def test_shared_spot_simulations_match_separate_seeded_prices(self):
         start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
@@ -148,11 +153,12 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     with self.subTest(note=type(note).__name__, paths=paths, seed=seed):
                         engine = engine_type(path_count=paths, seed=seed)
                         p, up, down, up2, down2 = [
-                            engine.price(note, ctx) for ctx in contexts
+                            engine.price(dated_history(note, ctx), ctx)
+                            for ctx in contexts
                         ]
                         result = numerical_greeks(
                             engine,
-                            note,
+                            dated_history(note, contexts[0]),
                             contexts[0],
                             ["delta", "gamma", "speed"],
                             spot_shift=shift,
@@ -165,7 +171,11 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             (up2 - 2 * up + 2 * down - down2) / h / h / (2 * h),
                         )
                         numerical = numerical_greeks(
-                            engine, note, contexts[0], greeks="all", spot_shift=shift
+                            engine,
+                            dated_history(note, contexts[0]),
+                            contexts[0],
+                            greeks="all",
+                            spot_shift=shift,
                         )
                         self.assertEqual(
                             (result.price, result.delta, result.gamma, result.speed),
@@ -211,7 +221,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         valuation_time=time,
                     )
                     result = engine.price_with_greeks(
-                        note, context, ["delta", "gamma", "theta", "charm", "color"]
+                        dated_history(note, context),
+                        context,
+                        ["delta", "gamma", "theta", "charm", "color"],
                     )
                     years = (datetime(2026, 1, 1) - time).total_seconds() / (
                         365 * 86400
@@ -256,7 +268,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         ),
                     )
                     result = engine.price_with_greeks(
-                        note, context, ["theta", "charm", "color"]
+                        dated_history(note, context),
+                        context,
+                        ["theta", "charm", "color"],
                     )
                     for value in (result.theta, result.charm, result.color):
                         self.assertIsNotNone(value)
@@ -284,7 +298,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 with self.assertRaises(ComputationFailureError) as error:
                     pricing.implied_volatility(
                         pricing.MonteCarloAutocallableEngine(path_count=2, seed=1),
-                        note,
+                        dated_history(note, context),
                         context,
                         1,
                     )
@@ -333,8 +347,16 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     ):
                         prices = [
                             engine.price(
-                                note.replace(
-                                    calendar=calendar, barrier_state=note.barrier_state
+                                dated_history(
+                                    note.replace(
+                                        calendar=calendar,
+                                        barrier_state=note.barrier_state,
+                                    ),
+                                    PricingContext(
+                                        model_parameters=parameters,
+                                        spot_price=100,
+                                        valuation_time=start,
+                                    ),
                                 ),
                                 PricingContext(
                                     model_parameters=parameters,
@@ -358,7 +380,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 engine=type(engine).__name__, product=type(note).__name__
             ):
                 self.assertAlmostEqual(
-                    engine.price(note, context), expected, delta=1e-12
+                    engine.price(dated_history(note, context), context),
+                    expected,
+                    delta=1e-12,
                 )
 
     def test_current_knockouts_pay_only_contractual_coupon(self):

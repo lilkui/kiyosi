@@ -34,6 +34,8 @@ print(f"全部观察均命中时的票息现值：{full_coupon * discount:,.2f}"
 assert 0 < price < full_coupon * discount
 
 # 假设估值时刻之前已有 7 次命中；估值时刻的观察由当前现货决定。
-seasoned = option.replace_history(realized_hit_count=7)
 later = context.replace(valuation_time=datetime(2025, 1, 16, 15), spot_price=102)
+seasoned = option.replace_history(
+    realized_hit_count=7, history_time=later.valuation_time
+)
 print(f"含历史命中的存续票息现值：{engine.price(seasoned, later):,.2f}")

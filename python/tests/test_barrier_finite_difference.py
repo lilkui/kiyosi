@@ -17,6 +17,7 @@ from kiyosi import (
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
@@ -34,14 +35,16 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
     def test_history_is_required_and_failure_does_not_change_engine(self):
         for engine in engines():
             contract = option()
-            expected = engine.price(contract, market())
+            expected = engine.price(dated_history(contract, market()), market())
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
                 contract,
                 market(valuation=START + timedelta(days=1)),
             )
-            self.assertEqual(engine.price(contract, market()), expected)
+            self.assertEqual(
+                engine.price(dated_history(contract, market()), market()), expected
+            )
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
@@ -73,18 +76,31 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 current = (
                     5
                     if kind.endswith("out")
-                    else pricing.AnalyticEuropeanEngine().price(vanilla, at_observation)
+                    else pricing.AnalyticEuropeanEngine().price(
+                        dated_history(vanilla, at_observation), at_observation
+                    )
                 )
                 later = (
-                    pricing.AnalyticEuropeanEngine().price(vanilla, after_observation)
+                    pricing.AnalyticEuropeanEngine().price(
+                        dated_history(vanilla, after_observation), after_observation
+                    )
                     if kind.endswith("out")
                     else 5 * math.exp(-0.03 * 269.5 / 365)
                 )
                 self.assertAlmostEqual(
-                    engine.price(contract, at_observation), current, delta=1e-12
+                    engine.price(
+                        dated_history(contract, at_observation), at_observation
+                    ),
+                    current,
+                    delta=1e-12,
                 )
                 self.assertAlmostEqual(
-                    engine.price(prior_untouched, after_observation), later, delta=1e-12
+                    engine.price(
+                        dated_history(prior_untouched, after_observation),
+                        after_observation,
+                    ),
+                    later,
+                    delta=1e-12,
                 )
 
     def test_completed_monitoring_returns_vanilla_or_expiry_rebate(self):
@@ -94,7 +110,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
-        value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
+        value = pricing.AnalyticEuropeanEngine().price(
+            dated_history(vanilla, context), context
+        )
         for engine in engines():
             for kind in KINDS:
                 contract = option(
@@ -108,7 +126,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                     3 * math.exp(-0.03 * 180 / 365) if kind.endswith("in") else value
                 )
                 self.assertAlmostEqual(
-                    engine.price(contract, context), expected, delta=1e-12
+                    engine.price(dated_history(contract, context), context),
+                    expected,
+                    delta=1e-12,
                 )
 
     def test_valuation_and_greek_validation_preserve_core_errors(self):
@@ -141,7 +161,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")
                 result = engine.price_with_greeks(
-                    contract, market(spot=110, valuation=END), greeks="all"
+                    dated_history(contract, market(spot=110, valuation=END)),
+                    market(spot=110, valuation=END),
+                    greeks="all",
                 )
                 self.assertEqual(result.price, 3 if kind.endswith("in") else 10)
                 assert_terminal_greeks(self, result, int(kind.endswith("out")))
@@ -150,10 +172,10 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         context = market()
         contract = option(barrier_level=60)
         for engine in engines():
-            quote = engine.price(contract, context)
+            quote = engine.price(dated_history(contract, context), context)
             volatility = pricing.implied_volatility(
                 engine,
-                contract,
+                dated_history(contract, context),
                 context,
                 quote,
                 lower_bound=0.15,
@@ -167,9 +189,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                fixed,
+                dated_history(fixed, later),
                 later,
-                engine.price(fixed, later),
+                engine.price(dated_history(fixed, later), later),
             )
 
     def test_continuous_prices_and_greeks_against_live_quantlib(self):
@@ -218,7 +240,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                             "gamma": (high - 2 * center + low) / 0.01**2,
                         }
                         result = engine.price_with_greeks(
-                            contract,
+                            dated_history(
+                                contract, market(rate=rate, dividend=dividend)
+                            ),
                             market(rate=rate, dividend=dividend),
                             ("delta", "gamma"),
                         )
@@ -303,7 +327,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                     )
                     with self.subTest(kind=kind, direction=direction, timing=timing):
                         self.assertAlmostEqual(
-                            engine.price(contract, market()), expected, delta=0.003
+                            engine.price(dated_history(contract, market()), market()),
+                            expected,
+                            delta=0.003,
                         )
 
     def test_scheduled_greeks_solver_and_concurrency(self):
@@ -313,8 +339,10 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
         )
         context = market()
-        quote = engine.price(contract, context)
-        result = engine.price_with_greeks(contract, context, greeks="all")
+        quote = engine.price(dated_history(contract, context), context)
+        result = engine.price_with_greeks(
+            dated_history(contract, context), context, greeks="all"
+        )
         self.assertEqual(result.price, quote)
         for name in ("delta", "gamma", *OTHER_GREEKS):
             self.assertTrue(math.isfinite(getattr(result, name)), name)
@@ -326,9 +354,14 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 else pricing.FiniteDifferenceBarrierEngine(asset_step_count=256)
             )
             sigma = pricing.implied_volatility(
-                selected, contract, context, quote, lower_bound=0.15, upper_bound=0.25
+                selected,
+                dated_history(contract, context),
+                context,
+                quote,
+                lower_bound=0.15,
+                upper_bound=0.25,
             )
-            return selected.price(contract, context), sigma
+            return selected.price(dated_history(contract, context), context), sigma
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             for price, sigma in pool.map(evaluate, range(4)):
@@ -343,7 +376,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 expected_error,
                 pricing.implied_volatility,
                 engine,
-                contract,
+                dated_history(contract, context),
                 context,
                 observed,
                 lower_bound=0.15,
@@ -351,12 +384,18 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 **controls,
             )
         with self.assertRaises(TypeError):
-            pricing.implied_volatility(engine, contract, context, True)
+            pricing.implied_volatility(
+                engine, dated_history(contract, context), context, True
+            )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
-                engine, contract, context, quote, max_iterations=1.5
+                engine,
+                dated_history(contract, context),
+                context,
+                quote,
+                max_iterations=1.5,
             )
-        self.assertEqual(engine.price(contract, context), quote)
+        self.assertEqual(engine.price(dated_history(contract, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)
 
     def test_node_curves_preserve_events_discounts_and_coverage_order(self):
@@ -387,7 +426,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 -0.08 * 91 / 365 if timing == "at_hit" else -0.01 * 360 / 365
             )
             self.assertAlmostEqual(
-                engine.price(contract, context), expected, delta=1e-5
+                engine.price(dated_history(contract, context), context),
+                expected,
+                delta=1e-5,
             )
         short = RateTermStructure(
             reference_time=START, times=[START + timedelta(days=91)], factors=[0.99]
@@ -397,13 +438,15 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         )
         self.assert_rejection(InvalidInputError, engine.price, contract, uncovered)
         current = option("up_and_out", rebate=7, rebate_timing="at_hit")
-        self.assertEqual(engine.price(current, uncovered), 7)
+        self.assertEqual(engine.price(dated_history(current, uncovered), uncovered), 7)
 
     def test_selective_mixed_requests_stencils_and_failure_state(self):
         engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
         contract = option(touch_state="untouched")
         context = market()
-        all_values = engine.price_with_greeks(contract, context, greeks="all")
+        all_values = engine.price_with_greeks(
+            dated_history(contract, context), context, greeks="all"
+        )
         for greek in (
             "speed",
             "vanna",
@@ -411,23 +454,35 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             "charm",
             "color",
         ):
-            selected = engine.price_with_greeks(contract, context, greek)
+            selected = engine.price_with_greeks(
+                dated_history(contract, context), context, greek
+            )
             self.assertEqual(getattr(selected, greek), getattr(all_values, greek))
             self.assertIsNone(selected.delta)
             self.assertIsNone(selected.gamma)
         for h in (0.01,):
-            actual = engine.price_with_greeks(contract, context, "speed")
+            actual = engine.price_with_greeks(
+                dated_history(contract, context), context, "speed"
+            )
             high = engine.price_with_greeks(
-                contract, context.replace(spot_price=100 + h), "gamma"
+                dated_history(contract, context.replace(spot_price=100 + h)),
+                context.replace(spot_price=100 + h),
+                "gamma",
             )
             low = engine.price_with_greeks(
-                contract, context.replace(spot_price=100 - h), "gamma"
+                dated_history(contract, context.replace(spot_price=100 - h)),
+                context.replace(spot_price=100 - h),
+                "gamma",
             )
             self.assertAlmostEqual(
                 actual.speed, (high.gamma - low.gamma) / (2 * h), delta=1e-12
             )
         collapsed = numerical_greeks(
-            engine, contract, context, ["delta", "gamma", "speed"], spot_shift=1e-300
+            engine,
+            dated_history(contract, context),
+            context,
+            ["delta", "gamma", "speed"],
+            spot_shift=1e-300,
         )
         self.assertIsNone(collapsed.delta)
         self.assertIsNone(collapsed.gamma)
@@ -439,9 +494,15 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             ("time_shift", 1.5),
         ):
             with self.assertRaises(TypeError):
-                numerical_greeks(engine, contract, context, "delta", **{name: value})
+                numerical_greeks(
+                    engine,
+                    dated_history(contract, context),
+                    context,
+                    "delta",
+                    **{name: value},
+                )
         clipped = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=110)
-        quote = clipped.price(contract, context)
+        quote = clipped.price(dated_history(contract, context), context)
         self.assert_rejection(
             InvalidInputError,
             partial(numerical_greeks, clipped),
@@ -450,8 +511,12 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             "speed",
             spot_shift=6,
         )
-        self.assertEqual(clipped.price(contract, context), quote)
-        self.assertEqual(engine.price(contract, context), all_values.price)
+        self.assertEqual(
+            clipped.price(dated_history(contract, context), context), quote
+        )
+        self.assertEqual(
+            engine.price(dated_history(contract, context), context), all_values.price
+        )
 
     def test_scheduled_payoff_peak_retains_spline_price_and_greeks(self):
         from kiyosi.instruments import CashOrNothingOption
@@ -466,15 +531,17 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         cash = CashOrNothingOption(strike=120, payout=20, **common)
         for spot in (111.94, 111.97, 112.01):
             context = market(spot=spot, rate=0.04)
-            actual = engine.price_with_greeks(contract, context, ["delta", "gamma"])
+            actual = engine.price_with_greeks(
+                dated_history(contract, context), context, ["delta", "gamma"]
+            )
             first = pricing.AnalyticEuropeanEngine().price_with_greeks(
-                lower, context, ["delta", "gamma"]
+                dated_history(lower, context), context, ["delta", "gamma"]
             )
             second = pricing.AnalyticEuropeanEngine().price_with_greeks(
-                upper, context, ["delta", "gamma"]
+                dated_history(upper, context), context, ["delta", "gamma"]
             )
             digital = pricing.AnalyticDigitalEngine().price_with_greeks(
-                cash, context, ["delta", "gamma"]
+                dated_history(cash, context), context, ["delta", "gamma"]
             )
             for name, tolerance in (("price", 0.001), ("delta", 5e-5), ("gamma", 1e-5)):
                 expected = (
@@ -483,8 +550,14 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                     - getattr(digital, name)
                 )
                 self.assertAlmostEqual(getattr(actual, name), expected, delta=tolerance)
-            high = engine.price(contract, context.replace(spot_price=spot + 0.01))
-            low = engine.price(contract, context.replace(spot_price=spot - 0.01))
+            high = engine.price(
+                dated_history(contract, context.replace(spot_price=spot + 0.01)),
+                context.replace(spot_price=spot + 0.01),
+            )
+            low = engine.price(
+                dated_history(contract, context.replace(spot_price=spot - 0.01)),
+                context.replace(spot_price=spot - 0.01),
+            )
             self.assertAlmostEqual(actual.delta, (high - low) / 0.02, delta=1e-7)
             self.assertAlmostEqual(
                 actual.gamma, (high - 2 * actual.price + low) / 0.01**2, delta=1e-6

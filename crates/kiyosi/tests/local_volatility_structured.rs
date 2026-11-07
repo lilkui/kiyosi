@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {
@@ -45,7 +48,11 @@ fn request() -> GreeksRequest {
     GreeksRequest::new([Greek::Delta, Greek::Gamma])
 }
 
-fn parity<I: OptionContract, E: PricingEngine<I>>(engine: &E, option: &I, local: &PricingContext) {
+fn parity<I: OptionContract + Clone, E: PricingEngine<I>>(
+    engine: &E,
+    option: &I,
+    local: &PricingContext,
+) {
     let model = local.model_parameters();
     let bsm = local
         .replace(PricingContextChanges {
@@ -62,8 +69,12 @@ fn parity<I: OptionContract, E: PricingEngine<I>>(engine: &E, option: &I, local:
         })
         .unwrap();
     engine.validate_applicability(local).unwrap();
-    let actual = engine.price_with_greeks(option, local, request()).unwrap();
-    let reference = engine.price_with_greeks(option, &bsm, request()).unwrap();
+    let actual = engine
+        .price_with_greeks(&dated(option, local), local, request())
+        .unwrap();
+    let reference = engine
+        .price_with_greeks(&dated(option, &bsm), &bsm, request())
+        .unwrap();
     assert!(
         (actual.price() - reference.price()).abs() < 1e-9,
         "{} != {}",
@@ -226,14 +237,17 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     })
     .unwrap();
     let acc_engine = FiniteDifferenceAccumulatorEngine::default();
-    assert_eq!(acc_engine.price(&acc, &settled).unwrap(), 60.0);
+    assert_eq!(
+        acc_engine.price(&dated(&acc, &settled), &settled).unwrap(),
+        60.0
+    );
     assert!(matches!(
-        acc_engine.price(&acc, &live),
+        acc_engine.price(&dated(&acc, &live), &live),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
         acc_engine
-            .price_with_greeks(&acc, &settled, GreeksRequest::all())
+            .price_with_greeks(&dated(&acc, &settled), &settled, GreeksRequest::all())
             .unwrap()
             .get(Greek::Vega),
         None
@@ -256,14 +270,17 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         date(2, 4),
     )
     .unwrap();
-    assert_eq!(engine.price(&knocked_out, &later).unwrap(), 0.0);
+    assert_eq!(
+        engine.price(&dated(&knocked_out, &later), &later).unwrap(),
+        0.0
+    );
     assert!(matches!(
-        engine.price(&note, &live),
+        engine.price(&dated(&note, &live), &live),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
         engine
-            .price_with_greeks(&knocked_out, &later, GreeksRequest::all())
+            .price_with_greeks(&dated(&knocked_out, &later), &later, GreeksRequest::all())
             .unwrap()
             .get(Greek::Vega),
         None
@@ -283,7 +300,9 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         start,
     )
     .unwrap();
-    let result = engine.price_with_greeks(&fixed, &local, request()).unwrap();
+    let result = engine
+        .price_with_greeks(&dated(&fixed, &local), &local, request())
+        .unwrap();
     assert!((result.price() - 0.99).abs() < 1e-14);
     assert_eq!(result.require(Greek::Delta).unwrap(), 0.0);
     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
@@ -315,7 +334,9 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
             ..Default::default()
         })
         .unwrap();
-    let result = engine.price_with_greeks(&note, &local, request()).unwrap();
+    let result = engine
+        .price_with_greeks(&dated(&note, &local), &local, request())
+        .unwrap();
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
     let expired = local
@@ -325,13 +346,13 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         })
         .unwrap();
     let result = engine
-        .price_with_greeks(&note, &expired, request())
+        .price_with_greeks(&dated(&note, &expired), &expired, request())
         .unwrap();
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
     assert_eq!(
         engine
-            .price_with_greeks(&note, &expired, GreeksRequest::all())
+            .price_with_greeks(&dated(&note, &expired), &expired, GreeksRequest::all())
             .unwrap()
             .get(Greek::Vega),
         None
@@ -352,14 +373,14 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     .unwrap();
     let acc_engine = FiniteDifferenceAccumulatorEngine::default();
     let result = acc_engine
-        .price_with_greeks(&acc, &expired, request())
+        .price_with_greeks(&dated(&acc, &expired), &expired, request())
         .unwrap();
     assert_eq!(result.price(), -50.0);
     assert!((result.require(Greek::Delta).unwrap() - 5.0).abs() < 1e-10);
     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
     assert_eq!(
         acc_engine
-            .price_with_greeks(&acc, &expired, GreeksRequest::all())
+            .price_with_greeks(&dated(&acc, &expired), &expired, GreeksRequest::all())
             .unwrap()
             .get(Greek::Vega),
         None
@@ -410,30 +431,42 @@ fn early_surface_knots_survive_autocallable_time_refinement() {
     let digital =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, coupon * 90.0 / 365.0, start, end)
             .unwrap();
-    let expected =
-        (-0.04_f64 * 90.0 / 365.0).exp() + AnalyticDigitalEngine.price(&digital, &bsm).unwrap();
+    let expected = (-0.04_f64 * 90.0 / 365.0).exp()
+        + AnalyticDigitalEngine
+            .price(&dated(&digital, &bsm), &bsm)
+            .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
         asset_step_count: 1600,
         time_step_count: 2000,
         ..settings()
     })
     .unwrap();
-    let actual = engine.price(&note, &local).unwrap();
+    let actual = engine.price(&dated(&note, &local), &local).unwrap();
     assert!((actual - expected).abs() < 1e-5, "{actual} != {expected}");
 }
 
-fn fixed_surface_derivatives<I: OptionContract, E: PricingEngine<I>>(
+fn fixed_surface_derivatives<I: OptionContract + Clone, E: PricingEngine<I>>(
     engine: &E,
     option: &I,
     local: &PricingContext,
     tolerance: [f64; 2],
 ) {
-    let value = engine.price_with_greeks(option, local, request()).unwrap();
+    let value = engine
+        .price_with_greeks(&dated(option, local), local, request())
+        .unwrap();
     let shift = 0.05;
     let price = |offset| {
         engine
             .price(
-                option,
+                &dated(
+                    option,
+                    &local
+                        .replace(PricingContextChanges {
+                            spot_price: Some(local.spot_price() + offset),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                ),
                 &local
                     .replace(PricingContextChanges {
                         spot_price: Some(local.spot_price() + offset),
@@ -539,7 +572,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
     .unwrap();
     let price = FiniteDifferenceAccumulatorEngine::new(settings)
         .unwrap()
-        .price(&acc, &local)
+        .price(&dated(&acc, &local), &local)
         .unwrap();
     assert!((price - (-209.700_112_294_595_6)).abs() < 3.1);
     let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
@@ -549,7 +582,10 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         observations.clone(),
     ))
     .unwrap();
-    assert!((engine.price(&binary, &local).unwrap() - 1.005_744_900_754_879_5).abs() < 0.000_114);
+    assert!(
+        (engine.price(&dated(&binary, &local), &local).unwrap() - 1.005_744_900_754_879_5).abs()
+            < 0.000_114
+    );
     for (mode, snow_ref, ternary_ref, phoenix_ref) in [
         (
             KnockInObservationMode::EveryTradingDay,
@@ -616,21 +652,27 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         for (price, expected, tolerance) in [
             (
                 engine
-                    .price(&SnowballOption::new(snow).unwrap(), &local)
+                    .price(&dated(&SnowballOption::new(snow).unwrap(), &local), &local)
                     .unwrap(),
                 snow_ref,
                 0.00023,
             ),
             (
                 engine
-                    .price(&TernarySnowballOption::new(ternary).unwrap(), &local)
+                    .price(
+                        &dated(&TernarySnowballOption::new(ternary).unwrap(), &local),
+                        &local,
+                    )
                     .unwrap(),
                 ternary_ref,
                 0.00013,
             ),
             (
                 engine
-                    .price(&PhoenixOption::new(phoenix).unwrap(), &local)
+                    .price(
+                        &dated(&PhoenixOption::new(phoenix).unwrap(), &local),
+                        &local,
+                    )
                     .unwrap(),
                 phoenix_ref,
                 0.00022,

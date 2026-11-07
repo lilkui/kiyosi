@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn terms(kind: BarrierType, direction: OptionType) -> BarrierOptionTerms {
@@ -43,8 +46,10 @@ fn continuous_exact_edges_match_analytic_for_all_payoffs_and_rebates() {
                     option.barrier_level() + if up { -0.01 } else { 0.01 },
                 ] {
                     let context = market(spot);
-                    let expected = AnalyticBarrierEngine.price(&option, &context).unwrap();
-                    let actual = engine.price(&option, &context).unwrap();
+                    let expected = AnalyticBarrierEngine
+                        .price(&dated(&option, &context), &context)
+                        .unwrap();
+                    let actual = engine.price(&dated(&option, &context), &context).unwrap();
                     assert!(
                         (actual - expected).abs() < 1e-9 + 0.005 * expected.abs(),
                         "{kind:?} {direction:?} {rebate} {spot}: {actual} != {expected}"
@@ -114,7 +119,7 @@ fn scheduled_events_match_independent_two_fixing_integrals_and_time_convergence(
                 .unwrap();
                 let result = engine
                     .price_with_greeks(
-                        &option,
+                        &dated(&option, &market(100.25)),
                         &market(100.25),
                         GreeksRequest::new([Greek::Delta, Greek::Gamma]),
                     )
@@ -132,7 +137,9 @@ fn scheduled_events_match_independent_two_fixing_integrals_and_time_convergence(
                 }
                 refinements.push(actual);
                 assert_eq!(
-                    engine.price(&option, &market(100.25)).unwrap(),
+                    engine
+                        .price(&dated(&option, &market(100.25)), &market(100.25))
+                        .unwrap(),
                     result.price()
                 );
             }
@@ -164,7 +171,12 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
     t.rebate_timing = RebateTiming::AtHit;
     let option = BarrierOption::new(t.clone()).unwrap();
     assert_eq!(
-        engine.price(&option, &market(t.barrier_level)).unwrap(),
+        engine
+            .price(
+                &dated(&option, &market(t.barrier_level)),
+                &market(t.barrier_level)
+            )
+            .unwrap(),
         3.0
     );
     let later = market(100.0)
@@ -174,17 +186,26 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         })
         .unwrap();
     assert!(matches!(
-        engine.price(&option, &later).unwrap_err(),
+        engine.price(&dated(&option, &later), &later).unwrap_err(),
         Error::InvalidInput(_)
     ));
     let paid = option.replace_history(Some(BarrierTouchState::Touched));
-    assert_eq!(engine.price(&paid, &later).unwrap(), 0.0);
+    assert_eq!(engine.price(&dated(&paid, &later), &later).unwrap(), 0.0);
     assert!(matches!(
-        engine.price(&paid, &market(100.0)).unwrap_err(),
+        engine
+            .price(&dated(&paid, &market(100.0)), &market(100.0))
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        implied_volatility(&engine, &paid, &later, 0.0, Default::default()).unwrap_err(),
+        implied_volatility(
+            &engine,
+            &dated(&paid, &later),
+            &later,
+            0.0,
+            Default::default()
+        )
+        .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     let at_expiry = later
@@ -195,7 +216,11 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         .unwrap();
     let untouched = option.replace_history(Some(BarrierTouchState::Untouched));
     let result = engine
-        .price_with_greeks(&untouched, &at_expiry, GreeksRequest::all())
+        .price_with_greeks(
+            &dated(&untouched, &at_expiry),
+            &at_expiry,
+            GreeksRequest::all(),
+        )
         .unwrap();
     assert_eq!(result.price(), 0.0);
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
@@ -207,7 +232,9 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         }
     }
     assert!(matches!(
-        engine.price(&option, &market(100.0)).unwrap_err(),
+        engine
+            .price(&dated(&option, &market(100.0)), &market(100.0))
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
 }
@@ -224,11 +251,11 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
     let option = BarrierOption::new(t).unwrap();
     let context = market(100.0);
     let result = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all())
+        .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
         .unwrap();
     let scalar = numerical_greeks(
         &engine,
-        &option,
+        &dated(&option, &context),
         &context,
         GreeksRequest::all(),
         NumericalShiftSettings {
@@ -247,7 +274,7 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
     }
     let collapsed = kiyosi::numerical_greeks(
         &engine,
-        &option,
+        &dated(&option, &context),
         &context,
         GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]),
         NumericalShiftSettings {
@@ -260,7 +287,7 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
     assert!(!collapsed.has(Greek::Speed));
     let sigma = implied_volatility(
         &engine,
-        &option,
+        &dated(&option, &context),
         &context,
         result.price(),
         ImpliedVolatilitySettings {
@@ -271,7 +298,10 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
     )
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-7);
-    assert_eq!(engine.price(&option, &context).unwrap(), result.price());
+    assert_eq!(
+        engine.price(&dated(&option, &context), &context).unwrap(),
+        result.price()
+    );
     assert_eq!(
         context.model_parameters().as_bsm().unwrap().volatility(),
         0.2
@@ -299,7 +329,7 @@ fn explicit_stability_uses_the_continuous_domain_and_settings_validate_eagerly()
             ..Default::default()
         })
         .unwrap();
-        let result = engine.price(&option, &context);
+        let result = engine.price(&dated(&option, &context), &context);
         if stable {
             assert!(result.is_ok());
         } else {
@@ -365,7 +395,9 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
             } else {
                 (-0.01_f64).exp()
             };
-        assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-5);
+        assert!(
+            (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 1e-5
+        );
     }
     let short = RateTermStructure::new(t.effective_time, vec![first], vec![0.99]).unwrap();
     let uncovered = context
@@ -380,7 +412,10 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
         .unwrap();
     assert!(matches!(
         engine
-            .price(&BarrierOption::new(t).unwrap(), &uncovered)
+            .price(
+                &dated(&BarrierOption::new(t).unwrap(), &uncovered),
+                &uncovered
+            )
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -421,7 +456,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
             })
             .unwrap()
             .price_with_greeks(
-                &option,
+                &dated(&option, &context),
                 &context,
                 GreeksRequest::new([Greek::Delta, Greek::Gamma]),
             )
@@ -452,7 +487,9 @@ fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     })
     .unwrap();
     assert!(matches!(
-        engine.price(&option, &market(100.0)).unwrap_err(),
+        engine
+            .price(&dated(&option, &market(100.0)), &market(100.0))
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
 }

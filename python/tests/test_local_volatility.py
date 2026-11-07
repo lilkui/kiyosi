@@ -16,6 +16,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_support_matrix import HESTON_ENGINES, terminal_cases, terminal_delta
 
@@ -187,7 +188,9 @@ class LocalVolatilityTests(unittest.TestCase):
 
     def test_automatic_domains_ignore_surface_outside_remaining_horizon(self):
         e = pricing.FiniteDifferenceVanillaEngine()
-        baseline = e.price_with_greeks(option(), context(), ["delta", "gamma"])
+        baseline = e.price_with_greeks(
+            dated_history(option(), context()), context(), ["delta", "gamma"]
+        )
         self.assertAlmostEqual(baseline.price, 9.227005508154036, delta=0.002)
         for past, future in [(1.5, 0.2), (0.2, 1.5), (1.5, 1.5)]:
             with self.subTest(past=past, future=future):
@@ -197,7 +200,9 @@ class LocalVolatilityTests(unittest.TestCase):
                     values=[[past] * 2, [0.2] * 2, [0.2] * 2, [future] * 2],
                 )
                 actual = e.price_with_greeks(
-                    option(), context(extended), ["delta", "gamma"]
+                    dated_history(option(), context(extended)),
+                    context(extended),
+                    ["delta", "gamma"],
                 )
                 for measure in ["price", "delta", "gamma"]:
                     self.assertAlmostEqual(
@@ -215,8 +220,8 @@ class LocalVolatilityTests(unittest.TestCase):
         clipped = surface(((0.4, 0.4), (0.6, 0.6)))
         e = pricing.FiniteDifferenceVanillaEngine()
         self.assertAlmostEqual(
-            e.price(option(), context(extended)),
-            e.price(option(), context(clipped)),
+            e.price(dated_history(option(), context(extended)), context(extended)),
+            e.price(dated_history(option(), context(clipped)), context(clipped)),
             delta=1e-10,
         )
 
@@ -230,10 +235,12 @@ class LocalVolatilityTests(unittest.TestCase):
         )
         for direction in ["call", "put"]:
             actual = engine().price_with_greeks(
-                option(direction), context(), ["delta", "gamma"]
+                dated_history(option(direction), context()),
+                context(),
+                ["delta", "gamma"],
             )
             expected = pricing.AnalyticEuropeanEngine().price_with_greeks(
-                option(direction), bsm, ["delta", "gamma"]
+                dated_history(option(direction), bsm), bsm, ["delta", "gamma"]
             )
             for value, ref, tolerance in [
                 (actual.price, expected.price, 0.002),
@@ -264,8 +271,12 @@ class LocalVolatilityTests(unittest.TestCase):
         )
         for direction in ["call", "put"]:
             self.assertAlmostEqual(
-                engine().price(option(direction), context(s)),
-                pricing.AnalyticEuropeanEngine().price(option(direction), bsm),
+                engine().price(
+                    dated_history(option(direction), context(s)), context(s)
+                ),
+                pricing.AnalyticEuropeanEngine().price(
+                    dated_history(option(direction), bsm), bsm
+                ),
                 delta=0.002,
             )
         remaining_sigma = math.sqrt((0.35**2 + 0.35 * 0.25 + 0.25**2) / 3)
@@ -275,23 +286,35 @@ class LocalVolatilityTests(unittest.TestCase):
             model_parameters=bsm.model_parameters.replace(volatility=remaining_sigma),
         )
         self.assertAlmostEqual(
-            engine().price(option(), rolled),
-            pricing.AnalyticEuropeanEngine().price(option(), reference),
+            engine().price(dated_history(option(), rolled), rolled),
+            pricing.AnalyticEuropeanEngine().price(
+                dated_history(option(), reference), reference
+            ),
             delta=0.002,
         )
 
     def test_skew_refines_time_space_domain_and_fixed_surface_greeks(self):
         c = context(surface(((0.3, 0.15), (0.35, 0.2))))
-        fine = engine(1600, 1600).price_with_greeks(option(), c, ["delta", "gamma"])
+        fine = engine(1600, 1600).price_with_greeks(
+            dated_history(option(), c), c, ["delta", "gamma"]
+        )
         for e, budget in [
             (engine(800, 800), 0.002),
             (engine(1600, 3200), 0.0001),
             (engine(2400, 1600, 600), 0.0001),
             (engine(1600, 1600, None), 0.002),
         ]:
-            self.assertAlmostEqual(e.price(option(), c), fine.price, delta=budget)
-        up = engine(1600, 1600).price(option(), c.replace(spot_price=100.1))
-        down = engine(1600, 1600).price(option(), c.replace(spot_price=99.9))
+            self.assertAlmostEqual(
+                e.price(dated_history(option(), c), c), fine.price, delta=budget
+            )
+        up = engine(1600, 1600).price(
+            dated_history(option(), c.replace(spot_price=100.1)),
+            c.replace(spot_price=100.1),
+        )
+        down = engine(1600, 1600).price(
+            dated_history(option(), c.replace(spot_price=99.9)),
+            c.replace(spot_price=99.9),
+        )
         self.assertAlmostEqual(fine.delta, (up - down) / 0.2, delta=0.00001)
         self.assertAlmostEqual(
             fine.gamma, (up + down - 2 * fine.price) / 0.01, delta=0.00001
@@ -304,9 +327,11 @@ class LocalVolatilityTests(unittest.TestCase):
                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
             )
         )
-        actual = engine(12800, 1600).price_with_greeks(o, context(), ["delta", "gamma"])
+        actual = engine(12800, 1600).price_with_greeks(
+            dated_history(o, context()), context(), ["delta", "gamma"]
+        )
         expected = pricing.AnalyticEuropeanEngine().price_with_greeks(
-            o, bsm, ["delta", "gamma"]
+            dated_history(o, bsm), bsm, ["delta", "gamma"]
         )
         for value, ref, budget in [
             (actual.price, expected.price, 0.001),
@@ -329,12 +354,14 @@ class LocalVolatilityTests(unittest.TestCase):
                 asset_upper_boundary=400,
             )
             self.assertAlmostEqual(
-                e.price(option(), context()), 9.227005508154036, delta=0.015
+                e.price(dated_history(option(), context()), context()),
+                9.227005508154036,
+                delta=0.015,
             )
         with self.assertRaises(InvalidInputError):
             pricing.FiniteDifferenceVanillaEngine(
                 scheme="explicit_euler", time_step_count=1
-            ).price(option(), context())
+            ).price(dated_history(option(), context()), context())
 
     def test_skew_prices_and_greeks_match_converged_quantlib_reference(self):
         previous_date = ql.Settings.instance().evaluationDate
@@ -359,7 +386,9 @@ class LocalVolatilityTests(unittest.TestCase):
                                 fine[3].localVol(182 / 365, price, True),
                             )
                         result = engine(1600, 1600).price_with_greeks(
-                            option(direction), context(s, spot), ["delta", "gamma"]
+                            dated_history(option(direction), context(s, spot)),
+                            context(s, spot),
+                            ["delta", "gamma"],
                         )
                         for value, ref, budget in zip(
                             [result.price, result.delta, result.gamma],
@@ -385,16 +414,18 @@ class LocalVolatilityTests(unittest.TestCase):
                             or name in HESTON_ENGINES
                         ):
                             with self.assertRaises(UnsupportedOperationError):
-                                e.price(contract, c)
+                                e.price(dated_history(contract, c), c)
                             continue
                         bsm = c.replace(
                             model_parameters=BlackScholesMertonParameters(
                                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
                             )
                         )
-                        result = e.price_with_greeks(contract, c, ["delta", "gamma"])
+                        result = e.price_with_greeks(
+                            dated_history(contract, c), c, ["delta", "gamma"]
+                        )
                         expected = e.price_with_greeks(
-                            contract, bsm, ["delta", "gamma"]
+                            dated_history(contract, bsm), bsm, ["delta", "gamma"]
                         )
                         self.assertAlmostEqual(
                             result.price, expected.price, delta=0.002
@@ -420,16 +451,22 @@ class LocalVolatilityTests(unittest.TestCase):
                             ["delta", "vega"],
                             "theta",
                         ]:
-                            result = e.price_with_greeks(contract, c, request)
+                            result = e.price_with_greeks(
+                                dated_history(contract, c), c, request
+                            )
                             self.assertIsNone(result.vega)
 
     def test_unsupported_greeks_solvers_expiry_and_coverage(self):
         c = context()
         for time in [START, END]:
             rolled = c.replace(valuation_time=time)
-            baseline = engine().price_with_greeks(option(), rolled, ["delta", "gamma"])
+            baseline = engine().price_with_greeks(
+                dated_history(option(), rolled), rolled, ["delta", "gamma"]
+            )
             for greeks in ["all", ["delta", "vega"], "theta"]:
-                result = engine().price_with_greeks(option(), rolled, greeks)
+                result = engine().price_with_greeks(
+                    dated_history(option(), rolled), rolled, greeks
+                )
                 self.assertEqual(result.price, baseline.price)
                 self.assertIsNone(result.vega)
                 self.assertIsNone(result.theta)
@@ -439,14 +476,18 @@ class LocalVolatilityTests(unittest.TestCase):
                 else:
                     self.assertIsNone(result.delta)
             with self.assertRaises(UnsupportedOperationError):
-                pricing.implied_volatility(engine(), option(), rolled, 10)
+                pricing.implied_volatility(
+                    engine(), dated_history(option(), rolled), rolled, 10
+                )
         terminal = engine().price_with_greeks(
-            option(), c.replace(valuation_time=END, spot_price=110), ["delta", "gamma"]
+            dated_history(option(), c.replace(valuation_time=END, spot_price=110)),
+            c.replace(valuation_time=END, spot_price=110),
+            ["delta", "gamma"],
         )
         self.assertEqual(terminal.price, 10)
         assert_terminal_greeks(self, terminal, 1)
         with self.assertRaises(InvalidInputError):
-            engine().price(option(end=END + timedelta(days=1)), c)
+            engine().price(dated_history(option(end=END + timedelta(days=1)), c), c)
         dated = RateTermStructure(
             reference_time=START, times=[START + timedelta(days=182)], factors=[0.98]
         )
@@ -454,7 +495,7 @@ class LocalVolatilityTests(unittest.TestCase):
             model_parameters=c.model_parameters.replace(risk_free_rate=dated)
         )
         with self.assertRaises(InvalidInputError):
-            engine().price(option(), short)
+            engine().price(dated_history(option(), short), short)
 
     def test_nonflat_rates_and_shared_concurrent_pricing(self):
         risk = RateTermStructure(
@@ -471,11 +512,14 @@ class LocalVolatilityTests(unittest.TestCase):
         self.assertEqual(c.model_parameters.risk_free_curve, risk)
         self.assertEqual(c.model_parameters.dividend_curve, dividend)
         e = engine(200, 200)
-        expected = e.price(option(), c)
+        expected = e.price(dated_history(option(), c), c)
         self.assertAlmostEqual(expected, 9.227005508154036, delta=0.02)
         with ThreadPoolExecutor(max_workers=4) as pool:
             self.assertEqual(
-                list(pool.map(lambda _: e.price(option(), c), range(8))), [expected] * 8
+                list(
+                    pool.map(lambda _: e.price(dated_history(option(), c), c), range(8))
+                ),
+                [expected] * 8,
             )
 
     def test_signatures_and_example_are_discoverable(self):

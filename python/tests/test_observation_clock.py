@@ -28,6 +28,7 @@ from kiyosi.pricing import (
     QuadratureAutocallableEngine,
     implied_volatility,
 )
+from support.history import dated as dated_history
 
 START = datetime(2025, 1, 6, 9)
 END = datetime(2025, 1, 6, 18)
@@ -142,10 +143,12 @@ class ObservationClockTests(unittest.TestCase):
                 expected = (
                     120 * 9 / (365 * 24) * math.exp(-0.5 * (18 - hour) / (365 * 24))
                 )
-                actual = engine.price(note, market)
+                actual = engine.price(dated_history(note, market), market)
                 self.assertAlmostEqual(actual, expected, delta=1e-14)
                 with self.assertRaises(UnsupportedOperationError):
-                    implied_volatility(engine, note, market, actual)
+                    implied_volatility(
+                        engine, dated_history(note, market), market, actual
+                    )
 
     def test_accumulator_allows_no_daily_events_and_does_not_add_units_at_expiry(self):
         terms = {
@@ -159,11 +162,20 @@ class ObservationClockTests(unittest.TestCase):
         }
         empty = Accumulator(**terms)
         engine = QuadratureAccumulatorEngine()
-        self.assertEqual(engine.price(empty, context(terms["effective_time"], 105)), 0)
+        self.assertEqual(
+            engine.price(
+                dated_history(empty, context(terms["effective_time"], 105)),
+                context(terms["effective_time"], 105),
+            ),
+            0,
+        )
         observed = empty.replace(
             effective_time=START, accumulated_quantity=3, knock_out_settled=False
         )
-        self.assertEqual(engine.price(observed, context(END, 105)), 15)
+        self.assertEqual(
+            engine.price(dated_history(observed, context(END, 105)), context(END, 105)),
+            15,
+        )
         self.assertEqual(pickle.loads(pickle.dumps(observed)), observed)
 
     def test_daily_knock_in_does_not_observe_off_clock_maturity(self):
@@ -179,12 +191,19 @@ class ObservationClockTests(unittest.TestCase):
             MonteCarloAutocallableEngine(path_count=32, seed=42),
         ):
             with self.subTest(engine=type(engine).__name__):
-                self.assertAlmostEqual(engine.price(note, context(END, 70)), expected)
+                self.assertAlmostEqual(
+                    engine.price(
+                        dated_history(note, context(END, 70)), context(END, 70)
+                    ),
+                    expected,
+                )
         empty = note.replace(
             effective_time=datetime(2025, 1, 6, 16), barrier_state=None
         )
         self.assertAlmostEqual(
-            QuadratureAutocallableEngine().price(empty, context(END, 70)),
+            QuadratureAutocallableEngine().price(
+                dated_history(empty, context(END, 70)), context(END, 70)
+            ),
             1 + 0.12 * 2 / (365 * 24),
         )
 
@@ -200,9 +219,19 @@ class ObservationClockTests(unittest.TestCase):
         )
         engine = QuadratureAccumulatorEngine()
         observed = datetime(2025, 1, 6, 15, 0, 0, 123456)
-        self.assertEqual(engine.price(option, context(observed, 105)), 5)
+        self.assertEqual(
+            engine.price(
+                dated_history(option, context(observed, 105)), context(observed, 105)
+            ),
+            5,
+        )
         with self.assertRaises(InvalidInputError):
-            engine.price(option, context(observed.replace(microsecond=123457), 105))
+            engine.price(
+                dated_history(
+                    option, context(observed.replace(microsecond=123457), 105)
+                ),
+                context(observed.replace(microsecond=123457), 105),
+            )
 
     def test_future_accumulation_occurs_once_before_off_clock_maturity(self):
         at = datetime(2025, 1, 6, 15, 0, 0, 123455)
@@ -226,7 +255,9 @@ class ObservationClockTests(unittest.TestCase):
             MonteCarloAccumulatorEngine(path_count=32, seed=42),
         ):
             with self.subTest(engine=type(engine).__name__):
-                self.assertAlmostEqual(engine.price(option, market), 5, delta=1e-4)
+                self.assertAlmostEqual(
+                    engine.price(dated_history(option, market), market), 5, delta=1e-4
+                )
 
     def test_future_pricing_after_last_observation_does_not_add_maturity_knock_in(self):
         note = SnowballOption(
@@ -248,7 +279,11 @@ class ObservationClockTests(unittest.TestCase):
             MonteCarloAutocallableEngine(path_count=32, seed=42),
         ):
             with self.subTest(engine=type(engine).__name__):
-                self.assertAlmostEqual(engine.price(note, market), expected, delta=1e-6)
+                self.assertAlmostEqual(
+                    engine.price(dated_history(note, market), market),
+                    expected,
+                    delta=1e-6,
+                )
 
     def test_monitoring_replacement_requires_clock_and_clears_inactive_clock(self):
         expiry = SnowballOption(
@@ -315,20 +350,28 @@ class ObservationClockTests(unittest.TestCase):
                                 volatility=volatility,
                             )
                         )
-                        actual = engine.price(daily, market)
+                        actual = engine.price(dated_history(daily, market), market)
                         self.assertAlmostEqual(actual, expected, delta=1e-8)
                         with self.assertRaises(UnsupportedOperationError):
-                            implied_volatility(engine, daily, market, actual)
+                            implied_volatility(
+                                engine, dated_history(daily, market), market, actual
+                            )
                         self.assertAlmostEqual(
-                            engine.price(expiry, market), 0.7, delta=1e-5
+                            engine.price(dated_history(expiry, market), market),
+                            0.7,
+                            delta=1e-5,
                         )
             result = engine.price_with_greeks(
-                daily, context(END, 80), ["delta", "gamma"]
+                dated_history(daily, context(END, 80)),
+                context(END, 80),
+                ["delta", "gamma"],
             )
             self.assertEqual(result.delta, 0)
             self.assertEqual(result.gamma, 0)
         self.assertIsNone(
             QuadratureAutocallableEngine()
-            .price_with_greeks(expiry, context(END, 80), "delta")
+            .price_with_greeks(
+                dated_history(expiry, context(END, 80)), context(END, 80), "delta"
+            )
             .delta
         )

@@ -31,6 +31,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -133,9 +134,11 @@ class AsianTests(unittest.TestCase):
                 ),
             ):
                 with self.assertRaises(UnsupportedOperationError):
-                    engine.price(wrong, market())
+                    engine.price(dated_history(wrong, market()), market())
                 with self.assertRaises(UnsupportedOperationError):
-                    implied_volatility(engine, wrong, market(), 5)
+                    implied_volatility(
+                        engine, dated_history(wrong, market()), market(), 5
+                    )
 
     def test_validation_schedule_history_life_and_single_fixing(self):
         averaging = datetime(2025, 2, 1)
@@ -173,30 +176,47 @@ class AsianTests(unittest.TestCase):
             seasoned = original.replace_history(realized_average=110)
             engine = engine_type()
             for at in (START, averaging):
-                self.assertGreater(engine.price(original, market(at)), 0)
+                self.assertGreater(
+                    engine.price(dated_history(original, market(at)), market(at)), 0
+                )
                 self.assert_rejection(
-                    InvalidInputError, engine.price, seasoned, market(at)
+                    InvalidInputError,
+                    engine.price,
+                    dated_history(seasoned, market(at)),
+                    market(at),
                 )
             for at in (averaging + timedelta(days=1), END):
-                self.assertGreater(engine.price(seasoned, market(at)), 0)
+                self.assertGreater(
+                    engine.price(dated_history(seasoned, market(at)), market(at)), 0
+                )
                 self.assert_rejection(
-                    InvalidInputError, engine.price, original, market(at)
+                    InvalidInputError,
+                    engine.price,
+                    dated_history(original, market(at)),
+                    market(at),
                 )
             for at in (
                 START - timedelta(days=1),
                 datetime(2026, 1, 1, microsecond=1),
             ):
                 self.assert_rejection(
-                    InvalidInputError, engine.price, seasoned, market(at)
+                    InvalidInputError,
+                    engine.price,
+                    dated_history(seasoned, market(at)),
+                    market(at),
                 )
-            self.assertEqual(engine.price(seasoned, market(END)), 10)
-            result = engine.price_with_greeks(seasoned, market(END), greeks="all")
+            self.assertEqual(
+                engine.price(dated_history(seasoned, market(END)), market(END)), 10
+            )
+            result = engine.price_with_greeks(
+                dated_history(seasoned, market(END)), market(END), greeks="all"
+            )
             assert_terminal_greeks(self, result, 0)
             self.assert_rejection(
                 UnsupportedOperationError,
                 implied_volatility,
                 engine,
-                seasoned,
+                dated_history(seasoned, market(END)),
                 market(END),
                 10,
             )
@@ -210,20 +230,26 @@ class AsianTests(unittest.TestCase):
                 )
                 for at in (START, END - timedelta(days=1), END):
                     self.assertEqual(
-                        engine.price(single, market(at)),
-                        AnalyticEuropeanEngine().price(vanilla, market(at)),
+                        engine.price(dated_history(single, market(at)), market(at)),
+                        AnalyticEuropeanEngine().price(
+                            dated_history(vanilla, market(at)), market(at)
+                        ),
                     )
                     self.assert_rejection(
                         InvalidInputError,
                         engine.price,
-                        single.replace_history(realized_average=110),
+                        dated_history(
+                            single.replace_history(realized_average=110), market(at)
+                        ),
                         market(at),
                     )
 
     def test_greek_requests_stencils_and_solver_controls(self):
         for kind, engine_type in PAIRS:
             engine, option, context = engine_type(), kind(**terms()), market()
-            full = engine.price_with_greeks(option, context, greeks="all")
+            full = engine.price_with_greeks(
+                dated_history(option, context), context, greeks="all"
+            )
             for g in ("theta", "charm", "color"):
                 self.assertIsNone(getattr(full, g))
             for request in (
@@ -231,7 +257,9 @@ class AsianTests(unittest.TestCase):
                 ["delta", "delta"],
                 (g for g in ("delta", "vega")),
             ):
-                selected = engine.price_with_greeks(option, context, request)
+                selected = engine.price_with_greeks(
+                    dated_history(option, context), context, request
+                )
                 self.assertEqual(selected.delta, full.delta)
                 self.assertIsNone(selected.gamma)
             for settings, exception in (
@@ -243,11 +271,13 @@ class AsianTests(unittest.TestCase):
                 ({"greeks": "delta", "time_shift": 2**40}, TypeError),
             ):
                 with self.assertRaises(exception):
-                    numerical_greeks(engine, option, context, **settings)
+                    numerical_greeks(
+                        engine, dated_history(option, context), context, **settings
+                    )
             self.assert_rejection(
                 InvalidInputError,
                 engine.price_with_greeks,
-                option,
+                dated_history(option, context),
                 context,
                 [],
             )
@@ -260,15 +290,23 @@ class AsianTests(unittest.TestCase):
                 spot_shift=0,
             )
             collapsed = numerical_greeks(
-                engine, option, context, "delta", spot_shift=math.ulp(0.0)
+                engine,
+                dated_history(option, context),
+                context,
+                "delta",
+                spot_shift=math.ulp(0.0),
             )
             self.assertIsNone(collapsed.delta)
             seasoned = option.replace_history(realized_average=100)
             active = market(datetime(2025, 7, 1))
-            result = engine.price_with_greeks(seasoned, active, greeks="all")
+            result = engine.price_with_greeks(
+                dated_history(seasoned, active), active, greeks="all"
+            )
             self.assertTrue(all(getattr(result, g) is not None for g in GREEKS))
             self.assertAlmostEqual(
-                implied_volatility(engine, seasoned, active, result.price),
+                implied_volatility(
+                    engine, dated_history(seasoned, active), active, result.price
+                ),
                 0.2,
                 delta=1e-7,
             )
@@ -276,7 +314,7 @@ class AsianTests(unittest.TestCase):
                 RootNotBracketedError,
                 implied_volatility,
                 engine,
-                option,
+                dated_history(option, context),
                 context,
                 -1,
             )
@@ -284,7 +322,7 @@ class AsianTests(unittest.TestCase):
                 InvalidInputError,
                 implied_volatility,
                 engine,
-                option,
+                dated_history(option, context),
                 context,
                 math.nan,
             )
@@ -296,7 +334,11 @@ class AsianTests(unittest.TestCase):
             ):
                 with self.assertRaises(exception):
                     implied_volatility(
-                        engine, option, context, full.price, **{field: value}
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        full.price,
+                        **{field: value},
                     )
             self.assertIsNone(option.realized_average)
             self.assertEqual(context.model_parameters.volatility, 0.2)
@@ -304,11 +346,11 @@ class AsianTests(unittest.TestCase):
     def test_arithmetic_solver_prices_only_the_requested_bracket(self):
         option = ArithmeticAveragePriceOption(**terms())
         engine = TurnbullWakemanArithmeticAveragePriceEngine()
-        quote = engine.price(option, market())
+        quote = engine.price(dated_history(option, market()), market())
         self.assertAlmostEqual(
             implied_volatility(
                 engine,
-                option,
+                dated_history(option, market(volatility=100)),
                 market(volatility=100),
                 quote,
                 lower_bound=0.05,
@@ -325,12 +367,16 @@ class AsianTests(unittest.TestCase):
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         self.assertAlmostEqual(
-            AnalyticEuropeanEngine().price(vanilla, context), expected, delta=1e-12
+            AnalyticEuropeanEngine().price(dated_history(vanilla, context), context),
+            expected,
+            delta=1e-12,
         )
         for kind, engine_type in PAIRS:
             option = kind(**terms(averaging_start_time=END))
             self.assertAlmostEqual(
-                engine_type().price(option, context), expected, delta=1e-12
+                engine_type().price(dated_history(option, context), context),
+                expected,
+                delta=1e-12,
             )
 
     def test_non_finite_small_volatility_moments_preserve_invalid_result(self):
@@ -339,7 +385,7 @@ class AsianTests(unittest.TestCase):
             self.assert_rejection(
                 ComputationFailureError,
                 TurnbullWakemanArithmeticAveragePriceEngine().price,
-                option,
+                dated_history(option, market(rate=400, dividend=0, volatility=sigma)),
                 market(rate=400, dividend=0, volatility=sigma),
             )
 
@@ -369,32 +415,40 @@ class AsianTests(unittest.TestCase):
             )
         )
         self.assertAlmostEqual(
-            AnalyticGeometricAveragePriceEngine().price(option, context),
+            AnalyticGeometricAveragePriceEngine().price(
+                dated_history(option, context), context
+            ),
             expected,
             delta=1e-11,
         )
         engine = TurnbullWakemanArithmeticAveragePriceEngine()
         arithmetic = ArithmeticAveragePriceOption(**terms())
         self.assert_rejection(
-            UnsupportedOperationError, engine.price, arithmetic, context
+            UnsupportedOperationError,
+            engine.price,
+            dated_history(arithmetic, context),
+            context,
         )
         # Request validation precedes pricing applicability for these analytic engines.
         self.assert_rejection(
             InvalidInputError,
             engine.price_with_greeks,
-            arithmetic,
+            dated_history(arithmetic, context),
             context,
             [],
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            arithmetic.replace_history(realized_average=110),
+            dated_history(arithmetic.replace_history(realized_average=110), context),
             context,
         )
         self.assertEqual(
             engine.price(
-                arithmetic.replace_history(realized_average=110),
+                dated_history(
+                    arithmetic.replace_history(realized_average=110),
+                    context.replace(valuation_time=END),
+                ),
                 context.replace(valuation_time=END),
             ),
             10,
@@ -404,13 +458,16 @@ class AsianTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 engine_type().price,
-                kind(**terms()),
+                dated_history(kind(**terms()), market(rate=short)),
                 market(rate=short),
             )
         dated_flat = RateTermStructure.flat(rate=0.04, reference_time=START)
         self.assertEqual(
-            engine.price(arithmetic, market(rate=dated_flat)),
-            engine.price(arithmetic, market()),
+            engine.price(
+                dated_history(arithmetic, market(rate=dated_flat)),
+                market(rate=dated_flat),
+            ),
+            engine.price(dated_history(arithmetic, market()), market()),
         )
 
     def test_live_quantlib_geometric_and_same_levy_approximation(self):
@@ -448,7 +505,7 @@ class AsianTests(unittest.TestCase):
             engine = engine_type()
             with self.subTest(case=row["case_id"]):
                 self.assertAlmostEqual(
-                    engine.price(option, context),
+                    engine.price(dated_history(option, context), context),
                     row["outputs"]["price"],
                     delta=row["tolerances"]["price"],
                 )
@@ -456,7 +513,7 @@ class AsianTests(unittest.TestCase):
                 if requested:
                     joint = numerical_greeks(
                         engine,
-                        option,
+                        dated_history(option, context),
                         context,
                         requested,
                         spot_shift=inputs["spot_shift"],

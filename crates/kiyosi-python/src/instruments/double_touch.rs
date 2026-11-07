@@ -46,7 +46,7 @@ pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
 monitoring_properties!(
     DoubleTouchOption,
     #[new]
-    #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, payout, settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default()))]
+    #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, payout, settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default(), history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     pub(crate) fn new(
         effective_time: &Bound<'_, PyAny>,
@@ -61,6 +61,10 @@ monitoring_properties!(
         #[pyo3(from_py_with = timestamps)] observation_times: Vec<kiyosi::Timestamp>,
         #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         calendar: TradingCalendar,
+
+        #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<
+            kiyosi::Timestamp,
+        >,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::DoubleTouchOptionTerms::new(
             timestamp(effective_time)?,
@@ -78,6 +82,12 @@ monitoring_properties!(
         Ok(Self(domain(kiyosi::DoubleTouchOption::cash(
             terms, payout,
         ))?))
+        .map(|value: Self| {
+            Self(kiyosi::OptionContract::with_history_time(
+                value.0,
+                history_time,
+            ))
+        })
     },
     /// Returns a validated replacement without changing this contract.
     ///
@@ -118,7 +128,7 @@ monitoring_properties!(
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation or field name is invalid.
-    #[pyo3(signature = (*, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, settlement_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, settlement_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -150,7 +160,16 @@ monitoring_properties!(
         #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] payout: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
+
+        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<
+            &pyo3::Bound<'_, pyo3::PyAny>,
+        >,
     ) -> PyResult<Self> {
+        let history_time = history_time
+            .map(crate::conversions::optional_timestamp)
+            .transpose()?
+            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+
         let changes = kiyosi::DoubleTouchOptionChanges {
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
@@ -178,7 +197,10 @@ monitoring_properties!(
                 .transpose()?,
             payout: payout.map(crate::conversions::real).transpose()?,
         };
-        Ok(Self(domain(self.0.replace(changes))?))
+        Ok(Self(kiyosi::OptionContract::with_history_time(
+            domain(self.0.replace(changes))?,
+            history_time,
+        )))
     },
     /// Return positive finite lower trigger; equality counts as a touch.
     #[getter]
@@ -224,7 +246,7 @@ macro_rules! double_touch_factory {
     ($name:ident, $kind:ident, [$($settlement:ident)?], $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, payout, $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default()))]
+        #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, payout, $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default(), history_time=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(
             effective_time: &Bound<'_, PyAny>, expiry_time: &Bound<'_, PyAny>,
@@ -234,11 +256,13 @@ macro_rules! double_touch_factory {
             #[pyo3(from_py_with = timestamps)] observation_times: Vec<kiyosi::Timestamp>,
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
             calendar: TradingCalendar,
+
+            #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
         ) -> PyResult<DoubleTouchOption> {
             DoubleTouchOption::new(effective_time, expiry_time, lower_barrier, upper_barrier,
                 kiyosi::DoubleBarrierType::$kind, payout,
                 double_touch_factory!(@settlement $($settlement)?),
-                observation_mode, observation_times, touch_state, calendar)
+                observation_mode, observation_times, touch_state, calendar, history_time)
         }
     };
 }

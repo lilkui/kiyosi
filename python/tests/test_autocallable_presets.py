@@ -23,6 +23,7 @@ from kiyosi.pricing import (
     QuadratureAutocallableEngine,
     implied_phoenix_coupon,
 )
+from support.history import dated as dated_history
 from test_snowball import market
 
 START, MIDDLE, END = datetime(2025, 1, 1), datetime(2025, 2, 3), datetime(2025, 4, 1)
@@ -197,12 +198,18 @@ class AutocallablePresetTests(unittest.TestCase):
                         ):
                             expected = base + (coupon if spot >= barrier else 0)
                             self.assertAlmostEqual(
-                                engine.price(note, market(spot, END)),
+                                engine.price(
+                                    dated_history(note, market(spot, END)),
+                                    market(spot, END),
+                                ),
                                 expected,
                                 places=14,
                             )
                     self.assertAlmostEqual(
-                        engine.price(note, market(110, MIDDLE)),
+                        engine.price(
+                            dated_history(note, market(110, MIDDLE)),
+                            market(110, MIDDLE),
+                        ),
                         0.25 + coupon,
                         places=14,
                     )
@@ -212,7 +219,12 @@ class AutocallablePresetTests(unittest.TestCase):
             **terms(knock_out_level=85, barrier_state="no_event"),
         )
         for engine in engines():
-            self.assertEqual(engine.price(note, market(85, MIDDLE)), 1)
+            self.assertEqual(
+                engine.price(
+                    dated_history(note, market(85, MIDDLE)), market(85, MIDDLE)
+                ),
+                1,
+            )
 
     def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(self):
         for factory, extra, spot, expected in (
@@ -228,7 +240,9 @@ class AutocallablePresetTests(unittest.TestCase):
                 with self.subTest(factory=factory, spot=spot, engine=engine):
                     context = market(spot, START, rate=0, dividend=0, volatility=1e-8)
                     self.assertAlmostEqual(
-                        engine.price(note, context), expected, places=9
+                        engine.price(dated_history(note, context), context),
+                        expected,
+                        places=9,
                     )
                     after = market(
                         spot, datetime(2025, 2, 4), rate=0, dividend=0, volatility=1e-8
@@ -237,11 +251,16 @@ class AutocallablePresetTests(unittest.TestCase):
                         0.01 if factory is fixed_coupon_note or spot >= 90 else 0
                     )
                     self.assertAlmostEqual(
-                        engine.price(note, after), remaining, places=9
+                        engine.price(dated_history(note, after), after),
+                        remaining,
+                        places=9,
                     )
                     self.assertEqual(
                         engine.price(
-                            note.replace_history(barrier_state="knocked_out"), after
+                            dated_history(
+                                note.replace_history(barrier_state="knocked_out"), after
+                            ),
+                            after,
                         ),
                         0,
                     )
@@ -257,9 +276,17 @@ class AutocallablePresetTests(unittest.TestCase):
         )
         engine = QuadratureAutocallableEngine()
         self.assertAlmostEqual(
-            engine.price(annual, market(110, MIDDLE)), 1 + 0.365 * 33 / 365
+            engine.price(
+                dated_history(annual, market(110, MIDDLE)), market(110, MIDDLE)
+            ),
+            1 + 0.365 * 33 / 365,
         )
-        self.assertAlmostEqual(engine.price(fixed, market(110, MIDDLE)), 1.01)
+        self.assertAlmostEqual(
+            engine.price(
+                dated_history(fixed, market(110, MIDDLE)), market(110, MIDDLE)
+            ),
+            1.01,
+        )
 
     def test_implied_coupon_bounds_tolerance_and_result_use_contract_units(self):
         for factory, extra in (
@@ -270,9 +297,14 @@ class AutocallablePresetTests(unittest.TestCase):
             target = factory(coupon_per_period=-0.02, **terms(), **extra)
             for engine in engines():
                 context = market()
-                quote = engine.price(target, context)
+                quote = engine.price(dated_history(target, context), context)
                 solved = implied_phoenix_coupon(
-                    engine, note, context, quote, lower_bound=-0.05, upper_bound=0.05
+                    engine,
+                    dated_history(note, context),
+                    context,
+                    quote,
+                    lower_bound=-0.05,
+                    upper_bound=0.05,
                 )
                 self.assertAlmostEqual(solved, -0.02, places=7)
                 self.assertEqual(note.coupon_per_period, 0.01)
@@ -312,10 +344,16 @@ class AutocallablePresetTests(unittest.TestCase):
                 expected = 1 + rate * (day - START).days / 365
                 for engine in engines():
                     self.assertAlmostEqual(
-                        engine.price(note, market(110, day)), expected, places=14
+                        engine.price(
+                            dated_history(note, market(110, day)), market(110, day)
+                        ),
+                        expected,
+                        places=14,
                     )
             self.assertAlmostEqual(
-                QuadratureAutocallableEngine().price(note, market(100, END)),
+                QuadratureAutocallableEngine().price(
+                    dated_history(note, market(100, END)), market(100, END)
+                ),
                 1 + rates[-1] * 90 / 365,
             )
 

@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime
 
 from kiyosi import pricing
+from support.history import dated as dated_history
 from test_accumulator import contract, exposure, market, terminal_reference
 
 
@@ -12,7 +13,9 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceAccumulatorEngine(
             asset_step_count=80, time_step_count=80
         )
-        joint = engine.price_with_greeks(option, context, greeks="all")
+        joint = engine.price_with_greeks(
+            dated_history(option, context), context, greeks="all"
+        )
         self.assertIsNotNone(joint.theta)
         for greek in (
             "delta",
@@ -27,12 +30,19 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
             "color",
         ):
             with self.subTest(greek=greek):
-                single = engine.price_with_greeks(option, context, greek)
+                single = engine.price_with_greeks(
+                    dated_history(option, context), context, greek
+                )
                 self.assertEqual(single.price, joint.price)
                 self.assertEqual(getattr(single, greek), getattr(joint, greek))
-        quote = engine.price(option, context)
+        quote = engine.price(dated_history(option, context), context)
         recovered = pricing.implied_volatility(
-            engine, option, context, quote, lower_bound=0.15, upper_bound=0.25
+            engine,
+            dated_history(option, context),
+            context,
+            quote,
+            lower_bound=0.15,
+            upper_bound=0.25,
         )
         self.assertAlmostEqual(recovered, 0.2, delta=1e-6)
 
@@ -61,7 +71,9 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
                             time_step_count=2000,
                             scheme=scheme,
                             asset_upper_boundary=440,
-                        ).price_with_greeks(option, context, ["delta", "gamma"])
+                        ).price_with_greeks(
+                            dated_history(option, context), context, ["delta", "gamma"]
+                        )
                         for nodes in (400, 1600)
                     ]
                     coarse, fine = results
@@ -84,7 +96,7 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
             with self.subTest(knock_out=knock_out):
                 option = contract(datetime(2025, 4, 1), knock_out)
                 reference = reference_engine.price_with_greeks(
-                    option, context, ["delta", "gamma"]
+                    dated_history(option, context), context, ["delta", "gamma"]
                 )
                 for scheme in ("explicit_euler", "implicit_euler"):
                     actual = pricing.FiniteDifferenceAccumulatorEngine(
@@ -92,7 +104,7 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
                         time_step_count=2000,
                         scheme=scheme,
                         asset_upper_boundary=440,
-                    ).price(option, context)
+                    ).price(dated_history(option, context), context)
                     self.assertLess(
                         abs(actual - reference.price) / exposure(option, context), 1e-4
                     )
@@ -101,7 +113,9 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
                         asset_step_count=nodes,
                         time_step_count=2000,
                         asset_upper_boundary=440,
-                    ).price_with_greeks(option, context, ["delta", "gamma"])
+                    ).price_with_greeks(
+                        dated_history(option, context), context, ["delta", "gamma"]
+                    )
                     for nodes in (800, 3200)
                 ]
                 scale = exposure(option, context)
@@ -118,5 +132,5 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
                     asset_step_count=1600,
                     time_step_count=200,
                     asset_upper_boundary=440,
-                ).price_with_greeks(option, context, ["gamma"])
+                ).price_with_greeks(dated_history(option, context), context, ["gamma"])
                 self.assertAlmostEqual(short_grid.gamma, reference.gamma, delta=0.15)

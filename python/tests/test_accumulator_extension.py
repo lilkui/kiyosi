@@ -8,6 +8,7 @@ import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi.instruments import Accumulator
 from kiyosi.market import all_days_calendar, monthly_schedule, weekdays_calendar
+from support.history import dated as dated_history
 from test_accumulator import START, market
 
 END = datetime(2025, 1, 6)
@@ -201,14 +202,17 @@ class AccumulatorExtensionTests(unittest.TestCase):
             with self.subTest(engine=type(engine).__name__):
                 self.assertEqual(
                     engine.price(
-                        weekend.replace(calendar=all_days_calendar()),
+                        dated_history(
+                            weekend.replace(calendar=all_days_calendar()),
+                            market(110, END),
+                        ),
                         market(110, END),
                     ),
                     40,
                 )
                 self.assertEqual(
                     engine.price(
-                        weekend_expiry,
+                        dated_history(weekend_expiry, market(90, datetime(2025, 1, 5))),
                         market(90, datetime(2025, 1, 5)),
                     ),
                     -30,
@@ -243,7 +247,12 @@ class AccumulatorExtensionTests(unittest.TestCase):
                         knock_out_level=barrier,
                         knock_out_observation_times=dates,
                     )
-                    self.assertEqual(engine.price(option, market(spot, END)), expected)
+                    self.assertEqual(
+                        engine.price(
+                            dated_history(option, market(spot, END)), market(spot, END)
+                        ),
+                        expected,
+                    )
             for direction, spot in (("call", 90), ("put", 110)):
                 option = contract(
                     option_type=direction,
@@ -252,7 +261,12 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     accumulated_quantity=0.25,
                     knock_out_observation_times=[],
                 )
-                self.assertEqual(engine.price(option, market(spot, END)), -5)
+                self.assertEqual(
+                    engine.price(
+                        dated_history(option, market(spot, END)), market(spot, END)
+                    ),
+                    -5,
+                )
 
     def test_sparse_and_empty_schedules_keep_every_daily_accumulation(self):
         end = datetime(2025, 1, 3)
@@ -280,7 +294,9 @@ class AccumulatorExtensionTests(unittest.TestCase):
                             knock_out_observation_times=observations,
                         )
                         self.assertAlmostEqual(
-                            engine.price(option, context), quantity * unit, delta=1e-6
+                            engine.price(dated_history(option, context), context),
+                            quantity * unit,
+                            delta=1e-6,
                         )
 
     def test_explicit_daily_schedule_matches_default_prices_and_greeks(self):
@@ -296,15 +312,16 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 )
                 with self.subTest(engine=type(engine).__name__, direction=direction):
                     self.assertEqual(
-                        engine.price(default, context), engine.price(explicit, context)
+                        engine.price(dated_history(default, context), context),
+                        engine.price(dated_history(explicit, context), context),
                     )
                     first = engine.price_with_greeks(
-                        default,
+                        dated_history(default, context),
                         context,
                         ["delta", "gamma", "vega"],
                     )
                     second = engine.price_with_greeks(
-                        explicit,
+                        dated_history(explicit, context),
                         context,
                         ["delta", "gamma", "vega"],
                     )
@@ -335,9 +352,11 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 expected = terminal_reference(
                     option.replace_history(accumulated_quantity=quantity), context
                 )
-                actual = engine.price(option, context)
+                actual = engine.price(dated_history(option, context), context)
                 if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
-                    statistics = engine.price_with_statistics(option, context)
+                    statistics = engine.price_with_statistics(
+                        dated_history(option, context), context
+                    )
                     limit = 4 * statistics.standard_error + 0.003
                 else:
                     limit = 0.003
@@ -348,7 +367,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     intraday = market(spot, midnight + timedelta(hours=12))
                     seasoned = option.replace_history(accumulated_quantity=quantity)
                     self.assertAlmostEqual(
-                        engine.price(seasoned, intraday),
+                        engine.price(dated_history(seasoned, intraday), intraday),
                         terminal_reference(seasoned, intraday),
                         delta=limit,
                     )
@@ -358,7 +377,13 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     knock_out_level=barrier,
                     knock_out_observation_times=[observation],
                 )
-                self.assertEqual(engine.price(first_hit, market(spot, observation)), 30)
+                self.assertEqual(
+                    engine.price(
+                        dated_history(first_hit, market(spot, observation)),
+                        market(spot, observation),
+                    ),
+                    30,
+                )
 
     def test_terminal_prices_match_independent_lognormal_expectation(self):
         context = market(
@@ -385,11 +410,15 @@ class AccumulatorExtensionTests(unittest.TestCase):
                         )
                         expected = terminal_reference(option, context)
                         if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
-                            estimate = engine.price_with_statistics(option, context)
+                            estimate = engine.price_with_statistics(
+                                dated_history(option, context), context
+                            )
                             actual = estimate.price
                             limit = 4 * estimate.standard_error + 0.003
                         else:
-                            actual = engine.price(option, context)
+                            actual = engine.price(
+                                dated_history(option, context), context
+                            )
                             limit = (
                                 1e-9
                                 if isinstance(
@@ -414,17 +443,19 @@ class AccumulatorExtensionTests(unittest.TestCase):
         for engine in engines():
             with self.subTest(engine=type(engine).__name__):
                 result = engine.price_with_greeks(
-                    option, context, ["delta", "gamma", "vega"]
+                    dated_history(option, context), context, ["delta", "gamma", "vega"]
                 )
                 self.assertAlmostEqual(
-                    result.price, engine.price(option, context), delta=1e-10
+                    result.price,
+                    engine.price(dated_history(option, context), context),
+                    delta=1e-10,
                 )
                 self.assertLess(result.delta, 0)
                 self.assertLess(result.gamma, 0)
                 self.assertLess(result.vega, 0)
                 recovered = pricing.implied_volatility(
                     engine,
-                    option,
+                    dated_history(option, context),
                     context,
                     result.price,
                     lower_bound=0.2,
@@ -440,7 +471,10 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     )
                     with self.assertRaises(UnsupportedOperationError):
                         pricing.implied_volatility(
-                            engine, linear, context, engine.price(linear, context)
+                            engine,
+                            dated_history(linear, context),
+                            context,
+                            engine.price(dated_history(linear, context), context),
                         )
 
     def test_sparse_knock_out_prices_survive_drift_back_inside_barrier(self):
@@ -499,7 +533,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     with self.subTest(direction=direction, sigma=sigma, nodes=nodes):
                         actual = pricing.QuadratureAccumulatorEngine(
                             asset_step_count=nodes
-                        ).price(option, context)
+                        ).price(dated_history(option, context), context)
                         self.assertAlmostEqual(actual, expected, delta=tolerance)
 
     def test_explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation(
@@ -523,19 +557,28 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     knock_out_observation_times=observations,
                 )
                 with self.subTest(direction=direction, observations=observations):
-                    result = monte_carlo.price_with_statistics(option, context)
+                    result = monte_carlo.price_with_statistics(
+                        dated_history(option, context), context
+                    )
                     self.assertEqual(result.price, 0)
                     self.assertEqual(result.standard_error, 0)
                     self.assertEqual(result.confidence_interval, (0, 0))
-                    self.assertEqual(clipped.price(option, context), 0)
+                    self.assertEqual(
+                        clipped.price(dated_history(option, context), context), 0
+                    )
                     holding = option.replace_history(accumulated_quantity=3)
                     holding_context = market(
                         85 if direction == "call" else 115, rate=0, dividend=0
                     )
-                    self.assertEqual(clipped.price(holding, holding_context), -45)
+                    self.assertEqual(
+                        clipped.price(
+                            dated_history(holding, holding_context), holding_context
+                        ),
+                        -45,
+                    )
                     self.assertEqual(
                         monte_carlo.price_with_statistics(
-                            holding, holding_context
+                            dated_history(holding, holding_context), holding_context
                         ).standard_error,
                         0,
                     )
@@ -574,7 +617,11 @@ class AccumulatorExtensionTests(unittest.TestCase):
                         ):
                             result = pricing.QuadratureAccumulatorEngine(
                                 asset_step_count=nodes
-                            ).price_with_greeks(option, context, ["delta", "gamma"])
+                            ).price_with_greeks(
+                                dated_history(option, context),
+                                context,
+                                ["delta", "gamma"],
+                            )
                             self.assertAlmostEqual(result.price, expected, delta=1e-8)
                             self.assertAlmostEqual(result.delta, delta, delta=1e-7)
                             self.assertAlmostEqual(result.gamma, 0, delta=1e-6)
@@ -616,7 +663,9 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 )
                 with self.subTest(direction=direction, observations=observations):
                     self.assertAlmostEqual(
-                        pricing.QuadratureAccumulatorEngine().price(option, context),
+                        pricing.QuadratureAccumulatorEngine().price(
+                            dated_history(option, context), context
+                        ),
                         expected,
                         delta=1e-9,
                     )

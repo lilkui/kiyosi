@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn start() -> Timestamp {
@@ -74,8 +77,10 @@ fn constant_binary_surfaces_match_bsm_for_cash_asset_directions_and_monitoring()
                         BinaryBarrierOption::cash(terms, 10.0)
                     }
                     .unwrap();
-                    let expected = engine.price(&option, &bsm()).unwrap();
-                    let actual = engine.price(&option, &local(false)).unwrap();
+                    let expected = engine.price(&dated(&option, &bsm()), &bsm()).unwrap();
+                    let actual = engine
+                        .price(&dated(&option, &local(false)), &local(false))
+                        .unwrap();
                     // Separate full-domain digital grids contribute their established FD error.
                     let tolerance = if asset { 0.008 } else { 0.0008 };
                     assert!(
@@ -118,8 +123,10 @@ fn constant_touch_surfaces_match_bsm_for_settlement_and_double_boundaries() {
                         TouchOption::cash(terms, 10.0)
                     }
                     .unwrap();
-                    let expected = single.price(&option, &bsm()).unwrap();
-                    let actual = single.price(&option, &local(false)).unwrap();
+                    let expected = single.price(&dated(&option, &bsm()), &bsm()).unwrap();
+                    let actual = single
+                        .price(&dated(&option, &local(false)), &local(false))
+                        .unwrap();
                     assert!(
                         (actual - expected).abs() < 1e-10,
                         "{kind:?} {timing:?}: {actual} != {expected}"
@@ -139,8 +146,10 @@ fn constant_touch_surfaces_match_bsm_for_settlement_and_double_boundaries() {
                 terms.observation_times = vec![middle(), end()];
             }
             let option = DoubleTouchOption::cash(terms, 10.0).unwrap();
-            let expected = double.price(&option, &bsm()).unwrap();
-            let actual = double.price(&option, &local(false)).unwrap();
+            let expected = double.price(&dated(&option, &bsm()), &bsm()).unwrap();
+            let actual = double
+                .price(&dated(&option, &local(false)), &local(false))
+                .unwrap();
             assert!(
                 (actual - expected).abs() < 1e-10,
                 "{kind:?} {timing:?}: {actual} != {expected}"
@@ -187,13 +196,13 @@ fn skew_binary_in_out_parity_uses_unrestricted_digital_continuation() {
                 }
                 .unwrap();
                 let inn = engine
-                    .price_with_greeks(&make(inside), &local(true), request)
+                    .price_with_greeks(&dated(&make(inside), &local(true)), &local(true), request)
                     .unwrap();
                 let out = engine
-                    .price_with_greeks(&make(outside), &local(true), request)
+                    .price_with_greeks(&dated(&make(outside), &local(true)), &local(true), request)
                     .unwrap();
                 let total = digital_engine
-                    .price_with_greeks(&digital, &local(true), request)
+                    .price_with_greeks(&dated(&digital, &local(true)), &local(true), request)
                     .unwrap();
                 // Independently meshed continuation and barrier solves obey parity up to FD error.
                 let error = (inn.price() + out.price() - total.price()).abs();
@@ -235,12 +244,12 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     terms.observation_times = vec![middle()];
     terms.settlement_timing = SettlementTiming::AtHit;
     let hit = TouchOption::cash(terms.clone(), 10.0).unwrap();
-    let price = engine.price(&hit, &context).unwrap();
+    let price = engine.price(&dated(&hit, &context), &context).unwrap();
     assert!(price > 0.0 && price < 9.7);
     terms.settlement_timing = SettlementTiming::AtExpiry;
     let expiry = TouchOption::cash(terms, 10.0).unwrap();
     assert!(matches!(
-        engine.price(&expiry, &context),
+        engine.price(&dated(&expiry, &context), &context),
         Err(Error::InvalidInput(_))
     ));
     let past = Timestamp::new(middle().date(), 0, 0, 0, 1).unwrap();
@@ -258,7 +267,10 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     assert_eq!(
         engine
             .price(
-                &hit.replace_history(Some(BarrierTouchState::Touched)),
+                &dated(
+                    &hit.replace_history(Some(BarrierTouchState::Touched)),
+                    &settled_context
+                ),
                 &settled_context
             )
             .unwrap(),
@@ -266,7 +278,10 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     );
     let cash = engine
         .price(
-            &expiry.replace_history(Some(BarrierTouchState::Touched)),
+            &dated(
+                &expiry.replace_history(Some(BarrierTouchState::Touched)),
+                &settled_context,
+            ),
             &settled_context,
         )
         .unwrap();
@@ -275,7 +290,10 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     assert_eq!(
         engine
             .price_with_greeks(
-                &hit.replace_history(Some(BarrierTouchState::Touched)),
+                &dated(
+                    &hit.replace_history(Some(BarrierTouchState::Touched)),
+                    &settled_context
+                ),
                 &settled_context,
                 GreeksRequest::all()
             )
@@ -308,9 +326,12 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start(), end()).unwrap();
     let expected = FiniteDifferenceDigitalEngine::new(settings())
         .unwrap()
-        .price(&digital, &context)
+        .price(&dated(&digital, &context), &context)
         .unwrap();
-    assert_eq!(engine.price(&option, &context).unwrap(), expected);
+    assert_eq!(
+        engine.price(&dated(&option, &context), &context).unwrap(),
+        expected
+    );
     let short = context
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -322,7 +343,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         })
         .unwrap();
     assert!(matches!(
-        engine.price(&option, &short),
+        engine.price(&dated(&option, &short), &short),
         Err(Error::InvalidInput(_))
     ));
     let boundary = local(true)
@@ -333,7 +354,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         .unwrap();
     let result = engine
         .price_with_greeks(
-            &option.replace_history(None),
+            &dated(&option.replace_history(None), &boundary),
             &boundary,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
         )
@@ -349,7 +370,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
     let option = option.replace_history(Some(BarrierTouchState::Untouched));
     let result = engine
         .price_with_greeks(
-            &option,
+            &dated(&option, &expiry),
             &expiry,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
         )
@@ -358,7 +379,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(
         engine
-            .price_with_greeks(&option, &expiry, GreeksRequest::all())
+            .price_with_greeks(&dated(&option, &expiry), &expiry, GreeksRequest::all())
             .unwrap()
             .get(Greek::Vega),
         None
@@ -376,7 +397,7 @@ fn skew_touch_greeks_hold_absolute_surface_fixed() {
     let context = local(true);
     let result = engine
         .price_with_greeks(
-            &option,
+            &dated(&option, &context),
             &context,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
         )
@@ -384,7 +405,15 @@ fn skew_touch_greeks_hold_absolute_surface_fixed() {
     let price = |spot| {
         engine
             .price(
-                &option,
+                &dated(
+                    &option,
+                    &context
+                        .replace(PricingContextChanges {
+                            spot_price: Some(spot),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                ),
                 &context
                     .replace(PricingContextChanges {
                         spot_price: Some(spot),
@@ -403,7 +432,14 @@ fn skew_touch_greeks_hold_absolute_surface_fixed() {
             .abs()
             < 1e-6
     );
-    assert!((result.price() - engine.price(&option, &local(false)).unwrap()).abs() > 0.2);
+    assert!(
+        (result.price()
+            - engine
+                .price(&dated(&option, &local(false)), &local(false))
+                .unwrap())
+        .abs()
+            > 0.2
+    );
 }
 
 #[test]
@@ -431,7 +467,7 @@ fn remote_binary_knock_in_remains_nonnegative_at_low_volatility() {
                 10.0,
             )
             .unwrap();
-            let price = engine.price(&option, &context).unwrap();
+            let price = engine.price(&dated(&option, &context), &context).unwrap();
             assert!(
                 (0.0..1e-8).contains(&price),
                 "{kind:?} {direction:?}: {price}"
@@ -501,7 +537,7 @@ fn skew_binary_barriers_match_independent_quantlib_fd() {
         ),
     ] {
         let actual = engine
-            .price_with_greeks(&option, &context, request)
+            .price_with_greeks(&dated(&option, &context), &context, request)
             .unwrap();
         for ((a, b), tolerance) in [
             actual.price(),
@@ -556,7 +592,7 @@ fn skew_double_boundaries_match_independent_path_estimates() {
         .unwrap();
         let value = FiniteDifferenceDoubleBarrierEngine::new(settings)
             .unwrap()
-            .price(&option, &context)
+            .price(&dated(&option, &context), &context)
             .unwrap();
         assert!((value - expected).abs() < budget);
     }
@@ -568,7 +604,7 @@ fn skew_double_boundaries_match_independent_path_estimates() {
         let option = DoubleTouchOption::cash(terms, 10.0).unwrap();
         let value = FiniteDifferenceDoubleTouchEngine::new(settings)
             .unwrap()
-            .price(&option, &context)
+            .price(&dated(&option, &context), &context)
             .unwrap();
         assert!((value - expected).abs() < 0.1244);
     }

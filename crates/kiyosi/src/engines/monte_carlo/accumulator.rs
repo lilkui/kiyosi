@@ -52,6 +52,7 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
+    /// # use kiyosi::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
@@ -61,6 +62,7 @@ impl MonteCarloAccumulatorEngine {
     ///     })?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 110.0, start.add_days(1)?)?;
+    /// let option = option.with_history_time(Some(context.valuation_time()));
     /// let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
     ///     seed: Some(42), path_count: 4096, ..Default::default()
     /// })?;

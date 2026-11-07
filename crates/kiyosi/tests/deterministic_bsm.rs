@@ -1,11 +1,15 @@
 use kiyosi::*;
 
-fn verify<I: OptionContract>(
+fn verify<I: OptionContract + Clone>(
     option: &I,
     context: &PricingContext,
     expected: f64,
     engines: &[&dyn PricingEngine<I>],
 ) -> Result<()> {
+    let dated = option
+        .clone()
+        .with_history_time(Some(context.valuation_time()));
+    let option = &dated;
     for engine in engines {
         assert!((engine.price(option, context)? - expected).abs() < 1e-10);
         let result = engine.price_with_greeks(option, context, GreeksRequest::all())?;

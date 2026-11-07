@@ -22,6 +22,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -61,8 +62,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                         settlement_timing=timing,
                     )
                     self.assertAlmostEqual(
-                        engine.price(option, market()),
-                        AnalyticBinaryBarrierEngine().price(option, market()),
+                        engine.price(dated_history(option, market()), market()),
+                        AnalyticBinaryBarrierEngine().price(
+                            dated_history(option, market()), market()
+                        ),
                         delta=0.02 if option.payoff_type == "asset" else 0.002,
                     )
 
@@ -73,10 +76,15 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             (ins.asset_touch_option, 130),
         ):
             option = touch(factory, settlement_timing="at_hit")
-            self.assertEqual(engine.price(option, market(130)), amount)
+            self.assertEqual(
+                engine.price(dated_history(option, market(130)), market(130)), amount
+            )
             self.assertEqual(
                 engine.price(
-                    option.replace_history(touch_state="touched"),
+                    dated_history(
+                        option.replace_history(touch_state="touched"),
+                        market(time=datetime(2025, 1, 2)),
+                    ),
                     market(time=datetime(2025, 1, 2)),
                 ),
                 0,
@@ -116,13 +124,16 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     expected = two_fixing_price(
                         up=up, knock_in=kind == "one_touch", asset=asset, at_hit=at_hit
                     )
-                    value = fine.price(option, market())
+                    value = fine.price(dated_history(option, market()), market())
                     self.assertAlmostEqual(
                         value, expected, delta=0.001 if asset else 0.0001
                     )
                     self.assertLess(
                         abs(value - expected),
-                        abs(coarse.price(option, market()) - expected),
+                        abs(
+                            coarse.price(dated_history(option, market()), market())
+                            - expected
+                        ),
                     )
                 for knock_in in (False, True):
                     for direction in ("call", "put"):
@@ -148,7 +159,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                             up=up, knock_in=knock_in, asset=asset, direction=direction
                         )
                         self.assertAlmostEqual(
-                            fine.price(option, market()),
+                            fine.price(dated_history(option, market()), market()),
                             expected,
                             delta=0.002 if asset else 0.0002,
                         )
@@ -197,7 +208,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     dividend2=dividend2,
                 )
                 self.assertAlmostEqual(
-                    engine.price(option, ctx),
+                    engine.price(dated_history(option, ctx), ctx),
                     expected,
                     delta=0.002 if asset else 0.0002,
                 )
@@ -216,8 +227,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             expiry_time=fixing,
         )
         self.assertAlmostEqual(
-            engine.price(option, ctx),
-            AnalyticDigitalEngine().price(digital, ctx),
+            engine.price(dated_history(option, ctx), ctx),
+            AnalyticDigitalEngine().price(dated_history(digital, ctx), ctx),
             delta=0.0004,
         )
         later_payment = touch(observation_mode="scheduled", observation_times=[fixing])
@@ -225,8 +236,13 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         known = option.replace_history(touch_state="untouched")
         after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1))
         self.assert_rejection(InvalidInputError, engine.price, option, after)
-        self.assertEqual(engine.price(known, after), 0)
-        self.assertEqual(engine.price(option, market(130, fixing)), 10)
+        self.assertEqual(engine.price(dated_history(known, after), after), 0)
+        self.assertEqual(
+            engine.price(
+                dated_history(option, market(130, fixing)), market(130, fixing)
+            ),
+            10,
+        )
         no_touch = touch(
             barrier_type="up_and_out",
             observation_mode="scheduled",
@@ -234,7 +250,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             touch_state="untouched",
         )
         self.assertAlmostEqual(
-            engine.price(no_touch, after),
+            engine.price(dated_history(no_touch, after), after),
             10 * math.exp(-0.04 * (END - fixing).days / 365),
             delta=1e-8,
         )
@@ -243,7 +259,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         engine = FiniteDifferenceBinaryBarrierEngine(asset_upper_boundary=400)
         option = touch(touch_state="untouched")
         ctx = market(time=datetime(2025, 1, 2))
-        result = engine.price_with_greeks(option, ctx, greeks="all")
+        result = engine.price_with_greeks(dated_history(option, ctx), ctx, greeks="all")
         greeks = (
             "delta",
             "gamma",
@@ -258,21 +274,37 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         self.assertTrue(all(math.isfinite(getattr(result, g)) for g in greeks))
         h = 0.01
-        up = engine.price(option, market(100 + h, datetime(2025, 1, 2)))
-        down = engine.price(option, market(100 - h, datetime(2025, 1, 2)))
+        up = engine.price(
+            dated_history(option, market(100 + h, datetime(2025, 1, 2))),
+            market(100 + h, datetime(2025, 1, 2)),
+        )
+        down = engine.price(
+            dated_history(option, market(100 - h, datetime(2025, 1, 2))),
+            market(100 - h, datetime(2025, 1, 2)),
+        )
         self.assertAlmostEqual(result.delta, (up - down) / (2 * h), delta=1e-6)
         self.assertAlmostEqual(
             result.gamma, (up - 2 * result.price + down) / h**2, delta=1e-6
         )
         self.assertAlmostEqual(
             implied_volatility(
-                engine, option, ctx, result.price, lower_bound=0.1, upper_bound=0.3
+                engine,
+                dated_history(option, ctx),
+                ctx,
+                result.price,
+                lower_bound=0.1,
+                upper_bound=0.3,
             ),
             0.2,
             delta=1e-7,
         )
         self.assert_rejection(
-            RootNotBracketedError, implied_volatility, engine, option, ctx, -1
+            RootNotBracketedError,
+            implied_volatility,
+            engine,
+            dated_history(option, ctx),
+            ctx,
+            -1,
         )
         self.assert_rejection(InvalidInputError, engine.price, touch(), ctx)
         self.assert_rejection(
@@ -296,25 +328,39 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             for kind in ("up_and_in", "up_and_out"):
                 contract = touch(factory, barrier_type=kind, touch_state="untouched")
                 expiry = engine.price_with_greeks(
-                    contract, market(130, END), greeks="all"
+                    dated_history(contract, market(130, END)),
+                    market(130, END),
+                    greeks="all",
                 )
                 assert_terminal_greeks(
                     self,
                     expiry,
                     int(factory is ins.asset_touch_option and kind == "up_and_in"),
                 )
-        equality = engine.price_with_greeks(touch(), market(120.13), greeks="all")
+        equality = engine.price_with_greeks(
+            dated_history(touch(), market(120.13)), market(120.13), greeks="all"
+        )
         self.assertTrue(all(getattr(equality, g) is None for g in greeks))
         paid = touch(settlement_timing="at_hit", touch_state="touched")
         self.assert_rejection(
-            UnsupportedOperationError, implied_volatility, engine, paid, ctx, 0
+            UnsupportedOperationError,
+            implied_volatility,
+            engine,
+            dated_history(paid, ctx),
+            ctx,
+            0,
         )
-        self.assertEqual(engine.price(option, ctx), result.price)
+        self.assertEqual(engine.price(dated_history(option, ctx), ctx), result.price)
         self.assertEqual(option.touch_state, "untouched")
         self.assertEqual(ctx.spot_price, 100)
         with ThreadPoolExecutor(4) as pool:
             self.assertEqual(
-                list(pool.map(lambda _: engine.price(option, ctx), range(16))),
+                list(
+                    pool.map(
+                        lambda _: engine.price(dated_history(option, ctx), ctx),
+                        range(16),
+                    )
+                ),
                 [result.price] * 16,
             )
 
@@ -329,9 +375,11 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 asset_upper_boundary=upper,
             )
 
-        expected = engine(400).price(option, market())
+        expected = engine(400).price(dated_history(option, market()), market())
         for upper in (10_000, 1e9):
-            self.assertEqual(engine(upper).price(option, market()), expected)
+            self.assertEqual(
+                engine(upper).price(dated_history(option, market()), market()), expected
+            )
         self.assert_rejection(
             InvalidInputError, engine(480, "explicit_euler").price, option, market()
         )
@@ -382,11 +430,17 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
             )
         with self.assertRaises(TypeError):
-            engine.price(object(), market())
+            engine.price(dated_history(object(), market()), market())
         with self.assertRaises(TypeError):
-            numerical_greeks(engine, touch(), market(), ["delta"], spot_shift=True)
+            numerical_greeks(
+                engine,
+                dated_history(touch(), market()),
+                market(),
+                ["delta"],
+                spot_shift=True,
+            )
         with self.assertRaises(TypeError):
-            implied_volatility(engine, touch(), market(), True)
+            implied_volatility(engine, dated_history(touch(), market()), market(), True)
         with self.assertRaises(AttributeError):
             engine.time_step_count = 1
 
@@ -435,7 +489,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     sigma=inputs["volatility"],
                 )
                 self.assertAlmostEqual(
-                    engine.price(option, ctx),
+                    engine.price(dated_history(option, ctx), ctx),
                     reference.measure(inputs, "price"),
                     delta=reference.barrier.FD["price"],
                 )
@@ -445,7 +499,9 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     inputs["strike"],
                     (option.expiry_time - ctx.valuation_time).days,
                 ) == (100, 100, 365):
-                    result = engine.price_with_greeks(option, ctx, greeks="all")
+                    result = engine.price_with_greeks(
+                        dated_history(option, ctx), ctx, greeks="all"
+                    )
                     for greek in (
                         "delta",
                         "gamma",

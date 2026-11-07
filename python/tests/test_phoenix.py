@@ -25,6 +25,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_snowball import market, structured
 
@@ -111,11 +112,16 @@ class PhoenixTests(unittest.TestCase):
                 (110, 0.25, True),
             ):
                 self.assertAlmostEqual(
-                    engine.price(note, market(spot, END)),
+                    engine.price(
+                        dated_history(note, market(spot, END)), market(spot, END)
+                    ),
                     base + (coupon * 57 / 365 if paid else 0),
                 )
             self.assertAlmostEqual(
-                engine.price(note, market(110, MIDDLE)), 0.25 + coupon * 33 / 365
+                engine.price(
+                    dated_history(note, market(110, MIDDLE)), market(110, MIDDLE)
+                ),
+                0.25 + coupon * 33 / 365,
             )
 
     def assert_rejection(self, expected, operation, *args, **kwargs):
@@ -172,9 +178,9 @@ class PhoenixTests(unittest.TestCase):
             (engine.asset_step_count, engine.integration_standard_deviations), (512, 8)
         )
         with self.assertRaises(TypeError):
-            engine.price(object(), market())
+            engine.price(dated_history(object(), market()), market())
         with self.assertRaises(TypeError):
-            implied_volatility(engine, object(), market(), 1)
+            implied_volatility(engine, dated_history(object(), market()), market(), 1)
 
     def test_core_validation_order_errors_and_history(self):
         for fields, expected_error in (
@@ -208,18 +214,21 @@ class PhoenixTests(unittest.TestCase):
             knock_in_observation_mode="every_trading_day", barrier_state=None
         )
         self.assert_rejection(
-            InvalidInputError, engine.price, unknown, market(valuation=MIDDLE)
+            InvalidInputError,
+            engine.price,
+            dated_history(unknown, market(valuation=MIDDLE)),
+            market(valuation=MIDDLE),
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(barrier_state="knocked_in"),
+            dated_history(contract(barrier_state="knocked_in"), market(valuation=END)),
             market(valuation=END),
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(barrier_state="knocked_out"),
+            dated_history(contract(barrier_state="knocked_out"), market()),
             market(),
         )
         with self.assertRaises(InvalidInputError):
@@ -233,7 +242,7 @@ class PhoenixTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                contract(),
+                dated_history(contract(), market(valuation=valuation)),
                 market(valuation=valuation),
             )
         curve = RateTermStructure(
@@ -244,12 +253,16 @@ class PhoenixTests(unittest.TestCase):
         self.assert_rejection(
             UnsupportedOperationError,
             engine.price_with_greeks,
-            contract(),
+            dated_history(contract(), market(rate=curve)),
             market(rate=curve),
             [],
         )
         self.assert_rejection(
-            InvalidInputError, engine.price_with_greeks, contract(), market(), []
+            InvalidInputError,
+            engine.price_with_greeks,
+            dated_history(contract(), market()),
+            market(),
+            [],
         )
         self.assert_rejection(
             InvalidInputError,
@@ -289,8 +302,8 @@ class PhoenixTests(unittest.TestCase):
                     inputs["spot"], valuation, inputs["volatility"], inputs["rate"]
                 )
                 self.assertAlmostEqual(
-                    engine.price(note, context),
-                    structured.price(kind, inputs),
+                    engine.price(dated_history(note, context), context),
+                    structured.price(dated_history(kind, inputs), inputs),
                     delta=1e-10,
                 )
 
@@ -323,7 +336,12 @@ class PhoenixTests(unittest.TestCase):
                             * math.exp(-0.04 * t(current))
                         )
                 self.assertAlmostEqual(
-                    engine.price(note, market(valuation=valuation, volatility=1e-8)),
+                    engine.price(
+                        dated_history(
+                            note, market(valuation=valuation, volatility=1e-8)
+                        ),
+                        market(valuation=valuation, volatility=1e-8),
+                    ),
                     expected,
                     delta=1e-9,
                 )
@@ -348,7 +366,7 @@ class PhoenixTests(unittest.TestCase):
         ):
             self.assertAlmostEqual(
                 QuadratureAutocallableEngine(**settings).price(
-                    note, market(volatility=2)
+                    dated_history(note, market(volatility=2)), market(volatility=2)
                 ),
                 expected,
                 delta=1e-10,
@@ -358,7 +376,7 @@ class PhoenixTests(unittest.TestCase):
             lower_strike=100, observations=autocallable_observations([END], [110])
         )
         engine = QuadratureAutocallableEngine()
-        quote = engine.price(fixed, market())
+        quote = engine.price(dated_history(fixed, market()), market())
         self.assertAlmostEqual(
             quote, (1 + 0.365 * 90 / 365) * math.exp(-0.04 * 90 / 365)
         )
@@ -366,7 +384,7 @@ class PhoenixTests(unittest.TestCase):
             UnsupportedOperationError,
             implied_volatility,
             engine,
-            fixed,
+            dated_history(fixed, market()),
             market(),
             quote,
         )
@@ -374,45 +392,61 @@ class PhoenixTests(unittest.TestCase):
     def test_event_greeks_settled_history_and_solver_failures(self):
         note = contract()
         engine = QuadratureAutocallableEngine()
-        result = engine.price_with_greeks(note, market(90, MIDDLE), greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(note, market(90, MIDDLE)), market(90, MIDDLE), greeks="all"
+        )
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
         self.assertIsNone(result.theta)
         self.assertIsNotNone(result.vega)
         self.assertIsNotNone(result.rho)
-        result = engine.price_with_greeks(note, market(110, MIDDLE), greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(note, market(110, MIDDLE)), market(110, MIDDLE), greeks="all"
+        )
         self.assertEqual((result.vega, result.rho), (0, 0))
         self.assert_rejection(
             UnsupportedOperationError,
             implied_volatility,
             engine,
-            note,
+            dated_history(note, market(110, MIDDLE)),
             market(110, MIDDLE),
             result.price,
         )
         settled = note.replace_history(barrier_state="knocked_out")
-        self.assertEqual(engine.price(settled, market(valuation=END)), 0)
-        result = engine.price_with_greeks(note, market(90, END), greeks="all")
+        self.assertEqual(
+            engine.price(
+                dated_history(settled, market(valuation=END)), market(valuation=END)
+            ),
+            0,
+        )
+        result = engine.price_with_greeks(
+            dated_history(note, market(90, END)), market(90, END), greeks="all"
+        )
         assert_terminal_greeks(self, result, None)
         self.assert_rejection(
             UnsupportedOperationError,
             implied_volatility,
             engine,
-            note,
+            dated_history(note, market(90, END)),
             market(90, END),
             result.price,
         )
         ctx = market(103)
-        quote = engine.price(note, ctx)
+        quote = engine.price(dated_history(note, ctx), ctx)
         solved = implied_volatility(
-            engine, note, ctx, quote, lower_bound=0.2, upper_bound=0.4
+            engine,
+            dated_history(note, ctx),
+            ctx,
+            quote,
+            lower_bound=0.2,
+            upper_bound=0.4,
         )
         self.assertAlmostEqual(solved, 0.3, delta=1e-6)
         self.assert_rejection(
             RootNotBracketedError,
             implied_volatility,
             engine,
-            note,
+            dated_history(note, ctx),
             ctx,
             10,
             lower_bound=0.2,
@@ -422,7 +456,7 @@ class PhoenixTests(unittest.TestCase):
             NonConvergenceError,
             implied_volatility,
             engine,
-            note,
+            dated_history(note, ctx),
             ctx,
             quote,
             lower_bound=0.2,
@@ -522,7 +556,9 @@ class PhoenixTests(unittest.TestCase):
                     knock_in_observation_mode=mode,
                 )
                 self.assertAlmostEqual(
-                    QuadratureAutocallableEngine().price(note, market()),
+                    QuadratureAutocallableEngine().price(
+                        dated_history(note, market()), market()
+                    ),
                     fine,
                     delta=1e-6,
                 )
@@ -542,7 +578,7 @@ class PhoenixTests(unittest.TestCase):
             prices = [
                 QuadratureAutocallableEngine(
                     asset_step_count=n, integration_standard_deviations=e
-                ).price(note, market())
+                ).price(dated_history(note, market()), market())
                 for n, e in ((512, 8), (1024, 8), (1024, 10))
             ]
             self.assertAlmostEqual(prices[0], prices[1], delta=1e-4)
@@ -560,11 +596,19 @@ class PhoenixTests(unittest.TestCase):
         coarse = {"spot_shift": 0.5, "volatility_shift": 0.002, "rate_shift": 0.001}
         fine = {"spot_shift": 0.25, "volatility_shift": 0.001, "rate_shift": 0.0005}
         standard = numerical_greeks(
-            QuadratureAutocallableEngine(), note, context, greeks="all", **coarse
+            QuadratureAutocallableEngine(),
+            dated_history(note, context),
+            context,
+            greeks="all",
+            **coarse,
         )
         engine = QuadratureAutocallableEngine(asset_step_count=1024)
-        refined = numerical_greeks(engine, note, context, greeks="all", **coarse)
-        smaller = numerical_greeks(engine, note, context, greeks="all", **fine)
+        refined = numerical_greeks(
+            engine, dated_history(note, context), context, greeks="all", **coarse
+        )
+        smaller = numerical_greeks(
+            engine, dated_history(note, context), context, greeks="all", **fine
+        )
         tolerances = {
             "delta": (3e-6, 0.005),
             "gamma": (3e-7, 0.01),
@@ -641,7 +685,7 @@ class PhoenixTests(unittest.TestCase):
         context = market(spot, volatility=vol, rate=rate)
         result = numerical_greeks(
             engine,
-            note,
+            dated_history(note, context),
             context,
             greeks="all",
             spot_shift=h,
@@ -656,7 +700,7 @@ class PhoenixTests(unittest.TestCase):
         quote = value()
         solved = implied_volatility(
             engine,
-            note,
+            dated_history(note, context),
             context,
             quote,
             lower_bound=0.25,
@@ -668,7 +712,7 @@ class PhoenixTests(unittest.TestCase):
             RootNotBracketedError,
             implied_volatility,
             engine,
-            note,
+            dated_history(note, context),
             context,
             10,
             lower_bound=0.1,
@@ -678,7 +722,10 @@ class PhoenixTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=3) as pool:
             prices = list(
                 pool.map(
-                    lambda s: engine.price(note, market(s, volatility=vol, rate=rate)),
+                    lambda s: engine.price(
+                        dated_history(note, market(s, volatility=vol, rate=rate)),
+                        market(s, volatility=vol, rate=rate),
+                    ),
                     [90, 100, 110],
                 )
             )
@@ -692,26 +739,39 @@ class PhoenixTests(unittest.TestCase):
                 [MIDDLE, END], [110, 110], coupon_barrier_levels=[120, 120]
             )
         )
-        self.assertAlmostEqual(engine.price(note, market(110, MIDDLE)), 1)
         self.assertAlmostEqual(
-            engine.price(note, market(120, MIDDLE)), 1 + 0.365 * 33 / 365
+            engine.price(dated_history(note, market(110, MIDDLE)), market(110, MIDDLE)),
+            1,
+        )
+        self.assertAlmostEqual(
+            engine.price(dated_history(note, market(120, MIDDLE)), market(120, MIDDLE)),
+            1 + 0.365 * 33 / 365,
         )
         zero = contract(coupon_rate=0)
-        result = engine.price_with_greeks(zero, market(90, MIDDLE), "delta")
+        result = engine.price_with_greeks(
+            dated_history(zero, market(90, MIDDLE)), market(90, MIDDLE), "delta"
+        )
         self.assertIsNotNone(result.delta)
         no_expiry_event = contract(
             observations=autocallable_observations(
                 [MIDDLE], [110], coupon_barrier_levels=[90]
             )
         )
-        self.assertEqual(engine.price(no_expiry_event, market(100, END)), 1)
+        self.assertEqual(
+            engine.price(
+                dated_history(no_expiry_event, market(100, END)), market(100, END)
+            ),
+            1,
+        )
         # An effective-date observation has a zero-length coupon period.
         immediate = contract(
             observations=autocallable_observations(
                 [START, END], [110, 110], coupon_barrier_levels=[90, 90]
             )
         )
-        result = engine.price_with_greeks(immediate, market(90), "delta")
+        result = engine.price_with_greeks(
+            dated_history(immediate, market(90)), market(90), "delta"
+        )
         self.assertIsNotNone(result.delta)
 
     def test_dense_deterministic_ladder_and_short_terminal_transition(self):
@@ -736,7 +796,15 @@ class PhoenixTests(unittest.TestCase):
         ):
             self.assertAlmostEqual(
                 engine.price(
-                    note,
+                    dated_history(
+                        note,
+                        market(
+                            spot,
+                            volatility=1e-8,
+                            rate=0,
+                            dividend=0,
+                        ),
+                    ),
                     market(
                         spot,
                         volatility=1e-8,
@@ -761,7 +829,10 @@ class PhoenixTests(unittest.TestCase):
                 1 + 0.365 * 90 / 365 * math.erfc(-d2 / math.sqrt(2)) / 2
             )
             self.assertAlmostEqual(
-                engine.price(note, market(100, valuation, volatility=sigma)),
+                engine.price(
+                    dated_history(note, market(100, valuation, volatility=sigma)),
+                    market(100, valuation, volatility=sigma),
+                ),
                 expected,
                 delta=1e-9,
             )

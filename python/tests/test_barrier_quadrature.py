@@ -19,6 +19,7 @@ from kiyosi import (
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
@@ -56,20 +57,26 @@ class BarrierQuadratureTests(unittest.TestCase):
                     * math.erfc(z / math.sqrt(2))
                 )
                 self.assertAlmostEqual(
-                    engine.price(contract, market(rate=rate)), expected, delta=2e-11
+                    engine.price(
+                        dated_history(contract, market(rate=rate)), market(rate=rate)
+                    ),
+                    expected,
+                    delta=2e-11,
                 )
 
     def test_history_is_required_and_failure_does_not_change_engine(self):
         for engine in engines():
             contract = option()
-            expected = engine.price(contract, market())
+            expected = engine.price(dated_history(contract, market()), market())
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
                 contract,
                 market(valuation=START + timedelta(days=1)),
             )
-            self.assertEqual(engine.price(contract, market()), expected)
+            self.assertEqual(
+                engine.price(dated_history(contract, market()), market()), expected
+            )
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
@@ -101,18 +108,31 @@ class BarrierQuadratureTests(unittest.TestCase):
                 current = (
                     5
                     if kind.endswith("out")
-                    else pricing.AnalyticEuropeanEngine().price(vanilla, at_observation)
+                    else pricing.AnalyticEuropeanEngine().price(
+                        dated_history(vanilla, at_observation), at_observation
+                    )
                 )
                 later = (
-                    pricing.AnalyticEuropeanEngine().price(vanilla, after_observation)
+                    pricing.AnalyticEuropeanEngine().price(
+                        dated_history(vanilla, after_observation), after_observation
+                    )
                     if kind.endswith("out")
                     else 5 * math.exp(-0.03 * 269.5 / 365)
                 )
                 self.assertAlmostEqual(
-                    engine.price(contract, at_observation), current, delta=1e-12
+                    engine.price(
+                        dated_history(contract, at_observation), at_observation
+                    ),
+                    current,
+                    delta=1e-12,
                 )
                 self.assertAlmostEqual(
-                    engine.price(prior_untouched, after_observation), later, delta=1e-12
+                    engine.price(
+                        dated_history(prior_untouched, after_observation),
+                        after_observation,
+                    ),
+                    later,
+                    delta=1e-12,
                 )
 
     def test_completed_monitoring_returns_vanilla_or_expiry_rebate(self):
@@ -122,7 +142,9 @@ class BarrierQuadratureTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
-        value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
+        value = pricing.AnalyticEuropeanEngine().price(
+            dated_history(vanilla, context), context
+        )
         for engine in engines():
             for kind in KINDS:
                 contract = option(
@@ -136,7 +158,9 @@ class BarrierQuadratureTests(unittest.TestCase):
                     3 * math.exp(-0.03 * 180 / 365) if kind.endswith("in") else value
                 )
                 self.assertAlmostEqual(
-                    engine.price(contract, context), expected, delta=1e-12
+                    engine.price(dated_history(contract, context), context),
+                    expected,
+                    delta=1e-12,
                 )
 
     def test_quadrature_refinement_and_requested_higher_greeks(self):
@@ -148,13 +172,15 @@ class BarrierQuadratureTests(unittest.TestCase):
             "rho",
         )
         expected = pricing.AnalyticBarrierEngine().price_with_greeks(
-            contract, context, names
+            dated_history(contract, context), context, names
         )
         for steps, extent in ((256, 8), (512, 8), (512, 10)):
             engine = pricing.QuadratureBarrierEngine(
                 asset_step_count=steps, integration_standard_deviations=extent
             )
-            result = engine.price_with_greeks(contract, context, names)
+            result = engine.price_with_greeks(
+                dated_history(contract, context), context, names
+            )
             for name in ("price", *names):
                 self.assertAlmostEqual(
                     getattr(result, name),
@@ -193,7 +219,9 @@ class BarrierQuadratureTests(unittest.TestCase):
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")
                 result = engine.price_with_greeks(
-                    contract, market(spot=110, valuation=END), greeks="all"
+                    dated_history(contract, market(spot=110, valuation=END)),
+                    market(spot=110, valuation=END),
+                    greeks="all",
                 )
                 self.assertEqual(result.price, 3 if kind.endswith("in") else 10)
                 assert_terminal_greeks(self, result, int(kind.endswith("out")))
@@ -202,10 +230,10 @@ class BarrierQuadratureTests(unittest.TestCase):
         context = market()
         contract = option(barrier_level=60)
         for engine in engines():
-            quote = engine.price(contract, context)
+            quote = engine.price(dated_history(contract, context), context)
             volatility = pricing.implied_volatility(
                 engine,
-                contract,
+                dated_history(contract, context),
                 context,
                 quote,
                 lower_bound=0.15,
@@ -219,9 +247,9 @@ class BarrierQuadratureTests(unittest.TestCase):
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                fixed,
+                dated_history(fixed, later),
                 later,
-                engine.price(fixed, later),
+                engine.price(dated_history(fixed, later), later),
             )
 
     def test_continuous_prices_and_greeks_against_live_quantlib(self):
@@ -270,7 +298,9 @@ class BarrierQuadratureTests(unittest.TestCase):
                             "gamma": (high - 2 * center + low) / 0.01**2,
                         }
                         result = engine.price_with_greeks(
-                            contract,
+                            dated_history(
+                                contract, market(rate=rate, dividend=dividend)
+                            ),
                             market(rate=rate, dividend=dividend),
                             ("delta", "gamma"),
                         )
@@ -355,7 +385,9 @@ class BarrierQuadratureTests(unittest.TestCase):
                     )
                     with self.subTest(kind=kind, direction=direction, timing=timing):
                         self.assertAlmostEqual(
-                            engine.price(contract, market()), expected, delta=2e-6
+                            engine.price(dated_history(contract, market()), market()),
+                            expected,
+                            delta=2e-6,
                         )
 
     def test_two_observations_match_independent_joint_survival_probability(self):
@@ -387,7 +419,9 @@ class BarrierQuadratureTests(unittest.TestCase):
             )
             expected = 7 * math.exp(-0.03 * 360 / 365) * (1 - survival)
             self.assertAlmostEqual(
-                engine.price(contract, market()), expected, delta=2e-6
+                engine.price(dated_history(contract, market()), market()),
+                expected,
+                delta=2e-6,
             )
 
     def test_settings_and_representation_errors_keep_native_exceptions(self):
@@ -433,9 +467,21 @@ class BarrierQuadratureTests(unittest.TestCase):
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
-                numerical_greeks(engine, option(), market(), "delta", **changes)
+                numerical_greeks(
+                    engine,
+                    dated_history(option(), market()),
+                    market(),
+                    "delta",
+                    **changes,
+                )
         with self.assertRaises(TypeError):
-            numerical_greeks(engine, option(), market(), "delta", time_shift=2**31)
+            numerical_greeks(
+                engine,
+                dated_history(option(), market()),
+                market(),
+                "delta",
+                time_shift=2**31,
+            )
         mismatch = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
@@ -495,8 +541,10 @@ class BarrierQuadratureTests(unittest.TestCase):
             observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
         )
         context = market()
-        quote = engine.price(contract, context)
-        result = engine.price_with_greeks(contract, context, greeks="all")
+        quote = engine.price(dated_history(contract, context), context)
+        result = engine.price_with_greeks(
+            dated_history(contract, context), context, greeks="all"
+        )
         self.assertEqual(result.price, quote)
         for name in ("delta", "gamma", *OTHER_GREEKS):
             self.assertTrue(math.isfinite(getattr(result, name)), name)
@@ -508,9 +556,14 @@ class BarrierQuadratureTests(unittest.TestCase):
                 else pricing.QuadratureBarrierEngine(asset_step_count=256)
             )
             sigma = pricing.implied_volatility(
-                selected, contract, context, quote, lower_bound=0.15, upper_bound=0.25
+                selected,
+                dated_history(contract, context),
+                context,
+                quote,
+                lower_bound=0.15,
+                upper_bound=0.25,
             )
-            return selected.price(contract, context), sigma
+            return selected.price(dated_history(contract, context), context), sigma
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             for price, sigma in pool.map(evaluate, range(4)):
@@ -525,7 +578,7 @@ class BarrierQuadratureTests(unittest.TestCase):
                 expected_error,
                 pricing.implied_volatility,
                 engine,
-                contract,
+                dated_history(contract, context),
                 context,
                 observed,
                 lower_bound=0.15,
@@ -533,10 +586,16 @@ class BarrierQuadratureTests(unittest.TestCase):
                 **controls,
             )
         with self.assertRaises(TypeError):
-            pricing.implied_volatility(engine, contract, context, True)
+            pricing.implied_volatility(
+                engine, dated_history(contract, context), context, True
+            )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
-                engine, contract, context, quote, max_iterations=1.5
+                engine,
+                dated_history(contract, context),
+                context,
+                quote,
+                max_iterations=1.5,
             )
-        self.assertEqual(engine.price(contract, context), quote)
+        self.assertEqual(engine.price(dated_history(contract, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)

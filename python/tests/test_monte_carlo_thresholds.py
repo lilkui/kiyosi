@@ -7,6 +7,7 @@ from datetime import time as clock_time
 from kiyosi import instruments as ins
 from kiyosi import pricing
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from support.history import dated as dated_history
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 SETTINGS = {"path_count": 65536, "seed": 42, "antithetic": True}
@@ -51,7 +52,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
                             **common, barrier_level=100, barrier_type=kind
                         )
                         self.assertAlmostEqual(
-                            single.price(option, context), 6, delta=1e-12
+                            single.price(dated_history(option, context), context),
+                            6,
+                            delta=1e-12,
                         )
                         option = ins.DoubleBarrierOption(
                             **common,
@@ -62,7 +65,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
                             else "knock_out",
                         )
                         self.assertAlmostEqual(
-                            double.price(option, context), 6, delta=1e-12
+                            double.price(dated_history(option, context), context),
+                            6,
+                            delta=1e-12,
                         )
 
     def test_snowball_thresholds_preserve_price_and_sampling_uncertainty(self):
@@ -79,7 +84,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
                 engine = pricing.MonteCarloAutocallableEngine(
                     **{**SETTINGS, "antithetic": antithetic}
                 )
-                estimate = engine.price_with_statistics(note, market(volatility))
+                estimate = engine.price_with_statistics(
+                    dated_history(note, market(volatility)), market(volatility)
+                )
                 with self.subTest(volatility=volatility, antithetic=antithetic):
                     if antithetic:
                         self.assertAlmostEqual(estimate.price, 1.07, delta=1e-12)
@@ -113,7 +120,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
                 )
                 with self.subTest(volatility=volatility, mode=mode):
                     self.assertAlmostEqual(
-                        engine.price(note, context), 1 + 0.07 / 365, delta=1e-12
+                        engine.price(dated_history(note, context), context),
+                        1 + 0.07 / 365,
+                        delta=1e-12,
                     )
             note = ins.PhoenixOption(
                 observation_clock_time=None,
@@ -128,7 +137,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     [end], [120], coupon_barrier_levels=[100]
                 ),
             )
-            self.assertAlmostEqual(engine.price(note, context), 1.06, delta=1e-12)
+            self.assertAlmostEqual(
+                engine.price(dated_history(note, context), context), 1.06, delta=1e-12
+            )
 
     def test_accumulator_thresholds_preserve_knock_out_and_accelerated_settlements(
         self,
@@ -155,7 +166,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
                 )
                 with self.subTest(volatility=volatility, direction=direction):
                     self.assertAlmostEqual(
-                        engine.price(option, context), 15, delta=1e-12
+                        engine.price(dated_history(option, context), context),
+                        15,
+                        delta=1e-12,
                     )
                     option = ins.Accumulator(
                         knock_out_settled=False,
@@ -169,11 +182,13 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     )
                     vanilla = ins.EuropeanOption(**common, strike=100)
                     expected = (
-                        -pricing.AnalyticEuropeanEngine().price(vanilla, context)
+                        -pricing.AnalyticEuropeanEngine().price(
+                            dated_history(vanilla, context), context
+                        )
                         / volatility
                     )
                     self.assertAlmostEqual(
-                        engine.price(option, context),
+                        engine.price(dated_history(option, context), context),
                         expected,
                         delta=0.02 * abs(expected),
                     )

@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 #[test]
@@ -43,8 +46,8 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         })?,
     ] {
         assert_eq!(
-            engine.price(&owned, &context)?,
-            engine.price(&option, &context)?
+            engine.price(&dated(&owned, &context), &context)?,
+            engine.price(&dated(&option, &context), &context)?
         );
     }
     assert_eq!(owned.replace(Default::default())?, owned);
@@ -74,8 +77,8 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
                 Err(Error::InvalidInput(_))
             ));
             assert_eq!(
-                $engine.price(&owned, &context)?,
-                $engine.price(&option, &context)?
+                $engine.price(&dated(&owned, &context), &context)?,
+                $engine.price(&dated(&option, &context), &context)?
             );
         }};
     }

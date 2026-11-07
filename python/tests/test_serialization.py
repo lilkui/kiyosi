@@ -13,12 +13,13 @@ from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
+from support.history import dated as dated_history
 
 START, END = datetime(2025, 1, 2), datetime(2025, 1, 10)
 
 
 def price_in_worker(engine, option, context):
-    return engine.price_with_greeks(option, context, "delta")
+    return engine.price_with_greeks(dated_history(option, context), context, "delta")
 
 
 def values():
@@ -193,22 +194,33 @@ class SerializationTests(unittest.TestCase):
             valuation_time=END,
         )
         engine = p.AnalyticEuropeanEngine()
-        result = engine.price_with_greeks(option, context, "delta")
+        result = engine.price_with_greeks(
+            dated_history(option, context), context, "delta"
+        )
         restored = pickle.loads(pickle.dumps(result))
         self.assertIsNot(result, restored)
         self.assertEqual(result, restored)
         self.assertNotEqual(
             result,
-            engine.price_with_greeks(option.replace(strike=99), context, "delta"),
+            engine.price_with_greeks(
+                dated_history(option.replace(strike=99), context), context, "delta"
+            ),
         )
         self.assertNotEqual(
             result,
             engine.price_with_greeks(
-                option.replace(option_type="put", strike=120), context, "delta"
+                dated_history(option.replace(option_type="put", strike=120), context),
+                context,
+                "delta",
             ),
         )
-        theta = engine.price_with_greeks(option, context, "theta")
-        self.assertNotEqual(theta, engine.price_with_greeks(option, context, "color"))
+        theta = engine.price_with_greeks(
+            dated_history(option, context), context, "theta"
+        )
+        self.assertNotEqual(
+            theta,
+            engine.price_with_greeks(dated_history(option, context), context, "color"),
+        )
         digital = i.CashOrNothingOption(
             option_type="call",
             strike=100,
@@ -217,7 +229,7 @@ class SerializationTests(unittest.TestCase):
             expiry_time=END,
         )
         unsupported = p.CoxRossRubinsteinDigitalEngine().price_with_greeks(
-            digital, context, "theta"
+            dated_history(digital, context), context, "theta"
         )
         self.assertEqual(theta.price, unsupported.price)
         self.assertIsNone(theta.theta)
@@ -225,10 +237,10 @@ class SerializationTests(unittest.TestCase):
         self.assertNotEqual(theta, unsupported)
         estimate = p.MonteCarloVanillaEngine(
             path_count=32, seed=42
-        ).price_with_statistics(option, context)
+        ).price_with_statistics(dated_history(option, context), context)
         other = p.MonteCarloVanillaEngine(
             path_count=32, seed=42, sampling="sobol"
-        ).price_with_statistics(option, context)
+        ).price_with_statistics(dated_history(option, context), context)
         self.assertEqual(estimate, pickle.loads(pickle.dumps(estimate)))
         self.assertEqual(estimate.price, other.price)
         self.assertNotEqual(estimate, other)
@@ -283,13 +295,15 @@ class SerializationTests(unittest.TestCase):
             valuation_time=START,
         )
         self.assertIn("spot_price=100.0", repr(context))
-        result = p.AnalyticEuropeanEngine().price_with_greeks(vanilla, context, "delta")
+        result = p.AnalyticEuropeanEngine().price_with_greeks(
+            dated_history(vanilla, context), context, "delta"
+        )
         self.assertIn("price=", repr(result))
         self.assertIn("'delta':", repr(result))
         self.assertEqual(repr(pickle.loads(pickle.dumps(result))), repr(result))
         estimate = p.MonteCarloVanillaEngine(
             path_count=16, seed=42, thread_count=1
-        ).price_with_statistics(vanilla, context)
+        ).price_with_statistics(dated_history(vanilla, context), context)
         self.assertIn("standard_error=", repr(estimate))
         self.assertEqual(repr(pickle.loads(pickle.dumps(estimate))), repr(estimate))
 
@@ -491,7 +505,7 @@ class SerializationTests(unittest.TestCase):
         self.assertIsNone(actual.gamma)
         estimate = p.MonteCarloVanillaEngine(
             path_count=64, seed=42
-        ).price_with_statistics(option, context)
+        ).price_with_statistics(dated_history(option, context), context)
         restored = pickle.loads(pickle.dumps(estimate))
         self.assertEqual(
             (restored.price, restored.standard_error, restored.confidence_interval),

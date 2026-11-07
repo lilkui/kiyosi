@@ -14,6 +14,7 @@ pub(crate) fn validate_upper(lower: f64, upper: f64) -> Result<()> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Monitoring {
+    history_time: Option<Timestamp>,
     effective_time: Timestamp,
     expiry_time: Timestamp,
     barrier_level: f64,
@@ -52,6 +53,7 @@ impl Monitoring {
         let schedule =
             ObservationSchedule::new(observation_times, effective_time, expiry_time, &calendar)?;
         Ok(Self {
+            history_time: None,
             effective_time,
             expiry_time,
             barrier_level,
@@ -183,6 +185,12 @@ impl Monitoring {
     ) -> Result<(bool, bool, bool)> {
         let time = context.valuation_time();
         let prior = self.prior(time)?;
+        super::validate_history_time(
+            self,
+            self.touch_state.is_some(),
+            context,
+            self.continuous() && !prior,
+        )?;
         let hit = (if self.barrier_type().is_up() {
             context.spot_price() >= self.barrier_level()
         } else {
@@ -263,6 +271,14 @@ impl Monitoring {
     }
 }
 impl OptionContract for Monitoring {
+    fn history_time(&self) -> Option<Timestamp> {
+        self.history_time
+    }
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+        self.history_time = time;
+        self
+    }
+
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }

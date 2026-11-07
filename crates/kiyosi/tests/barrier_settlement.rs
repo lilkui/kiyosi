@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 #[test]
@@ -29,23 +32,39 @@ fn settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage() -> Re
     double.touch_state = Some(BarrierTouchState::Touched);
     double.settlement_timing = SettlementTiming::AtHit;
     let double = DoubleTouchOption::cash(double, 10.0)?;
-    assert_eq!(AnalyticBinaryBarrierEngine.price(&binary, &context)?, 0.0);
-    assert_eq!(AnalyticBinaryBarrierEngine.price(&touch, &context)?, 0.0);
-    assert_eq!(AnalyticDoubleTouchEngine.price(&double, &context)?, 0.0);
+    assert_eq!(
+        AnalyticBinaryBarrierEngine.price(&dated(&binary, &context), &context)?,
+        0.0
+    );
+    assert_eq!(
+        AnalyticBinaryBarrierEngine.price(&dated(&touch, &context), &context)?,
+        0.0
+    );
+    assert_eq!(
+        AnalyticDoubleTouchEngine.price(&dated(&double, &context), &context)?,
+        0.0
+    );
     for value in [
-        AnalyticBinaryBarrierEngine.price(&binary.replace_history(None), &context),
+        AnalyticBinaryBarrierEngine
+            .price(&dated(&binary.replace_history(None), &context), &context),
         AnalyticBinaryBarrierEngine.price(
-            &touch.replace(TouchOptionChanges {
-                settlement_timing: Some(SettlementTiming::AtExpiry),
-                ..Default::default()
-            })?,
+            &dated(
+                &touch.replace(TouchOptionChanges {
+                    settlement_timing: Some(SettlementTiming::AtExpiry),
+                    ..Default::default()
+                })?,
+                &context,
+            ),
             &context,
         ),
         AnalyticDoubleTouchEngine.price(
-            &double.replace(DoubleTouchOptionChanges {
-                settlement_timing: Some(SettlementTiming::AtExpiry),
-                ..Default::default()
-            })?,
+            &dated(
+                &double.replace(DoubleTouchOptionChanges {
+                    settlement_timing: Some(SettlementTiming::AtExpiry),
+                    ..Default::default()
+                })?,
+                &context,
+            ),
             &context,
         ),
     ] {

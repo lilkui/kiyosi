@@ -26,6 +26,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -120,16 +121,25 @@ class RangeAccrualTests(unittest.TestCase):
         context = market(datetime(2025, 1, 2, 12), rate=0.04, dividend=0, volatility=0)
         engine = AnalyticRangeAccrualEngine()
         request = ["theta", "charm", "color"]
-        auto = engine.price_with_greeks(option, context, request)
+        auto = engine.price_with_greeks(
+            dated_history(option, context), context, request
+        )
         self.assertAlmostEqual(auto.require("theta"), 0.04 * auto.price, delta=1e-9)
         self.assertEqual(auto.require("charm"), 0)
         self.assertEqual(auto.require("color"), 0)
         self.assertEqual(
-            auto, numerical_greeks(engine, option, context, request, time_shift=None)
+            auto,
+            numerical_greeks(
+                engine,
+                dated_history(option, context),
+                context,
+                request,
+                time_shift=None,
+            ),
         )
         explicit = numerical_greeks(
             engine,
-            option,
+            dated_history(option, context),
             context,
             request,
             time_shift=timedelta(days=1),
@@ -137,7 +147,9 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertEqual(explicit.status("theta"), "stencil_unavailable")
         at_observation = context.replace(valuation_time=datetime(2025, 1, 2, 15))
         self.assertEqual(
-            engine.price_with_greeks(option, at_observation, request).status("theta"),
+            engine.price_with_greeks(
+                dated_history(option, at_observation), at_observation, request
+            ).status("theta"),
             "stencil_unavailable",
         )
 
@@ -157,7 +169,18 @@ class RangeAccrualTests(unittest.TestCase):
 
         def price(risk_end, dividend_end):
             return AnalyticRangeAccrualEngine().price(
-                option,
+                dated_history(
+                    option,
+                    market(
+                        valuation=start,
+                        rate=RateTermStructure.bounded_flat(
+                            0.04, reference_time=start, max_time=risk_end
+                        ),
+                        dividend=RateTermStructure.bounded_flat(
+                            0.01, reference_time=start, max_time=dividend_end
+                        ),
+                    ),
+                ),
                 market(
                     valuation=start,
                     rate=RateTermStructure.bounded_flat(
@@ -189,14 +212,20 @@ class RangeAccrualTests(unittest.TestCase):
         for rate, dividend in ((curve, 0), (0, curve)):
             context = market(rate=rate, dividend=dividend)
             self.assert_rejection(
-                ComputationFailureError, engine.price, option, context
+                ComputationFailureError,
+                engine.price,
+                dated_history(option, context),
+                context,
             )
             self.assertEqual(
                 engine.price(
-                    contract(
-                        effective_time=option.effective_time,
-                        expiry_time=expiry,
-                        annual_coupon_rate=0,
+                    dated_history(
+                        contract(
+                            effective_time=option.effective_time,
+                            expiry_time=expiry,
+                            annual_coupon_rate=0,
+                        ),
+                        context,
                     ),
                     context,
                 ),
@@ -228,15 +257,21 @@ class RangeAccrualTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             option.replace_history(notional=2000)
         with self.assertRaises(UnsupportedOperationError):
-            engine.price(vanilla, context)
+            engine.price(dated_history(vanilla, context), context)
         with self.assertRaises(UnsupportedOperationError):
-            implied_volatility(engine, vanilla, context, 1)
+            implied_volatility(engine, dated_history(vanilla, context), context, 1)
         with self.assertRaises(UnsupportedOperationError):
-            AnalyticEuropeanEngine().price(option, context)
+            AnalyticEuropeanEngine().price(dated_history(option, context), context)
         with self.assertRaises(TypeError):
-            numerical_greeks(engine, option, context, "delta", spot_shift=True)
+            numerical_greeks(
+                engine,
+                dated_history(option, context),
+                context,
+                "delta",
+                spot_shift=True,
+            )
         with self.assertRaises(TypeError):
-            implied_volatility(engine, option, context, True)
+            implied_volatility(engine, dated_history(option, context), context, True)
         self.assertEqual(option.replace_history(), option)
         self.assertEqual(option, contract())
 
@@ -246,7 +281,7 @@ class RangeAccrualTests(unittest.TestCase):
             RootNotBracketedError,
             implied_volatility,
             engine,
-            option,
+            dated_history(option, context),
             context,
             -1,
             lower_bound=0.1,
@@ -256,7 +291,7 @@ class RangeAccrualTests(unittest.TestCase):
             UnsupportedOperationError,
             implied_volatility,
             engine,
-            contract(annual_coupon_rate=0),
+            dated_history(contract(annual_coupon_rate=0), context),
             context,
             0,
         )
@@ -264,7 +299,10 @@ class RangeAccrualTests(unittest.TestCase):
             UnsupportedOperationError,
             implied_volatility,
             engine,
-            option.replace_history(realized_hit_count=15),
+            dated_history(
+                option.replace_history(realized_hit_count=15),
+                market(option.expiry_time),
+            ),
             market(option.expiry_time),
             0,
         )
@@ -272,7 +310,7 @@ class RangeAccrualTests(unittest.TestCase):
             InvalidInputError,
             implied_volatility,
             engine,
-            option,
+            dated_history(option, market(START + timedelta(days=3))),
             market(START + timedelta(days=3)),
             0,
         )
@@ -283,16 +321,16 @@ class RangeAccrualTests(unittest.TestCase):
         option = contract(expiry_time=START + timedelta(days=365))
         context = market()
         self.assertAlmostEqual(
-            AnalyticRangeAccrualEngine().price(option, context),
-            reference(option, context),
+            AnalyticRangeAccrualEngine().price(dated_history(option, context), context),
+            reference(dated_history(option, context), context),
             delta=1e-10,
         )
         self.assertAlmostEqual(
             implied_volatility(
                 AnalyticRangeAccrualEngine(),
-                option,
+                dated_history(option, context),
                 context,
-                reference(option, context),
+                reference(dated_history(option, context), context),
                 lower_bound=0.1,
                 upper_bound=0.4,
             ),
@@ -359,7 +397,9 @@ class RangeAccrualTests(unittest.TestCase):
         ):
             with self.subTest(spot=spot):
                 result = engine.price_with_greeks(
-                    option, market(option.expiry_time, spot), greeks="all"
+                    dated_history(option, market(option.expiry_time, spot)),
+                    market(option.expiry_time, spot),
+                    greeks="all",
                 )
                 self.assertAlmostEqual(
                     result.price, 1000 * 0.12 / 365 * (1 + hit), delta=1e-12
@@ -379,8 +419,8 @@ class RangeAccrualTests(unittest.TestCase):
                 option = contract(realized_hit_count=hits)
                 context = market(valuation)
                 self.assertAlmostEqual(
-                    engine.price(option, context),
-                    reference(option, context),
+                    engine.price(dated_history(option, context), context),
+                    reference(dated_history(option, context), context),
                     delta=1e-10,
                 )
         for valuation, count in (
@@ -391,19 +431,22 @@ class RangeAccrualTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                contract(realized_hit_count=count),
+                dated_history(contract(realized_hit_count=count), market(valuation)),
                 market(valuation),
             )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(),
+            dated_history(contract(), market(START + timedelta(days=2))),
             market(START + timedelta(days=2)),
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(realized_hit_count=16),
+            dated_history(
+                contract(realized_hit_count=16),
+                market(instant(START) + timedelta(days=16, microseconds=1)),
+            ),
             market(instant(START) + timedelta(days=16, microseconds=1)),
         )
 
@@ -416,13 +459,17 @@ class RangeAccrualTests(unittest.TestCase):
         context = market(datetime(2025, 1, 3))
         engine = AnalyticRangeAccrualEngine()
         self.assertAlmostEqual(
-            engine.price(option, context), reference(option, context), delta=1e-12
+            engine.price(dated_history(option, context), context),
+            reference(dated_history(option, context), context),
+            delta=1e-12,
         )
         sunday = contract(
             calendar=weekdays_calendar(), expiry_time=datetime(2025, 1, 5)
         )
         self.assertAlmostEqual(
-            engine.price(sunday, market()), reference(sunday, market()), delta=1e-12
+            engine.price(dated_history(sunday, market()), market()),
+            reference(dated_history(sunday, market()), market()),
+            delta=1e-12,
         )
         short_curve = RateTermStructure(
             reference_time=START, times=[START + timedelta(days=1)], factors=[0.999]
@@ -431,32 +478,47 @@ class RangeAccrualTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(
-                calendar=weekdays_calendar(),
+            dated_history(
+                contract(
+                    calendar=weekdays_calendar(),
+                ),
+                short,
             ),
             short,
         )
         self.assertEqual(
             engine.price(
-                contract(calendar=weekdays_calendar(), annual_coupon_rate=0), short
+                dated_history(
+                    contract(calendar=weekdays_calendar(), annual_coupon_rate=0), short
+                ),
+                short,
             ),
             0,
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(
-                calendar=weekdays_calendar(),
+            dated_history(
+                contract(
+                    calendar=weekdays_calendar(),
+                ),
+                market(dividend=short_curve),
             ),
             market(dividend=short_curve),
         )
         weekend = market(datetime(2025, 1, 4, 12))
-        result = engine.price_with_greeks(option, weekend, ["theta", "charm", "color"])
+        result = engine.price_with_greeks(
+            dated_history(option, weekend), weekend, ["theta", "charm", "color"]
+        )
         before = market(datetime(2025, 1, 3, 12))
         after = market(datetime(2025, 1, 5, 12))
         self.assertAlmostEqual(
             result.theta,
-            (reference(option, after) - reference(option, before)) / (2 / 365),
+            (
+                reference(dated_history(option, after), after)
+                - reference(dated_history(option, before), before)
+            )
+            / (2 / 365),
             delta=3.65e-10,
         )
         self.assertIsNotNone(result.charm)
@@ -464,7 +526,10 @@ class RangeAccrualTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(calendar=weekdays_calendar(), annual_coupon_rate=0),
+            dated_history(
+                contract(calendar=weekdays_calendar(), annual_coupon_rate=0),
+                market(START + timedelta(days=3)),
+            ),
             market(START + timedelta(days=3)),
         )
 
@@ -473,7 +538,7 @@ class RangeAccrualTests(unittest.TestCase):
         engine = AnalyticRangeAccrualEngine()
         context = market(rate=0.8, dividend=0.8, volatility=1e-9)
         self.assertAlmostEqual(
-            engine.price(option, context),
+            engine.price(dated_history(option, context), context),
             120 * 16 / 365 * math.exp(-0.8 * 16 / 365),
             delta=1e-12,
         )
@@ -482,13 +547,16 @@ class RangeAccrualTests(unittest.TestCase):
             START + timedelta(days=7), rate=0.8, dividend=0.8, volatility=1e-9
         )
         self.assertAlmostEqual(
-            engine.price(live, current),
+            engine.price(dated_history(live, current), current),
             120 * 13 / 365 * math.exp(-0.8 * 9 / 365),
             delta=1e-12,
         )
         self.assertEqual(
             engine.price(
-                option, market(spot=80, rate=0.8, dividend=0.8, volatility=1e-9)
+                dated_history(
+                    option, market(spot=80, rate=0.8, dividend=0.8, volatility=1e-9)
+                ),
+                market(spot=80, rate=0.8, dividend=0.8, volatility=1e-9),
             ),
             0,
         )
@@ -512,12 +580,14 @@ class RangeAccrualTests(unittest.TestCase):
             market(rate=rate, dividend=dividend),
         ):
             self.assertAlmostEqual(
-                engine.price(option, context), reference(option, context), delta=1e-10
+                engine.price(dated_history(option, context), context),
+                reference(dated_history(option, context), context),
+                delta=1e-10,
             )
         lower_zero = contract(lower_bound=0)
         self.assertAlmostEqual(
-            engine.price(lower_zero, market()),
-            reference(lower_zero, market()),
+            engine.price(dated_history(lower_zero, market()), market()),
+            reference(dated_history(lower_zero, market()), market()),
             delta=1e-10,
         )
 
@@ -540,10 +610,17 @@ class RangeAccrualTests(unittest.TestCase):
         )
         engine = AnalyticRangeAccrualEngine()
         self.assertAlmostEqual(
-            engine.price(option, market()) / expected, 1, delta=2e-11
+            engine.price(dated_history(option, market()), market()) / expected,
+            1,
+            delta=2e-11,
         )
         overflow = contract(notional=1e300, annual_coupon_rate=1e100)
-        self.assert_rejection(ComputationFailureError, engine.price, overflow, market())
+        self.assert_rejection(
+            ComputationFailureError,
+            engine.price,
+            dated_history(overflow, market()),
+            market(),
+        )
 
     def test_adjacent_price_bounds_at_tiny_volatility(self):
         below = math.nextafter(100.0, 0.0)
@@ -570,22 +647,37 @@ class RangeAccrualTests(unittest.TestCase):
                 )
                 context = market(rate=0, dividend=0, volatility=volatility)
                 self.assertAlmostEqual(
-                    engine.price(option, context), expected, delta=2e-14
+                    engine.price(dated_history(option, context), context),
+                    expected,
+                    delta=2e-14,
                 )
 
     def test_exact_prices_and_greeks_support_concurrent_reads(self):
         option, context = contract(), market()
         engine = AnalyticRangeAccrualEngine()
-        expected = reference(option, context)
+        expected = reference(dated_history(option, context), context)
         with ThreadPoolExecutor(2) as pool:
-            for value in pool.map(lambda _: engine.price(option, context), range(4)):
+            for value in pool.map(
+                lambda _: engine.price(dated_history(option, context), context),
+                range(4),
+            ):
                 self.assertAlmostEqual(value, expected, delta=1e-10)
         result = numerical_greeks(
-            engine, option, context, ["delta", "gamma"], spot_shift=0.25
+            engine,
+            dated_history(option, context),
+            context,
+            ["delta", "gamma"],
+            spot_shift=0.25,
         )
-        up = engine.price(option, market(spot=100.25))
-        down = engine.price(option, market(spot=99.75))
-        self.assertEqual(result.price, engine.price(option, context))
+        up = engine.price(
+            dated_history(option, market(spot=100.25)), market(spot=100.25)
+        )
+        down = engine.price(
+            dated_history(option, market(spot=99.75)), market(spot=99.75)
+        )
+        self.assertEqual(
+            result.price, engine.price(dated_history(option, context), context)
+        )
         self.assertAlmostEqual(result.delta, (up - down) / 0.5, delta=1e-12)
         self.assertAlmostEqual(
             result.gamma, (up - 2 * result.price + down) / 0.25**2, delta=1e-12
@@ -613,7 +705,11 @@ class RangeAccrualTests(unittest.TestCase):
             )
             engine = AnalyticRangeAccrualEngine()
             result = numerical_greeks(
-                engine, option, context, greeks="all", spot_shift=0.1
+                engine,
+                dated_history(option, context),
+                context,
+                greeks="all",
+                spot_shift=0.1,
             )
 
             def price(
@@ -631,7 +727,14 @@ class RangeAccrualTests(unittest.TestCase):
                     volatility=vol,
                 )
                 return reference(
-                    option,
+                    dated_history(
+                        option,
+                        PricingContext(
+                            model_parameters=model,
+                            spot_price=spot,
+                            valuation_time=when,
+                        ),
+                    ),
                     PricingContext(
                         model_parameters=model,
                         spot_price=spot,
@@ -701,11 +804,15 @@ class RangeAccrualTests(unittest.TestCase):
         context = market(valuation, rate=rate)
         after = market(valuation + timedelta(days=1), rate=rate)
         result = AnalyticRangeAccrualEngine().price_with_greeks(
-            option, context, "theta"
+            dated_history(option, context), context, "theta"
         )
         self.assertAlmostEqual(
             result.theta,
-            (reference(option, after) - reference(option, context)) * 365,
+            (
+                reference(dated_history(option, after), after)
+                - reference(dated_history(option, context), context)
+            )
+            * 365,
             delta=3.65e-10,
         )
 
@@ -713,17 +820,23 @@ class RangeAccrualTests(unittest.TestCase):
         engine = AnalyticRangeAccrualEngine()
         option = contract(expiry_time=START + timedelta(days=21204))
         self.assertAlmostEqual(
-            engine.price(option, market()), reference(option, market()), delta=1e-8
+            engine.price(dated_history(option, market()), market()),
+            reference(dated_history(option, market()), market()),
+            delta=1e-8,
         )
         seasoned = option.replace_history(realized_hit_count=20000)
         context = market(START + timedelta(days=20001))
         self.assertAlmostEqual(
-            engine.price(seasoned, context), reference(seasoned, context), delta=1e-8
+            engine.price(dated_history(seasoned, context), context),
+            reference(dated_history(seasoned, context), context),
+            delta=1e-8,
         )
         current = contract(realized_hit_count=0)
         for spot, available in ((95.005, False), (95.1, True)):
             result = engine.price_with_greeks(
-                current, market(START + timedelta(days=1), spot=spot), "delta"
+                dated_history(current, market(START + timedelta(days=1), spot=spot)),
+                market(START + timedelta(days=1), spot=spot),
+                "delta",
             )
             self.assertEqual(result.delta is not None, available)
 
@@ -731,7 +844,9 @@ class RangeAccrualTests(unittest.TestCase):
         engine = AnalyticRangeAccrualEngine()
         option = contract(realized_hit_count=0)
         result = engine.price_with_greeks(
-            option, market(START + timedelta(days=1), spot=95), greeks="all"
+            dated_history(option, market(START + timedelta(days=1), spot=95)),
+            market(START + timedelta(days=1), spot=95),
+            greeks="all",
         )
         for name in (
             "delta",
@@ -749,7 +864,7 @@ class RangeAccrualTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price_with_greeks,
-            option,
+            dated_history(option, market()),
             market(),
             [],
         )

@@ -7,6 +7,7 @@ from datetime import datetime
 
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
+from support.history import dated as dated_history
 
 
 class BinaryTouchConstructionTests(unittest.TestCase):
@@ -127,17 +128,27 @@ class BinaryTouchConstructionTests(unittest.TestCase):
                     if cls is ins.DoubleTouchOption
                     else pricing.AnalyticBinaryBarrierEngine()
                 )
-                self.assertEqual(engine.price(contract, context), expected)
+                self.assertEqual(
+                    engine.price(dated_history(contract, context), context), expected
+                )
                 restored = pickle.loads(pickle.dumps(contract))
                 self.assertEqual(restored, contract)
-                self.assertEqual(engine.price(restored, context), expected)
+                self.assertEqual(
+                    engine.price(dated_history(restored, context), context), expected
+                )
                 if terms["payout"] is None:
                     cash = contract.replace(payoff_type="cash", payout=5)
                     self.assertEqual(cash.payout, 5)
-                    self.assertEqual(engine.price(cash, context), 5 if expected else 0)
+                    self.assertEqual(
+                        engine.price(dated_history(cash, context), context),
+                        5 if expected else 0,
+                    )
                 else:
                     self.assertEqual(
-                        engine.price(contract.replace(payout=5), context), expected / 2
+                        engine.price(
+                            dated_history(contract.replace(payout=5), context), context
+                        ),
+                        expected / 2,
                     )
                 with self.assertRaises(InvalidInputError):
                     contract.replace(calendar=market.weekdays_calendar())

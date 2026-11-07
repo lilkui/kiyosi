@@ -20,6 +20,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 GREEKS = (
@@ -95,18 +96,25 @@ class BinaryBarrierTests(unittest.TestCase):
                     else amount * math.exp(-(0.01 if asset else 0.04))
                 )
                 self.assertAlmostEqual(
-                    engine.price(option, self.context(130)), expected, delta=1e-12
+                    engine.price(
+                        dated_history(option, self.context(130)), self.context(130)
+                    ),
+                    expected,
+                    delta=1e-12,
                 )
                 self.assert_rejection(
                     InvalidInputError,
                     lambda option=option: engine.price(
-                        option, self.context(130, datetime(2025, 1, 2))
+                        dated_history(option, self.context(130, datetime(2025, 1, 2))),
+                        self.context(130, datetime(2025, 1, 2)),
                     ),
                 )
                 known = option.replace_history(touch_state="touched")
                 self.assert_rejection(
                     InvalidInputError,
-                    lambda known=known: engine.price(known, self.context(130)),
+                    lambda known=known: engine.price(
+                        dated_history(known, self.context(130)), self.context(130)
+                    ),
                 )
                 context = self.context(time=datetime(2025, 7, 1))
                 expected = (
@@ -116,12 +124,16 @@ class BinaryBarrierTests(unittest.TestCase):
                     * math.exp(-(0.01 if asset else 0.04) * 184 / 365)
                 )
                 self.assertAlmostEqual(
-                    engine.price(known, context), expected, delta=1e-12
+                    engine.price(dated_history(known, context), context),
+                    expected,
+                    delta=1e-12,
                 )
                 self.assert_rejection(
                     UnsupportedOperationError,
                     lambda context=context, expected=expected, known=known: (
-                        implied_volatility(engine, known, context, expected)
+                        implied_volatility(
+                            engine, dated_history(known, context), context, expected
+                        )
                     ),
                 )
                 self.assertEqual(known.replace_history(touch_state=None), option)
@@ -140,12 +152,17 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 lambda option=option: engine.price(
-                    option, self.context(130, datetime(2025, 7, 1))
+                    dated_history(option, self.context(130, datetime(2025, 7, 1))),
+                    self.context(130, datetime(2025, 7, 1)),
                 ),
             )
             known = option.replace_history(touch_state="touched")
             self.assertEqual(
-                engine.price(known, self.context(100, datetime(2025, 7, 1))) == 0,
+                engine.price(
+                    dated_history(known, self.context(100, datetime(2025, 7, 1))),
+                    self.context(100, datetime(2025, 7, 1)),
+                )
+                == 0,
                 kind == "up_and_out",
             )
             self.assertEqual(known.replace_history(touch_state=None), option)
@@ -240,7 +257,9 @@ class BinaryBarrierTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.touch(effective_time=datetime(2025, 1, 1).date())
         with self.assertRaises(TypeError):
-            AnalyticBinaryBarrierEngine().price(object(), self.context())
+            AnalyticBinaryBarrierEngine().price(
+                dated_history(object(), self.context()), self.context()
+            )
 
     def test_touch_factories_select_all_barrier_types_and_validate_settlement(self):
         for factory in (ins.cash_touch_option, ins.asset_touch_option):
@@ -291,30 +310,44 @@ class BinaryBarrierTests(unittest.TestCase):
             )
             self.assert_rejection(
                 UnsupportedOperationError,
-                lambda option=option: engine.price(option, self.context()),
+                lambda option=option: engine.price(
+                    dated_history(option, self.context()), self.context()
+                ),
             )
             self.assert_rejection(
                 InvalidInputError,
                 lambda option=option: engine.price(
-                    option.replace_history(touch_state="touched"),
+                    dated_history(
+                        option.replace_history(touch_state="touched"),
+                        self.context(120, fixing),
+                    ),
                     self.context(120, fixing),
                 ),
             )
             expected = 10 * math.exp(-0.04 * 364 / 365) if one else 0
             self.assertAlmostEqual(
-                engine.price(option, self.context(120, fixing)), expected, delta=1e-12
+                engine.price(
+                    dated_history(option, self.context(120, fixing)),
+                    self.context(120, fixing),
+                ),
+                expected,
+                delta=1e-12,
             )
             noon = datetime(2025, 1, 2, 12)
             self.assert_rejection(
                 InvalidInputError,
                 lambda option=option, noon=noon: engine.price(
-                    option, self.context(130, noon)
+                    dated_history(option, self.context(130, noon)),
+                    self.context(130, noon),
                 ),
             )
             known = option.replace_history(touch_state="untouched")
             expected = 0 if one else 10 * math.exp(-0.04 * 363 / 365)
             self.assertAlmostEqual(
-                engine.price(known, self.context(130, datetime(2025, 1, 3))),
+                engine.price(
+                    dated_history(known, self.context(130, datetime(2025, 1, 3))),
+                    self.context(130, datetime(2025, 1, 3)),
+                ),
                 expected,
                 delta=1e-12,
             )
@@ -340,11 +373,13 @@ class BinaryBarrierTests(unittest.TestCase):
         ]
         for option in options:
             context = self.context(time=datetime(2025, 7, 1))
-            result = engine.price_with_greeks(option, context, greeks="all")
+            result = engine.price_with_greeks(
+                dated_history(option, context), context, greeks="all"
+            )
             self.assertTrue(all(getattr(result, g) is not None for g in GREEKS))
             sigma = implied_volatility(
                 engine,
-                option,
+                dated_history(option, context),
                 context,
                 result.price,
                 lower_bound=0.15,
@@ -354,23 +389,37 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 lambda context=context, option=option: engine.price_with_greeks(
-                    option, context, []
+                    dated_history(option, context), context, []
                 ),
             )
             self.assert_rejection(
                 InvalidInputError,
                 lambda context=context, option=option: numerical_greeks(
-                    engine, option, context, "delta", spot_shift=0
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    "delta",
+                    spot_shift=0,
                 ),
             )
-            boundary = engine.price_with_greeks(option, self.context(120), greeks="all")
+            boundary = engine.price_with_greeks(
+                dated_history(option, self.context(120)),
+                self.context(120),
+                greeks="all",
+            )
             self.assertTrue(all(getattr(boundary, g) is None for g in GREEKS))
-            near = engine.price_with_greeks(option, self.context(119.995), greeks="all")
+            near = engine.price_with_greeks(
+                dated_history(option, self.context(119.995)),
+                self.context(119.995),
+                greeks="all",
+            )
             self.assertIsNone(near.delta)
             self.assertIsNone(near.speed)
             self.assertIsNotNone(near.vega)
             expiry = self.context(time=datetime(2026, 1, 1))
-            terminal = engine.price_with_greeks(option, expiry, greeks="all")
+            terminal = engine.price_with_greeks(
+                dated_history(option, expiry), expiry, greeks="all"
+            )
             assert_terminal_greeks(
                 self,
                 terminal,
@@ -379,13 +428,17 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda option=option, expiry=expiry, terminal=terminal: (
-                    implied_volatility(engine, option, expiry, terminal.price)
+                    implied_volatility(
+                        engine, dated_history(option, expiry), expiry, terminal.price
+                    )
                 ),
             )
             self.assert_rejection(
                 InvalidInputError,
                 lambda option=option: engine.price(
-                    option,
+                    dated_history(
+                        option, self.context(time=datetime(2026, 1, 1, 0, 0, 0, 1))
+                    ),
                     self.context(time=datetime(2026, 1, 1, 0, 0, 0, 1)),
                 ),
             )
@@ -401,19 +454,21 @@ class BinaryBarrierTests(unittest.TestCase):
             curves = self.context(rate=curve)
             self.assert_rejection(
                 UnsupportedOperationError,
-                lambda curves=curves, option=option: engine.price(option, curves),
+                lambda curves=curves, option=option: engine.price(
+                    dated_history(option, curves), curves
+                ),
             )
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda curves=curves, option=option: engine.price_with_greeks(
-                    option, curves, []
+                    dated_history(option, curves), curves, []
                 ),
             )
             with ThreadPoolExecutor(4) as pool:
                 prices = list(
                     pool.map(
                         lambda _, context=context, option=option: engine.price(
-                            option, context
+                            dated_history(option, context), context
                         ),
                         range(16),
                     )
@@ -428,7 +483,7 @@ class BinaryBarrierTests(unittest.TestCase):
             calendar=all_days_calendar(),
         )
         result = engine.price_with_greeks(
-            dense,
+            dated_history(dense, self.context(time=datetime(2025, 1, 1, 12))),
             self.context(time=datetime(2025, 1, 1, 12)),
             greeks="all",
         )
@@ -483,16 +538,20 @@ class BinaryBarrierTests(unittest.TestCase):
                 )
                 expected = reference.measure(inputs, "price")
                 self.assertAlmostEqual(
-                    engine.price(option, context),
+                    engine.price(dated_history(option, context), context),
                     expected,
                     delta=reference.BUDGET["price"],
                 )
                 if not reference.exclusions(inputs):
                     result = numerical_greeks(
-                        engine, option, context, greeks="all", spot_shift=0.02
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        greeks="all",
+                        spot_shift=0.02,
                     )
                     expected_greeks, metadata = reference.g.reference(
-                        inputs,
+                        dated_history(inputs, reference.STABILITY),
                         reference.STABILITY,
                         measure_fn=reference.measure,
                         unavailable=reference.exclusions(inputs),
@@ -512,4 +571,9 @@ class BinaryBarrierTests(unittest.TestCase):
         drift = math.log(barrier) - math.log(spot)
         option = self.touch(barrier_type="down_and_in", barrier_level=barrier, payout=1)
         context = self.context(spot, rate=0, dividend=-drift, sigma=1e-200)
-        self.assertEqual(AnalyticBinaryBarrierEngine().price(option, context), 0.5)
+        self.assertEqual(
+            AnalyticBinaryBarrierEngine().price(
+                dated_history(option, context), context
+            ),
+            0.5,
+        )

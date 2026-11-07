@@ -73,6 +73,17 @@ pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 
 #[pymethods]
 impl Accumulator {
+    /// Return the timestamp through which supplied history is known, or None.
+    #[getter]
+    fn history_time<'py>(
+        &self,
+        py: pyo3::Python<'py>,
+    ) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::PyAny>>> {
+        kiyosi::OptionContract::history_time(&self.0)
+            .map(|time| crate::conversions::python_timestamp(py, time))
+            .transpose()
+    }
+
     /// Returns a validated replacement without changing this contract.
     ///
     /// Parameters
@@ -111,7 +122,7 @@ impl Accumulator {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation or field name is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -142,7 +153,16 @@ impl Accumulator {
         >,
         #[pyo3(from_py_with = supplied)] knock_out_settled: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] calendar: Option<&Bound<'_, PyAny>>,
+
+        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<
+            &pyo3::Bound<'_, pyo3::PyAny>,
+        >,
     ) -> PyResult<Self> {
+        let history_time = history_time
+            .map(crate::conversions::optional_timestamp)
+            .transpose()?
+            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+
         let changes = kiyosi::AccumulatorChanges {
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
@@ -181,10 +201,13 @@ impl Accumulator {
                 })
                 .transpose()?,
         };
-        Ok(Self(domain(self.0.replace(changes))?))
+        Ok(Self(kiyosi::OptionContract::with_history_time(
+            domain(self.0.replace(changes))?,
+            history_time,
+        )))
     }
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=TradingCalendar::default()))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=TradingCalendar::default(), history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
@@ -199,6 +222,10 @@ impl Accumulator {
         knock_out_observation_times: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = settlement)] knock_out_settled: Option<bool>,
         calendar: TradingCalendar,
+
+        #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<
+            kiyosi::Timestamp,
+        >,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::AccumulatorTerms::new(
             real(strike)?,
@@ -215,7 +242,10 @@ impl Accumulator {
         terms.knock_out_observation_times =
             knock_out_observation_times.map(timestamps).transpose()?;
         terms.calendar = calendar.0;
-        Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
+        Ok(Self(kiyosi::OptionContract::with_history_time(
+            domain(kiyosi::Accumulator::new(terms))?,
+            history_time,
+        )))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -238,12 +268,21 @@ impl Accumulator {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     fn replace_history(
         &self,
         #[pyo3(from_py_with = supplied)] accumulated_quantity: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] knock_out_settled: Option<&Bound<'_, PyAny>>,
+
+        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<
+            &pyo3::Bound<'_, pyo3::PyAny>,
+        >,
     ) -> PyResult<Self> {
+        let history_time = history_time
+            .map(crate::conversions::optional_timestamp)
+            .transpose()?
+            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+
         let changes = kiyosi::AccumulatorHistoryChanges {
             accumulated_quantity: accumulated_quantity
                 .map(|value| {
@@ -256,7 +295,10 @@ impl Accumulator {
                 .transpose()?,
             knock_out_settled: knock_out_settled.map(settlement).transpose()?,
         };
-        Ok(Self(domain(self.0.replace_history(changes))?))
+        Ok(Self(kiyosi::OptionContract::with_history_time(
+            domain(self.0.replace_history(changes))?,
+            history_time,
+        )))
     }
 
     /// Returns the explicitly specified daily observation clock time.

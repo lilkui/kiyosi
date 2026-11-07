@@ -40,6 +40,7 @@ from kiyosi.pricing import (
     QuadratureAutocallableEngine,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 
 
 def time(day, hour, microsecond=0):
@@ -159,7 +160,9 @@ class TimestampTests(unittest.TestCase):
                         -0.05 * (expiry - at).total_seconds() / (365 * 86400)
                     )
                     self.assertAlmostEqual(
-                        AnalyticRangeAccrualEngine().price(range_option, context),
+                        AnalyticRangeAccrualEngine().price(
+                            dated_history(range_option, context), context
+                        ),
                         1000 * coupon * discount,
                         delta=1e-12,
                     )
@@ -171,13 +174,18 @@ class TimestampTests(unittest.TestCase):
                             MonteCarloAutocallableEngine(),
                         ):
                             self.assertAlmostEqual(
-                                engine.price(option, context),
+                                engine.price(dated_history(option, context), context),
                                 (1 + coupon) * discount,
                                 delta=1e-12,
                             )
                     if at == expiry:
                         for engine in accumulator_engines():
-                            self.assertEqual(engine.price(accumulated, context), -60)
+                            self.assertEqual(
+                                engine.price(
+                                    dated_history(accumulated, context), context
+                                ),
+                                -60,
+                            )
 
     def test_contract_schedules_expose_effective_observations(self):
         calendar = custom_calendar(
@@ -274,12 +282,14 @@ class TimestampTests(unittest.TestCase):
             valuation_time=time(2, 12),
         )
         engine = AnalyticEuropeanEngine()
-        exact = engine.price_with_greeks(option, context, "theta").require("theta")
+        exact = engine.price_with_greeks(
+            dated_history(option, context), context, "theta"
+        ).require("theta")
         errors = [
             abs(
                 numerical_greeks(
                     engine,
-                    option,
+                    dated_history(option, context),
                     context,
                     "theta",
                     time_shift=timedelta(seconds=seconds),
@@ -292,10 +302,22 @@ class TimestampTests(unittest.TestCase):
         self.assertLess(errors[1], abs(exact) * 1e-7)
         for shift in (timedelta(), timedelta(microseconds=-1)):
             with self.subTest(shift=shift), self.assertRaises(InvalidInputError):
-                numerical_greeks(engine, option, context, "theta", time_shift=shift)
+                numerical_greeks(
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    "theta",
+                    time_shift=shift,
+                )
         for shift in (True, 1, 0.001):
             with self.subTest(shift=shift), self.assertRaises(TypeError):
-                numerical_greeks(engine, option, context, "theta", time_shift=shift)
+                numerical_greeks(
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    "theta",
+                    time_shift=shift,
+                )
 
     def test_time_inputs_reject_dates_timezones_and_lost_precision(self):
         class NanosecondTime(datetime):
@@ -345,7 +367,8 @@ class TimestampTests(unittest.TestCase):
         years = (18000 + 0.530865) / (365 * 86400)
         engine = AnalyticEuropeanEngine()
         self.assertAlmostEqual(
-            engine.price(call, context) - engine.price(put, context),
+            engine.price(dated_history(call, context), context)
+            - engine.price(dated_history(put, context), context),
             100 * (math.exp(-0.02 * years) - math.exp(-0.05 * years)),
             delta=1e-12,
         )
@@ -354,10 +377,13 @@ class TimestampTests(unittest.TestCase):
             math.exp(-0.05 * years),
             delta=1e-15,
         )
-        self.assertEqual(engine.price(call, market(expiry, 110)), 10)
+        self.assertEqual(
+            engine.price(dated_history(call, market(expiry, 110)), market(expiry, 110)),
+            10,
+        )
         for at in (time(6, 15, 654323), time(6, 15, 654322)):
             with self.subTest(at=at), self.assertRaises(InvalidInputError):
-                engine.price(call, market(at))
+                engine.price(dated_history(call, market(at)), market(at))
         self.assertEqual(pickle.loads(pickle.dumps(call)), call)
         self.assertIsNone(call.expiry_time.tzinfo)
         self.assertEqual(call.expiry_time, expiry)
@@ -418,13 +444,30 @@ class TimestampTests(unittest.TestCase):
             rebate_timing="at_hit",
         )
         engine = AnalyticBarrierEngine()
-        self.assertEqual(engine.price(option, market(time(6, 10), 110)), 7)
+        self.assertEqual(
+            engine.price(
+                dated_history(option, market(time(6, 10), 110)),
+                market(time(6, 10), 110),
+            ),
+            7,
+        )
         with self.assertRaises(InvalidInputError):
-            engine.price(option, market(time(6, 10, 1), 100))
+            engine.price(
+                dated_history(option, market(time(6, 10, 1), 100)),
+                market(time(6, 10, 1), 100),
+            )
         touched = option.replace_history(touch_state="touched")
         with self.assertRaises(InvalidInputError):
-            engine.price(touched, market(time(6, 9), 110))
-        self.assertEqual(engine.price(touched, market(time(6, 10, 1), 100)), 0)
+            engine.price(
+                dated_history(touched, market(time(6, 9), 110)), market(time(6, 9), 110)
+            )
+        self.assertEqual(
+            engine.price(
+                dated_history(touched, market(time(6, 10, 1), 100)),
+                market(time(6, 10, 1), 100),
+            ),
+            0,
+        )
 
     def test_range_accrual_observes_same_day_and_excludes_only_the_effective_instant(
         self,
@@ -440,17 +483,28 @@ class TimestampTests(unittest.TestCase):
         )
         engine = AnalyticRangeAccrualEngine()
         self.assertAlmostEqual(
-            engine.price(option, market(time(6, 15), 100)),
+            engine.price(
+                dated_history(option, market(time(6, 15), 100)),
+                market(time(6, 15), 100),
+            ),
             120 * 6 / (24 * 365),
             delta=1e-14,
         )
         option = option.replace(effective_time=time(6, 15), expiry_time=time(7, 15))
         self.assertAlmostEqual(
-            engine.price(option, market(time(6, 15, 1), 100)), 120 / 365, delta=1e-14
+            engine.price(
+                dated_history(option, market(time(6, 15, 1), 100)),
+                market(time(6, 15, 1), 100),
+            ),
+            120 / 365,
+            delta=1e-14,
         )
         with self.assertRaises(InvalidInputError):
             engine.price(
-                option.replace_history(realized_hit_count=1),
+                dated_history(
+                    option.replace_history(realized_hit_count=1),
+                    market(time(6, 15, 1), 100),
+                ),
                 market(time(6, 15, 1), 100),
             )
 
@@ -459,12 +513,24 @@ class TimestampTests(unittest.TestCase):
         for engine in accumulator_engines():
             with self.subTest(engine=type(engine).__name__):
                 self.assertAlmostEqual(
-                    engine.price(option, market(time(6, 10))), 10, delta=1e-4
+                    engine.price(
+                        dated_history(option, market(time(6, 10))), market(time(6, 10))
+                    ),
+                    10,
+                    delta=1e-4,
                 )
                 with self.assertRaises(InvalidInputError):
-                    engine.price(option, market(time(6, 15, 1)))
+                    engine.price(
+                        dated_history(option, market(time(6, 15, 1))),
+                        market(time(6, 15, 1)),
+                    )
                 single = option.replace(effective_time=time(7, 15))
-                self.assertEqual(engine.price(single, market(time(7, 15))), 5)
+                self.assertEqual(
+                    engine.price(
+                        dated_history(single, market(time(7, 15))), market(time(7, 15))
+                    ),
+                    5,
+                )
         note = SnowballOption(
             observation_clock_time=clock_time(15),
             maturity_coupon_rate=0.06,
@@ -478,12 +544,17 @@ class TimestampTests(unittest.TestCase):
         )
         engine = QuadratureAutocallableEngine()
         self.assertAlmostEqual(
-            engine.price(note, market(time(6, 10), 100)),
+            engine.price(
+                dated_history(note, market(time(6, 10), 100)), market(time(6, 10), 100)
+            ),
             1 + 0.06 * 30 / (365 * 24),
             delta=1e-12,
         )
         with self.assertRaises(InvalidInputError):
-            engine.price(note, market(time(6, 15, 1), 100))
+            engine.price(
+                dated_history(note, market(time(6, 15, 1), 100)),
+                market(time(6, 15, 1), 100),
+            )
 
     def test_explicit_accumulator_knock_outs_do_not_add_daily_quantity(self):
         for hour, barrier, expected in (
@@ -500,7 +571,12 @@ class TimestampTests(unittest.TestCase):
                     hour=hour, barrier=barrier, engine=type(engine).__name__
                 ):
                     self.assertAlmostEqual(
-                        engine.price(option, market(time(6, 9))), expected, delta=1e-4
+                        engine.price(
+                            dated_history(option, market(time(6, 9))),
+                            market(time(6, 9)),
+                        ),
+                        expected,
+                        delta=1e-4,
                     )
 
     def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(self):
@@ -528,7 +604,9 @@ class TimestampTests(unittest.TestCase):
         for engine in engines:
             with self.subTest(engine=type(engine).__name__):
                 self.assertAlmostEqual(
-                    engine.price(note, context), 1 + 0.12 * 6 / (365 * 24), delta=1e-6
+                    engine.price(dated_history(note, context), context),
+                    1 + 0.12 * 6 / (365 * 24),
+                    delta=1e-6,
                 )
         note = note.replace(
             maturity_coupon_rate=0,
@@ -539,7 +617,10 @@ class TimestampTests(unittest.TestCase):
         for engine in engines:
             with self.subTest(engine=type(engine).__name__):
                 self.assertAlmostEqual(
-                    engine.price(note, market(time(6, 9), 120)),
+                    engine.price(
+                        dated_history(note, market(time(6, 9), 120)),
+                        market(time(6, 9), 120),
+                    ),
                     1 + 0.12 / (365 * 24),
                     delta=1e-6,
                 )
@@ -559,7 +640,7 @@ class TimestampTests(unittest.TestCase):
             valuation_time=time(4, 15),
         )
         result = QuadratureAccumulatorEngine().price_with_greeks(
-            option, context, "vega"
+            dated_history(option, context), context, "vega"
         )
         root_time = math.sqrt(2 / 365)
         expected = (
@@ -588,7 +669,11 @@ class TimestampTests(unittest.TestCase):
         )
         context = market(start, 100)
         with self.assertRaises(ComputationFailureError):
-            FiniteDifferenceAutocallableEngine().price(note, context)
+            FiniteDifferenceAutocallableEngine().price(
+                dated_history(note, context), context
+            )
         self.assertAlmostEqual(
-            QuadratureAutocallableEngine().price(note, context), 1.02, delta=1e-12
+            QuadratureAutocallableEngine().price(dated_history(note, context), context),
+            1.02,
+            delta=1e-12,
         )

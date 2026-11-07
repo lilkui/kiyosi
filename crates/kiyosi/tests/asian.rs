@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -25,7 +28,7 @@ fn continuous_asian_prices_match_existing_independent_references() {
             .unwrap();
     assert!(
         (AnalyticGeometricAveragePriceEngine
-            .price(&geometric, &market(start))
+            .price(&dated(&geometric, &market(start)), &market(start))
             .unwrap()
             - 5.035_867_546_515_384)
             .abs()
@@ -33,7 +36,7 @@ fn continuous_asian_prices_match_existing_independent_references() {
     );
     assert!(
         (TurnbullWakemanArithmeticAveragePriceEngine
-            .price(&arithmetic, &market(start))
+            .price(&dated(&arithmetic, &market(start)), &market(start))
             .unwrap()
             - 5.246_501_860_362_777)
             .abs()
@@ -111,16 +114,28 @@ macro_rules! contract_tests {
                     $option::new(OptionType::Call, 100.0, start, averaging, end, None).unwrap();
                 let seasoned = original.replace_history(110.0).unwrap();
                 for at in [start, averaging] {
-                    assert!($engine.price(&original, &market(at)).is_ok());
+                    assert!(
+                        $engine
+                            .price(&dated(&original, &market(at)), &market(at))
+                            .is_ok()
+                    );
                     assert!(matches!(
-                        $engine.price(&seasoned, &market(at)).unwrap_err(),
+                        $engine
+                            .price(&dated(&seasoned, &market(at)), &market(at))
+                            .unwrap_err(),
                         Error::InvalidInput(_)
                     ));
                 }
                 for at in [Date::new(2025, 6, 1).unwrap().start_of_day(), end] {
-                    assert!($engine.price(&seasoned, &market(at)).is_ok());
+                    assert!(
+                        $engine
+                            .price(&dated(&seasoned, &market(at)), &market(at))
+                            .is_ok()
+                    );
                     assert!(matches!(
-                        $engine.price(&original, &market(at)).unwrap_err(),
+                        $engine
+                            .price(&dated(&original, &market(at)), &market(at))
+                            .unwrap_err(),
                         Error::InvalidInput(_)
                     ));
                 }
@@ -129,7 +144,9 @@ macro_rules! contract_tests {
                     Date::new(2026, 1, 2).unwrap().start_of_day(),
                 ] {
                     assert!(matches!(
-                        $engine.price(&seasoned, &market(at)).unwrap_err(),
+                        $engine
+                            .price(&dated(&seasoned, &market(at)), &market(at))
+                            .unwrap_err(),
                         Error::InvalidInput(_)
                     ));
                 }
@@ -140,20 +157,37 @@ macro_rules! contract_tests {
                     })
                     .unwrap();
                 assert!(matches!(
-                    $engine.price(&seasoned, &after).unwrap_err(),
+                    $engine
+                        .price(&dated(&seasoned, &after), &after)
+                        .unwrap_err(),
                     Error::InvalidInput(_)
                 ));
-                assert_eq!($engine.price(&seasoned, &market(end)).unwrap(), 10.0);
+                assert_eq!(
+                    $engine
+                        .price(&dated(&seasoned, &market(end)), &market(end))
+                        .unwrap(),
+                    10.0
+                );
                 let settled = $engine
-                    .price_with_greeks(&seasoned, &market(end), GreeksRequest::all())
+                    .price_with_greeks(
+                        &dated(&seasoned, &market(end)),
+                        &market(end),
+                        GreeksRequest::all(),
+                    )
                     .unwrap();
                 assert_eq!(settled.get(Greek::Theta), None);
                 for greek in [Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho] {
                     assert_eq!(settled.require(greek).unwrap(), 0.0);
                 }
                 assert!(matches!(
-                    implied_volatility(&$engine, &seasoned, &market(end), 10.0, Default::default())
-                        .unwrap_err(),
+                    implied_volatility(
+                        &$engine,
+                        &dated(&seasoned, &market(end)),
+                        &market(end),
+                        10.0,
+                        Default::default()
+                    )
+                    .unwrap_err(),
                     Error::UnsupportedOperation(_)
                 ));
                 for direction in [OptionType::Call, OptionType::Put] {
@@ -161,13 +195,20 @@ macro_rules! contract_tests {
                     let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();
                     for at in [start, Date::new(2025, 12, 31).unwrap().start_of_day(), end] {
                         assert_eq!(
-                            $engine.price(&single, &market(at)).unwrap(),
-                            AnalyticEuropeanEngine.price(&vanilla, &market(at)).unwrap()
+                            $engine
+                                .price(&dated(&single, &market(at)), &market(at))
+                                .unwrap(),
+                            AnalyticEuropeanEngine
+                                .price(&dated(&vanilla, &market(at)), &market(at))
+                                .unwrap()
                         );
                     }
                     assert!(matches!(
                         $engine
-                            .price(&single.replace_history(110.0).unwrap(), &market(end))
+                            .price(
+                                &dated(&single.replace_history(110.0).unwrap(), &market(end)),
+                                &market(end)
+                            )
                             .unwrap_err(),
                         Error::InvalidInput(_)
                     ));
@@ -180,7 +221,7 @@ macro_rules! contract_tests {
                     $option::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
                 let context = market(start);
                 let full = $engine
-                    .price_with_greeks(&option, &context, GreeksRequest::all())
+                    .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
                     .unwrap();
                 assert!(full.require(Greek::Delta).unwrap() > 0.0);
                 assert!(full.require(Greek::Vega).unwrap() > 0.0);
@@ -189,7 +230,7 @@ macro_rules! contract_tests {
                 }
                 let scalar = numerical_greeks(
                     &$engine,
-                    &option,
+                    &dated(&option, &context),
                     &context,
                     GreeksRequest::all(),
                     Default::default(),
@@ -198,7 +239,11 @@ macro_rules! contract_tests {
                 assert_eq!(full, scalar);
                 for greek in Greek::ALL {
                     let selected = $engine
-                        .price_with_greeks(&option, &context, GreeksRequest::new([greek, greek]))
+                        .price_with_greeks(
+                            &dated(&option, &context),
+                            &context,
+                            GreeksRequest::new([greek, greek]),
+                        )
                         .unwrap();
                     assert_eq!(selected.get(greek), full.get(greek));
                     assert!(
@@ -211,7 +256,7 @@ macro_rules! contract_tests {
                 assert!(
                     (implied_volatility(
                         &$engine,
-                        &option,
+                        &dated(&option, &context),
                         &context,
                         full.price(),
                         Default::default()
@@ -223,14 +268,18 @@ macro_rules! contract_tests {
                 );
                 assert!(matches!(
                     $engine
-                        .price_with_greeks(&option, &context, GreeksRequest::new([]))
+                        .price_with_greeks(
+                            &dated(&option, &context),
+                            &context,
+                            GreeksRequest::new([])
+                        )
                         .unwrap_err(),
                     Error::InvalidInput(_)
                 ));
                 assert!(matches!(
                     kiyosi::numerical_greeks(
                         &$engine,
-                        &option,
+                        &dated(&option, &context),
                         &context,
                         GreeksRequest::all(),
                         NumericalShiftSettings {
@@ -242,14 +291,20 @@ macro_rules! contract_tests {
                     Error::InvalidInput(_)
                 ));
                 assert!(matches!(
-                    implied_volatility(&$engine, &option, &context, -1.0, Default::default())
-                        .unwrap_err(),
+                    implied_volatility(
+                        &$engine,
+                        &dated(&option, &context),
+                        &context,
+                        -1.0,
+                        Default::default()
+                    )
+                    .unwrap_err(),
                     Error::RootNotBracketed(_)
                 ));
                 let seasoned = option.replace_history(100.0).unwrap();
                 let middle = market(Date::new(2025, 7, 1).unwrap().start_of_day());
                 let result = $engine
-                    .price_with_greeks(&seasoned, &middle, GreeksRequest::all())
+                    .price_with_greeks(&dated(&seasoned, &middle), &middle, GreeksRequest::all())
                     .unwrap();
                 assert!(result.values().iter().all(Option::is_some));
                 assert_eq!(option.realized_average(), None);
@@ -305,7 +360,7 @@ fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
         .unwrap();
         assert!(
             (AnalyticGeometricAveragePriceEngine
-                .price(&option, &context)
+                .price(&dated(&option, &context), &context)
                 .unwrap()
                 - expected)
                 .abs()
@@ -334,10 +389,10 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
                 (realized != 0.0).then_some(realized),
             )
             .unwrap();
-            let quote = engine.price(&option, &context).unwrap();
+            let quote = engine.price(&dated(&option, &context), &context).unwrap();
             let implied = implied_volatility(
                 &engine,
-                &option,
+                &dated(&option, &context),
                 &context,
                 quote,
                 ImpliedVolatilitySettings {
@@ -371,7 +426,9 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
             start,
         )
         .unwrap();
-        assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-9);
+        assert!(
+            (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 1e-9
+        );
     }
 }
 
@@ -394,7 +451,7 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
     let option =
         GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let actual = AnalyticGeometricAveragePriceEngine
-        .price(&option, &context)
+        .price(&dated(&option, &context), &context)
         .unwrap();
     // Integrate the two piecewise constant carries analytically.
     let h: f64 = 182.0 / 365.0;
@@ -411,7 +468,7 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
             .unwrap();
     assert!(matches!(
         TurnbullWakemanArithmeticAveragePriceEngine
-            .price(&arithmetic, &context)
+            .price(&dated(&arithmetic, &context), &context)
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -423,7 +480,10 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
         .unwrap();
     assert_eq!(
         TurnbullWakemanArithmeticAveragePriceEngine
-            .price(&arithmetic.replace_history(110.0).unwrap(), &expired)
+            .price(
+                &dated(&arithmetic.replace_history(110.0).unwrap(), &expired),
+                &expired
+            )
             .unwrap(),
         10.0
     );
@@ -436,7 +496,9 @@ fn arithmetic_solver_prices_only_the_requested_volatility_bracket() {
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
             .unwrap();
     let engine = TurnbullWakemanArithmeticAveragePriceEngine;
-    let quote = engine.price(&option, &market(start)).unwrap();
+    let quote = engine
+        .price(&dated(&option, &market(start)), &market(start))
+        .unwrap();
     let context = market(start)
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -449,7 +511,7 @@ fn arithmetic_solver_prices_only_the_requested_volatility_bracket() {
         .unwrap();
     let sigma = implied_volatility(
         &engine,
-        &option,
+        &dated(&option, &context),
         &context,
         quote,
         ImpliedVolatilitySettings {
@@ -512,10 +574,10 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
                 .unwrap();
                 for price in [
                     AnalyticGeometricAveragePriceEngine
-                        .price(&geometric, &context)
+                        .price(&dated(&geometric, &context), &context)
                         .unwrap(),
                     TurnbullWakemanArithmeticAveragePriceEngine
-                        .price(&arithmetic, &context)
+                        .price(&dated(&arithmetic, &context), &context)
                         .unwrap(),
                 ] {
                     assert!(
@@ -554,7 +616,7 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
             } * scale;
             assert!(
                 (AnalyticGeometricAveragePriceEngine
-                    .price(&geometric, &context)
+                    .price(&dated(&geometric, &context), &context)
                     .unwrap()
                     / expected_geo
                     - 1.0)
@@ -563,7 +625,7 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
             );
             assert!(
                 (TurnbullWakemanArithmeticAveragePriceEngine
-                    .price(&arithmetic, &context)
+                    .price(&dated(&arithmetic, &context), &context)
                     .unwrap()
                     / expected_arith
                     - 1.0)
@@ -605,7 +667,7 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
                 amount,
             )
             .unwrap();
-            let actual = engine.price(&option, &context).unwrap();
+            let actual = engine.price(&dated(&option, &context), &context).unwrap();
             if direction == OptionType::Call {
                 assert!((actual / expected - 1.0).abs() < 1e-12);
             } else {
@@ -635,7 +697,7 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
                             at,
                         )
                         .unwrap();
-                        engine.price(&option, &context).unwrap() / scale
+                        engine.price(&dated(&option, &context), &context).unwrap() / scale
                     };
                     let reference = price(1.0);
                     let scaled = price(1e306);
@@ -666,12 +728,14 @@ fn single_fixing_preserves_independent_asset_discount_at_extreme_rates() {
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None).unwrap();
     let expected = 100.0 * (-0.02_f64).exp();
     for price in [
-        AnalyticEuropeanEngine.price(&vanilla, &context).unwrap(),
+        AnalyticEuropeanEngine
+            .price(&dated(&vanilla, &context), &context)
+            .unwrap(),
         AnalyticGeometricAveragePriceEngine
-            .price(&geometric, &context)
+            .price(&dated(&geometric, &context), &context)
             .unwrap(),
         TurnbullWakemanArithmeticAveragePriceEngine
-            .price(&arithmetic, &context)
+            .price(&dated(&arithmetic, &context), &context)
             .unwrap(),
     ] {
         assert!((price - expected).abs() < 1e-12);
@@ -693,7 +757,7 @@ fn non_finite_small_volatility_moments_report_computation_failure() {
         .unwrap();
         assert!(matches!(
             TurnbullWakemanArithmeticAveragePriceEngine
-                .price(&option, &context)
+                .price(&dated(&option, &context), &context)
                 .unwrap_err(),
             Error::ComputationFailure(_)
         ));

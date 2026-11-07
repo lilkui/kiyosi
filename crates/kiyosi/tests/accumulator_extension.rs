@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn day(date: u32) -> Timestamp {
@@ -76,8 +79,12 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
             option.expiry_time(),
         )
         .unwrap();
-        AnalyticDigitalEngine.price(&asset, context).unwrap()
-            - AnalyticDigitalEngine.price(&cash, context).unwrap()
+        AnalyticDigitalEngine
+            .price(&dated(&asset, context), context)
+            .unwrap()
+            - AnalyticDigitalEngine
+                .price(&dated(&cash, context), context)
+                .unwrap()
     };
     let model = context.model_parameters().as_bsm().unwrap();
     let expiry = option.expiry_time();
@@ -142,9 +149,12 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
         let option = Accumulator::new(terms(direction, dates)).unwrap();
         let context = market(spot, day(6), 0.2);
         for engine in engines() {
-            assert_eq!(engine.price(&option, &context).unwrap(), expected);
+            assert_eq!(
+                engine.price(&dated(&option, &context), &context).unwrap(),
+                expected
+            );
             let result = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all())
+                .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(result.price(), expected);
             assert_eq!(result.get(Greek::Theta), None);
@@ -178,7 +188,12 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
         };
         for engine in engines() {
             assert_eq!(
-                engine.price(&option, &market(spot, day(6), 0.2)).unwrap(),
+                engine
+                    .price(
+                        &dated(&option, &market(spot, day(6), 0.2)),
+                        &market(spot, day(6), 0.2)
+                    )
+                    .unwrap(),
                 -6.25
             );
         }
@@ -203,7 +218,7 @@ fn sparse_dates_preserve_daily_accumulation_and_stop_only_on_selected_dates() {
         ] {
             let option = Accumulator::new(terms(direction, dates)).unwrap();
             for engine in engines() {
-                let actual = engine.price(&option, &context).unwrap();
+                let actual = engine.price(&dated(&option, &context), &context).unwrap();
                 assert!(
                     (actual - expected).abs() < 2e-7,
                     "{direction:?}: {actual} != {expected}"
@@ -235,7 +250,7 @@ fn quadrature_tails_discount_to_the_next_knock_out_or_expiry() {
         };
         let expected =
             sign * quantity * (spot * (-0.01 * time).exp() - 100.0 * (-0.04 * time).exp());
-        let actual = engine.price(&option, &context).unwrap();
+        let actual = engine.price(&dated(&option, &context), &context).unwrap();
         assert!(
             (actual - expected).abs() < 1e-7,
             "{direction:?}, spot {spot}, settlement {settlement_date:?}: {actual} != {expected}"
@@ -287,8 +302,12 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
                 Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
             )
             .unwrap();
-            let alive_asset = AnalyticDigitalEngine.price(&asset, &context).unwrap();
-            let alive_cash = AnalyticDigitalEngine.price(&cash, &context).unwrap();
+            let alive_asset = AnalyticDigitalEngine
+                .price(&dated(&asset, &context), &context)
+                .unwrap();
+            let alive_cash = AnalyticDigitalEngine
+                .price(&dated(&cash, &context), &context)
+                .unwrap();
             let forward =
                 spot * (-dividend * observation).exp() - 100.0 * (-rate * observation).exp();
             // Twelve units settle at knock-out; otherwise all 26 settle at expiry.
@@ -308,7 +327,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
                     ..Default::default()
                 })
                 .unwrap();
-                let actual = engine.price(&option, &context).unwrap();
+                let actual = engine.price(&dated(&option, &context), &context).unwrap();
                 assert!(
                     (actual - expected).abs() < tolerance,
                     "{direction:?}, sigma {sigma}, nodes {nodes}: {actual} != {expected}"
@@ -359,12 +378,15 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             })
             .unwrap();
             let result = monte_carlo
-                .price_with_statistics(&option, &context)
+                .price_with_statistics(&dated(&option, &context), &context)
                 .unwrap();
             assert_eq!(result.price(), 0.0);
             assert_eq!(result.standard_error(), Some(0.0));
             assert_eq!(result.confidence_interval(), Some((0.0, 0.0)));
-            assert_eq!(clipped.price(&option, &context).unwrap(), 0.0);
+            assert_eq!(
+                clipped.price(&dated(&option, &context), &context).unwrap(),
+                0.0
+            );
             let holding_context = PricingContext::new(
                 BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
                 if direction == OptionType::Call {
@@ -376,10 +398,15 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             )
             .unwrap();
             let holding = option.replace_history(3.0).unwrap();
-            assert_eq!(clipped.price(&holding, &holding_context).unwrap(), -45.0);
+            assert_eq!(
+                clipped
+                    .price(&dated(&holding, &holding_context), &holding_context)
+                    .unwrap(),
+                -45.0
+            );
             assert_eq!(
                 monte_carlo
-                    .price_with_statistics(&holding, &holding_context)
+                    .price_with_statistics(&dated(&holding, &holding_context), &holding_context)
                     .unwrap()
                     .standard_error(),
                 Some(0.0)
@@ -428,19 +455,31 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             })
             .unwrap();
         let result = monte_carlo
-            .price_with_statistics(&holiday_option, &context)
+            .price_with_statistics(&dated(&holiday_option, &context), &context)
             .unwrap();
         assert_eq!(result.standard_error(), Some(0.0));
-        assert_eq!(clipped.price(&holiday_option, &context).unwrap(), 0.0);
+        assert_eq!(
+            clipped
+                .price(&dated(&holiday_option, &context), &context)
+                .unwrap(),
+            0.0
+        );
         let engine = QuadratureAccumulatorEngine::default();
-        assert!((engine.price(&option, &context).unwrap() - 20.0).abs() < 1e-7);
+        assert!((engine.price(&dated(&option, &context), &context).unwrap() - 20.0).abs() < 1e-7);
         let at_current_event = context
             .replace(PricingContextChanges {
                 valuation_time: Some(day(2)),
                 ..Default::default()
             })
             .unwrap();
-        assert!((engine.price(&option, &at_current_event).unwrap() - 20.0).abs() < 1e-7);
+        assert!(
+            (engine
+                .price(&dated(&option, &at_current_event), &at_current_event)
+                .unwrap()
+                - 20.0)
+                .abs()
+                < 1e-7
+        );
     }
 }
 
@@ -463,7 +502,7 @@ fn zero_multiplier_with_inverted_barrier_still_accrues_on_non_knock_out_dates() 
         )
         .unwrap();
         for engine in engines() {
-            let actual = engine.price(&option, &context).unwrap();
+            let actual = engine.price(&dated(&option, &context), &context).unwrap();
             assert!((actual - 60.0).abs() < 2e-7, "{direction:?}: {actual}");
         }
     }
@@ -484,8 +523,8 @@ fn explicit_daily_dates_preserve_default_prices_for_both_directions() {
         assert_eq!(default.knock_out_observation_times(), None);
         for engine in engines() {
             assert_eq!(
-                engine.price(&default, &context).unwrap(),
-                engine.price(&explicit, &context).unwrap()
+                engine.price(&dated(&default, &context), &context).unwrap(),
+                engine.price(&dated(&explicit, &context), &context).unwrap()
             );
         }
     }
@@ -535,8 +574,18 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
         0.2,
     );
     for engine in engines() {
-        assert!(engine.price(&weekend, &context).unwrap().is_finite());
-        assert!(engine.price(&option, &context).unwrap().is_finite());
+        assert!(
+            engine
+                .price(&dated(&weekend, &context), &context)
+                .unwrap()
+                .is_finite()
+        );
+        assert!(
+            engine
+                .price(&dated(&option, &context), &context)
+                .unwrap()
+                .is_finite()
+        );
     }
 }
 
@@ -563,8 +612,10 @@ fn midnight_purchases_use_strict_strike_comparisons_and_intraday_history_once() 
         );
         let history = option.replace_history(quantity).unwrap();
         for engine in engines() {
-            let at_price = engine.price(&option, &at_event).unwrap();
-            let after_price = engine.price(&history, &after_event).unwrap();
+            let at_price = engine.price(&dated(&option, &at_event), &at_event).unwrap();
+            let after_price = engine
+                .price(&dated(&history, &after_event), &after_event)
+                .unwrap();
             assert!(
                 (at_price - after_price).abs() < 1e-7,
                 "{direction:?}, spot {spot}: {at_price} != {after_price}"
@@ -577,7 +628,7 @@ fn midnight_purchases_use_strict_strike_comparisons_and_intraday_history_once() 
         );
         let expected = terminal_reference(&history, &intraday);
         let actual = QuadratureAccumulatorEngine::default()
-            .price(&history, &intraday)
+            .price(&dated(&history, &intraday), &intraday)
             .unwrap();
         assert!((actual - expected).abs() < 1e-9);
     }
@@ -607,7 +658,7 @@ fn terminal_digital_portfolio_covers_directions_barrier_orderings_and_empty_date
                     t.acceleration_factor = multiplier;
                     let option = Accumulator::new(t).unwrap();
                     let expected = terminal_reference(&option, &context);
-                    let actual = engine.price(&option, &context).unwrap();
+                    let actual = engine.price(&dated(&option, &context), &context).unwrap();
                     assert!(
                         (actual - expected).abs() < 1e-9,
                         "{direction:?}, barrier {barrier}, multiplier {multiplier}, monitored {monitored}: {actual} != {expected}"
@@ -649,7 +700,9 @@ fn finite_difference_converges_and_monte_carlo_matches_terminal_portfolio() {
                     ..Default::default()
                 })
                 .unwrap();
-                errors.push((engine.price(&option, &context).unwrap() - expected).abs());
+                errors.push(
+                    (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs(),
+                );
             }
             assert!(
                 errors[1] < 0.001,
@@ -660,7 +713,7 @@ fn finite_difference_converges_and_monte_carlo_matches_terminal_portfolio() {
                 "{direction:?}, monitored {monitored}: {errors:?}"
             );
             let estimate = monte_carlo
-                .price_with_statistics(&option, &context)
+                .price_with_statistics(&dated(&option, &context), &context)
                 .unwrap();
             assert!(
                 (estimate.price() - expected).abs()
@@ -692,14 +745,14 @@ fn sparse_multi_day_prices_agree_with_sampling_and_grid_refinement() {
                 ..Default::default()
             })
             .unwrap()
-            .price(&option, &context)
+            .price(&dated(&option, &context), &context)
             .unwrap();
             let coarse = QuadratureAccumulatorEngine::new(QuadratureSettings {
                 asset_step_count: 512,
                 ..Default::default()
             })
             .unwrap()
-            .price(&option, &context)
+            .price(&dated(&option, &context), &context)
             .unwrap();
             assert!(
                 (coarse - reference).abs() < 0.002,
@@ -713,14 +766,14 @@ fn sparse_multi_day_prices_agree_with_sampling_and_grid_refinement() {
                     ..Default::default()
                 })
                 .unwrap()
-                .price(&option, &context)
+                .price(&dated(&option, &context), &context)
                 .unwrap();
             assert!(
                 (finite_difference - reference).abs() < 0.01,
                 "{direction:?}: {finite_difference} != {reference}"
             );
             let estimate = monte_carlo
-                .price_with_statistics(&option, &context)
+                .price_with_statistics(&dated(&option, &context), &context)
                 .unwrap();
             assert!(
                 (estimate.price() - reference).abs()
@@ -755,12 +808,15 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
     for (index, engine) in engines().into_iter().enumerate() {
         let result = engine
             .price_with_greeks(
-                &option,
+                &dated(&option, &context),
                 &context,
                 GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]),
             )
             .unwrap();
-        assert_eq!(result.price(), engine.price(&option, &context).unwrap());
+        assert_eq!(
+            result.price(),
+            engine.price(&dated(&option, &context), &context).unwrap()
+        );
         for greek in [Greek::Delta, Greek::Gamma, Greek::Vega] {
             assert!(result.has(greek), "missing {greek:?}");
         }
@@ -771,7 +827,7 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
         }
         let volatility = implied_volatility(
             engine.as_ref(),
-            &option,
+            &dated(&option, &context),
             &context,
             result.price(),
             ImpliedVolatilitySettings {
@@ -790,11 +846,11 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
         t.acceleration_factor = 1.0;
         let linear = Accumulator::new(t).unwrap();
         for engine in engines() {
-            let quote = engine.price(&linear, &context).unwrap();
+            let quote = engine.price(&dated(&linear, &context), &context).unwrap();
             assert!(matches!(
                 implied_volatility(
                     engine.as_ref(),
-                    &linear,
+                    &dated(&linear, &context),
                     &context,
                     quote,
                     Default::default()
@@ -846,7 +902,7 @@ fn adjacent_barrier_levels_preserve_forward_prices_and_greeks() {
                     .unwrap();
                     let result = engine
                         .price_with_greeks(
-                            &option,
+                            &dated(&option, &context),
                             &context,
                             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
                         )
@@ -877,7 +933,7 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
             for engine in engines() {
                 let result = engine
                     .price_with_greeks(
-                        &option,
+                        &dated(&option, &context),
                         &context,
                         GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]),
                     )
@@ -891,7 +947,7 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
         for engine in engines() {
             let result = engine
                 .price_with_greeks(
-                    &option,
+                    &dated(&option, &market(100.0, day(3), 0.4)),
                     &market(100.0, day(3), 0.4),
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
                 )

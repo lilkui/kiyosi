@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn day(month: u32, date: u32) -> Timestamp {
@@ -43,22 +46,22 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
         &MonteCarloAccumulatorEngine::default(),
     ] {
         assert!(matches!(
-            engine.price(&option, &context),
+            engine.price(&dated(&option, &context), &context),
             Err(Error::InvalidInput(_))
         ));
-        assert_eq!(engine.price(&active, &context)?, 25.0);
-        assert_eq!(engine.price(&settled, &context)?, 0.0);
+        assert_eq!(engine.price(&dated(&active, &context), &context)?, 25.0);
+        assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);
         let initial = context.replace(PricingContextChanges {
             valuation_time: Some(start),
             ..Default::default()
         })?;
         assert!(
             engine
-                .price(&option.replace_history(None)?, &initial)
+                .price(&dated(&option.replace_history(None)?, &initial), &initial)
                 .is_ok()
         );
         assert!(matches!(
-            engine.price(&settled, &initial),
+            engine.price(&dated(&settled, &initial), &initial),
             Err(Error::InvalidInput(_))
         ));
         let no_knock_out = option.replace(AccumulatorChanges {
@@ -67,7 +70,10 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
             knock_out_settled: Some(None),
             ..Default::default()
         })?;
-        assert_eq!(engine.price(&no_knock_out, &context)?, 25.0);
+        assert_eq!(
+            engine.price(&dated(&no_knock_out, &context), &context)?,
+            25.0
+        );
     }
     Ok(())
 }
@@ -97,8 +103,10 @@ impl PricingEngine<Accumulator> for TerminalReference {
                 option.effective_time(),
                 option.expiry_time(),
             )?;
-            Ok(AnalyticDigitalEngine.price(&asset, context)?
-                - AnalyticDigitalEngine.price(&cash, context)?)
+            Ok(
+                AnalyticDigitalEngine.price(&dated(&asset, context), context)?
+                    - AnalyticDigitalEngine.price(&dated(&cash, context), context)?,
+            )
         };
         let model = context.model_parameters().as_bsm().unwrap();
         let fixed = option.accumulated_quantity().unwrap()
@@ -145,14 +153,19 @@ fn single_observation_matches_terminal_digital_portfolio_without_grid_error() {
                     0.03,
                 );
                 let value = QuadratureAccumulatorEngine::default()
-                    .price(&option, &context)
+                    .price(&dated(&option, &context), &context)
                     .unwrap();
-                let expected = TerminalReference.price(&option, &context).unwrap();
+                let expected = TerminalReference
+                    .price(&dated(&option, &context), &context)
+                    .unwrap();
                 assert!(
                     (value - expected).abs() < 1e-9,
                     "ko={knock_out} acceleration={acceleration} spot={spot}: {value} != {expected}"
                 );
-                assert_eq!(minimal.price(&option, &context).unwrap(), value);
+                assert_eq!(
+                    minimal.price(&dated(&option, &context), &context).unwrap(),
+                    value
+                );
             }
         }
     }
@@ -242,11 +255,11 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     ] {
         let context = market(spot, day(1, 6), 0.2, 0.04, 0.01);
         assert_eq!(
-            engine.price(&option, &context).unwrap(),
+            engine.price(&dated(&option, &context), &context).unwrap(),
             quantity * (spot - 100.0)
         );
         let result = engine
-            .price_with_greeks(&option, &context, GreeksRequest::all())
+            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
             .unwrap();
         assert_eq!(result.get(Greek::Theta), None);
         assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
@@ -262,15 +275,20 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
             .replace_history(if spot < 100.0 { 5.0 } else { 4.0 })
             .unwrap();
         assert!(
-            (engine.price(&option, &context).unwrap()
-                - TerminalReference.price(&updated, &context).unwrap())
+            (engine.price(&dated(&option, &context), &context).unwrap()
+                - TerminalReference
+                    .price(&dated(&updated, &context), &context)
+                    .unwrap())
             .abs()
                 < 1e-9
         );
     }
     assert_eq!(
         engine
-            .price(&option, &market(110.0, day(1, 2), 0.2, 0.04, 0.01))
+            .price(
+                &dated(&option, &market(110.0, day(1, 2), 0.2, 0.04, 0.01)),
+                &market(110.0, day(1, 2), 0.2, 0.04, 0.01)
+            )
             .unwrap(),
         30.0
     );
@@ -280,7 +298,10 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     ] {
         assert!(matches!(
             engine
-                .price(&option, &market(100.0, at, 0.2, 0.04, 0.01))
+                .price(
+                    &dated(&option, &market(100.0, at, 0.2, 0.04, 0.01)),
+                    &market(100.0, at, 0.2, 0.04, 0.01)
+                )
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
@@ -288,14 +309,26 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     let huge = option.replace_history(f64::MAX).unwrap();
     assert!(matches!(
         engine
-            .price(&huge, &market(111.0, day(1, 6), 0.2, 0.04, 0.01))
+            .price(
+                &dated(&huge, &market(111.0, day(1, 6), 0.2, 0.04, 0.01)),
+                &market(111.0, day(1, 6), 0.2, 0.04, 0.01)
+            )
             .unwrap_err(),
         Error::ComputationFailure(_)
     ));
     assert!(matches!(
         engine
             .price(
-                &option,
+                &dated(
+                    &option,
+                    &market(
+                        100.0,
+                        Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
+                        1e308,
+                        0.04,
+                        0.01
+                    )
+                ),
                 &market(
                     100.0,
                     Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
@@ -347,7 +380,10 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
                 let quantity = 3.0 + if side < 100.0 { 2.0 } else { 1.0 };
                 TerminalReference
                     .price(
-                        &option.replace_history(quantity).unwrap(),
+                        &dated(
+                            &option.replace_history(quantity).unwrap(),
+                            &market(spot, day(1, 2), 0.6, -0.02, 0.03),
+                        ),
                         &market(spot, day(1, 2), 0.6, -0.02, 0.03),
                     )
                     .unwrap()
@@ -366,8 +402,8 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
             reference += sum * step / 3.0;
         }
         reference *= (0.02 * time).exp();
-        let value = engine.price(&option, &context).unwrap();
-        let refined = fine.price(&option, &context).unwrap();
+        let value = engine.price(&dated(&option, &context), &context).unwrap();
+        let refined = fine.price(&dated(&option, &context), &context).unwrap();
         assert!(
             (value - reference).abs() < 2e-5,
             "{ko}: {value} != {reference}"
@@ -387,7 +423,10 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
     let context = market(90.0, at, 0.2, 0.04, 0.01);
     let values = [0.0, 3.0, 6.0].map(|q| {
         engine
-            .price(&option.replace_history(q).unwrap(), &context)
+            .price(
+                &dated(&option.replace_history(q).unwrap(), &context),
+                &context,
+            )
             .unwrap()
     });
     assert!((values[2] - values[1] - (values[1] - values[0])).abs() < 1e-10);
@@ -396,11 +435,17 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
         ..terms(day(2, 3))
     })
     .unwrap();
-    assert_eq!(engine.price(&inactive, &context).unwrap(), 0.0);
+    assert_eq!(
+        engine.price(&dated(&inactive, &context), &context).unwrap(),
+        0.0
+    );
     let zero_carry = market(90.0, at, 0.2, 0.0, 0.0);
     assert_eq!(
         engine
-            .price(&inactive.replace_history(3.0).unwrap(), &zero_carry)
+            .price(
+                &dated(&inactive.replace_history(3.0).unwrap(), &zero_carry),
+                &zero_carry
+            )
             .unwrap(),
         -30.0
     );
@@ -408,7 +453,7 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
         let tiny = market(spot, at, 1e-8, 0.0, 0.0);
         assert!(
             (engine
-                .price(&option.replace_history(3.0).unwrap(), &tiny)
+                .price(&dated(&option.replace_history(3.0).unwrap(), &tiny), &tiny)
                 .unwrap()
                 - expected)
                 .abs()
@@ -416,9 +461,9 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
         );
     }
     std::thread::scope(|scope| {
-        let other = scope.spawn(|| engine.price(&option, &context).unwrap());
+        let other = scope.spawn(|| engine.price(&dated(&option, &context), &context).unwrap());
         assert_eq!(
-            engine.price(&option, &context).unwrap(),
+            engine.price(&dated(&option, &context), &context).unwrap(),
             other.join().unwrap()
         );
     });
@@ -440,7 +485,7 @@ fn discounted_low_tail_preserves_large_finite_quantities() {
         ..terms(day(1, 6))
     })
     .unwrap();
-    let actual = engine.price(&option, &context).unwrap();
+    let actual = engine.price(&dated(&option, &context), &context).unwrap();
     let reference = -1.326_800_799_078_903e302;
     assert!((actual / reference - 1.0).abs() < 1e-12);
     let smaller = Accumulator::new(AccumulatorTerms {
@@ -449,7 +494,9 @@ fn discounted_low_tail_preserves_large_finite_quantities() {
         ..terms(day(1, 6))
     })
     .unwrap();
-    assert!((actual / engine.price(&smaller, &context).unwrap() - 10.0).abs() < 1e-12);
+    assert!(
+        (actual / engine.price(&dated(&smaller, &context), &context).unwrap() - 10.0).abs() < 1e-12
+    );
 }
 
 #[test]
@@ -527,7 +574,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
         .unwrap()
         .len();
         let exposure = 100.0 * (3.0 + observations as f64 * acceleration.max(1.0));
-        let values = engines.map(|e| e.price(&option, &context).unwrap());
+        let values = engines.map(|e| e.price(&dated(&option, &context), &context).unwrap());
         assert!(
             (values[0] - values[1]).abs() / exposure <= 1e-6,
             "{end:?} {spot} {sigma}"
@@ -542,7 +589,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
 struct Scalar(QuadratureAccumulatorEngine);
 impl PricingEngine<Accumulator> for Scalar {
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        self.0.price(option, context)
+        self.0.price(&dated(option, context), context)
     }
 }
 
@@ -566,11 +613,17 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
         rate_shift: 0.001,
         ..Default::default()
     };
-    let actual =
-        kiyosi::numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts).unwrap();
+    let actual = kiyosi::numerical_greeks(
+        &engine,
+        &dated(&option, &context),
+        &context,
+        GreeksRequest::all(),
+        shifts,
+    )
+    .unwrap();
     let reference = numerical_greeks(
         &TerminalReference,
-        &option,
+        &dated(&option, &context),
         &context,
         GreeksRequest::all(),
         shifts,
@@ -599,12 +652,17 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     ] {
         for spot in [90.0, 100.0, 100.25, 109.9, 110.0] {
             let context = market(spot, at, 0.3, -0.02, 0.01);
-            let actual =
-                kiyosi::numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts)
-                    .unwrap();
+            let actual = kiyosi::numerical_greeks(
+                &engine,
+                &dated(&option, &context),
+                &context,
+                GreeksRequest::all(),
+                shifts,
+            )
+            .unwrap();
             let scalar = numerical_greeks(
                 &Scalar(engine),
-                &option,
+                &dated(&option, &context),
                 &context,
                 GreeksRequest::all(),
                 shifts,
@@ -624,7 +682,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         .unwrap();
     let boundary = market(100.0, day(1, 2), 0.2, 0.04, 0.01);
     let result = engine
-        .price_with_greeks(&option, &boundary, GreeksRequest::all())
+        .price_with_greeks(&dated(&option, &boundary), &boundary, GreeksRequest::all())
         .unwrap();
     for greek in [
         Greek::Delta,
@@ -651,17 +709,29 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         0.04,
         0.01,
     );
-    let quote = engine.price(&option, &context).unwrap();
+    let quote = engine.price(&dated(&option, &context), &context).unwrap();
     let settings = ImpliedVolatilitySettings {
         lower_bound: 0.2,
         upper_bound: 0.6,
         ..Default::default()
     };
     assert!(
-        (implied_volatility(&engine, &option, &context, quote, settings).unwrap() - 0.4).abs()
+        (implied_volatility(
+            &engine,
+            &dated(&option, &context),
+            &context,
+            quote,
+            settings
+        )
+        .unwrap()
+            - 0.4)
+            .abs()
             < 1e-6
     );
-    assert_eq!(engine.price(&option, &context).unwrap(), quote);
+    assert_eq!(
+        engine.price(&dated(&option, &context), &context).unwrap(),
+        quote
+    );
     for (option, context) in [
         (option.clone(), market(110.0, day(1, 3), 0.2, 0.04, 0.01)),
         (option.clone(), market(100.0, day(1, 6), 0.2, 0.04, 0.01)),
@@ -676,9 +746,16 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
             market(90.0, day(1, 3), 0.2, 0.0, 0.0),
         ),
     ] {
-        let quote = engine.price(&option, &context).unwrap();
+        let quote = engine.price(&dated(&option, &context), &context).unwrap();
         assert!(matches!(
-            implied_volatility(&engine, &option, &context, quote, settings).unwrap_err(),
+            implied_volatility(
+                &engine,
+                &dated(&option, &context),
+                &context,
+                quote,
+                settings
+            )
+            .unwrap_err(),
             Error::UnsupportedOperation(_)
         ));
     }
@@ -696,13 +773,17 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         .unwrap();
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &curved, GreeksRequest::new([]))
+            .price_with_greeks(&dated(&option, &curved), &curved, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &boundary, GreeksRequest::new([]))
+            .price_with_greeks(
+                &dated(&option, &boundary),
+                &boundary,
+                GreeksRequest::new([])
+            )
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -761,14 +842,14 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
         .unwrap();
         let context = market(spot, at, sigma, rate, 0.01);
         let base = normal
-            .price_with_greeks(&option, &context, GreeksRequest::all())
+            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
             .unwrap();
         let fine = refined
-            .price_with_greeks(&option, &context, GreeksRequest::all())
+            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
             .unwrap();
         let smaller = kiyosi::numerical_greeks(
             &refined,
-            &option,
+            &dated(&option, &context),
             &context,
             GreeksRequest::all(),
             NumericalShiftSettings {
@@ -832,11 +913,14 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
         assert_eq!(option.accumulated_quantity(), None);
         let first = if start == day(1, 4) { day(1, 6) } else { start };
         let current = market(100.0, first, 0.2, 0.0, 0.0);
-        assert!(engine.price(&option, &current).is_ok());
+        assert!(engine.price(&dated(&option, &current), &current).is_ok());
         for valuation in [start, first] {
             assert!(matches!(
                 engine.price(
-                    &option.replace_history(3.0).unwrap(),
+                    &dated(
+                        &option.replace_history(3.0).unwrap(),
+                        &market(100.0, valuation, 0.2, 0.0, 0.0)
+                    ),
                     &market(100.0, valuation, 0.2, 0.0, 0.0),
                 ),
                 Err(Error::InvalidInput(_))
@@ -849,28 +933,37 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
             })
             .unwrap();
         assert!(matches!(
-            engine.price(&option, &prior),
+            engine.price(&dated(&option, &prior), &prior),
             Err(Error::InvalidInput(_))
         ));
         assert!(
             engine
-                .price(&option.replace_history(0.0).unwrap(), &prior)
+                .price(
+                    &dated(&option.replace_history(0.0).unwrap(), &prior),
+                    &prior
+                )
                 .is_ok()
         );
         let expiry = market(100.0, day(1, 7), 0.2, 0.0, 0.0);
         assert!(matches!(
-            engine.price(&option, &expiry),
+            engine.price(&dated(&option, &expiry), &expiry),
             Err(Error::InvalidInput(_))
         ));
         assert_eq!(
             engine
-                .price(&option.replace_history(0.0).unwrap(), &expiry)
+                .price(
+                    &dated(&option.replace_history(0.0).unwrap(), &expiry),
+                    &expiry
+                )
                 .unwrap(),
             10.0
         );
         assert_eq!(
             engine
-                .price(&option.replace_history(10.0).unwrap(), &expiry)
+                .price(
+                    &dated(&option.replace_history(10.0).unwrap(), &expiry),
+                    &expiry
+                )
                 .unwrap(),
             110.0
         );

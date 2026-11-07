@@ -88,6 +88,36 @@
 //! All Heston Greeks are absent. Other engines and implied-parameter solvers reject Heston.
 //! See each engine's constructor for examples, numerical controls and convergence checks.
 //!
+//! # History snapshots
+//!
+//! Supplied history requires [`OptionContract::with_history_time`] before pricing.
+//! It describes events strictly before that instant. Discrete history can be reused
+//! between observations; unaccounted observations require a fresh snapshot. Continuous
+//! barrier and Asian history require the same instant, except resolved barrier monitoring.
+//! Replacements preserve the stamp. Numerical time sensitivities freeze observed history
+//! internally while moving hypothetical valuation; caller inputs remain unchanged.
+//!
+//! ```rust
+//! use kiyosi::*;
+//! # fn main() -> Result<()> {
+//! let start = Date::new(2025, 1, 2)?.start_of_day();
+//! let at = Date::new(2025, 1, 6)?.at_time(TimeOfDay::new(12, 0, 0, 0)?);
+//! let end = Date::new(2025, 1, 10)?.start_of_day();
+//! let mut terms = RangeAccrualTerms::new(100.0, 0.1, 90.0, 110.0,
+//!     start, end, TimeOfDay::new(15, 0, 0, 0)?);
+//! terms.realized_hit_count = Some(1);
+//! let option = RangeAccrualOption::new(terms)?.with_history_time(Some(at));
+//! let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?, 100.0, at)?;
+//! let price = AnalyticRangeAccrualEngine.price(&option, &context)?;
+//! let later = context.replace(PricingContextChanges {
+//!     valuation_time: Some(at.add_days(1)?), ..Default::default()
+//! })?;
+//! assert!(matches!(AnalyticRangeAccrualEngine.price(&option, &later), Err(Error::InvalidInput(_))));
+//! let refreshed = option.replace_history(Some(2))?.with_history_time(Some(later.valuation_time()));
+//! assert_eq!(AnalyticRangeAccrualEngine.price(&refreshed, &later)?, price);
+//! # Ok(()) }
+//! ```
+//!
 //! # Concurrency and errors
 //!
 //! Built-in contracts, market data, engines and results own their data and are

@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {
@@ -75,13 +78,25 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
             ] {
                 let expected = base + if spot >= barrier { coupon } else { 0.0 };
                 assert!(
-                    (engine.price(&note, &market(spot, date(4, 1))).unwrap() - expected).abs()
+                    (engine
+                        .price(
+                            &dated(&note, &market(spot, date(4, 1))),
+                            &market(spot, date(4, 1))
+                        )
+                        .unwrap()
+                        - expected)
+                        .abs()
                         < 1e-14
                 );
             }
             // The shorter first period pays the same coupon, including on knock-out.
             assert_eq!(
-                engine.price(&note, &market(110.0, date(2, 3))).unwrap(),
+                engine
+                    .price(
+                        &dated(&note, &market(110.0, date(2, 3))),
+                        &market(110.0, date(2, 3))
+                    )
+                    .unwrap(),
                 0.25 + coupon
             );
             let changed = note
@@ -113,7 +128,15 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
             coupon_barrier_level: 90.0,
         })
         .unwrap();
-    assert_eq!(engine.price(&note, &market(85.0, date(2, 3))).unwrap(), 1.0);
+    assert_eq!(
+        engine
+            .price(
+                &dated(&note, &market(85.0, date(2, 3))),
+                &market(85.0, date(2, 3))
+            )
+            .unwrap(),
+        1.0
+    );
 }
 
 #[test]
@@ -160,9 +183,9 @@ fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() 
             )
             .unwrap();
             for value in [
-                quad.price(&note, &context).unwrap(),
-                fd.price(&note, &context).unwrap(),
-                mc.price(&note, &context).unwrap(),
+                quad.price(&dated(&note, &context), &context).unwrap(),
+                fd.price(&dated(&note, &context), &context).unwrap(),
+                mc.price(&dated(&note, &context), &context).unwrap(),
             ] {
                 assert!((value - expected).abs() < 1e-9);
             }
@@ -177,9 +200,12 @@ fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() 
     terms.coupon = PhoenixCoupon::Annual(0.365);
     let annual = PhoenixOption::new(terms).unwrap();
     let context = market(110.0, date(2, 3));
-    assert_eq!(quad.price(&fixed, &context).unwrap(), 1.01);
     assert_eq!(
-        quad.price(&annual, &context).unwrap(),
+        quad.price(&dated(&fixed, &context), &context).unwrap(),
+        1.01
+    );
+    assert_eq!(
+        quad.price(&dated(&annual, &context), &context).unwrap(),
         1.0 + 0.365 * 33.0 / 365.0
     );
 }
@@ -190,7 +216,9 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
     let end = date(4, 1);
     let discount = (-0.04_f64 * 90.0 / 365.0).exp();
     let put = EuropeanOption::new(OptionType::Put, 80.0, date(1, 1), end).unwrap();
-    let put_price = AnalyticEuropeanEngine.price(&put, &context).unwrap();
+    let put_price = AnalyticEuropeanEngine
+        .price(&dated(&put, &context), &context)
+        .unwrap();
     let quad = QuadratureAutocallableEngine::default();
     let fd = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
         asset_step_count: 800,
@@ -226,26 +254,33 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                     end,
                 )
                 .unwrap();
-                AnalyticDigitalEngine.price(&digital, &context).unwrap()
+                AnalyticDigitalEngine
+                    .price(&dated(&digital, &context), &context)
+                    .unwrap()
             }
         };
         let expected = discount - put_price / 100.0 + coupon_value;
-        assert!((quad.price(&note, &context).unwrap() - expected).abs() < 1e-12);
-        assert!((fd.price(&note, &context).unwrap() - expected).abs() < 3e-5);
-        let estimate = mc.price_with_statistics(&note, &context).unwrap();
+        assert!((quad.price(&dated(&note, &context), &context).unwrap() - expected).abs() < 1e-12);
+        assert!((fd.price(&dated(&note, &context), &context).unwrap() - expected).abs() < 3e-5);
+        let estimate = mc
+            .price_with_statistics(&dated(&note, &context), &context)
+            .unwrap();
         assert!((estimate.price() - expected).abs() < 5.0 * estimate.standard_error().unwrap());
         for actual in [
             implied_phoenix_coupon(
                 &quad,
-                &note,
+                &dated(&note, &context),
                 &context,
                 quad.price(
-                    &note
-                        .replace(PhoenixOptionChanges {
-                            coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
-                            ..Default::default()
-                        })
-                        .unwrap(),
+                    &dated(
+                        &note
+                            .replace(PhoenixOptionChanges {
+                                coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                                ..Default::default()
+                            })
+                            .unwrap(),
+                        &context,
+                    ),
                     &context,
                 )
                 .unwrap(),
@@ -258,15 +293,18 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
             .unwrap(),
             implied_phoenix_coupon(
                 &fd,
-                &note,
+                &dated(&note, &context),
                 &context,
                 fd.price(
-                    &note
-                        .replace(PhoenixOptionChanges {
-                            coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
-                            ..Default::default()
-                        })
-                        .unwrap(),
+                    &dated(
+                        &note
+                            .replace(PhoenixOptionChanges {
+                                coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                                ..Default::default()
+                            })
+                            .unwrap(),
+                        &context,
+                    ),
                     &context,
                 )
                 .unwrap(),
@@ -279,15 +317,18 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
             .unwrap(),
             implied_phoenix_coupon(
                 &mc,
-                &note,
+                &dated(&note, &context),
                 &context,
                 mc.price(
-                    &note
-                        .replace(PhoenixOptionChanges {
-                            coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
-                            ..Default::default()
-                        })
-                        .unwrap(),
+                    &dated(
+                        &note
+                            .replace(PhoenixOptionChanges {
+                                coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                                ..Default::default()
+                            })
+                            .unwrap(),
+                        &context,
+                    ),
                     &context,
                 )
                 .unwrap(),
@@ -370,26 +411,38 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             let expected = 1.0 + rate * years;
             assert_eq!(
                 QuadratureAutocallableEngine::default()
-                    .price(&note, &market(110.0, observation))
+                    .price(
+                        &dated(&note, &market(110.0, observation)),
+                        &market(110.0, observation)
+                    )
                     .unwrap(),
                 expected
             );
             assert_eq!(
                 FiniteDifferenceAutocallableEngine::default()
-                    .price(&note, &market(110.0, observation))
+                    .price(
+                        &dated(&note, &market(110.0, observation)),
+                        &market(110.0, observation)
+                    )
                     .unwrap(),
                 expected
             );
             assert_eq!(
                 MonteCarloAutocallableEngine::default()
-                    .price(&note, &market(110.0, observation))
+                    .price(
+                        &dated(&note, &market(110.0, observation)),
+                        &market(110.0, observation)
+                    )
                     .unwrap(),
                 expected
             );
         }
         assert_eq!(
             QuadratureAutocallableEngine::default()
-                .price(&note, &market(100.0, date(4, 1)))
+                .price(
+                    &dated(&note, &market(100.0, date(4, 1))),
+                    &market(100.0, date(4, 1))
+                )
                 .unwrap(),
             1.0 + maturity * 90.0 / 365.0
         );
@@ -520,7 +573,10 @@ fn phoenix_presets_reuse_core_validation_and_history_defaults() {
     assert_eq!(note.barrier_state(), None);
     assert_eq!(note.terms().principal_ratio, 1.0);
     assert!(matches!(
-        QuadratureAutocallableEngine::default().price(&note, &market(100.0, date(3, 3))),
+        QuadratureAutocallableEngine::default().price(
+            &dated(&note, &market(100.0, date(3, 3))),
+            &market(100.0, date(3, 3))
+        ),
         Err(Error::InvalidInput(_))
     ));
     let settled = note
@@ -528,7 +584,10 @@ fn phoenix_presets_reuse_core_validation_and_history_defaults() {
         .unwrap();
     assert_eq!(
         QuadratureAutocallableEngine::default()
-            .price(&settled, &market(100.0, date(3, 3)))
+            .price(
+                &dated(&settled, &market(100.0, date(3, 3))),
+                &market(100.0, date(3, 3))
+            )
             .unwrap(),
         0.0
     );

@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {
@@ -59,10 +62,12 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
             expected.coupon = expected_coupon;
             assert_eq!(quoted.terms(), &expected);
             let quote = 1.0 + payment;
-            assert!((engine.price(&quoted, &context).unwrap() - quote).abs() < 1e-14);
+            assert!(
+                (engine.price(&dated(&quoted, &context), &context).unwrap() - quote).abs() < 1e-14
+            );
             let solved = implied_phoenix_coupon(
                 &engine,
-                &note,
+                &dated(&note, &context),
                 &context,
                 quote,
                 ImpliedCouponSettings {
@@ -74,7 +79,10 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
             assert!((solved - coupon).abs() < 1e-12);
             assert!(
                 (engine
-                    .price(&note.with_quoted_coupon(solved).unwrap(), &context)
+                    .price(
+                        &dated(&note.with_quoted_coupon(solved).unwrap(), &context),
+                        &context
+                    )
                     .unwrap()
                     - quote)
                     .abs()
@@ -108,11 +116,24 @@ fn conditional_period_coupons_are_inclusive_and_independent_of_principal_and_los
         ] {
             let expected = base + if paid { coupon * 57.0 / 365.0 } else { 0.0 };
             assert!(
-                (engine.price(&note, &market(spot, date(4, 1))).unwrap() - expected).abs() < 1e-14
+                (engine
+                    .price(
+                        &dated(&note, &market(spot, date(4, 1))),
+                        &market(spot, date(4, 1))
+                    )
+                    .unwrap()
+                    - expected)
+                    .abs()
+                    < 1e-14
             );
         }
         assert!(
-            (engine.price(&note, &market(110.0, date(2, 3))).unwrap()
+            (engine
+                .price(
+                    &dated(&note, &market(110.0, date(2, 3))),
+                    &market(110.0, date(2, 3))
+                )
+                .unwrap()
                 - (0.25 + coupon * 33.0 / 365.0))
                 .abs()
                 < 1e-14
@@ -137,8 +158,11 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             let put = |strike| {
                 AnalyticEuropeanEngine
                     .price(
-                        &EuropeanOption::new(OptionType::Put, strike, t.effective_time, end)
-                            .unwrap(),
+                        &dated(
+                            &EuropeanOption::new(OptionType::Put, strike, t.effective_time, end)
+                                .unwrap(),
+                            &ctx,
+                        ),
                         &ctx,
                     )
                     .unwrap()
@@ -152,10 +176,13 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             )
             .unwrap();
             let expected = 0.25 * (-0.04_f64).exp()
-                + coupon.signum() * AnalyticDigitalEngine.price(&digital, &ctx).unwrap()
+                + coupon.signum()
+                    * AnalyticDigitalEngine
+                        .price(&dated(&digital, &ctx), &ctx)
+                        .unwrap()
                 - (put(100.0) - if lower == 0.0 { 0.0 } else { put(lower) }) / 100.0;
             let actual = QuadratureAutocallableEngine::default()
-                .price(&PhoenixOption::new(t).unwrap(), &ctx)
+                .price(&dated(&PhoenixOption::new(t).unwrap(), &ctx), &ctx)
                 .unwrap();
             assert!((actual - expected).abs() < 1e-12, "{actual} != {expected}");
         }
@@ -205,7 +232,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     let engine = QuadratureAutocallableEngine::default();
     let ctx = market(100.0, date(2, 3));
     assert!(matches!(
-        engine.price(&note, &ctx).unwrap_err(),
+        engine.price(&dated(&note, &ctx), &ctx).unwrap_err(),
         Error::InvalidInput(_)
     ));
     let known = note
@@ -213,13 +240,21 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         .unwrap();
     assert_eq!(known.observations(), note.observations());
     assert_eq!(note.barrier_state(), None);
-    assert!(engine.price(&known, &ctx).unwrap().is_finite());
+    assert!(
+        engine
+            .price(&dated(&known, &ctx), &ctx)
+            .unwrap()
+            .is_finite()
+    );
     let impossible = note
         .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
     assert!(matches!(
         engine
-            .price(&impossible, &market(100.0, date(1, 1)))
+            .price(
+                &dated(&impossible, &market(100.0, date(1, 1))),
+                &market(100.0, date(1, 1))
+            )
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -227,7 +262,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
     assert!(matches!(
         engine
-            .price(&PhoenixOption::new(t).unwrap(), &ctx)
+            .price(&dated(&PhoenixOption::new(t).unwrap(), &ctx), &ctx)
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -240,7 +275,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     let engine = QuadratureAutocallableEngine::default();
     let result = kiyosi::numerical_greeks(
         &engine,
-        &note,
+        &dated(&note, &ctx),
         &ctx,
         GreeksRequest::all(),
         NumericalShiftSettings {
@@ -254,7 +289,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     }
     let sigma = implied_volatility(
         &engine,
-        &note,
+        &dated(&note, &ctx),
         &ctx,
         result.price(),
         ImpliedVolatilitySettings {
@@ -268,7 +303,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     assert_eq!(ctx.model_parameters().as_bsm().unwrap().volatility(), 0.3);
     let ctx = market(90.0, date(2, 3));
     let result = engine
-        .price_with_greeks(&note, &ctx, GreeksRequest::all())
+        .price_with_greeks(&dated(&note, &ctx), &ctx, GreeksRequest::all())
         .unwrap();
     assert!(!result.has(Greek::Delta));
     assert!(!result.has(Greek::Theta));
@@ -278,13 +313,18 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
         .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
     assert_eq!(
-        engine.price(&settled, &market(100.0, date(3, 3))).unwrap(),
+        engine
+            .price(
+                &dated(&settled, &market(100.0, date(3, 3))),
+                &market(100.0, date(3, 3))
+            )
+            .unwrap(),
         0.0
     );
     assert!(matches!(
         implied_volatility(
             &engine,
-            &settled,
+            &dated(&settled, &market(100.0, date(3, 3))),
             &market(100.0, date(3, 3)),
             0.0,
             Default::default()
@@ -328,7 +368,7 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     ] {
         let actual = QuadratureAutocallableEngine::new(settings)
             .unwrap()
-            .price(&note, &ctx)
+            .price(&dated(&note, &ctx), &ctx)
             .unwrap();
         assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
     }
@@ -362,7 +402,10 @@ fn phoenix_daily_layers_converge_with_conditional_coupons() {
                     integration_standard_deviations: e,
                 })
                 .unwrap()
-                .price(&note, &market(100.0, date(1, 1)))
+                .price(
+                    &dated(&note, &market(100.0, date(1, 1))),
+                    &market(100.0, date(1, 1)),
+                )
                 .unwrap()
             })
             .collect();

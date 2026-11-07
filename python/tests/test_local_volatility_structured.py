@@ -25,6 +25,7 @@ from quantlib_reference.local_volatility_paths import (
     payoffs,
     trading_dates,
 )
+from support.history import dated as dated_history
 
 START, END = (datetime.combine(value, datetime.min.time()) for value in (START, END))
 OBSERVATIONS = tuple(
@@ -168,14 +169,16 @@ class LocalVolatilityStructuredTests(unittest.TestCase):
                     + 2 * (abs(bias["fine_minus_coarse"]) + 5 * bias["standard_error"])
                     + (0.5 if name == "accumulator" else 0.0001)
                 )
-                actual = engine(name).price(contract, market())
+                actual = engine(name).price(dated_history(contract, market()), market())
                 self.assertAlmostEqual(actual, ref["price"], delta=budget)
 
     def test_skew_refines_time_space_domain_and_preserves_surface_greeks(self):
         for name, contract in contracts().items():
             with self.subTest(product=name):
                 e = engine(name)
-                result = e.price_with_greeks(contract, market(), ["delta", "gamma"])
+                result = e.price_with_greeks(
+                    dated_history(contract, market()), market(), ["delta", "gamma"]
+                )
                 budget = 0.5 if name == "accumulator" else 0.00015
                 for other in [
                     engine(name, time=800),
@@ -183,9 +186,14 @@ class LocalVolatilityStructuredTests(unittest.TestCase):
                     engine(name, space=2400, upper=660),
                 ]:
                     self.assertAlmostEqual(
-                        other.price(contract, market()), result.price, delta=budget
+                        other.price(dated_history(contract, market()), market()),
+                        result.price,
+                        delta=budget,
                     )
-                up, down = [e.price(contract, market(spot)) for spot in [101.1, 100.9]]
+                up, down = [
+                    e.price(dated_history(contract, market(spot)), market(spot))
+                    for spot in [101.1, 100.9]
+                ]
                 self.assertAlmostEqual(
                     result.delta,
                     (up - down) / 0.2,
@@ -208,7 +216,7 @@ class LocalVolatilityStructuredTests(unittest.TestCase):
         coarse = evidence["sensitivities"]["coarse"]["results"]
         for name, contract in contracts().items():
             actual = engine(name).price_with_greeks(
-                contract, market(103), ["delta", "gamma"]
+                dated_history(contract, market(103)), market(103), ["delta", "gamma"]
             )
             for greek in ["delta", "gamma"]:
                 with self.subTest(product=name, greek=greek):

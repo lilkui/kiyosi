@@ -82,7 +82,7 @@ impl DoubleTouchOption {
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         let mut updated = self.clone();
         updated.monitoring = updated.monitoring.replace_calendar(calendar)?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.history_time()))
     }
 
     /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
@@ -231,6 +231,14 @@ impl DoubleTouchOption {
     }
 }
 impl OptionContract for DoubleTouchOption {
+    fn history_time(&self) -> Option<Timestamp> {
+        self.monitoring.history_time()
+    }
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+        self.monitoring = self.monitoring.with_history_time(time);
+        self
+    }
+
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -322,6 +330,6 @@ impl DoubleTouchOption {
             history_supplied,
             self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
         )?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.history_time()))
     }
 }

@@ -22,3 +22,38 @@ pub(crate) fn validate_history_replacement(
     }
     Ok(())
 }
+
+pub(crate) fn validate_history_time(
+    option: &impl crate::OptionContract,
+    known: bool,
+    context: &crate::PricingContext,
+    continuous: bool,
+) -> crate::Result<()> {
+    if !known {
+        return Ok(());
+    }
+    let time = option.history_time().ok_or_else(|| {
+        crate::Error::InvalidInput("supplied history requires history_time".into())
+    })?;
+    if time < option.effective_time() || time > option.expiry_time() {
+        return Err(crate::Error::InvalidInput(
+            "history_time is outside contract life".into(),
+        ));
+    }
+    let valuation = context.history_anchor.unwrap_or(context.valuation_time());
+    if time > valuation {
+        return Err(crate::Error::InvalidInput(
+            "history_time cannot follow valuation".into(),
+        ));
+    }
+    if time != valuation {
+        let before = time.min(valuation);
+        let after = time.max(valuation).add_micros(-1)?;
+        if continuous || !option.time_stencil_available(context, before, after) {
+            return Err(crate::Error::InvalidInput(
+                "history_time does not cover this valuation; replace and date the history".into(),
+            ));
+        }
+    }
+    Ok(())
+}

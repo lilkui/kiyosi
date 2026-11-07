@@ -617,6 +617,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
             self.0
                 .with_shifted_coupons(first_observation_coupon, convention),
         )
+        .map(|updated| updated.with_history_time(self.1))
     }
 }
 
@@ -762,7 +763,7 @@ impl sealed::Terms for TernarySnowballTerms {
 /// Accessors borrow stable storage for this owner's lifetime. Shared reads and
 /// pricing are safe; mutation requires exclusive Rust access. See [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct AutocallableNote<T: AutocallableTerms>(T);
+pub struct AutocallableNote<T: AutocallableTerms>(T, Option<Timestamp>);
 impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Validates all terms before creating an owning note.
     ///
@@ -803,7 +804,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         let view = terms.view();
         view.validate()?;
         view.validate_calendar()?;
-        Ok(Self(terms))
+        Ok(Self(terms, None))
     }
 
     /// Replaces the owned monitoring calendar; see [`Self::new`] for construction.
@@ -829,7 +830,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         updated.0.set_calendar(calendar);
         updated.view().validate_calendar()?;
         self.validate_replacement_history(&updated, false)?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.1))
     }
 
     fn validate_replacement_history(&self, updated: &Self, supplied: bool) -> Result<()> {
@@ -874,7 +875,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         self.view().validate_history(barrier_state)?;
         let mut terms = self.0.clone();
         terms.set_history(barrier_state);
-        Ok(Self(terms))
+        Ok(Self(terms, self.1))
     }
     /// Borrows validated payoff terms, including the contractual calendar. See [`Self::new`].
     pub fn terms(&self) -> &T {
@@ -1076,6 +1077,14 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
 }
 impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
+    fn history_time(&self) -> Option<Timestamp> {
+        self.1
+    }
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+        self.1 = time;
+        self
+    }
+
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -1492,7 +1501,7 @@ impl SnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.1))
     }
 }
 
@@ -1593,7 +1602,7 @@ impl PhoenixOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.1))
     }
 }
 
@@ -1648,7 +1657,7 @@ impl BinarySnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.1))
     }
 }
 
@@ -1724,7 +1733,7 @@ impl TernarySnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.1))
     }
 }
 

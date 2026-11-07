@@ -6,6 +6,7 @@ from datetime import datetime
 from kiyosi import InvalidInputError, pricing
 from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from support.history import dated as dated_history
 
 
 class AutocallableValidationTests(unittest.TestCase):
@@ -17,7 +18,9 @@ class AutocallableValidationTests(unittest.TestCase):
                 "barrier_state": history,
                 "effective_time": start,
                 "observations": [
-                    AutocallableObservation.snowball(datetime(2025, 1, 2), 110, coupon_rate=0.08)
+                    AutocallableObservation.snowball(
+                        datetime(2025, 1, 2), 110, coupon_rate=0.08
+                    )
                 ],
             }
             with self.assertRaises(InvalidInputError):
@@ -46,13 +49,17 @@ class AutocallableValidationTests(unittest.TestCase):
                 ):
                     for operation in (
                         lambda engine=engine, note=note, context=context: engine.price(
-                            note, context
+                            dated_history(note, context), context
                         ),
                         lambda engine=engine, note=note, context=context: (
-                            engine.price_with_greeks(note, context, "delta")
+                            engine.price_with_greeks(
+                                dated_history(note, context), context, "delta"
+                            )
                         ),
                         lambda engine=engine, note=note, context=context: (
-                            pricing.implied_volatility(engine, note, context, 1)
+                            pricing.implied_volatility(
+                                engine, dated_history(note, context), context, 1
+                            )
                         ),
                     ):
                         with self.subTest(

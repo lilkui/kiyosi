@@ -9,6 +9,7 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     RateTermStructure,
 )
+from support.history import dated as dated_history
 from test_local_volatility import END, START, context, surface
 from test_support_matrix import HESTON_ENGINES, terminal_cases
 
@@ -49,8 +50,8 @@ class LocalVolatilityFDContractTests(unittest.TestCase):
                         scheme=scheme,
                     )
                     actual, expected = (
-                        engine.price(contract, local),
-                        engine.price(contract, bsm),
+                        engine.price(dated_history(contract, local), local),
+                        engine.price(dated_history(contract, bsm), bsm),
                     )
                     self.assertAlmostEqual(actual, expected, delta=1e-6)
 
@@ -65,11 +66,13 @@ class LocalVolatilityFDContractTests(unittest.TestCase):
         for contract, name in representatives():
             with self.subTest(engine=name):
                 with self.assertRaises(InvalidInputError):
-                    getattr(pricing, name)().price(contract, short)
+                    getattr(pricing, name)().price(
+                        dated_history(contract, short), short
+                    )
                 with self.assertRaises(InvalidInputError):
                     getattr(pricing, name)(
                         asset_step_count=800, time_step_count=1, scheme="explicit_euler"
-                    ).price(contract, context())
+                    ).price(dated_history(contract, context()), context())
 
     def test_digital_rejects_node_rates_even_at_expiry(self):
         curve = RateTermStructure(
@@ -92,7 +95,9 @@ class LocalVolatilityFDContractTests(unittest.TestCase):
                         self.subTest(field=field, time=time),
                         self.assertRaises(UnsupportedOperationError),
                     ):
-                        getattr(pricing, name)().price(contract, local)
+                        getattr(pricing, name)().price(
+                            dated_history(contract, local), local
+                        )
 
 
 if __name__ == "__main__":

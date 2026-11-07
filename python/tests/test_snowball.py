@@ -30,6 +30,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from quantlib_reference import structured
+from support.history import dated as dated_history
 
 START, END = datetime(2025, 1, 1), datetime(2025, 4, 1)
 
@@ -77,7 +78,10 @@ class SnowballTests(unittest.TestCase):
             (80, 1 + 0.06 * 90 / 365),
             (110, 1 + 0.08 * 90 / 365),
         ):
-            self.assertAlmostEqual(engine.price(note, market(spot, END)), expected)
+            self.assertAlmostEqual(
+                engine.price(dated_history(note, market(spot, END)), market(spot, END)),
+                expected,
+            )
 
     def assert_rejection(self, expected, operation, *args, **kwargs):
         with self.assertRaises(expected) as error:
@@ -166,7 +170,9 @@ class SnowballTests(unittest.TestCase):
             (
                 {
                     "observations": [
-                        AutocallableObservation.phoenix(END, 110, coupon_barrier_level=1)
+                        AutocallableObservation.phoenix(
+                            END, 110, coupon_barrier_level=1
+                        )
                     ]
                 },
                 InvalidInputError,
@@ -180,17 +186,22 @@ class SnowballTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            unknown,
+            dated_history(unknown, market(valuation=datetime(2025, 1, 2))),
             market(valuation=datetime(2025, 1, 2)),
         )
         impossible = contract(barrier_state="knocked_in")
         self.assert_rejection(
-            InvalidInputError, engine.price, impossible, market(valuation=END)
+            InvalidInputError,
+            engine.price,
+            dated_history(impossible, market(valuation=END)),
+            market(valuation=END),
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            unknown.replace_history(barrier_state="knocked_out"),
+            dated_history(
+                unknown.replace_history(barrier_state="knocked_out"), market()
+            ),
             market(),
         )
         # Calendar compatibility is checked before valuation-dependent history.
@@ -208,7 +219,7 @@ class SnowballTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                contract(),
+                dated_history(contract(), market(valuation=valuation)),
                 market(valuation=valuation),
             )
         curve = RateTermStructure(
@@ -219,12 +230,16 @@ class SnowballTests(unittest.TestCase):
         self.assert_rejection(
             UnsupportedOperationError,
             engine.price_with_greeks,
-            contract(),
+            dated_history(contract(), market(rate=curve)),
             market(rate=curve),
             [],
         )
         self.assert_rejection(
-            InvalidInputError, engine.price_with_greeks, contract(), market(), []
+            InvalidInputError,
+            engine.price_with_greeks,
+            dated_history(contract(), market()),
+            market(),
+            [],
         )
         self.assert_rejection(
             InvalidInputError,
@@ -262,8 +277,8 @@ class SnowballTests(unittest.TestCase):
                     inputs["spot"], valuation, inputs["volatility"], inputs["rate"]
                 )
                 self.assertAlmostEqual(
-                    engine.price(note, context),
-                    structured.price(kind, inputs),
+                    engine.price(dated_history(note, context), context),
+                    structured.price(dated_history(kind, inputs), inputs),
                     delta=1e-10,
                 )
 
@@ -286,7 +301,9 @@ class SnowballTests(unittest.TestCase):
             maturity_coupon_rate=0,
             observations=autocallable_observations([end], [100]),
         )
-        price = QuadratureAutocallableEngine().price(note, context)
+        price = QuadratureAutocallableEngine().price(
+            dated_history(note, context), context
+        )
         self.assertLess(price, 0)
         self.assertAlmostEqual(price, 0.25 * discount - put / 100, delta=1e-10)
 
@@ -321,9 +338,11 @@ class SnowballTests(unittest.TestCase):
                     # Recovery to the knock-in, cap or knock-out levels is negligible over 4.5 days.
                     delta = math.exp(-dividend * time) / 100
                     expected = 15 * delta + (principal - 1) * math.exp(-rate * time)
-                    price = engine.price(note, context)
+                    price = engine.price(dated_history(note, context), context)
                     self.assertAlmostEqual(price, expected, delta=1e-9)
-                    result = engine.price_with_greeks(note, context, "delta")
+                    result = engine.price_with_greeks(
+                        dated_history(note, context), context, "delta"
+                    )
                     self.assertEqual(result.price, price)
                     self.assertAlmostEqual(result.delta, delta, delta=1e-8)
 
@@ -343,7 +362,7 @@ class SnowballTests(unittest.TestCase):
             values = [
                 QuadratureAutocallableEngine(
                     asset_step_count=n, integration_standard_deviations=e
-                ).price(note, context)
+                ).price(dated_history(note, context), context)
                 for n, e in ((512, 8), (1024, 8), (1024, 10))
             ]
             self.assertAlmostEqual(values[0], values[1], delta=1e-4)
@@ -361,7 +380,9 @@ class SnowballTests(unittest.TestCase):
         )
         engine = QuadratureAutocallableEngine()
         current = market(110, middle)
-        result = engine.price_with_greeks(note, current, greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(note, current), current, greeks="all"
+        )
         self.assertAlmostEqual(result.price, 1 + 0.08 * 33 / 365)
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
@@ -371,7 +392,7 @@ class SnowballTests(unittest.TestCase):
             UnsupportedOperationError,
             implied_volatility,
             engine,
-            note,
+            dated_history(note, current),
             current,
             result.price,
         )
@@ -379,12 +400,14 @@ class SnowballTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            note.replace_history(barrier_state=None),
+            dated_history(note.replace_history(barrier_state=None), past),
             past,
         )
         settled = note.replace_history(barrier_state="knocked_out")
         result = engine.price_with_greeks(
-            settled, market(valuation=datetime(2025, 3, 3)), greeks="all"
+            dated_history(settled, market(valuation=datetime(2025, 3, 3))),
+            market(valuation=datetime(2025, 3, 3)),
+            greeks="all",
         )
         self.assertEqual(result.price, 0)
         for greek in (
@@ -400,16 +423,22 @@ class SnowballTests(unittest.TestCase):
             "rho",
         ):
             self.assertEqual(getattr(result, greek), 0)
-        expiry = engine.price_with_greeks(note, market(80, END), greeks="all")
+        expiry = engine.price_with_greeks(
+            dated_history(note, market(80, END)), market(80, END), greeks="all"
+        )
         self.assertIsNone(expiry.delta)
         daily = contract(
             knock_in_observation_mode="every_trading_day", barrier_state="knocked_in"
         )
-        self.assertEqual(engine.price(daily, market(90, END)), 0.9)
+        self.assertEqual(
+            engine.price(dated_history(daily, market(90, END)), market(90, END)), 0.9
+        )
         # Midnight KI is strict; intraday spot does not create a historical breach.
         daily = daily.replace_history(barrier_state="no_event")
         for when, has_theta in ((datetime(2025, 1, 2, 12), True),):
-            result = engine.price_with_greeks(daily, market(80, when), "theta")
+            result = engine.price_with_greeks(
+                dated_history(daily, market(80, when)), market(80, when), "theta"
+            )
             self.assertEqual(result.theta is not None, has_theta)
 
     def test_settings_errors_and_fixed_cashflows(self):
@@ -429,7 +458,9 @@ class SnowballTests(unittest.TestCase):
         )
         engine = QuadratureAutocallableEngine()
         context = market(80)
-        result = engine.price_with_greeks(note, context, greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(note, context), context, greeks="all"
+        )
         self.assertAlmostEqual(result.price, math.exp(-0.04 * 90 / 365), delta=1e-15)
         self.assertEqual(result.delta, 0)
         self.assertGreater(result.rho * -1, 0)
@@ -437,7 +468,7 @@ class SnowballTests(unittest.TestCase):
             UnsupportedOperationError,
             implied_volatility,
             engine,
-            note,
+            dated_history(note, context),
             context,
             result.price,
         )
@@ -497,7 +528,7 @@ class SnowballTests(unittest.TestCase):
         context = market(spot, volatility=vol, rate=rate)
         result = numerical_greeks(
             engine,
-            note,
+            dated_history(note, context),
             context,
             greeks="all",
             spot_shift=h,
@@ -512,7 +543,7 @@ class SnowballTests(unittest.TestCase):
         quote = value()
         solved = implied_volatility(
             engine,
-            note,
+            dated_history(note, context),
             context,
             quote,
             lower_bound=0.25,
@@ -524,7 +555,7 @@ class SnowballTests(unittest.TestCase):
             RootNotBracketedError,
             implied_volatility,
             engine,
-            note,
+            dated_history(note, context),
             context,
             10,
             lower_bound=0.1,
@@ -534,7 +565,10 @@ class SnowballTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=3) as pool:
             prices = list(
                 pool.map(
-                    lambda s: engine.price(note, market(s, volatility=vol, rate=rate)),
+                    lambda s: engine.price(
+                        dated_history(note, market(s, volatility=vol, rate=rate)),
+                        market(s, volatility=vol, rate=rate),
+                    ),
                     [90, 100, 110],
                 )
             )
@@ -625,7 +659,9 @@ class SnowballTests(unittest.TestCase):
                 ),
             )
             self.assertAlmostEqual(
-                QuadratureAutocallableEngine().price(note, market()),
+                QuadratureAutocallableEngine().price(
+                    dated_history(note, market()), market()
+                ),
                 fine,
                 delta=1e-6,
             )
@@ -653,7 +689,15 @@ class SnowballTests(unittest.TestCase):
         ):
             self.assertAlmostEqual(
                 engine.price(
-                    note,
+                    dated_history(
+                        note,
+                        market(
+                            spot,
+                            volatility=1e-8,
+                            rate=0,
+                            dividend=0,
+                        ),
+                    ),
                     market(
                         spot,
                         volatility=1e-8,
@@ -679,7 +723,10 @@ class SnowballTests(unittest.TestCase):
                 1 + 0.1 * 90 / 365 * math.erfc(-d2 / math.sqrt(2)) / 2
             )
             self.assertAlmostEqual(
-                engine.price(note, market(100, valuation, volatility=sigma)),
+                engine.price(
+                    dated_history(note, market(100, valuation, volatility=sigma)),
+                    market(100, valuation, volatility=sigma),
+                ),
                 expected,
                 delta=1e-9,
             )
@@ -699,11 +746,19 @@ class SnowballTests(unittest.TestCase):
         coarse = {"spot_shift": 0.5, "volatility_shift": 0.002, "rate_shift": 0.001}
         fine = {"spot_shift": 0.25, "volatility_shift": 0.001, "rate_shift": 0.0005}
         standard = numerical_greeks(
-            QuadratureAutocallableEngine(), note, context, greeks="all", **coarse
+            QuadratureAutocallableEngine(),
+            dated_history(note, context),
+            context,
+            greeks="all",
+            **coarse,
         )
         engine = QuadratureAutocallableEngine(asset_step_count=1024)
-        refined = numerical_greeks(engine, note, context, greeks="all", **coarse)
-        smaller = numerical_greeks(engine, note, context, greeks="all", **fine)
+        refined = numerical_greeks(
+            engine, dated_history(note, context), context, greeks="all", **coarse
+        )
+        smaller = numerical_greeks(
+            engine, dated_history(note, context), context, greeks="all", **fine
+        )
         tolerances = {
             "delta": (3e-6, 0.005),
             "gamma": (3e-7, 0.01),

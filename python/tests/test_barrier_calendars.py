@@ -7,6 +7,7 @@ from datetime import datetime
 
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
+from support.history import dated as dated_history
 
 
 class BarrierCalendarTests(unittest.TestCase):
@@ -119,6 +120,6 @@ class BarrierCalendarTests(unittest.TestCase):
                         original.replace(calendar=invalid)
                 for engine in engines:
                     self.assertEqual(
-                        engine.price(owned, context),
-                        engine.price(restored, context),
+                        engine.price(dated_history(owned, context), context),
+                        engine.price(dated_history(restored, context), context),
                     )

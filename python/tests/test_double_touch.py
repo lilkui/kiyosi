@@ -27,6 +27,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from price_differences import price_differences
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -382,9 +383,10 @@ class DoubleTouchTests(unittest.TestCase):
             asset_step_count=800, time_step_count=1600
         )
         for option, expected in zip(options, reference, strict=True):
-            actual = fine.price(option, market())
+            actual = fine.price(dated_history(option, market()), market())
             self.assertLess(
-                abs(actual - expected), abs(coarse.price(option, market()) - expected)
+                abs(actual - expected),
+                abs(coarse.price(dated_history(option, market()), market()) - expected),
             )
             self.assertAlmostEqual(actual, expected, delta=1e-5)
         scaled = (
@@ -394,10 +396,13 @@ class DoubleTouchTests(unittest.TestCase):
         )
         for option, expected in zip(scaled, reference, strict=True):
             self.assertAlmostEqual(
-                fine.price(option, market()), 7.5 * expected, delta=7.5e-5
+                fine.price(dated_history(option, market()), market()),
+                7.5 * expected,
+                delta=7.5e-5,
             )
         self.assertAlmostEqual(
-            fine.price(options[0], market()) + fine.price(options[2], market()),
+            fine.price(dated_history(options[0], market()), market())
+            + fine.price(dated_history(options[2], market()), market()),
             math.exp(-0.03),
             delta=1e-8,
         )
@@ -406,7 +411,10 @@ class DoubleTouchTests(unittest.TestCase):
             expected = continuous_reference(rate=rate, dividend=dividend)
             for option, value in zip(options, expected, strict=True):
                 self.assertAlmostEqual(
-                    fine.price(option, market(rate=rate, dividend=dividend)),
+                    fine.price(
+                        dated_history(option, market(rate=rate, dividend=dividend)),
+                        market(rate=rate, dividend=dividend),
+                    ),
                     value,
                     delta=1e-5,
                 )
@@ -432,7 +440,9 @@ class DoubleTouchTests(unittest.TestCase):
                 self.assertAlmostEqual(a, b, delta=1e-10)
             for option, value in zip(options, expected, strict=True):
                 self.assertAlmostEqual(
-                    engine.price(option, market(100.25)), value, delta=3e-5
+                    engine.price(dated_history(option, market(100.25)), market(100.25)),
+                    value,
+                    delta=3e-5,
                 )
         future = contract(
             cash_double_no_touch,
@@ -442,7 +452,7 @@ class DoubleTouchTests(unittest.TestCase):
             observation_times=[END],
         )
         self.assertAlmostEqual(
-            engine.price(future, market(125)),
+            engine.price(dated_history(future, market(125)), market(125)),
             math.exp(-0.03) * survival_at_fixing(125, 1),
             delta=3e-5,
         )
@@ -454,46 +464,63 @@ class DoubleTouchTests(unittest.TestCase):
             option = contract(payout=3, settlement_timing=timing)
             for spot in (79, 80, 120, 121):
                 self.assertAlmostEqual(
-                    engine.price(option, market(spot)),
+                    engine.price(dated_history(option, market(spot)), market(spot)),
                     3 if timing == "at_hit" else 3 * math.exp(-0.03),
                     delta=1e-12,
                 )
                 self.assert_core_error(
                     InvalidInputError,
                     lambda spot=spot, option=option: engine.price(
-                        option, market(spot, time=later)
+                        dated_history(option, market(spot, time=later)),
+                        market(spot, time=later),
                     ),
                 )
             known = option.replace_history(touch_state="touched")
             self.assert_core_error(
                 InvalidInputError,
-                lambda known=known: engine.price(known, market()),
+                lambda known=known: engine.price(
+                    dated_history(known, market()), market()
+                ),
             )
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.03 * 364 / 365)
             self.assertAlmostEqual(
-                engine.price(known, market(time=later)), expected, delta=1e-12
+                engine.price(
+                    dated_history(known, market(time=later)), market(time=later)
+                ),
+                expected,
+                delta=1e-12,
             )
             self.assert_core_error(
                 UnsupportedOperationError,
                 lambda known=known, expected=expected: pricing.implied_volatility(
-                    engine, known, market(time=later), expected
+                    engine,
+                    dated_history(known, market(time=later)),
+                    market(time=later),
+                    expected,
                 ),
             )
         no_touch = contract(cash_double_no_touch, payout=3)
         for spot in (80, 120):
-            self.assertEqual(engine.price(no_touch, market(spot)), 0)
+            self.assertEqual(
+                engine.price(dated_history(no_touch, market(spot)), market(spot)), 0
+            )
         for option in (
             no_touch,
             contract(payout=3),
             contract(payout=3, settlement_timing="at_hit"),
         ):
             known = option.replace_history(touch_state="untouched")
-            result = engine.price_with_greeks(known, market(time=END), greeks="all")
+            result = engine.price_with_greeks(
+                dated_history(known, market(time=END)), market(time=END), greeks="all"
+            )
             self.assertEqual(result.price, 0 if known.is_one_touch else 3)
             assert_terminal_greeks(self, result, 0)
             for spot in (80, 120):
                 self.assertEqual(
-                    engine.price(known, market(spot, time=END)),
+                    engine.price(
+                        dated_history(known, market(spot, time=END)),
+                        market(spot, time=END),
+                    ),
                     3 if known.is_one_touch else 0,
                 )
 
@@ -506,11 +533,18 @@ class DoubleTouchTests(unittest.TestCase):
             observation_times=[FIRST],
         )
         event = datetime.combine(FIRST, datetime.min.time())
-        self.assertEqual(engine.price(option, market(120, time=event)), 0)
+        self.assertEqual(
+            engine.price(
+                dated_history(option, market(120, time=event)), market(120, time=event)
+            ),
+            0,
+        )
         after = event + timedelta(seconds=1)
         self.assert_core_error(
             InvalidInputError,
-            lambda: engine.price(option, market(130, time=after)),
+            lambda: engine.price(
+                dated_history(option, market(130, time=after)), market(130, time=after)
+            ),
         )
         known = option.replace_history(touch_state="untouched")
         for offset in (timedelta(seconds=1), timedelta(hours=12)):
@@ -520,7 +554,9 @@ class DoubleTouchTests(unittest.TestCase):
             ).total_seconds() / (86400 * 365)
             expected = 2 * math.exp(-0.03 * remaining)
             context = market(130, time=time)
-            result = engine.price_with_greeks(known, context, greeks="all")
+            result = engine.price_with_greeks(
+                dated_history(known, context), context, greeks="all"
+            )
             self.assertAlmostEqual(result.price, expected, delta=1e-12)
             self.assertEqual(result.delta, 0)
             self.assertEqual(result.vega, 0)
@@ -528,7 +564,7 @@ class DoubleTouchTests(unittest.TestCase):
             self.assert_core_error(
                 UnsupportedOperationError,
                 lambda context=context, expected=expected: pricing.implied_volatility(
-                    engine, known, context, expected
+                    engine, dated_history(known, context), context, expected
                 ),
             )
         with self.assertRaises(InvalidInputError):
@@ -547,7 +583,9 @@ class DoubleTouchTests(unittest.TestCase):
             contract(settlement_timing="at_hit", touch_state="untouched"),
             contract(cash_double_no_touch, touch_state="untouched"),
         ):
-            result = engine.price_with_greeks(option, market(), greeks="all")
+            result = engine.price_with_greeks(
+                dated_history(option, market()), market(), greeks="all"
+            )
             bumped = price_differences(engine, option, market())
             for name in (
                 "delta",
@@ -566,7 +604,7 @@ class DoubleTouchTests(unittest.TestCase):
                 )
             solved = pricing.implied_volatility(
                 engine,
-                option,
+                dated_history(option, market()),
                 market(),
                 result.price,
                 lower_bound=0.15,
@@ -576,11 +614,18 @@ class DoubleTouchTests(unittest.TestCase):
             self.assert_core_error(
                 RootNotBracketedError,
                 lambda option=option: pricing.implied_volatility(
-                    engine, option, market(), 2, lower_bound=0.15, upper_bound=0.25
+                    engine,
+                    dated_history(option, market()),
+                    market(),
+                    2,
+                    lower_bound=0.15,
+                    upper_bound=0.25,
                 ),
             )
             for spot in (80, 120):
-                boundary = engine.price_with_greeks(option, market(spot), greeks="all")
+                boundary = engine.price_with_greeks(
+                    dated_history(option, market(spot)), market(spot), greeks="all"
+                )
                 for name in (
                     "delta",
                     "gamma",
@@ -596,7 +641,9 @@ class DoubleTouchTests(unittest.TestCase):
             touch_state="untouched",
         )
         result = engine.price_with_greeks(
-            scheduled, market(time=FIRST), ["theta", "charm", "color"]
+            dated_history(scheduled, market(time=FIRST)),
+            market(time=FIRST),
+            ["theta", "charm", "color"],
         )
         self.assertIsNone(result.theta)
         self.assertIsNone(result.charm)
@@ -642,8 +689,12 @@ class DoubleTouchTests(unittest.TestCase):
                             getattr(more_terms[index], name),
                             delta=1e-14,
                         )
-                    rough = coarse.price_with_greeks(option, market(spot), greeks="all")
-                    refined = fine.price_with_greeks(option, market(spot), greeks="all")
+                    rough = coarse.price_with_greeks(
+                        dated_history(option, market(spot)), market(spot), greeks="all"
+                    )
+                    refined = fine.price_with_greeks(
+                        dated_history(option, market(spot)), market(spot), greeks="all"
+                    )
                     self.assertAlmostEqual(refined.price, price, delta=1e-7)
                     for name, budget in budgets.items():
                         with self.subTest(greek=name, budget=budget):
@@ -678,30 +729,39 @@ class DoubleTouchTests(unittest.TestCase):
             }
             touched = sum(
                 pricing.AnalyticDigitalEngine().price(
-                    CashOrNothingOption(
-                        option_type=direction,
-                        strike=level,
-                        payout=1,
-                        effective_time=START,
-                        expiry_time=horizon,
+                    dated_history(
+                        CashOrNothingOption(
+                            option_type=direction,
+                            strike=level,
+                            payout=1,
+                            effective_time=START,
+                            expiry_time=horizon,
+                        ),
+                        context,
                     ),
                     context,
                 )
                 for direction, level in (("put", 80.125), ("call", 120.125))
             )
             option = contract(settlement_timing="at_hit", **fields)
-            self.assertAlmostEqual(engine.price(option, context), touched, delta=3e-5)
+            self.assertAlmostEqual(
+                engine.price(dated_history(option, context), context),
+                touched,
+                delta=3e-5,
+            )
             if early:
                 self.assert_core_error(
                     InvalidInputError,
                     lambda fields=fields, context=context: engine.price(
-                        contract(**fields), context
+                        dated_history(contract(**fields), context), context
                     ),
                 )
             else:
                 no = contract(cash_double_no_touch, **fields)
                 self.assertAlmostEqual(
-                    engine.price(no, context), 0.99 - touched, delta=3e-5
+                    engine.price(dated_history(no, context), context),
+                    0.99 - touched,
+                    delta=3e-5,
                 )
 
     def test_narrow_band_tiny_volatility_settings_and_concurrency(self):
@@ -709,9 +769,12 @@ class DoubleTouchTests(unittest.TestCase):
             asset_step_count=160, time_step_count=800
         )
         option = contract(cash_double_no_touch, lower_barrier=99.5, upper_barrier=100.5)
-        self.assertLess(engine.price(option, market()), 1e-8)
+        self.assertLess(engine.price(dated_history(option, market()), market()), 1e-8)
         self.assertAlmostEqual(
-            engine.price(option, market(volatility=1e-12, dividend=0.03)),
+            engine.price(
+                dated_history(option, market(volatility=1e-12, dividend=0.03)),
+                market(volatility=1e-12, dividend=0.03),
+            ),
             math.exp(-0.03),
             delta=1e-8,
         )
@@ -727,13 +790,19 @@ class DoubleTouchTests(unittest.TestCase):
             asset_step_count=400, time_step_count=1, scheme="explicit_euler"
         )
         self.assert_core_error(
-            InvalidInputError, lambda: unstable.price(option, market())
+            InvalidInputError,
+            lambda: unstable.price(dated_history(option, market()), market()),
         )
         with ThreadPoolExecutor(max_workers=2) as executor:
             values = list(
-                executor.map(lambda _: engine.price(option, market()), range(4))
+                executor.map(
+                    lambda _: engine.price(dated_history(option, market()), market()),
+                    range(4),
+                )
             )
-        self.assertEqual(values, [engine.price(option, market())] * 4)
+        self.assertEqual(
+            values, [engine.price(dated_history(option, market()), market())] * 4
+        )
 
 
 class AnalyticDoubleTouchTests(unittest.TestCase):
@@ -745,7 +814,10 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                     volatility=sigma, rate=rate, count=8192
                 )[1]
                 actual = engine.price(
-                    contract(settlement_timing="at_hit"),
+                    dated_history(
+                        contract(settlement_timing="at_hit"),
+                        market(rate=rate, volatility=sigma),
+                    ),
                     market(rate=rate, volatility=sigma),
                 )
                 self.assertAlmostEqual(actual, expected, delta=1e-11)
@@ -757,7 +829,10 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 - math.log(math.cosh(100 * band))
             )
             actual = engine.price(
-                contract(payout=payout, settlement_timing="at_hit"),
+                dated_history(
+                    contract(payout=payout, settlement_timing="at_hit"),
+                    market(rate=800, dividend=799.98),
+                ),
                 market(rate=800, dividend=799.98),
             )
             self.assertAlmostEqual(actual / expected, 1, delta=1e-10)
@@ -768,8 +843,13 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             transform = math.cosh if rate > 0 else math.cos
             expected = transform(k * offset) / transform(k * half_band)
             actual = engine.price(
-                contract(
-                    lower_barrier=99.5, upper_barrier=100.5, settlement_timing="at_hit"
+                dated_history(
+                    contract(
+                        lower_barrier=99.5,
+                        upper_barrier=100.5,
+                        settlement_timing="at_hit",
+                    ),
+                    market(rate=rate, dividend=rate - 0.02),
                 ),
                 market(rate=rate, dividend=rate - 0.02),
             )
@@ -784,7 +864,10 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             )
             self.assertEqual(
                 engine.price(
-                    option, market(rate=1e-10, dividend=0.03, volatility=0.01)
+                    dated_history(
+                        option, market(rate=1e-10, dividend=0.03, volatility=0.01)
+                    ),
+                    market(rate=1e-10, dividend=0.03, volatility=0.01),
                 ),
                 0,
             )
@@ -811,7 +894,11 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 )
                 with self.subTest(up=up, sigma=sigma):
                     actual = engine.price(
-                        option, market(rate=rate, dividend=dividend, volatility=sigma)
+                        dated_history(
+                            option,
+                            market(rate=rate, dividend=dividend, volatility=sigma),
+                        ),
+                        market(rate=rate, dividend=dividend, volatility=sigma),
                     )
                     self.assertAlmostEqual(actual / expected, 1, delta=1e-9)
 
@@ -843,7 +930,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 )
                 option = contract(factory, payout=payout, **changes)
                 with self.subTest(rate=rate, factory=factory, timing=timing):
-                    actual = engine.price(option, context)
+                    actual = engine.price(dated_history(option, context), context)
                     self.assertAlmostEqual(
                         actual / expected,
                         1,
@@ -852,7 +939,10 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                     if rate < 0:
                         with self.assertRaises(ComputationFailureError):
                             engine.price(
-                                contract(factory, payout=1, **changes), context
+                                dated_history(
+                                    contract(factory, payout=1, **changes), context
+                                ),
+                                context,
                             )
 
     def test_analytic_expiry_payments_match_live_quantlib(self):
@@ -900,7 +990,15 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                             expiry_time=START + timedelta(days=days),
                         )
                         actual = pricing.AnalyticDoubleTouchEngine().price(
-                            option,
+                            dated_history(
+                                option,
+                                market(
+                                    spot,
+                                    rate=rate,
+                                    dividend=dividend,
+                                    volatility=volatility,
+                                ),
+                            ),
                             market(
                                 spot,
                                 rate=rate,
@@ -934,7 +1032,12 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                     option = contract(factory, payout=payout, **changes)
                     with self.subTest(rate=rate, option=option):
                         self.assertAlmostEqual(
-                            engine.price(option, market(rate=rate, dividend=dividend)),
+                            engine.price(
+                                dated_history(
+                                    option, market(rate=rate, dividend=dividend)
+                                ),
+                                market(rate=rate, dividend=dividend),
+                            ),
                             payout * expected,
                             delta=payout * 1e-10,
                         )
@@ -952,26 +1055,39 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                     (3 if at_hit else 3 * math.exp(-0.03)) if option.is_one_touch else 0
                 )
                 self.assertAlmostEqual(
-                    engine.price(option, market(spot)), expected, delta=1e-12
+                    engine.price(dated_history(option, market(spot)), market(spot)),
+                    expected,
+                    delta=1e-12,
                 )
                 with self.assertRaises(InvalidInputError):
-                    engine.price(option, market(spot, time=START + timedelta(days=1)))
+                    engine.price(
+                        dated_history(
+                            option, market(spot, time=START + timedelta(days=1))
+                        ),
+                        market(spot, time=START + timedelta(days=1)),
+                    )
             prior = option.replace_history(touch_state="touched")
             with self.assertRaises(InvalidInputError):
-                engine.price(prior, market())
+                engine.price(dated_history(prior, market()), market())
             later = market(time=START + timedelta(days=1))
             expected = (
                 0
                 if at_hit or not option.is_one_touch
                 else 3 * math.exp(-0.03 * 364 / 365)
             )
-            self.assertAlmostEqual(engine.price(prior, later), expected, delta=1e-12)
+            self.assertAlmostEqual(
+                engine.price(dated_history(prior, later), later), expected, delta=1e-12
+            )
             with self.assertRaises(UnsupportedOperationError):
-                pricing.implied_volatility(engine, prior, later, expected)
+                pricing.implied_volatility(
+                    engine, dated_history(prior, later), later, expected
+                )
             known = option.replace_history(touch_state="untouched")
             for spot in (80, 100, 120):
                 terminal = engine.price_with_greeks(
-                    known, market(spot, time=END), greeks="all"
+                    dated_history(known, market(spot, time=END)),
+                    market(spot, time=END),
+                    greeks="all",
                 )
                 self.assertEqual(
                     terminal.price, 3 if option.is_one_touch == (spot != 100) else 0
@@ -995,10 +1111,12 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             ),
         ):
             with self.assertRaises(UnsupportedOperationError):
-                engine.price(option, market(125))
+                engine.price(dated_history(option, market(125)), market(125))
             after = FIRST + timedelta(days=1)
             with self.assertRaises(InvalidInputError):
-                engine.price(option, market(time=after))
+                engine.price(
+                    dated_history(option, market(time=after)), market(time=after)
+                )
             known = option.replace_history(touch_state="untouched")
             for spot in (80, 120):
                 expected = (
@@ -1011,13 +1129,23 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                     )
                 )
                 self.assertAlmostEqual(
-                    engine.price(known, market(spot, time=FIRST)), expected, delta=1e-12
+                    engine.price(
+                        dated_history(known, market(spot, time=FIRST)),
+                        market(spot, time=FIRST),
+                    ),
+                    expected,
+                    delta=1e-12,
                 )
             expected = (
                 0 if option.is_one_touch else math.exp(-0.03 * (END - after).days / 365)
             )
             self.assertAlmostEqual(
-                engine.price(known, market(125, time=after)), expected, delta=1e-12
+                engine.price(
+                    dated_history(known, market(125, time=after)),
+                    market(125, time=after),
+                ),
+                expected,
+                delta=1e-12,
             )
         with self.assertRaises(InvalidInputError):
             contract(
@@ -1036,16 +1164,25 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 context = market(spot, **rates)
                 option = contract()
                 with self.assertRaises(UnsupportedOperationError):
-                    engine.price(option, context)
+                    engine.price(dated_history(option, context), context)
                 with self.assertRaises(UnsupportedOperationError):
-                    engine.price_with_greeks(option, context, greeks="all")
+                    engine.price_with_greeks(
+                        dated_history(option, context), context, greeks="all"
+                    )
                 with self.assertRaises(UnsupportedOperationError):
-                    pricing.implied_volatility(engine, option, context, math.nan)
+                    pricing.implied_volatility(
+                        engine, dated_history(option, context), context, math.nan
+                    )
         with self.assertRaises(ComputationFailureError):
-            engine.price(contract(), market(volatility=1e308))
+            engine.price(
+                dated_history(contract(), market(volatility=1e308)),
+                market(volatility=1e308),
+            )
         for day in (START - timedelta(days=1), END + timedelta(days=1)):
             with self.assertRaises(InvalidInputError):
-                engine.price(contract(), market(time=day))
+                engine.price(
+                    dated_history(contract(), market(time=day)), market(time=day)
+                )
 
     def test_analytic_greeks_iv_signatures_and_concurrent_pricing(self):
         engine = pricing.AnalyticDoubleTouchEngine()
@@ -1080,7 +1217,9 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
         )
         for spot in (80.02, 100, 119.98):
             for option, expected in zip(options, reference_greeks(spot), strict=True):
-                result = engine.price_with_greeks(option, market(spot), greeks="all")
+                result = engine.price_with_greeks(
+                    dated_history(option, market(spot)), market(spot), greeks="all"
+                )
                 for name, value in expected.items():
                     with self.subTest(spot=spot, option=option, greek=name):
                         if name == "speed" and spot != 100:
@@ -1090,11 +1229,13 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                             getattr(result, name), value, delta=budgets[name]
                         )
         for option in options:
-            price = engine.price(option, market())
-            default = engine.price_with_greeks(option, market(), greeks="all")
+            price = engine.price(dated_history(option, market()), market())
+            default = engine.price_with_greeks(
+                dated_history(option, market()), market(), greeks="all"
+            )
             explicit = numerical_greeks(
                 engine,
-                option,
+                dated_history(option, market()),
                 market(),
                 greeks="all",
                 spot_shift=0.01,
@@ -1106,18 +1247,30 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 self.assertEqual(getattr(default, name), getattr(explicit, name))
             self.assertAlmostEqual(
                 pricing.implied_volatility(
-                    engine, option, market(), price, lower_bound=0.15, upper_bound=0.25
+                    engine,
+                    dated_history(option, market()),
+                    market(),
+                    price,
+                    lower_bound=0.15,
+                    upper_bound=0.25,
                 ),
                 0.2,
                 delta=1e-7,
             )
             for spot in (80, 120):
-                result = engine.price_with_greeks(option, market(spot), greeks="all")
+                result = engine.price_with_greeks(
+                    dated_history(option, market(spot)), market(spot), greeks="all"
+                )
                 self.assertIsNone(result.delta)
                 self.assertIsNone(result.vega)
         with ThreadPoolExecutor(max_workers=2) as executor:
             values = list(
-                executor.map(lambda _: engine.price(options[0], market()), range(4))
+                executor.map(
+                    lambda _: engine.price(
+                        dated_history(options[0], market()), market()
+                    ),
+                    range(4),
+                )
             )
         self.assertEqual(values, [values[0]] * 4)
         self.assertAlmostEqual(values[0], 0.6031839700294364, delta=1e-12)

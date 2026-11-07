@@ -7,6 +7,7 @@ from datetime import datetime
 from kiyosi import instruments as ins
 from kiyosi import market, pricing
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 
@@ -56,7 +57,9 @@ class ExpiryGreekTests(unittest.TestCase):
                                 spot_price=spot,
                                 valuation_time=end,
                             )
-                            result = engine.price_with_greeks(option, context, "all")
+                            result = engine.price_with_greeks(
+                                dated_history(option, context), context, "all"
+                            )
                             assert_terminal_greeks(self, result, delta)
                             self.assertEqual(
                                 engine.greek_method(option, context), "native"
@@ -68,7 +71,7 @@ class ExpiryGreekTests(unittest.TestCase):
                                 self.assertEqual(result.supported, ["delta", "gamma"])
                                 self.assertEqual(result.status("vega"), "unsupported")
                             only_delta = engine.price_with_greeks(
-                                option, context, "delta"
+                                dated_history(option, context), context, "delta"
                             )
                             self.assertEqual(
                                 only_delta.status("gamma"), "not_requested"
@@ -119,7 +122,7 @@ class ExpiryGreekTests(unittest.TestCase):
             ):
                 with self.subTest(engine=type(engine).__name__, at=at):
                     result = engine.price_with_greeks(
-                        option, context, ["delta", "gamma"]
+                        dated_history(option, context), context, ["delta", "gamma"]
                     )
                     self.assertEqual(result.price, 0)
                     for greek in ("delta", "gamma"):
@@ -154,7 +157,9 @@ class ExpiryGreekTests(unittest.TestCase):
                             spot_price=spot,
                             valuation_time=end,
                         )
-                        result = engine.price_with_greeks(option, context, "all")
+                        result = engine.price_with_greeks(
+                            dated_history(option, context), context, "all"
+                        )
                         assert_terminal_greeks(self, result, delta)
                         for greek in result.requested:
                             expected = (
@@ -200,20 +205,28 @@ class ExpiryGreekTests(unittest.TestCase):
             for engine in engines:
                 with self.subTest(spot=spot, engine=type(engine).__name__):
                     result = engine.price_with_greeks(
-                        option, context, ["delta", "gamma"]
+                        dated_history(option, context), context, ["delta", "gamma"]
                     )
                     self.assertAlmostEqual(result.require("delta"), 1, delta=1e-10)
                     self.assertAlmostEqual(
                         result.require("gamma") * spot, 0, delta=1e-8
                     )
             explicit = numerical_greeks(
-                engines[0], option, context, "delta", spot_shift=2 * spot
+                engines[0],
+                dated_history(option, context),
+                context,
+                "delta",
+                spot_shift=2 * spot,
             )
             self.assertEqual(explicit.status("delta"), "stencil_unavailable")
             active = context.replace(valuation_time=start)
             atm = option.replace(strike=spot)
-            exact = engines[0].price_with_greeks(atm, active, ["delta", "gamma"])
-            numerical = numerical_greeks(engines[0], atm, active, ["delta", "gamma"])
+            exact = engines[0].price_with_greeks(
+                dated_history(atm, active), active, ["delta", "gamma"]
+            )
+            numerical = numerical_greeks(
+                engines[0], dated_history(atm, active), active, ["delta", "gamma"]
+            )
             self.assertAlmostEqual(
                 numerical.require("delta"), exact.require("delta"), delta=1e-4
             )
@@ -265,10 +278,16 @@ class ExpiryGreekTests(unittest.TestCase):
                 engine=type(engine).__name__, instrument=type(instrument).__name__
             ):
                 self.assertIsNone(
-                    engine.price_with_greeks(instrument, context, "delta").delta
+                    engine.price_with_greeks(
+                        dated_history(instrument, context), context, "delta"
+                    ).delta
                 )
                 result = numerical_greeks(
-                    engine, instrument, context, "delta", spot_shift=0.001
+                    engine,
+                    dated_history(instrument, context),
+                    context,
+                    "delta",
+                    spot_shift=0.001,
                 )
                 self.assertAlmostEqual(result.require("delta"), expected, delta=1e-10)
 
@@ -300,7 +319,7 @@ class ExpiryGreekTests(unittest.TestCase):
                     model_parameters=model, spot_price=spot, valuation_time=end
                 )
                 result = pricing.QuadratureAutocallableEngine().price_with_greeks(
-                    note, context, "all"
+                    dated_history(note, context), context, "all"
                 )
                 assert_terminal_greeks(self, result, delta)
 
@@ -338,7 +357,9 @@ class ExpiryGreekTests(unittest.TestCase):
                         direction=direction,
                         engine=type(engine).__name__,
                     ):
-                        result = engine.price_with_greeks(option, context, "all")
+                        result = engine.price_with_greeks(
+                            dated_history(option, context), context, "all"
+                        )
                         self.assertAlmostEqual(
                             result.require("delta"), delta, delta=1e-10
                         )
@@ -356,7 +377,7 @@ class ExpiryGreekTests(unittest.TestCase):
                         for greek in ("theta", "charm", "color"):
                             self.assertEqual(result.status(greek), "undefined")
                         numerical = pricing.numerical_greeks(
-                            engine, option, context, "delta"
+                            engine, dated_history(option, context), context, "delta"
                         )
                         self.assertAlmostEqual(
                             numerical.require("delta"), delta, delta=1e-10
@@ -379,7 +400,9 @@ class ExpiryGreekTests(unittest.TestCase):
             expiry_time=end,
         )
         engine = pricing.AnalyticDigitalEngine()
-        result = engine.price_with_greeks(option, context, ["delta", "gamma", "vega"])
+        result = engine.price_with_greeks(
+            dated_history(option, context), context, ["delta", "gamma", "vega"]
+        )
         self.assertEqual(result.status("delta"), "undefined")
         self.assertEqual(result.status("gamma"), "undefined")
         self.assertEqual(result.require("vega"), 0)
@@ -387,7 +410,7 @@ class ExpiryGreekTests(unittest.TestCase):
         result = pricing.MonteCarloDigitalEngine(
             path_count=32, seed=42
         ).price_with_greeks(
-            option,
+            dated_history(option, context.replace(spot_price=120)),
             context.replace(spot_price=120),
             ["delta", "gamma", "vega"],
         )

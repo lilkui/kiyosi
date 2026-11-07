@@ -19,6 +19,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 
@@ -48,13 +49,22 @@ class BarrierTests(unittest.TestCase):
         option = BarrierOption(**self.terms(rebate=7, rebate_timing="at_hit"))
         self.assertEqual(option.touch_state, None)
         self.assertEqual(option.observation_mode, "continuous")
-        self.assertEqual(engine.price(option, self.context(120)), 7)
+        self.assertEqual(
+            engine.price(dated_history(option, self.context(120)), self.context(120)), 7
+        )
         with self.assertRaises(InvalidInputError) as error:
-            engine.price(option, self.context(time=datetime(2025, 1, 2)))
+            engine.price(
+                dated_history(option, self.context(time=datetime(2025, 1, 2))),
+                self.context(time=datetime(2025, 1, 2)),
+            )
         self.assertIs(type(error.exception), InvalidInputError)
         touched = option.replace_history(touch_state="touched")
         self.assertEqual(
-            engine.price(touched, self.context(time=datetime(2025, 1, 2))), 0
+            engine.price(
+                dated_history(touched, self.context(time=datetime(2025, 1, 2))),
+                self.context(time=datetime(2025, 1, 2)),
+            ),
+            0,
         )
         self.assertIsNone(option.touch_state)
         self.assertEqual(touched.replace_history(touch_state=None), option)
@@ -162,9 +172,12 @@ class BarrierTests(unittest.TestCase):
                         with self.subTest(
                             kind=kind, state=state, level=level, timing=timing
                         ):
-                            self.assertEqual(engine.price(option, context), expected)
+                            self.assertEqual(
+                                engine.price(dated_history(option, context), context),
+                                expected,
+                            )
                             result = engine.price_with_greeks(
-                                option, context, greeks="all"
+                                dated_history(option, context), context, greeks="all"
                             )
                             assert_terminal_greeks(
                                 self,
@@ -177,7 +190,10 @@ class BarrierTests(unittest.TestCase):
                                 UnsupportedOperationError,
                                 lambda option=option, context=context, expected=expected: (
                                     implied_volatility(
-                                        engine, option, context, expected
+                                        engine,
+                                        dated_history(option, context),
+                                        context,
+                                        expected,
                                     )
                                 ),
                             )
@@ -187,11 +203,17 @@ class BarrierTests(unittest.TestCase):
             )
             context = self.context(time=datetime(2025, 1, 2))
             expected = 0 if timing == "at_hit" else 7 * math.exp(-0.05 * 364 / 365)
-            self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-12)
+            self.assertAlmostEqual(
+                engine.price(dated_history(option, context), context),
+                expected,
+                delta=1e-12,
+            )
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda option=option, context=context, expected=expected: (
-                    implied_volatility(engine, option, context, expected)
+                    implied_volatility(
+                        engine, dated_history(option, context), context, expected
+                    )
                 ),
             )
 
@@ -204,22 +226,33 @@ class BarrierTests(unittest.TestCase):
             )
         )
         self.assert_rejection(
-            UnsupportedOperationError, lambda: engine.price(option, self.context())
+            UnsupportedOperationError,
+            lambda: engine.price(dated_history(option, self.context()), self.context()),
         )
         self.assert_rejection(
             InvalidInputError,
             lambda: engine.price(
-                option.replace_history(touch_state="touched"), self.context(time=fixing)
+                dated_history(
+                    option.replace_history(touch_state="touched"),
+                    self.context(time=fixing),
+                ),
+                self.context(time=fixing),
             ),
         )
         self.assertAlmostEqual(
-            engine.price(option, self.context(120, fixing)),
+            engine.price(
+                dated_history(option, self.context(120, fixing)),
+                self.context(120, fixing),
+            ),
             7 * math.exp(-0.05 * 364 / 365),
             delta=1e-12,
         )
         noon = datetime(2025, 1, 2, 12)
         self.assert_rejection(
-            InvalidInputError, lambda: engine.price(option, self.context(150, noon))
+            InvalidInputError,
+            lambda: engine.price(
+                dated_history(option, self.context(150, noon)), self.context(150, noon)
+            ),
         )
         untouched = option.replace_history(touch_state="untouched")
         vanilla = EuropeanOption(
@@ -229,8 +262,13 @@ class BarrierTests(unittest.TestCase):
             expiry_time=option.expiry_time,
         )
         self.assertEqual(
-            engine.price(untouched, self.context(150, noon)),
-            AnalyticEuropeanEngine().price(vanilla, self.context(150, noon)),
+            engine.price(
+                dated_history(untouched, self.context(150, noon)),
+                self.context(150, noon),
+            ),
+            AnalyticEuropeanEngine().price(
+                dated_history(vanilla, self.context(150, noon)), self.context(150, noon)
+            ),
         )
         dates = untouched.observation_times
         dates.clear()
@@ -271,14 +309,15 @@ class BarrierTests(unittest.TestCase):
             noon = datetime(2025, 1, 1, 12)
             context = self.context(time=noon)
             self.assertAlmostEqual(
-                engine.price(scheduled, context),
-                engine.price(shifted, context),
+                engine.price(dated_history(scheduled, context), context),
+                engine.price(dated_history(shifted, context), context),
                 delta=1e-11,
             )
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda scheduled=scheduled, up=up, noon=noon: engine.price(
-                    scheduled, self.context(150 if up else 50, noon)
+                    dated_history(scheduled, self.context(150 if up else 50, noon)),
+                    self.context(150 if up else 50, noon),
                 ),
             )
             dense = BarrierOption(
@@ -294,7 +333,7 @@ class BarrierTests(unittest.TestCase):
                 )
             )
             result = engine.price_with_greeks(
-                dense,
+                dated_history(dense, self.context(time=noon)),
                 self.context(time=noon),
                 greeks="all",
             )
@@ -302,9 +341,15 @@ class BarrierTests(unittest.TestCase):
                 self.assertTrue(math.isfinite(result.require(greek)))
             self.assertIsNotNone(result.delta)
         option = BarrierOption(**self.terms(touch_state="untouched", rebate=7))
-        result = engine.price_with_greeks(option, self.context(120), greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(option, self.context(120)), self.context(120), greeks="all"
+        )
         self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
-        near = engine.price_with_greeks(option, self.context(119.995), greeks="all")
+        near = engine.price_with_greeks(
+            dated_history(option, self.context(119.995)),
+            self.context(119.995),
+            greeks="all",
+        )
         self.assertIsNone(near.delta)
         self.assertIsNone(near.speed)
         self.assertIsNotNone(near.vega)
@@ -351,7 +396,10 @@ class BarrierTests(unittest.TestCase):
                                 rate=rate,
                             ):
                                 self.assertAlmostEqual(
-                                    engine.price(BarrierOption(**terms), context),
+                                    engine.price(
+                                        dated_history(BarrierOption(**terms), context),
+                                        context,
+                                    ),
                                     expected,
                                     delta=1e-8,
                                 )
@@ -362,7 +410,9 @@ class BarrierTests(unittest.TestCase):
             touch_state="untouched",
         )
         option = BarrierOption(**terms)
-        result = engine.price_with_greeks(option, self.context(), greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(option, self.context()), self.context(), greeks="all"
+        )
 
         def f(spot=100, sigma=0.2, rate=0.05, days=0):
             return reference(terms, spot=spot, sigma=sigma, rate=rate, days=days)
@@ -401,7 +451,7 @@ class BarrierTests(unittest.TestCase):
                 )
         sigma = implied_volatility(
             engine,
-            option,
+            dated_history(option, self.context()),
             self.context(),
             result.price,
             lower_bound=0.15,
@@ -430,7 +480,7 @@ class BarrierTests(unittest.TestCase):
                         )
                     )
                     expected = 0 if knock_in else spot * sigma / math.sqrt(2 * math.pi)
-                    actual = engine.price(option, context)
+                    actual = engine.price(dated_history(option, context), context)
                     self.assertAlmostEqual(
                         actual / expected if expected else actual,
                         1 if expected else 0,
@@ -441,14 +491,20 @@ class BarrierTests(unittest.TestCase):
                     barrier_type=kind,
                     barrier_level=120 if up else 80,
                 )
-                unit = engine.price(BarrierOption(**terms), self.context())
+                unit = engine.price(
+                    dated_history(BarrierOption(**terms), self.context()),
+                    self.context(),
+                )
                 for scale in (1e-300, 1e300):
                     scaled = terms | {
                         "strike": 100 * scale,
                         "barrier_level": terms["barrier_level"] * scale,
                     }
                     actual = engine.price(
-                        BarrierOption(**scaled), self.context(100 * scale)
+                        dated_history(
+                            BarrierOption(**scaled), self.context(100 * scale)
+                        ),
+                        self.context(100 * scale),
                     )
                     self.assertAlmostEqual(actual / scale, unit, delta=1e-9)
 
@@ -464,7 +520,13 @@ class BarrierTests(unittest.TestCase):
             ("time_shift", 2**40, TypeError),
         ):
             with self.assertRaises(error):
-                numerical_greeks(engine, option, context, "delta", **{field: value})
+                numerical_greeks(
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    "delta",
+                    **{field: value},
+                )
         for fields in (
             {"spot_shift": 0},
             {"volatility_shift": float("nan")},
@@ -473,11 +535,14 @@ class BarrierTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 lambda fields=fields: numerical_greeks(
-                    engine, option, context, "delta", **fields
+                    engine, dated_history(option, context), context, "delta", **fields
                 ),
             )
         self.assert_rejection(
-            InvalidInputError, lambda: engine.price_with_greeks(option, context, [])
+            InvalidInputError,
+            lambda: engine.price_with_greeks(
+                dated_history(option, context), context, []
+            ),
         )
         for changes in (
             {"lower_bound": -0.1},
@@ -487,13 +552,18 @@ class BarrierTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 lambda changes=changes: implied_volatility(
-                    engine, option, context, 1, **changes
+                    engine, dated_history(option, context), context, 1, **changes
                 ),
             )
         self.assert_rejection(
             RootNotBracketedError,
             lambda: implied_volatility(
-                engine, option, context, -1, lower_bound=0.15, upper_bound=0.25
+                engine,
+                dated_history(option, context),
+                context,
+                -1,
+                lower_bound=0.15,
+                upper_bound=0.25,
             ),
         )
         curve = RateTermStructure(
@@ -509,15 +579,24 @@ class BarrierTests(unittest.TestCase):
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: engine.price_with_greeks(option, curved, []),
+            lambda: engine.price_with_greeks(dated_history(option, curved), curved, []),
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: implied_volatility(engine, option, curved, 1, lower_bound=0),
+            lambda: implied_volatility(
+                engine, dated_history(option, curved), curved, 1, lower_bound=0
+            ),
         )
         with ThreadPoolExecutor(4) as pool:
-            prices = list(pool.map(lambda _: engine.price(option, context), range(16)))
-        self.assertEqual(prices, [engine.price(option, context)] * 16)
+            prices = list(
+                pool.map(
+                    lambda _: engine.price(dated_history(option, context), context),
+                    range(16),
+                )
+            )
+        self.assertEqual(
+            prices, [engine.price(dated_history(option, context), context)] * 16
+        )
         self.assertEqual(option, BarrierOption(**self.terms(touch_state="untouched")))
 
 

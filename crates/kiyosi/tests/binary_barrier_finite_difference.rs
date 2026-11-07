@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn start() -> Timestamp {
@@ -30,10 +33,10 @@ fn continuous_cash_binary_converges_to_analytic_price() {
     )
     .unwrap();
     let expected = AnalyticBinaryBarrierEngine
-        .price(&option, &market())
+        .price(&dated(&option, &market()), &market())
         .unwrap();
     let price = FiniteDifferenceBinaryBarrierEngine::default()
-        .price(&option, &market())
+        .price(&dated(&option, &market()), &market())
         .unwrap();
     assert!((price - expected).abs() < 0.003, "{price} != {expected}");
 }
@@ -67,9 +70,11 @@ fn continuous_binary_matrix_matches_analytics_and_touch_settlements_converge() {
                         }
                         .unwrap();
                         let expected = AnalyticBinaryBarrierEngine
-                            .price(&option, &market())
+                            .price(&dated(&option, &market()), &market())
                             .unwrap();
-                        let fine = engine(1600).price(&option, &market()).unwrap();
+                        let fine = engine(1600)
+                            .price(&dated(&option, &market()), &market())
+                            .unwrap();
                         let tolerance = if asset { 0.008 } else { 0.0008 };
                         assert!(
                             (fine - expected).abs() < tolerance,
@@ -90,10 +95,14 @@ fn continuous_binary_matrix_matches_analytics_and_touch_settlements_converge() {
                     }
                     .unwrap();
                     let expected = AnalyticBinaryBarrierEngine
-                        .price(&option, &market())
+                        .price(&dated(&option, &market()), &market())
                         .unwrap();
-                    let coarse = engine(80).price(&option, &market()).unwrap();
-                    let fine = engine(1600).price(&option, &market()).unwrap();
+                    let coarse = engine(80)
+                        .price(&dated(&option, &market()), &market())
+                        .unwrap();
+                    let fine = engine(1600)
+                        .price(&dated(&option, &market()), &market())
+                        .unwrap();
                     assert!(
                         (fine - expected).abs() < if asset { 0.004 } else { 0.0004 },
                         "{kind:?} {asset} {timing:?}: {fine} != {expected}"
@@ -119,7 +128,9 @@ fn scheduled_single_expiry_observation_matches_digital_portfolios() {
                     DigitalOption::cash_or_nothing(direction, strike, 10.0, start(), end())
                 }
                 .unwrap();
-                AnalyticDigitalEngine.price(&option, &market()).unwrap()
+                AnalyticDigitalEngine
+                    .price(&dated(&option, &market()), &market())
+                    .unwrap()
             };
             let touched = digital(
                 if level > 100.0 {
@@ -150,7 +161,11 @@ fn scheduled_single_expiry_observation_matches_digital_portfolios() {
                     total - touched
                 };
                 assert!(
-                    (engine(1600).price(&option, &market()).unwrap() - expected).abs()
+                    (engine(1600)
+                        .price(&dated(&option, &market()), &market())
+                        .unwrap()
+                        - expected)
+                        .abs()
                         < if asset { 0.003 } else { 0.0003 }
                 );
                 for direction in [OptionType::Call, OptionType::Put] {
@@ -175,7 +190,11 @@ fn scheduled_single_expiry_observation_matches_digital_portfolios() {
                         digital(direction, 100.0) - hit_payoff
                     };
                     assert!(
-                        (engine(1600).price(&option, &market()).unwrap() - expected).abs()
+                        (engine(1600)
+                            .price(&dated(&option, &market()), &market())
+                            .unwrap()
+                            - expected)
+                            .abs()
                             < if asset { 0.004 } else { 0.0004 }
                     );
                 }
@@ -213,28 +232,46 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                 amount * (-if asset { 0.01_f64 } else { 0.04_f64 }).exp()
             };
             assert!(
-                (engine.price(&option, &context(130.0, start())).unwrap() - expected).abs() < 1e-12
+                (engine
+                    .price(
+                        &dated(&option, &context(130.0, start())),
+                        &context(130.0, start())
+                    )
+                    .unwrap()
+                    - expected)
+                    .abs()
+                    < 1e-12
             );
             let tomorrow = Date::new(2025, 1, 2).unwrap().start_of_day();
             assert!(matches!(
                 engine
-                    .price(&option, &context(130.0, tomorrow))
+                    .price(
+                        &dated(&option, &context(130.0, tomorrow)),
+                        &context(130.0, tomorrow)
+                    )
                     .unwrap_err(),
                 Error::InvalidInput(_)
             ));
             let known = option.replace_history(Some(BarrierTouchState::Touched));
             assert!(matches!(
-                engine.price(&known, &market()).unwrap_err(),
+                engine
+                    .price(&dated(&known, &market()), &market())
+                    .unwrap_err(),
                 Error::InvalidInput(_)
             ));
-            let value = engine.price(&known, &context(100.0, tomorrow)).unwrap();
+            let value = engine
+                .price(
+                    &dated(&known, &context(100.0, tomorrow)),
+                    &context(100.0, tomorrow),
+                )
+                .unwrap();
             if timing == SettlementTiming::AtHit {
                 assert_eq!(value, 0.0);
             }
             assert!(matches!(
                 implied_volatility(
                     &engine,
-                    &known,
+                    &dated(&known, &context(100.0, tomorrow)),
                     &context(100.0, tomorrow),
                     value,
                     Default::default(),
@@ -251,7 +288,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                     0.0
                 };
                 let result = engine
-                    .price_with_greeks(&untouched, &ctx, GreeksRequest::all())
+                    .price_with_greeks(&dated(&untouched, &ctx), &ctx, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(result.price(), expected);
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
@@ -283,10 +320,18 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
             }
             .unwrap()
             .replace_history(Some(BarrierTouchState::Untouched));
-            assert_eq!(engine.price(&option, &context(100.0, end())).unwrap(), 0.0);
+            assert_eq!(
+                engine
+                    .price(
+                        &dated(&option, &context(100.0, end())),
+                        &context(100.0, end())
+                    )
+                    .unwrap(),
+                0.0
+            );
             let ctx = context(110.0, end());
             assert_eq!(
-                engine.price(&option, &ctx).unwrap(),
+                engine.price(&dated(&option, &ctx), &ctx).unwrap(),
                 if kind == BarrierType::UpAndOut {
                     if asset { 110.0 } else { 10.0 }
                 } else {
@@ -321,26 +366,33 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
         fixing,
     )
     .unwrap();
-    let expected = AnalyticDigitalEngine.price(&digital, &ctx).unwrap();
-    assert!((engine(1600).price(&option, &ctx).unwrap() - expected).abs() < 0.0004);
+    let expected = AnalyticDigitalEngine
+        .price(&dated(&digital, &ctx), &ctx)
+        .unwrap();
+    assert!((engine(1600).price(&dated(&option, &ctx), &ctx).unwrap() - expected).abs() < 0.0004);
     terms.settlement_timing = SettlementTiming::AtExpiry;
     assert!(matches!(
         engine(400)
-            .price(&TouchOption::cash(terms, 10.0).unwrap(), &ctx)
+            .price(&dated(&TouchOption::cash(terms, 10.0).unwrap(), &ctx), &ctx)
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let at = context(130.0, fixing);
-    assert_eq!(engine(400).price(&option, &at).unwrap(), 10.0);
+    assert_eq!(engine(400).price(&dated(&option, &at), &at).unwrap(), 10.0);
     let after = context(130.0, Timestamp::new(fixing.date(), 0, 0, 0, 1).unwrap());
     assert!(matches!(
-        engine(400).price(&option, &after).unwrap_err(),
+        engine(400)
+            .price(&dated(&option, &after), &after)
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert_eq!(
         engine(400)
             .price(
-                &option.replace_history(Some(BarrierTouchState::Untouched)),
+                &dated(
+                    &option.replace_history(Some(BarrierTouchState::Untouched)),
+                    &after
+                ),
                 &after
             )
             .unwrap(),
@@ -356,12 +408,12 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     let engine = engine(800);
     let ctx = context(100.0, Date::new(2025, 1, 2).unwrap().start_of_day());
     let result = engine
-        .price_with_greeks(&option, &ctx, GreeksRequest::all())
+        .price_with_greeks(&dated(&option, &ctx), &ctx, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
     let scalar = numerical_greeks(
         &engine,
-        &option,
+        &dated(&option, &ctx),
         &ctx,
         GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho]),
         Default::default(),
@@ -375,7 +427,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     }
     let recovered = implied_volatility(
         &engine,
-        &option,
+        &dated(&option, &ctx),
         &ctx,
         result.price(),
         ImpliedVolatilitySettings {
@@ -387,22 +439,32 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     .unwrap();
     assert!((recovered - 0.2).abs() < 1e-7);
     assert!(matches!(
-        implied_volatility(&engine, &option, &ctx, -1.0, Default::default()).unwrap_err(),
+        implied_volatility(
+            &engine,
+            &dated(&option, &ctx),
+            &ctx,
+            -1.0,
+            Default::default()
+        )
+        .unwrap_err(),
         Error::RootNotBracketed(_)
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &ctx, GreeksRequest::new([]))
+            .price_with_greeks(&dated(&option, &ctx), &ctx, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let at = context(120.13, start());
     let unknown = option.replace_history(None);
     let result_at = engine
-        .price_with_greeks(&unknown, &at, GreeksRequest::all())
+        .price_with_greeks(&dated(&unknown, &at), &at, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| !result_at.has(g)));
-    assert_eq!(engine.price(&option, &ctx).unwrap(), result.price());
+    assert_eq!(
+        engine.price(&dated(&option, &ctx), &ctx).unwrap(),
+        result.price()
+    );
     assert_eq!(ctx.spot_price(), 100.0);
 }
 
@@ -439,7 +501,7 @@ fn grids_schedules_and_validation_fail_before_mutating_inputs() {
         assert!(matches!(
             FiniteDifferenceBinaryBarrierEngine::new(settings)
                 .unwrap()
-                .price(&option, &market())
+                .price(&dated(&option, &market()), &market())
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
@@ -520,7 +582,9 @@ fn two_fixing_cash_asset_and_settlement_prices_match_independent_integrals() {
                 }
                 .unwrap();
                 let expected = references[usize::from(asset)][index];
-                let value = engine(1600).price(&option, &market()).unwrap();
+                let value = engine(1600)
+                    .price(&dated(&option, &market()), &market())
+                    .unwrap();
                 assert!((value - expected).abs() < if asset { 0.001 } else { 0.0001 });
             }
         }
@@ -533,7 +597,7 @@ fn explicit_implicit_and_damped_schemes_preserve_supported_payoffs() {
         let option =
             TouchOption::cash(TouchOptionTerms::new(start(), end(), 120.13, kind), 10.0).unwrap();
         let expected = AnalyticBinaryBarrierEngine
-            .price(&option, &market())
+            .price(&dated(&option, &market()), &market())
             .unwrap();
         for scheme in [
             FiniteDifferenceScheme::ExplicitEuler,
@@ -548,7 +612,10 @@ fn explicit_implicit_and_damped_schemes_preserve_supported_payoffs() {
                 asset_upper_boundary: Some(400.0),
             })
             .unwrap();
-            assert!((engine.price(&option, &market()).unwrap() - expected).abs() < 0.03);
+            assert!(
+                (engine.price(&dated(&option, &market()), &market()).unwrap() - expected).abs()
+                    < 0.03
+            );
         }
     }
 }
@@ -570,19 +637,19 @@ fn continuous_binary_domains_retain_configured_nodes_and_explicit_stability() {
         .unwrap()
     };
     let expected = make(400.0, FiniteDifferenceScheme::Rannacher)
-        .price(&option, &market())
+        .price(&dated(&option, &market()), &market())
         .unwrap();
     for upper in [10_000.0, 1e9] {
         assert_eq!(
             make(upper, FiniteDifferenceScheme::Rannacher)
-                .price(&option, &market())
+                .price(&dated(&option, &market()), &market())
                 .unwrap(),
             expected
         );
     }
     assert!(matches!(
         make(480.0, FiniteDifferenceScheme::ExplicitEuler)
-            .price(&option, &market())
+            .price(&dated(&option, &market()), &market())
             .unwrap_err(),
         Error::InvalidInput(_)
     ));

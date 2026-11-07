@@ -17,6 +17,7 @@ from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -86,13 +87,20 @@ class DoubleBarrierTests(unittest.TestCase):
         engine = AnalyticDoubleBarrierEngine()
         for direction, kind in product(("call", "put"), ("knock_in", "knock_out")):
             option = contract(option_type=direction, barrier_type=kind)
-            expected = reference(direction, kind)
+            expected = reference(dated_history(direction, kind), kind)
             self.assertAlmostEqual(
-                expected, reference(direction, kind, series=10), delta=1e-10
+                expected,
+                reference(dated_history(direction, kind), kind, series=10),
+                delta=1e-10,
             )
-            result = engine.price_with_greeks(option, market(), ["delta", "gamma"])
+            result = engine.price_with_greeks(
+                dated_history(option, market()), market(), ["delta", "gamma"]
+            )
             self.assertAlmostEqual(result.price, expected, delta=1e-9)
-            low, high = [reference(direction, kind, spot=s) for s in (99.99, 100.01)]
+            low, high = [
+                reference(dated_history(direction, kind), kind, spot=s)
+                for s in (99.99, 100.01)
+            ]
             self.assertAlmostEqual(result.delta, (high - low) / 0.02, delta=1e-7)
             self.assertAlmostEqual(
                 result.gamma, (high - 2 * expected + low) / 0.01**2, delta=1e-6
@@ -106,8 +114,10 @@ class DoubleBarrierTests(unittest.TestCase):
                 option_type=direction, strike=100, effective_time=START, expiry_time=END
             )
             self.assertAlmostEqual(
-                result.price + engine.price(other, market()),
-                AnalyticEuropeanEngine().price(vanilla, market()),
+                result.price + engine.price(dated_history(other, market()), market()),
+                AnalyticEuropeanEngine().price(
+                    dated_history(vanilla, market()), market()
+                ),
                 delta=1e-9,
             )
 
@@ -239,17 +249,23 @@ class DoubleBarrierTests(unittest.TestCase):
             option = contract(rebate=3, rebate_timing=timing)
             expected = 3 if timing == "at_hit" else 3 * math.exp(-0.04)
             self.assertAlmostEqual(
-                engine.price(option, market(spot)), expected, delta=1e-12
+                engine.price(dated_history(option, market(spot)), market(spot)),
+                expected,
+                delta=1e-12,
             )
             past = option.replace_history(touch_state="touched")
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.04 * 364 / 365)
-            self.assertAlmostEqual(engine.price(past, later), expected, delta=1e-12)
+            self.assertAlmostEqual(
+                engine.price(dated_history(past, later), later), expected, delta=1e-12
+            )
             self.assert_rejection(
                 InvalidInputError,
-                lambda past=past: engine.price(past, market()),
+                lambda past=past: engine.price(dated_history(past, market()), market()),
             )
             if spot in (80, 120):
-                result = engine.price_with_greeks(option, market(spot), greeks="all")
+                result = engine.price_with_greeks(
+                    dated_history(option, market(spot)), market(spot), greeks="all"
+                )
                 for name in (
                     "delta",
                     "gamma",
@@ -264,19 +280,22 @@ class DoubleBarrierTests(unittest.TestCase):
                 ):
                     self.assertIsNone(getattr(result, name))
         self.assert_rejection(
-            InvalidInputError, lambda: engine.price(contract(), later)
+            InvalidInputError,
+            lambda: engine.price(dated_history(contract(), later), later),
         )
         microsecond = market(time=datetime(2025, 1, 1, microsecond=1))
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price(contract(), microsecond),
+            lambda: engine.price(dated_history(contract(), microsecond), microsecond),
         )
         for kind, spot in product(("knock_in", "knock_out"), (80, 110, 120)):
             option = contract(barrier_type=kind, rebate=2, touch_state="untouched")
             touched = spot != 110
             expected = max(spot - 100, 0) if ((kind == "knock_in") == touched) else 2
             result = engine.price_with_greeks(
-                option, market(spot, time=END), greeks="all"
+                dated_history(option, market(spot, time=END)),
+                market(spot, time=END),
+                greeks="all",
             )
             self.assertEqual(result.price, expected)
             assert_terminal_greeks(
@@ -284,17 +303,23 @@ class DoubleBarrierTests(unittest.TestCase):
             )
         option = contract(touch_state="untouched")
         after = market(time=datetime(2026, 1, 1, microsecond=1))
-        self.assert_rejection(InvalidInputError, lambda: engine.price(option, after))
+        self.assert_rejection(
+            InvalidInputError, lambda: engine.price(dated_history(option, after), after)
+        )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price(option, market(time=datetime(2024, 12, 31))),
+            lambda: engine.price(
+                dated_history(option, market(time=datetime(2024, 12, 31))),
+                market(time=datetime(2024, 12, 31)),
+            ),
         )
         inside = contract(barrier_type="knock_in", touch_state="touched")
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         self.assertEqual(
-            engine.price(inside, later), AnalyticEuropeanEngine().price(vanilla, later)
+            engine.price(dated_history(inside, later), later),
+            AnalyticEuropeanEngine().price(dated_history(vanilla, later), later),
         )
 
     def test_schedules_validate_then_resolve_before_analytic_restrictions(self):
@@ -306,12 +331,16 @@ class DoubleBarrierTests(unittest.TestCase):
             option = contract(observation_mode="scheduled", observation_times=dates)
             self.assert_rejection(
                 UnsupportedOperationError,
-                lambda option=option: engine.price(option, market()),
+                lambda option=option: engine.price(
+                    dated_history(option, market()), market()
+                ),
             )
             touched = option.replace_history(touch_state="touched")
             self.assert_rejection(
                 InvalidInputError,
-                lambda touched=touched: engine.price(touched, market()),
+                lambda touched=touched: engine.price(
+                    dated_history(touched, market()), market()
+                ),
             )
         for kind in ("knock_in", "knock_out"):
             option = contract(
@@ -321,13 +350,19 @@ class DoubleBarrierTests(unittest.TestCase):
                 observation_times=[first],
             )
             self.assertAlmostEqual(
-                engine.price(option, market(120, time=first)),
+                engine.price(
+                    dated_history(option, market(120, time=first)),
+                    market(120, time=first),
+                ),
                 AnalyticEuropeanEngine().price(
-                    EuropeanOption(
-                        option_type="call",
-                        strike=100,
-                        effective_time=START,
-                        expiry_time=END,
+                    dated_history(
+                        EuropeanOption(
+                            option_type="call",
+                            strike=100,
+                            effective_time=START,
+                            expiry_time=END,
+                        ),
+                        market(120, time=first),
                     ),
                     market(120, time=first),
                 )
@@ -338,23 +373,32 @@ class DoubleBarrierTests(unittest.TestCase):
             intraday = market(130, time=datetime(2025, 6, 30, 12))
             self.assert_rejection(
                 InvalidInputError,
-                lambda option=option, intraday=intraday: engine.price(option, intraday),
+                lambda option=option, intraday=intraday: engine.price(
+                    dated_history(option, intraday), intraday
+                ),
             )
             known = option.replace_history(touch_state="untouched")
             expected = (
                 3 * math.exp(-0.04 * 184.5 / 365)
                 if kind == "knock_in"
                 else AnalyticEuropeanEngine().price(
-                    EuropeanOption(
-                        option_type="call",
-                        strike=100,
-                        effective_time=START,
-                        expiry_time=END,
+                    dated_history(
+                        EuropeanOption(
+                            option_type="call",
+                            strike=100,
+                            effective_time=START,
+                            expiry_time=END,
+                        ),
+                        intraday,
                     ),
                     intraday,
                 )
             )
-            self.assertAlmostEqual(engine.price(known, intraday), expected, delta=1e-12)
+            self.assertAlmostEqual(
+                engine.price(dated_history(known, intraday), intraday),
+                expected,
+                delta=1e-12,
+            )
         with self.assertRaises(InvalidInputError):
             contract(
                 observation_mode="scheduled", observation_times=[datetime(2025, 7, 5)]
@@ -364,8 +408,13 @@ class DoubleBarrierTests(unittest.TestCase):
         engine = AnalyticDoubleBarrierEngine()
         for sigma in (0.20273255202675663, 0.20273255608140772, 0.3040988310811233):
             self.assertAlmostEqual(
-                engine.price(contract(), market(volatility=sigma)),
-                reference("call", "knock_out", volatility=sigma),
+                engine.price(
+                    dated_history(contract(), market(volatility=sigma)),
+                    market(volatility=sigma),
+                ),
+                reference(
+                    dated_history("call", "knock_out"), "knock_out", volatility=sigma
+                ),
                 delta=1e-9,
             )
         for spot in (
@@ -374,26 +423,43 @@ class DoubleBarrierTests(unittest.TestCase):
             math.nextafter(80, math.inf),
             math.nextafter(120, 0),
         ):
-            actual = engine.price(contract(), market(spot))
+            actual = engine.price(dated_history(contract(), market(spot)), market(spot))
             self.assertGreaterEqual(actual, 0)
             self.assertAlmostEqual(
-                actual, reference("call", "knock_out", spot=spot), delta=1e-9
+                actual,
+                reference(dated_history("call", "knock_out"), "knock_out", spot=spot),
+                delta=1e-9,
             )
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         self.assertAlmostEqual(
-            engine.price(contract(lower_barrier=0.01, upper_barrier=10000), market()),
-            AnalyticEuropeanEngine().price(vanilla, market()),
+            engine.price(
+                dated_history(
+                    contract(lower_barrier=0.01, upper_barrier=10000), market()
+                ),
+                market(),
+            ),
+            AnalyticEuropeanEngine().price(dated_history(vanilla, market()), market()),
             delta=1e-9,
         )
         self.assertEqual(
-            engine.price(contract(lower_barrier=99.99, upper_barrier=100.01), market()),
+            engine.price(
+                dated_history(
+                    contract(lower_barrier=99.99, upper_barrier=100.01), market()
+                ),
+                market(),
+            ),
             0,
         )
         for direction, strike in (("call", 125), ("put", 75)):
             self.assertEqual(
-                engine.price(contract(option_type=direction, strike=strike), market()),
+                engine.price(
+                    dated_history(
+                        contract(option_type=direction, strike=strike), market()
+                    ),
+                    market(),
+                ),
                 0,
             )
         for up, timing in product((False, True), ("at_hit", "at_expiry")):
@@ -407,14 +473,20 @@ class DoubleBarrierTests(unittest.TestCase):
             )
             self.assertAlmostEqual(
                 engine.price(
-                    option, market(volatility=1e-12, dividend=0.01 if up else 0.07)
+                    dated_history(
+                        option, market(volatility=1e-12, dividend=0.01 if up else 0.07)
+                    ),
+                    market(volatility=1e-12, dividend=0.01 if up else 0.07),
                 ),
                 expected,
                 delta=1e-7,
             )
         self.assertAlmostEqual(
             engine.price(
-                contract(lower_barrier=99.5, upper_barrier=100.5, strike=90),
+                dated_history(
+                    contract(lower_barrier=99.5, upper_barrier=100.5, strike=90),
+                    market(volatility=1e-12, dividend=0.04),
+                ),
                 market(volatility=1e-12, dividend=0.04),
             ),
             10 * math.exp(-0.04),
@@ -457,8 +529,8 @@ class DoubleBarrierTests(unittest.TestCase):
                     "rebate_timing": timing,
                 }
                 actual = engine.price(
-                    contract(**terms, rebate=3), context
-                ) - engine.price(contract(**terms), context)
+                    dated_history(contract(**terms, rebate=3), context), context
+                ) - engine.price(dated_history(contract(**terms), context), context)
                 self.assertAlmostEqual(actual, refs[index], delta=1e-9)
 
     def test_shared_analysis_solving_errors_and_concurrent_reads_preserve_inputs(self):
@@ -471,14 +543,21 @@ class DoubleBarrierTests(unittest.TestCase):
         option = contract(lower_barrier=50, upper_barrier=200)
         context = market()
         engine = AnalyticDoubleBarrierEngine()
-        quote = engine.price(option, context)
+        quote = engine.price(dated_history(option, context), context)
         solved = implied_volatility(
-            engine, option, context, quote, lower_bound=0.15, upper_bound=0.25
+            engine,
+            dated_history(option, context),
+            context,
+            quote,
+            lower_bound=0.15,
+            upper_bound=0.25,
         )
         self.assertAlmostEqual(solved, 0.2, delta=1e-7)
         known = option.replace_history(touch_state="untouched")
         later = market(time=START + timedelta(days=1))
-        result = engine.price_with_greeks(known, later, greeks="all")
+        result = engine.price_with_greeks(
+            dated_history(known, later), later, greeks="all"
+        )
         for name in (
             "delta",
             "gamma",
@@ -502,27 +581,50 @@ class DoubleBarrierTests(unittest.TestCase):
                 InvalidInputError,
                 lambda field=field: numerical_greeks(
                     engine,
-                    option,
+                    dated_history(option, context),
                     context,
                     ["delta"],
                     **{field: timedelta() if field == "time_shift" else 0},
                 ),
             )
             with self.assertRaises(TypeError):
-                numerical_greeks(engine, option, context, ["delta"], **{field: True})
+                numerical_greeks(
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    ["delta"],
+                    **{field: True},
+                )
         with self.assertRaises(TypeError):
-            numerical_greeks(engine, option, context, ["delta"], time_shift=1.5)
+            numerical_greeks(
+                engine,
+                dated_history(option, context),
+                context,
+                ["delta"],
+                time_shift=1.5,
+            )
         with self.assertRaises(OverflowError):
-            implied_volatility(engine, option, context, quote, max_iterations=2**80)
+            implied_volatility(
+                engine,
+                dated_history(option, context),
+                context,
+                quote,
+                max_iterations=2**80,
+            )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price_with_greeks(option, context, []),
+            lambda: engine.price_with_greeks(
+                dated_history(option, context), context, []
+            ),
         )
         fixed = contract(rebate=3, touch_state="touched")
         self.assert_rejection(
             UnsupportedOperationError,
             lambda: implied_volatility(
-                engine, fixed, later, engine.price(fixed, later)
+                engine,
+                dated_history(fixed, later),
+                later,
+                engine.price(dated_history(fixed, later), later),
             ),
         )
         node = RateTermStructure(
@@ -534,24 +636,34 @@ class DoubleBarrierTests(unittest.TestCase):
             model_parameters=context.model_parameters.replace(risk_free_rate=node)
         )
         self.assert_rejection(
-            UnsupportedOperationError, lambda: engine.price(option, curved)
+            UnsupportedOperationError,
+            lambda: engine.price(dated_history(option, curved), curved),
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: engine.price_with_greeks(option, curved, []),
+            lambda: engine.price_with_greeks(dated_history(option, curved), curved, []),
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: implied_volatility(engine, option, curved, math.nan),
+            lambda: implied_volatility(
+                engine, dated_history(option, curved), curved, math.nan
+            ),
         )
         near = market(80.005)
-        guarded = engine.price_with_greeks(contract(), near, ["delta", "gamma", "vega"])
+        guarded = engine.price_with_greeks(
+            dated_history(contract(), near), near, ["delta", "gamma", "vega"]
+        )
         self.assertIsNone(guarded.delta)
         self.assertIsNone(guarded.gamma)
         self.assertIsNotNone(guarded.vega)
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(
-                list(pool.map(lambda _: engine.price(option, context), range(4))),
+                list(
+                    pool.map(
+                        lambda _: engine.price(dated_history(option, context), context),
+                        range(4),
+                    )
+                ),
                 [quote] * 4,
             )
         self.assertEqual(option, contract(lower_barrier=50, upper_barrier=200))
@@ -560,7 +672,13 @@ class DoubleBarrierTests(unittest.TestCase):
     def test_settled_zero_rebates_do_not_require_representable_discount(self):
         engine = AnalyticDoubleBarrierEngine()
         outside = contract(expiry_time=datetime(2027, 1, 1))
-        self.assertEqual(engine.price(outside, market(120, rate=1e308, dividend=0)), 0)
+        self.assertEqual(
+            engine.price(
+                dated_history(outside, market(120, rate=1e308, dividend=0)),
+                market(120, rate=1e308, dividend=0),
+            ),
+            0,
+        )
         inside = contract(
             expiry_time=datetime(2027, 1, 1),
             barrier_type="knock_in",
@@ -570,7 +688,10 @@ class DoubleBarrierTests(unittest.TestCase):
         )
         self.assertEqual(
             engine.price(
-                inside, market(time=datetime(2025, 1, 2), rate=1e308, dividend=0)
+                dated_history(
+                    inside, market(time=datetime(2025, 1, 2), rate=1e308, dividend=0)
+                ),
+                market(time=datetime(2025, 1, 2), rate=1e308, dividend=0),
             ),
             0,
         )

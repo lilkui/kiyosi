@@ -27,6 +27,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import dated as dated_history
 from test_snowball import END, START, autocallable_observations, market, structured
 
 
@@ -66,11 +67,13 @@ class SnowballVariantTests(unittest.TestCase):
         context = market(106, volatility=0.001, rate=0.05, dividend=0)
         engine = QuadratureAutocallableEngine()
         expected = 1.2 * math.exp(-0.05)
-        self.assertAlmostEqual(engine.price(note, context), expected, delta=1e-7)
+        self.assertAlmostEqual(
+            engine.price(dated_history(note, context), context), expected, delta=1e-7
+        )
         self.assertAlmostEqual(
             implied_snowball_coupon(
                 engine,
-                note,
+                dated_history(note, context),
                 context,
                 expected,
                 quote_convention="preserve_maturity_coupon",
@@ -99,7 +102,9 @@ class SnowballVariantTests(unittest.TestCase):
         d2 = (math.log(115 / 110) - 0.05 - 0.5 * 0.005**2) / 0.005
         expected = 1 + 0.1 * math.erfc(-d2 / math.sqrt(2))
         self.assertAlmostEqual(
-            QuadratureAutocallableEngine(asset_step_count=2048).price(note, context),
+            QuadratureAutocallableEngine(asset_step_count=2048).price(
+                dated_history(note, context), context
+            ),
             expected,
             delta=1e-4,
         )
@@ -150,7 +155,11 @@ class SnowballVariantTests(unittest.TestCase):
             0.5 + (0.06 + 0.02 * knock_out_probability) * 90 / 365
         )
         self.assertAlmostEqual(
-            engine.price(binary, market(80, valuation)), expected, delta=1e-12
+            engine.price(
+                dated_history(binary, market(80, valuation)), market(80, valuation)
+            ),
+            expected,
+            delta=1e-12,
         )
         for spot in (79.999, 80, 109, 110):
             for note in (binary, ternary):
@@ -162,7 +171,10 @@ class SnowballVariantTests(unittest.TestCase):
                     else 0.06
                 )
                 self.assertEqual(
-                    engine.price(note, market(spot, END)), 0.5 + coupon * 90 / 365
+                    engine.price(
+                        dated_history(note, market(spot, END)), market(spot, END)
+                    ),
+                    0.5 + coupon * 90 / 365,
                 )
 
     def assert_rejection(self, expected, operation, *args, **kwargs):
@@ -230,7 +242,9 @@ class SnowballVariantTests(unittest.TestCase):
                     rate=inputs["rate"],
                 )
                 self.assertAlmostEqual(
-                    engine.price(note, ctx), structured.price(kind, inputs), delta=1e-10
+                    engine.price(dated_history(note, ctx), ctx),
+                    structured.price(dated_history(kind, inputs), inputs),
+                    delta=1e-10,
                 )
 
     def test_all_eight_presets_match_explicit_terms_prices_and_analysis(self):
@@ -373,13 +387,19 @@ class SnowballVariantTests(unittest.TestCase):
                     ),
                 )
                 self.assertEqual(actual, explicit)
-                self.assertEqual(engine.price(actual, ctx), engine.price(explicit, ctx))
+                self.assertEqual(
+                    engine.price(dated_history(actual, ctx), ctx),
+                    engine.price(dated_history(explicit, ctx), ctx),
+                )
                 mc = MonteCarloAutocallableEngine(path_count=128, seed=42)
-                self.assertEqual(mc.price(actual, ctx), mc.price(explicit, ctx))
+                self.assertEqual(
+                    mc.price(dated_history(actual, ctx), ctx),
+                    mc.price(dated_history(explicit, ctx), ctx),
+                )
                 for note in (actual, explicit):
                     result = numerical_greeks(
                         engine,
-                        note,
+                        dated_history(note, ctx),
                         ctx,
                         ["delta", "vega"],
                         spot_shift=0.25,
@@ -465,14 +485,23 @@ class SnowballVariantTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                note.replace_history(barrier_state="knocked_out"),
+                dated_history(
+                    note.replace_history(barrier_state="knocked_out"), market()
+                ),
                 market(),
             )
             self.assert_rejection(
-                InvalidInputError, engine.price_with_greeks, note, market(), []
+                InvalidInputError,
+                engine.price_with_greeks,
+                dated_history(note, market()),
+                market(),
+                [],
             )
             self.assert_rejection(
-                InvalidInputError, engine.price, note, market(100, datetime(2025, 4, 2))
+                InvalidInputError,
+                engine.price,
+                dated_history(note, market(100, datetime(2025, 4, 2))),
+                market(100, datetime(2025, 4, 2)),
             )
         binary = self.fixed(BinarySnowballOption)
         self.assert_rejection(
@@ -500,11 +529,17 @@ class SnowballVariantTests(unittest.TestCase):
             TernarySnowballOption, knock_in_observation_mode="every_trading_day"
         )
         self.assert_rejection(
-            InvalidInputError, engine.price, daily, market(100, datetime(2025, 1, 2))
+            InvalidInputError,
+            engine.price,
+            dated_history(daily, market(100, datetime(2025, 1, 2))),
+            market(100, datetime(2025, 1, 2)),
         )
         self.assertEqual(
             engine.price(
-                daily.replace_history(barrier_state="knocked_in"), market(100, END)
+                dated_history(
+                    daily.replace_history(barrier_state="knocked_in"), market(100, END)
+                ),
+                market(100, END),
             ),
             1 + 0.02 * 90 / 365,
         )
@@ -515,7 +550,10 @@ class SnowballVariantTests(unittest.TestCase):
             factors=[0.99, (0.99) * 0.5],
         )
         self.assert_rejection(
-            UnsupportedOperationError, engine.price, binary, market(rate=curve)
+            UnsupportedOperationError,
+            engine.price,
+            dated_history(binary, market(rate=curve)),
+            market(rate=curve),
         )
 
     def test_preset_rejections_and_strict_numeric_conversion(self):
@@ -592,7 +630,9 @@ class SnowballVariantTests(unittest.TestCase):
             note = self.fixed(kind)
             ctx = market(103)
             original = repr(note)
-            result = numerical_greeks(engine, note, ctx, greeks="all", spot_shift=0.25)
+            result = numerical_greeks(
+                engine, dated_history(note, ctx), ctx, greeks="all", spot_shift=0.25
+            )
             for name in (
                 "delta",
                 "gamma",
@@ -607,23 +647,39 @@ class SnowballVariantTests(unittest.TestCase):
             ):
                 self.assertTrue(math.isfinite(getattr(result, name)), name)
             sigma = implied_volatility(
-                engine, note, ctx, result.price, lower_bound=0.2, upper_bound=0.4
+                engine,
+                dated_history(note, ctx),
+                ctx,
+                result.price,
+                lower_bound=0.2,
+                upper_bound=0.4,
             )
             self.assertAlmostEqual(sigma, 0.3, delta=1e-6)
             self.assert_rejection(
-                RootNotBracketedError, implied_volatility, engine, note, ctx, 10
+                RootNotBracketedError,
+                implied_volatility,
+                engine,
+                dated_history(note, ctx),
+                ctx,
+                10,
             )
             self.assertEqual(repr(note), original)
             self.assertEqual(ctx.model_parameters.volatility, 0.3)
             with ThreadPoolExecutor(max_workers=3) as pool:
                 prices = list(
                     pool.map(
-                        lambda s, note=note: engine.price(note, market(s)),
+                        lambda s, note=note: engine.price(
+                            dated_history(note, market(s)), market(s)
+                        ),
                         [80, 100, 120],
                     )
                 )
             self.assertEqual(
-                prices, [engine.price(note, market(s)) for s in [80, 100, 120]]
+                prices,
+                [
+                    engine.price(dated_history(note, market(s)), market(s))
+                    for s in [80, 100, 120]
+                ],
             )
             middle = datetime(2025, 2, 3)
             note = self.fixed(
@@ -633,7 +689,11 @@ class SnowballVariantTests(unittest.TestCase):
                     [middle, END], [110, 105], knock_out_coupon_rates=[0.08, 0.06]
                 ),
             )
-            current = engine.price_with_greeks(note, market(110, middle), greeks="all")
+            current = engine.price_with_greeks(
+                dated_history(note, market(110, middle)),
+                market(110, middle),
+                greeks="all",
+            )
             self.assertAlmostEqual(current.price, 1 + 0.08 * 33 / 365)
             self.assertIsNone(current.delta)
             self.assertIsNone(current.theta)
@@ -645,7 +705,7 @@ class SnowballVariantTests(unittest.TestCase):
                 UnsupportedOperationError,
                 implied_volatility,
                 engine,
-                note,
+                dated_history(note, market(110, middle)),
                 market(110, middle),
                 current.price,
             )
@@ -653,12 +713,18 @@ class SnowballVariantTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                note.replace_history(barrier_state=None),
+                dated_history(
+                    note.replace_history(barrier_state=None), market(110, intraday)
+                ),
                 market(110, intraday),
             )
             self.assertEqual(
                 engine.price(
-                    note.replace_history(barrier_state="knocked_out"), market(100, END)
+                    dated_history(
+                        note.replace_history(barrier_state="knocked_out"),
+                        market(100, END),
+                    ),
+                    market(100, END),
                 ),
                 0,
             )
@@ -669,15 +735,17 @@ class SnowballVariantTests(unittest.TestCase):
                 **({"minimum_coupon_rate": 0} if kind is TernarySnowballOption else {}),
             )
             self.assertAlmostEqual(
-                engine.price(fixed, ctx), math.exp(-0.04 * 90 / 365), delta=1e-15
+                engine.price(dated_history(fixed, ctx), ctx),
+                math.exp(-0.04 * 90 / 365),
+                delta=1e-15,
             )
             self.assert_rejection(
                 UnsupportedOperationError,
                 implied_volatility,
                 engine,
-                fixed,
+                dated_history(fixed, ctx),
                 ctx,
-                engine.price(fixed, ctx),
+                engine.price(dated_history(fixed, ctx), ctx),
             )
 
     def test_multi_event_convergence_for_fixed_variants_and_both_monitoring_modes(self):
@@ -702,7 +770,7 @@ class SnowballVariantTests(unittest.TestCase):
             prices = [
                 QuadratureAutocallableEngine(
                     asset_step_count=n, integration_standard_deviations=e
-                ).price(note, ctx)
+                ).price(dated_history(note, ctx), ctx)
                 for n, e in ((512, 8), (1024, 8), (1024, 10))
             ]
             self.assertAlmostEqual(prices[0], prices[1], delta=1e-4)
@@ -736,7 +804,10 @@ class SnowballVariantTests(unittest.TestCase):
                         1 + coupon * math.erfc(-d2 / math.sqrt(2)) / 2
                     )
                     self.assertAlmostEqual(
-                        engine.price(note, market(volatility=0.8)),
+                        engine.price(
+                            dated_history(note, market(volatility=0.8)),
+                            market(volatility=0.8),
+                        ),
                         expected,
                         delta=1e-12,
                     )
@@ -759,7 +830,10 @@ class SnowballVariantTests(unittest.TestCase):
                     1 + 0.1 * math.erfc(-d2 / math.sqrt(2)) / 2
                 )
                 self.assertAlmostEqual(
-                    engine.price(note, market(spot, valuation, volatility=sigma)),
+                    engine.price(
+                        dated_history(note, market(spot, valuation, volatility=sigma)),
+                        market(spot, valuation, volatility=sigma),
+                    ),
                     expected,
                     delta=1e-9,
                 )

@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 #[test]
@@ -27,7 +30,7 @@ fn bounded_barrier_grids_keep_resolution_when_the_unused_upper_bound_changes() -
             120.0,
             DoubleBarrierType::KnockOut,
         ))?;
-        let expected = AnalyticBarrierEngine.price(&single, &context)?;
+        let expected = AnalyticBarrierEngine.price(&dated(&single, &context), &context)?;
         let mut previous: Option<[f64; 2]> = None;
         for upper in [121.0, 400.0, 10_000.0] {
             let settings = FiniteDifferenceSettings {
@@ -37,8 +40,10 @@ fn bounded_barrier_grids_keep_resolution_when_the_unused_upper_bound_changes() -
                 ..Default::default()
             };
             let actual = [
-                FiniteDifferenceBarrierEngine::new(settings)?.price(&single, &context)?,
-                FiniteDifferenceDoubleBarrierEngine::new(settings)?.price(&double, &context)?,
+                FiniteDifferenceBarrierEngine::new(settings)?
+                    .price(&dated(&single, &context), &context)?,
+                FiniteDifferenceDoubleBarrierEngine::new(settings)?
+                    .price(&dated(&double, &context), &context)?,
             ];
             assert!(
                 (actual[0] - expected).abs() < 0.003,
@@ -81,10 +86,14 @@ fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Resu
         &FiniteDifferenceBarrierEngine::default(),
         &MonteCarloBarrierEngine::default(),
     ] {
-        assert_eq!(engine.price(&settled, &context)?, 0.0);
+        assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);
         assert_eq!(
             engine
-                .price_with_greeks(&settled, &context, GreeksRequest::new([Greek::Delta]))?
+                .price_with_greeks(
+                    &dated(&settled, &context),
+                    &context,
+                    GreeksRequest::new([Greek::Delta])
+                )?
                 .require(Greek::Delta)?,
             0.0
         );
@@ -105,13 +114,13 @@ fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Resu
             },
         ] {
             assert!(matches!(
-                engine.price(&settled.replace(changes)?, &context),
+                engine.price(&dated(&settled.replace(changes)?, &context), &context),
                 Err(Error::InvalidInput(_))
             ));
         }
         let missing = settled.replace_history(None);
         assert!(matches!(
-            engine.price(&missing, &context),
+            engine.price(&dated(&missing, &context), &context),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -138,7 +147,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         valuation_time: Some(end),
         ..Default::default()
     })?;
-    let price = AnalyticRangeAccrualEngine.price(&range, &at_expiry)?;
+    let price = AnalyticRangeAccrualEngine.price(&dated(&range, &at_expiry), &at_expiry)?;
     assert!((price - 360.0 / 365.0).abs() < 1e-12);
     let daily = range
         .replace(RangeAccrualOptionChanges {
@@ -147,7 +156,11 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
             ..Default::default()
         })
         .unwrap();
-    assert!((AnalyticRangeAccrualEngine.price(&daily, &at_expiry)? - price / 3.0).abs() < 1e-12);
+    assert!(
+        (AnalyticRangeAccrualEngine.price(&dated(&daily, &at_expiry), &at_expiry)? - price / 3.0)
+            .abs()
+            < 1e-12
+    );
     assert_eq!(daily.replace_history(None)?.calendar(), daily.calendar());
     assert_eq!(daily.replace(Default::default())?, daily);
 
@@ -170,7 +183,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     let daily = accumulator
         .replace_calendar(TradingCalendar::all_days())
         .unwrap();
-    assert!((engine.price(&daily, &context)? - 40.0).abs() < 1e-7);
+    assert!((engine.price(&dated(&daily, &context), &context)? - 40.0).abs() < 1e-7);
     assert_eq!(daily.replace_history(0.0)?.calendar(), daily.calendar());
 
     let note = SnowballOption::new(SnowballTerms::new(
@@ -237,9 +250,14 @@ fn constant_node_curves_price_like_scalars_and_keep_coverage() -> Result<()> {
         &FiniteDifferenceVanillaEngine::default(),
         &sampling,
     ] {
-        assert!((engine.price(&option, &context)? - engine.price(&option, &nodes)?).abs() < 1e-9);
+        assert!(
+            (engine.price(&dated(&option, &context), &context)?
+                - engine.price(&dated(&option, &nodes), &nodes)?)
+            .abs()
+                < 1e-9
+        );
         assert!(matches!(
-            engine.price(&option, &short),
+            engine.price(&dated(&option, &short), &short),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -263,7 +281,7 @@ fn heston_greeks_check_model_before_request_controls() -> Result<()> {
             assert!(matches!(
                 kiyosi::numerical_greeks(
                     engine,
-                    &option,
+                    &dated(&option, &context),
                     &context,
                     request,
                     NumericalShiftSettings {
@@ -299,9 +317,12 @@ fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Resul
                     100.0,
                     at,
                 )?;
-                let price = engine.price(&option, &context);
-                let greeks =
-                    engine.price_with_greeks(&option, &context, GreeksRequest::new([Greek::Delta]));
+                let price = engine.price(&dated(&option, &context), &context);
+                let greeks = engine.price_with_greeks(
+                    &dated(&option, &context),
+                    &context,
+                    GreeksRequest::new([Greek::Delta]),
+                );
                 if valid {
                     assert!(price?.is_finite());
                     assert!(greeks?.price().is_finite());
@@ -375,18 +396,26 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                 ] {
                     let context = PricingContext::new(model.clone(), 105.0, at)?;
                     for engine in engines {
-                        let price = engine.price(&future, &context)?;
-                        assert_eq!(price, engine.price(&existing, &context)?);
+                        let price = engine.price(&dated(&future, &context), &context)?;
+                        assert_eq!(price, engine.price(&dated(&existing, &context), &context)?);
                         let request = GreeksRequest::new([Greek::Delta]);
-                        let native = engine.price_with_greeks(&future, &context, request)?;
+                        let native = engine.price_with_greeks(
+                            &dated(&future, &context),
+                            &context,
+                            request,
+                        )?;
                         assert_eq!(
                             native,
-                            engine.price_with_greeks(&existing, &context, request)?
+                            engine.price_with_greeks(
+                                &dated(&existing, &context),
+                                &context,
+                                request
+                            )?
                         );
                         assert!(native.require(Greek::Delta)?.is_finite());
                         let numerical = numerical_greeks(
                             engine,
-                            &future,
+                            &dated(&future, &context),
                             &context,
                             GreeksRequest::new([Greek::Theta]),
                             Default::default(),
@@ -396,7 +425,7 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                             numerical,
                             numerical_greeks(
                                 engine,
-                                &existing,
+                                &dated(&existing, &context),
                                 &context,
                                 GreeksRequest::new([Greek::Theta]),
                                 Default::default()
@@ -405,7 +434,7 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                         if volatility > 0.0 {
                             let solved = implied_volatility(
                                 engine,
-                                &future,
+                                &dated(&future, &context),
                                 &context,
                                 price,
                                 ImpliedVolatilitySettings {
@@ -418,8 +447,8 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                         }
                     }
                     assert_eq!(
-                        mc.price_with_statistics(&future, &context)?,
-                        mc.price_with_statistics(&existing, &context)?
+                        mc.price_with_statistics(&dated(&future, &context), &context)?,
+                        mc.price_with_statistics(&dated(&existing, &context), &context)?
                     );
                 }
                 let short = RateTermStructure::bounded_flat(0.05, start, expiry.add_days(-1)?)?;
@@ -436,7 +465,7 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                 for engine in engines {
                     for invalid in [&uncovered, &expired] {
                         assert!(matches!(
-                            engine.price(&future, invalid),
+                            engine.price(&dated(&future, invalid), invalid),
                             Err(Error::InvalidInput(_))
                         ));
                     }
@@ -452,7 +481,10 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                 105.0,
                 start,
             )?;
-            assert_eq!(fd.price(&future, &local)?, fd.price(&existing, &local)?);
+            assert_eq!(
+                fd.price(&dated(&future, &local), &local)?,
+                fd.price(&dated(&existing, &local), &local)?
+            );
             assert_eq!(future.effective_time(), effective);
         }
     }
@@ -489,22 +521,26 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
             &monte_carlo,
         ] {
             assert_eq!(
-                engine.price(&future, &context)?,
-                engine.price(&existing, &context)?
+                engine.price(&dated(&future, &context), &context)?,
+                engine.price(&dated(&existing, &context), &context)?
             );
             assert!(
                 engine
-                    .price_with_greeks(&future, &context, GreeksRequest::new([Greek::Delta]))?
+                    .price_with_greeks(
+                        &dated(&future, &context),
+                        &context,
+                        GreeksRequest::new([Greek::Delta])
+                    )?
                     .require(Greek::Delta)?
                     .is_finite()
             );
         }
         if volatility > 0.0 {
-            let quote = AnalyticEuropeanEngine.price(&future, &context)?;
+            let quote = AnalyticEuropeanEngine.price(&dated(&future, &context), &context)?;
             assert!(
                 (implied_volatility(
                     &AnalyticEuropeanEngine,
-                    &future,
+                    &dated(&future, &context),
                     &context,
                     quote,
                     Default::default()
@@ -529,8 +565,8 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
         })?,
     ] {
         assert_eq!(
-            engine.price(&future, &heston)?,
-            engine.price(&existing, &heston)?
+            engine.price(&dated(&future, &heston), &heston)?,
+            engine.price(&dated(&existing, &heston), &heston)?
         );
     }
     let surface = LocalVolatilitySurface::new(
@@ -544,7 +580,10 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
         valuation,
     )?;
     let fd = FiniteDifferenceVanillaEngine::default();
-    assert_eq!(fd.price(&future, &local)?, fd.price(&existing, &local)?);
+    assert_eq!(
+        fd.price(&dated(&future, &local), &local)?,
+        fd.price(&dated(&existing, &local), &local)?
+    );
     assert!(matches!(
         PricingContext::new(
             BlackScholesMertonParameters::new(
@@ -615,12 +654,12 @@ fn asian_history_uses_optional_positive_averages() -> Result<()> {
             let original = $contract::new(OptionType::Call, 100.0, start, start, end, None)?;
             assert_eq!(original.realized_average(), None);
             assert!(matches!(
-                $engine.price(&original, &context),
+                $engine.price(&dated(&original, &context), &context),
                 Err(Error::InvalidInput(_))
             ));
             let seasoned = original.replace_history(110.0)?;
             assert_eq!(seasoned.realized_average(), Some(110.0));
-            assert!($engine.price(&seasoned, &context)? > 0.0);
+            assert!($engine.price(&dated(&seasoned, &context), &context)? > 0.0);
             assert_eq!(seasoned.replace_history(None)?, original);
             assert_eq!(
                 seasoned.replace(AveragePriceOptionChanges {
@@ -739,28 +778,38 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
         Box::new(MonteCarloAccumulatorEngine::default()),
     ];
     for engine in engines {
-        assert_eq!(engine.price(&settled, &context)?, 0.0);
-        assert_eq!(engine.price(&settled.replace_history(3.0)?, &context)?, 0.0);
+        assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);
+        assert_eq!(
+            engine.price(&dated(&settled.replace_history(3.0)?, &context), &context)?,
+            0.0
+        );
         let active = settled.replace(AccumulatorChanges {
             knock_out_settled: Some(Some(false)),
             accumulated_quantity: Some(Some(0.0)),
             ..Default::default()
         })?;
-        assert!(engine.price(&active, &context)? > 0.0);
+        assert!(engine.price(&dated(&active, &context), &context)? > 0.0);
         let unknown = settled.replace(AccumulatorChanges {
             knock_out_settled: Some(Some(false)),
             ..Default::default()
         })?;
         assert!(matches!(
-            engine.price(&unknown, &context),
+            engine.price(&dated(&unknown, &context), &context),
             Err(Error::InvalidInput(_))
         ));
-        let result = engine.price_with_greeks(&settled, &context, GreeksRequest::all())?;
+        let result =
+            engine.price_with_greeks(&dated(&settled, &context), &context, GreeksRequest::all())?;
         for greek in Greek::ALL {
             assert_eq!(result.require(greek)?, 0.0);
         }
         assert!(matches!(
-            implied_volatility(engine.as_ref(), &settled, &context, 0.0, Default::default()),
+            implied_volatility(
+                engine.as_ref(),
+                &dated(&settled, &context),
+                &context,
+                0.0,
+                Default::default()
+            ),
             Err(Error::UnsupportedOperation(_))
         ));
     }
@@ -778,7 +827,8 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
         start,
     )?;
     let request = GreeksRequest::new([Greek::Delta]);
-    let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
+    let result =
+        AnalyticEuropeanEngine.price_with_greeks(&dated(&option, &context), &context, request)?;
     assert_eq!(result.status(Greek::Delta), GreekStatus::Available);
     assert_eq!(result.status(Greek::Gamma), GreekStatus::NotRequested);
     let terminal = context.replace(PricingContextChanges {
@@ -787,13 +837,13 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
     })?;
     assert_eq!(
         AnalyticEuropeanEngine
-            .price_with_greeks(&option, &terminal, request)?
+            .price_with_greeks(&dated(&option, &terminal), &terminal, request)?
             .status(Greek::Delta),
         GreekStatus::Undefined
     );
     let result = numerical_greeks(
         &AnalyticEuropeanEngine,
-        &option,
+        &dated(&option, &context),
         &context,
         request,
         NumericalShiftSettings {
@@ -808,8 +858,11 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
         ),
         ..Default::default()
     })?;
-    let result =
-        AnalyticHestonEuropeanEngine::default().price_with_greeks(&option, &heston, request)?;
+    let result = AnalyticHestonEuropeanEngine::default().price_with_greeks(
+        &dated(&option, &heston),
+        &heston,
+        request,
+    )?;
     assert_eq!(result.status(Greek::Delta), GreekStatus::Unsupported);
     assert_eq!(result.status(Greek::Gamma), GreekStatus::NotRequested);
     let custom = PricingResult::new(10.0)?
@@ -838,7 +891,7 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
         ..Default::default()
     })?;
     let result = FiniteDifferenceVanillaEngine::default().price_with_greeks(
-        &option,
+        &dated(&option, &local),
         &local,
         GreeksRequest::new([Greek::Delta, Greek::Vega]),
     )?;
@@ -905,7 +958,7 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
     macro_rules! check {
         ($engine:expr, $option:expr) => {{
             let engine = $engine;
-            let direct = engine.price_with_greeks($option, &context, request)?;
+            let direct = engine.price_with_greeks(&dated($option, &context), &context, request)?;
             let generic = PricingEngine::price_with_greeks(&engine, $option, &context, request)?;
             assert_eq!(direct, generic);
             assert_eq!(direct.status(Greek::Delta), GreekStatus::Available);
@@ -958,7 +1011,7 @@ fn double_touch_barrier_type_roundtrips_through_replacement() -> Result<()> {
 
 #[test]
 fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Result<()> {
-    fn check<I: OptionContract>(
+    fn check<I: OptionContract + Clone>(
         engine: &impl PricingEngine<I>,
         option: &I,
         model: impl Into<ModelParameters>,
@@ -972,7 +1025,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
             })?;
             assert!(
                 engine
-                    .price_with_greeks(option, &context, request)?
+                    .price_with_greeks(&dated(option, &context), &context, request)?
                     .price()
                     .is_finite()
             );
@@ -992,7 +1045,13 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
                     },
                 ] {
                     assert!(matches!(
-                        kiyosi::numerical_greeks(engine, option, &context, request, shifts),
+                        kiyosi::numerical_greeks(
+                            engine,
+                            &dated(option, &context),
+                            &context,
+                            request,
+                            shifts
+                        ),
                         Err(Error::InvalidInput(_))
                     ));
                 }
@@ -1004,7 +1063,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
                 assert!(matches!(
                     kiyosi::numerical_greeks(
                         engine,
-                        option,
+                        &dated(option, &context),
                         &context,
                         request,
                         NumericalShiftSettings {
@@ -1317,21 +1376,28 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         &QuadratureAccumulatorEngine::default(),
         &mc,
     ] {
-        assert_eq!(engine.price(&settled, &context)?, 0.0);
-        assert_eq!(engine.price(&accumulator, &context)?, 75.0);
+        assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);
+        assert_eq!(
+            engine.price(&dated(&accumulator, &context), &context)?,
+            75.0
+        );
         assert_eq!(
             engine
-                .price_with_greeks(&settled, &context, GreeksRequest::new([Greek::Delta]))?
+                .price_with_greeks(
+                    &dated(&settled, &context),
+                    &context,
+                    GreeksRequest::new([Greek::Delta])
+                )?
                 .require(Greek::Delta)?,
             0.0
         );
         assert!(matches!(
-            engine.price(&active, &context),
+            engine.price(&dated(&active, &context), &context),
             Err(Error::InvalidInput(_))
         ));
     }
     assert_eq!(
-        mc.price_with_statistics(&settled, &context)?
+        mc.price_with_statistics(&dated(&settled, &context), &context)?
             .standard_error(),
         Some(0.0)
     );
@@ -1359,21 +1425,25 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         &QuadratureAutocallableEngine::default(),
         &mc,
     ] {
-        assert_eq!(engine.price(&settled, &context)?, 0.0);
-        assert_eq!(engine.price(&note, &context)?, 1.0);
+        assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);
+        assert_eq!(engine.price(&dated(&note, &context), &context)?, 1.0);
         assert_eq!(
             engine
-                .price_with_greeks(&settled, &context, GreeksRequest::new([Greek::Delta]))?
+                .price_with_greeks(
+                    &dated(&settled, &context),
+                    &context,
+                    GreeksRequest::new([Greek::Delta])
+                )?
                 .require(Greek::Delta)?,
             0.0
         );
         assert!(matches!(
-            engine.price(&note, &active_context),
+            engine.price(&dated(&note, &active_context), &active_context),
             Err(Error::InvalidInput(_))
         ));
     }
     assert_eq!(
-        mc.price_with_statistics(&settled, &context)?
+        mc.price_with_statistics(&dated(&settled, &context), &context)?
             .standard_error(),
         Some(0.0)
     );
@@ -1416,9 +1486,9 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
                 &QuadratureAccumulatorEngine::default(),
                 &mc,
             ] {
-                let price = engine.price(&settled, &context);
+                let price = engine.price(&dated(&settled, &context), &context);
                 let greeks = engine.price_with_greeks(
-                    &settled,
+                    &dated(&settled, &context),
                     &context,
                     GreeksRequest::new([Greek::Delta]),
                 );
@@ -1430,7 +1500,7 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
                     assert!(matches!(greeks, Err(Error::InvalidInput(_))));
                 }
             }
-            let statistics = mc.price_with_statistics(&settled, &context);
+            let statistics = mc.price_with_statistics(&dated(&settled, &context), &context);
             if valid {
                 assert_eq!(statistics?.price(), 0.0);
             } else {
@@ -1854,7 +1924,7 @@ fn greek_methods_report_estimators_and_active_controls() -> Result<()> {
 
 #[test]
 fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Result<()> {
-    fn check<I: OptionContract>(
+    fn check<I: OptionContract + Clone>(
         engine: &impl PricingEngine<I>,
         option: &I,
         context: &PricingContext,
@@ -1862,7 +1932,7 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
         method: GreekMethod,
     ) -> Result<()> {
         assert_eq!(engine.greek_method(option, context)?, method);
-        assert!(engine.price(option, context)?.is_finite());
+        assert!(engine.price(&dated(option, context), context)?.is_finite());
         for dividend in [false, true] {
             for volatility in [0.0, 0.2] {
                 let model = BlackScholesMertonParameters::new(
@@ -1883,7 +1953,7 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
                     ..Default::default()
                 })?;
                 assert!(matches!(
-                    engine.price(option, &unsupported),
+                    engine.price(&dated(option, &unsupported), &unsupported),
                     Err(Error::UnsupportedOperation(_))
                 ));
                 assert!(matches!(
@@ -1958,14 +2028,14 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
         start,
     )?;
     assert_eq!(mc.greek_method(&arithmetic, &curved)?, GreekMethod::Native);
-    assert!(mc.price(&arithmetic, &curved)?.is_finite());
+    assert!(mc.price(&dated(&arithmetic, &curved), &curved)?.is_finite());
     assert_eq!(
         AnalyticGeometricAveragePriceEngine.greek_method(&geometric, &curved)?,
         GreekMethod::Numerical
     );
     assert!(
         AnalyticGeometricAveragePriceEngine
-            .price(&geometric, &curved)?
+            .price(&dated(&geometric, &curved), &curved)?
             .is_finite()
     );
     let terminal = curved.replace(PricingContextChanges {
@@ -1978,13 +2048,14 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
         mc.greek_method(&geometric, &terminal)?,
         GreekMethod::Terminal
     );
-    assert_eq!(mc.price(&geometric, &terminal)?, 10.0);
+    assert_eq!(mc.price(&dated(&geometric, &terminal), &terminal)?, 10.0);
     assert_eq!(
         TurnbullWakemanArithmeticAveragePriceEngine.greek_method(&arithmetic, &terminal)?,
         GreekMethod::Terminal
     );
     assert_eq!(
-        TurnbullWakemanArithmeticAveragePriceEngine.price(&arithmetic, &terminal)?,
+        TurnbullWakemanArithmeticAveragePriceEngine
+            .price(&dated(&arithmetic, &terminal), &terminal)?,
         10.0
     );
     Ok(())
@@ -2106,14 +2177,16 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
         start.add_days(2)?,
     )?;
     assert_eq!(
-        QuadratureAccumulatorEngine::default().price(&settled, &context)?,
+        QuadratureAccumulatorEngine::default().price(&dated(&settled, &context), &context)?,
         0.0
     );
     let active = settled.replace_history(AccumulatorHistoryChanges {
         accumulated_quantity: Some(Some(0.0)),
         knock_out_settled: Some(Some(false)),
     })?;
-    assert!(QuadratureAccumulatorEngine::default().price(&active, &context)? > 0.0);
+    assert!(
+        QuadratureAccumulatorEngine::default().price(&dated(&active, &context), &context)? > 0.0
+    );
     Ok(())
 }
 
@@ -2130,7 +2203,7 @@ fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
     let request = GreeksRequest::new([Greek::Vega]);
     let unavailable = numerical_greeks(
         &AnalyticEuropeanEngine,
-        &option,
+        &dated(&option, &context),
         &context,
         request,
         Default::default(),
@@ -2142,7 +2215,7 @@ fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
     assert_eq!(unavailable.get(Greek::Vega), None);
     let recovered = numerical_greeks(
         &AnalyticEuropeanEngine,
-        &option,
+        &dated(&option, &context),
         &context,
         request,
         NumericalShiftSettings {
@@ -2150,7 +2223,8 @@ fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
             ..Default::default()
         },
     )?;
-    let exact = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
+    let exact =
+        AnalyticEuropeanEngine.price_with_greeks(&dated(&option, &context), &context, request)?;
     assert_eq!(recovered.status(Greek::Vega), GreekStatus::Available);
     assert!((recovered.require(Greek::Vega)? - exact.require(Greek::Vega)?).abs() < 1e-7);
     let zero = context.replace(PricingContextChanges {
@@ -2160,7 +2234,7 @@ fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
     assert_eq!(
         numerical_greeks(
             &AnalyticEuropeanEngine,
-            &option,
+            &dated(&option, &zero),
             &zero,
             request,
             Default::default()

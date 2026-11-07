@@ -120,6 +120,7 @@ impl From<Option<f64>> for AccumulatorHistoryChanges {
 /// Shared reads and owning replacements support concurrent use; see [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct Accumulator {
+    history_time: Option<Timestamp>,
     terms: AccumulatorTerms,
 }
 impl Accumulator {
@@ -191,7 +192,10 @@ impl Accumulator {
                 &TradingCalendar::all_days(),
             )?;
         }
-        let option = Self { terms };
+        let option = Self {
+            terms,
+            history_time: None,
+        };
         option.validate_calendar()?;
         Ok(option)
     }
@@ -387,17 +391,18 @@ impl Accumulator {
                 "valuation must be within contract life".into(),
             ));
         }
-        let had_accumulation = self
-            .accumulation_schedule()?
-            .times()
-            .iter()
-            .any(|&time| time < valuation);
-        let had_knock_out = self
-            .knock_out_observation_times()
-            .map_or(had_accumulation, |times| {
-                times.iter().any(|&time| time < valuation)
-            });
-        if self.knock_out_settled() == Some(true) && !had_knock_out {
+        let schedule = self.accumulation_schedule()?;
+        let had_accumulation = schedule.times().iter().any(|&time| time < valuation);
+        let had_knock_out_at = |at| {
+            self.knock_out_observation_times()
+                .unwrap_or(schedule.times())
+                .iter()
+                .any(|&time| time < at)
+        };
+        let had_knock_out = had_knock_out_at(valuation);
+        if self.knock_out_settled() == Some(true)
+            && !had_knock_out_at(self.history_time.unwrap_or(valuation).min(valuation))
+        {
             return Err(Error::InvalidInput(
                 "knock-out settlement predates knock-out observations".into(),
             ));
@@ -426,6 +431,12 @@ impl Accumulator {
                 "prior accumulated quantity is required".into(),
             ));
         }
+        super::validate_history_time(
+            self,
+            self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
+            context,
+            false,
+        )?;
         Ok(())
     }
 
@@ -570,6 +581,14 @@ impl Accumulator {
     }
 }
 impl OptionContract for Accumulator {
+    fn history_time(&self) -> Option<Timestamp> {
+        self.history_time
+    }
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+        self.history_time = time;
+        self
+    }
+
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -744,6 +763,6 @@ impl Accumulator {
                     && self.accumulation_schedule()? != updated.accumulation_schedule()?,
             "accumulated_quantity and knock_out_settled",
         )?;
-        Ok(updated)
+        Ok(updated.with_history_time(self.history_time))
     }
 }

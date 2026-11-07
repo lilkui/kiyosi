@@ -6,6 +6,7 @@ pub const DEFAULT_REALIZED_AVERAGE: Option<f64> = None;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct AverageTerms {
+    history_time: Option<Timestamp>,
     pub(crate) terms: EuropeanOption,
     pub(crate) averaging_start: Timestamp,
     pub(crate) realized: Option<f64>,
@@ -49,6 +50,7 @@ impl AverageTerms {
             ));
         }
         Ok(Self {
+            history_time: None,
             terms,
             averaging_start: averaging,
             realized,
@@ -66,6 +68,19 @@ impl AverageTerms {
             return Err(Error::InvalidInput(
                 "realized average must match the elapsed averaging period".into(),
             ));
+        }
+        if self.realized.is_some() {
+            let time = self.history_time.ok_or_else(|| {
+                Error::InvalidInput("supplied history requires history_time".into())
+            })?;
+            if time != context.history_anchor.unwrap_or(valuation)
+                || time < self.averaging_start
+                || time > expiry
+            {
+                return Err(Error::InvalidInput(
+                    "history_time must match the elapsed averaging period at valuation".into(),
+                ));
+            }
         }
         Ok(valuation.years_until(expiry))
     }
@@ -202,7 +217,7 @@ macro_rules! average_option {
                     self.averaging_start_time() != updated.averaging_start_time(),
                     "realized_average",
                 )?;
-                Ok(updated)
+                Ok(updated.with_history_time(self.history_time()))
             }
             /// Creates an average-price contract with explicit history.
             ///
@@ -280,6 +295,7 @@ macro_rules! average_option {
                     self.expiry_time(),
                     realized_average,
                 )
+                .map(|updated| updated.with_history_time(self.history_time()))
             }
             /// Returns the direction; see [`Self::new`].
             pub fn option_type(&self) -> OptionType {
@@ -307,6 +323,14 @@ macro_rules! average_option {
             }
         }
         impl OptionContract for $name {
+            fn history_time(&self) -> Option<Timestamp> {
+                self.0.history_time
+            }
+            fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+                self.0.history_time = time;
+                self
+            }
+
             fn effective_time(&self) -> Timestamp {
                 self.effective_time()
             }

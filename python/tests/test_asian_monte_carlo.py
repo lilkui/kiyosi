@@ -21,6 +21,7 @@ from kiyosi.market import (
     RateTermStructure,
 )
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -98,25 +99,29 @@ class AsianMonteCarloTests(unittest.TestCase):
                     instrument = option(kind, averaging=averaging, realized=realized)
                     context = market(valuation=instant + timedelta(seconds=shift))
                     if (shift > 0) == (realized is not None):
-                        self.assertGreaterEqual(engine.price(instrument, context), 0)
+                        self.assertGreaterEqual(
+                            engine.price(dated_history(instrument, context), context), 0
+                        )
                     else:
                         self.assert_rejection(
                             InvalidInputError,
                             engine.price,
-                            instrument,
+                            dated_history(instrument, context),
                             context,
                         )
             for when in (START - timedelta(days=1), END + timedelta(days=1)):
                 self.assert_rejection(
                     InvalidInputError,
                     engine.price,
-                    option(kind),
+                    dated_history(option(kind), market(valuation=when)),
                     market(valuation=when),
                 )
             settled = pricing.MonteCarloAsianEngine(path_count=1, seed=42)
             for direction, expected in (("call", 10), ("put", 0)):
                 result = settled.price_with_greeks(
-                    option(kind, direction, realized=110),
+                    dated_history(
+                        option(kind, direction, realized=110), market(valuation=END)
+                    ),
                     market(valuation=END),
                     greeks="all",
                 )
@@ -124,7 +129,10 @@ class AsianMonteCarloTests(unittest.TestCase):
                 assert_terminal_greeks(self, result, 0)
                 self.assertEqual(
                     settled.price(
-                        option(kind, direction, averaging=END),
+                        dated_history(
+                            option(kind, direction, averaging=END),
+                            market(110, valuation=END),
+                        ),
                         market(110, valuation=END),
                     ),
                     expected,
@@ -140,7 +148,10 @@ class AsianMonteCarloTests(unittest.TestCase):
                 antithetic=True,
             )
             self.assertAlmostEqual(
-                engine.price(option(GeometricAveragePriceOption), market()),
+                engine.price(
+                    dated_history(option(GeometricAveragePriceOption), market()),
+                    market(),
+                ),
                 5.035867546515384,
                 delta=0.002,
             )
@@ -148,7 +159,7 @@ class AsianMonteCarloTests(unittest.TestCase):
             for spot, expected in ((1.9, 0.193174), (2.0, 0.246416), (2.1, 0.306220)):
                 context = market(spot, 0.5, rate=0.05, dividend=0)
                 call = option(ArithmeticAveragePriceOption, strike=2)
-                actual = engine.price(call, context)
+                actual = engine.price(dated_history(call, context), context)
                 self.assertAlmostEqual(actual, expected, delta=0.001)
                 coarse = pricing.MonteCarloAsianEngine(
                     path_count=65536,
@@ -158,12 +169,15 @@ class AsianMonteCarloTests(unittest.TestCase):
                     antithetic=True,
                 )
                 self.assertLess(
-                    abs(actual - expected), abs(coarse.price(call, context) - expected)
+                    abs(actual - expected),
+                    abs(coarse.price(dated_history(call, context), context) - expected),
                 )
                 put = option(ArithmeticAveragePriceOption, "put", strike=2)
                 parity = math.exp(-0.05) * (spot * math.expm1(0.05) / 0.05 - 2)
                 self.assertAlmostEqual(
-                    actual - engine.price(put, context), parity, delta=0.001
+                    actual - engine.price(dated_history(put, context), context),
+                    parity,
+                    delta=0.001,
                 )
 
     def test_requested_greeks_forward_and_seasoned_fixed_history(self):
@@ -182,8 +196,13 @@ class AsianMonteCarloTests(unittest.TestCase):
                         realized=105 if window == 2 else None,
                     )
                     context = market(valuation=valuation, rate=-0.02)
-                    result = engine.price_with_greeks(instrument, context, greeks="all")
-                    self.assertEqual(result.price, engine.price(instrument, context))
+                    result = engine.price_with_greeks(
+                        dated_history(instrument, context), context, greeks="all"
+                    )
+                    self.assertEqual(
+                        result.price,
+                        engine.price(dated_history(instrument, context), context),
+                    )
                     for name in (
                         "speed",
                         "theta",
@@ -197,7 +216,9 @@ class AsianMonteCarloTests(unittest.TestCase):
                         self.assertIsNone(getattr(result, name))
                     if kind is GeometricAveragePriceOption:
                         expected = pricing.AnalyticGeometricAveragePriceEngine().price_with_greeks(
-                            instrument, context, greeks=["delta", "gamma"]
+                            dated_history(instrument, context),
+                            context,
+                            greeks=["delta", "gamma"],
                         )
                         self.assertAlmostEqual(
                             result.price, expected.price, delta=0.003
@@ -211,11 +232,17 @@ class AsianMonteCarloTests(unittest.TestCase):
                     else:
                         for h in (0.05, 0.025):
                             up = engine.price(
-                                instrument,
+                                dated_history(
+                                    instrument,
+                                    market(100 + h, valuation=valuation, rate=-0.02),
+                                ),
                                 market(100 + h, valuation=valuation, rate=-0.02),
                             )
                             down = engine.price(
-                                instrument,
+                                dated_history(
+                                    instrument,
+                                    market(100 - h, valuation=valuation, rate=-0.02),
+                                ),
                                 market(100 - h, valuation=valuation, rate=-0.02),
                             )
                             self.assertAlmostEqual(
@@ -227,13 +254,13 @@ class AsianMonteCarloTests(unittest.TestCase):
                                 delta=0.00002,
                             )
                     selected = engine.price_with_greeks(
-                        instrument, context, greeks="gamma"
+                        dated_history(instrument, context), context, greeks="gamma"
                     )
                     self.assertEqual(selected.gamma, result.gamma)
                     self.assertIsNone(selected.delta)
                     controlled = numerical_greeks(
                         engine,
-                        instrument,
+                        dated_history(instrument, context),
                         context,
                         "delta",
                         spot_shift=0.1,
@@ -268,13 +295,17 @@ class AsianMonteCarloTests(unittest.TestCase):
             )
             for kind in KINDS:
                 instrument = option(kind)
-                expected = engine.price_with_greeks(instrument, market(), greeks="all")
+                expected = engine.price_with_greeks(
+                    dated_history(instrument, market()), market(), greeks="all"
+                )
                 with ThreadPoolExecutor(max_workers=4) as pool:
                     results = list(
                         pool.map(
                             lambda _, parallel=parallel, instrument=instrument: (
                                 parallel.price_with_greeks(
-                                    instrument, market(), greeks="all"
+                                    dated_history(instrument, market()),
+                                    market(),
+                                    greeks="all",
                                 )
                             ),
                             range(8),
@@ -295,11 +326,15 @@ class AsianMonteCarloTests(unittest.TestCase):
                     )
                     single = option(kind, averaging=END)
                     self.assertEqual(
-                        changed.price(single, market()), engine.price(single, market())
+                        changed.price(dated_history(single, market()), market()),
+                        engine.price(dated_history(single, market()), market()),
                     )
                     if kind is GeometricAveragePriceOption:
                         self.assertEqual(
-                            changed.price(instrument, market()), expected.price
+                            changed.price(
+                                dated_history(instrument, market()), market()
+                            ),
+                            expected.price,
                         )
 
     def test_tiny_volatility_scaled_prices_and_negative_seasoned_geometric_gamma(self):
@@ -318,7 +353,10 @@ class AsianMonteCarloTests(unittest.TestCase):
             for kind in KINDS:
                 for direction in ("call", "put"):
                     actual = engine.price(
-                        option(kind, direction, strike=spot),
+                        dated_history(
+                            option(kind, direction, strike=spot),
+                            market(spot, volatility, rate=0, dividend=0),
+                        ),
                         market(spot, volatility, rate=0, dividend=0),
                     )
                     self.assertTrue(
@@ -327,9 +365,11 @@ class AsianMonteCarloTests(unittest.TestCase):
                     )
         instrument = option(GeometricAveragePriceOption, strike=10, realized=100)
         context = market(valuation=START + timedelta(days=180))
-        actual = engine.price_with_greeks(instrument, context, greeks="gamma")
+        actual = engine.price_with_greeks(
+            dated_history(instrument, context), context, greeks="gamma"
+        )
         expected = pricing.AnalyticGeometricAveragePriceEngine().price_with_greeks(
-            instrument, context, greeks="gamma"
+            dated_history(instrument, context), context, greeks="gamma"
         )
         self.assertLess(actual.gamma, 0)
         self.assertAlmostEqual(actual.gamma, expected.gamma, delta=0.0001)
@@ -340,19 +380,24 @@ class AsianMonteCarloTests(unittest.TestCase):
         )
         for kind in KINDS:
             instrument = option(kind)
-            observed = engine.price(instrument, market())
+            observed = engine.price(dated_history(instrument, market()), market())
             solved = pricing.implied_volatility(
-                engine, instrument, market(volatility=0.35), observed
+                engine,
+                dated_history(instrument, market(volatility=0.35)),
+                market(volatility=0.35),
+                observed,
             )
             self.assertAlmostEqual(solved, 0.2, delta=0.00001)
         settled = pricing.MonteCarloAsianEngine(path_count=1, seed=42)
         instrument = option(ArithmeticAveragePriceOption, strike=25, realized=100)
         context = market(valuation=START + timedelta(days=180))
-        actual = settled.price_with_greeks(instrument, context, greeks="all")
+        actual = settled.price_with_greeks(
+            dated_history(instrument, context), context, greeks="all"
+        )
         self.assertEqual(
             actual.price,
             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
-                instrument, context
+                dated_history(instrument, context), context
             ),
         )
         self.assertEqual(actual.gamma, 0)
@@ -366,7 +411,7 @@ class AsianMonteCarloTests(unittest.TestCase):
             UnsupportedOperationError,
             pricing.implied_volatility,
             settled,
-            instrument,
+            dated_history(instrument, context),
             context,
             actual.price,
         )
@@ -396,7 +441,10 @@ class AsianMonteCarloTests(unittest.TestCase):
             100 * (0.5 * growth[0] + sum(growth[1:-1]) + 0.5 * growth[-1]) / 5 - 1
         )
         self.assertAlmostEqual(
-            engine.price(option(ArithmeticAveragePriceOption, strike=1), context),
+            engine.price(
+                dated_history(option(ArithmeticAveragePriceOption, strike=1), context),
+                context,
+            ),
             expected,
             delta=0.002,
         )
@@ -404,32 +452,40 @@ class AsianMonteCarloTests(unittest.TestCase):
             self.assert_rejection(
                 UnsupportedOperationError,
                 engine.price,
-                option(GeometricAveragePriceOption, averaging=averaging),
+                dated_history(
+                    option(GeometricAveragePriceOption, averaging=averaging), context
+                ),
                 context,
             )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            option(GeometricAveragePriceOption, realized=100),
+            dated_history(option(GeometricAveragePriceOption, realized=100), context),
             context,
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price_with_greeks,
-            option(GeometricAveragePriceOption),
+            dated_history(option(GeometricAveragePriceOption), context),
             context,
             [],
         )
         settled = context.replace(valuation_time=END)
         self.assertEqual(
-            engine.price(option(GeometricAveragePriceOption, realized=110), settled), 10
+            engine.price(
+                dated_history(
+                    option(GeometricAveragePriceOption, realized=110), settled
+                ),
+                settled,
+            ),
+            10,
         )
 
     def test_analysis_protocols_solver_failures_and_owned_results(self):
         engine = pricing.MonteCarloAsianEngine(path_count=1024, seed=42)
         for kind in KINDS:
             instrument, context = option(kind), market()
-            quote = engine.price(instrument, context)
+            quote = engine.price(dated_history(instrument, context), context)
             for settings, exception in (
                 ({}, TypeError),
                 ({"greeks": "Delta"}, ValueError),
@@ -439,7 +495,9 @@ class AsianMonteCarloTests(unittest.TestCase):
                 ({"greeks": "delta", "time_shift": 2**40}, TypeError),
             ):
                 with self.assertRaises(exception):
-                    numerical_greeks(engine, instrument, context, **settings)
+                    numerical_greeks(
+                        engine, dated_history(instrument, context), context, **settings
+                    )
             for observed, settings, expected_error in (
                 (-1, {}, RootNotBracketedError),
                 (math.nan, {}, InvalidInputError),
@@ -460,24 +518,37 @@ class AsianMonteCarloTests(unittest.TestCase):
                     expected_error,
                     pricing.implied_volatility,
                     engine,
-                    instrument,
+                    dated_history(instrument, context),
                     context,
                     observed,
                     **settings,
                 )
             with self.assertRaises(TypeError):
                 pricing.implied_volatility(
-                    engine, instrument, context, quote, max_iterations=True
+                    engine,
+                    dated_history(instrument, context),
+                    context,
+                    quote,
+                    max_iterations=True,
                 )
-            self.assertEqual(engine.price(instrument, context), quote)
+            self.assertEqual(
+                engine.price(dated_history(instrument, context), context), quote
+            )
             self.assertEqual(engine.seed, 42)
             unseeded = pricing.MonteCarloAsianEngine(path_count=4096, step_count=16)
             solved = pricing.implied_volatility(
-                unseeded, instrument, context, quote, lower_bound=0.1, upper_bound=0.4
+                unseeded,
+                dated_history(instrument, context),
+                context,
+                quote,
+                lower_bound=0.1,
+                upper_bound=0.4,
             )
             self.assertTrue(0.1 < solved < 0.4)
             self.assertIsNone(unseeded.seed)
-            result = engine.price_with_greeks(instrument, context, "delta")
+            result = engine.price_with_greeks(
+                dated_history(instrument, context), context, "delta"
+            )
             self.assertEqual(result.price, quote)
             del instrument, context
             self.assertGreater(result.delta, 0)
@@ -489,9 +560,11 @@ class AsianMonteCarloTests(unittest.TestCase):
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         with self.assertRaises(UnsupportedOperationError):
-            engine.price(wrong, market())
+            engine.price(dated_history(wrong, market()), market())
         with self.assertRaises(UnsupportedOperationError):
-            pricing.implied_volatility(engine, wrong, market(), 5)
+            pricing.implied_volatility(
+                engine, dated_history(wrong, market()), market(), 5
+            )
         for settings, exception in (
             ({"sampling": "Sobol"}, ValueError),
             ({"sampling": None}, TypeError),
@@ -504,12 +577,19 @@ class AsianMonteCarloTests(unittest.TestCase):
             path_count=100000, step_count=32, seed=42, thread_count=1
         )
         instrument, context = option(ArithmeticAveragePriceOption), market()
-        quote = engine.price(instrument, context)
+        quote = engine.price(dated_history(instrument, context), context)
         for operation in (
-            lambda: engine.price(instrument, context),
-            lambda: engine.price_with_greeks(instrument, context, "delta"),
+            lambda: engine.price(dated_history(instrument, context), context),
+            lambda: engine.price_with_greeks(
+                dated_history(instrument, context), context, "delta"
+            ),
             lambda: pricing.implied_volatility(
-                engine, instrument, context, quote, lower_bound=0.1, upper_bound=0.4
+                engine,
+                dated_history(instrument, context),
+                context,
+                quote,
+                lower_bound=0.1,
+                upper_bound=0.4,
             ),
         ):
             ready, start, observed = (
@@ -550,7 +630,10 @@ class AsianMonteCarloTests(unittest.TestCase):
         )
         engine = pricing.MonteCarloAsianEngine(path_count=1, step_count=100, seed=42)
         self.assertAlmostEqual(
-            engine.price(instrument, market(volatility=1e154, rate=0, dividend=0)),
+            engine.price(
+                dated_history(instrument, market(volatility=1e154, rate=0, dividend=0)),
+                market(volatility=1e154, rate=0, dividend=0),
+            ),
             99.5,
             delta=1e-12,
         )
@@ -566,7 +649,9 @@ class AsianMonteCarloTests(unittest.TestCase):
         engine = pricing.MonteCarloAsianEngine(path_count=1, seed=42)
         expected = 2.0487666640489847e291
         self.assertAlmostEqual(
-            engine.price(instrument, context) / expected, 1, delta=1e-12
+            engine.price(dated_history(instrument, context), context) / expected,
+            1,
+            delta=1e-12,
         )
 
 

@@ -1,3 +1,6 @@
+mod support;
+use support::dated;
+
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {
@@ -33,11 +36,11 @@ fn quadrature_covers_drift_into_future_knock_out() {
     .unwrap();
     let engine = QuadratureAutocallableEngine::default();
     let expected = 1.2 * (-0.05_f64).exp();
-    let price = engine.price(&note, &context).unwrap();
+    let price = engine.price(&dated(&note, &context), &context).unwrap();
     assert!((price - expected).abs() < 1e-7, "{price} != {expected}");
     let coupon = implied_snowball_coupon(
         &engine,
-        &note,
+        &dated(&note, &context),
         &context,
         expected,
         CouponQuoteConvention::PreserveMaturityCoupon,
@@ -73,7 +76,7 @@ fn quadrature_covers_drift_below_future_knock_out() {
         ..Default::default()
     })
     .unwrap()
-    .price(&note, &context)
+    .price(&dated(&note, &context), &context)
     .unwrap();
     let d2 = ((115.0_f64 / 110.0).ln() - 0.05 - 0.5 * 0.005_f64.powi(2)) / 0.005;
     let expected = 1.0 + 0.1 * libm::erfc(-d2 / std::f64::consts::SQRT_2);
@@ -111,14 +114,22 @@ fn binary_has_no_knock_in_and_pays_signed_flat_maturity_coupon() {
     // No historical monitoring before the first KO, even after the effective date.
     assert!(
         engine
-            .price(&note, &market(80.0, date(2, 3)))
+            .price(
+                &dated(&note, &market(80.0, date(2, 3))),
+                &market(80.0, date(2, 3))
+            )
             .unwrap()
             .is_finite()
     );
     for spot in [1.0, 80.0, 110.0] {
         let expected = 0.5 + if spot >= 110.0 { 0.08 } else { -0.02 } * 90.0 / 365.0;
         assert_eq!(
-            engine.price(&note, &market(spot, date(4, 1))).unwrap(),
+            engine
+                .price(
+                    &dated(&note, &market(spot, date(4, 1))),
+                    &market(spot, date(4, 1))
+                )
+                .unwrap(),
             expected
         );
     }
@@ -148,7 +159,12 @@ fn ternary_strict_knock_in_pays_floor_and_rejects_floor_above_coupon() {
     let engine = QuadratureAutocallableEngine::default();
     for (spot, coupon) in [(79.999, -0.02), (80.0, 0.06), (109.0, 0.06), (110.0, 0.08)] {
         assert_eq!(
-            engine.price(&note, &market(spot, date(4, 1))).unwrap(),
+            engine
+                .price(
+                    &dated(&note, &market(spot, date(4, 1))),
+                    &market(spot, date(4, 1))
+                )
+                .unwrap(),
             0.5 + coupon * 90.0 / 365.0
         );
     }
@@ -290,8 +306,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         assert_eq!(actual.terms().lower_strike, lower);
         let context = market(100.0, date(1, 1));
         assert!(
-            (engine.price(&actual, &context).unwrap() - engine.price(&expected, &context).unwrap())
-                .abs()
+            (engine.price(&dated(&actual, &context), &context).unwrap()
+                - engine.price(&dated(&expected, &context), &context).unwrap())
+            .abs()
                 < 1e-12
         );
     }
@@ -334,7 +351,10 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
                 - (-0.04 * time).exp() * time * 0.08 * probability_below(spot, 80.0, time);
             assert!(
                 (engine
-                    .price(&BinarySnowballOption::new(binary).unwrap(), &context)
+                    .price(
+                        &dated(&BinarySnowballOption::new(binary).unwrap(), &context),
+                        &context
+                    )
                     .unwrap()
                     - expected_binary)
                     .abs()
@@ -342,7 +362,10 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
             );
             assert!(
                 (engine
-                    .price(&TernarySnowballOption::new(ternary).unwrap(), &context)
+                    .price(
+                        &dated(&TernarySnowballOption::new(ternary).unwrap(), &context),
+                        &context
+                    )
                     .unwrap()
                     - expected_ternary)
                     .abs()
@@ -360,7 +383,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         let snapshot = note.clone();
         let result = kiyosi::numerical_greeks(
             &engine,
-            note,
+            &dated(note, &context),
             &context,
             GreeksRequest::all(),
             NumericalShiftSettings {
@@ -374,7 +397,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         }
         let solved = implied_volatility(
             &engine,
-            note,
+            &dated(note, &context),
             &context,
             result.price(),
             ImpliedVolatilitySettings {
@@ -386,13 +409,23 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         .unwrap();
         assert!((solved - 0.3).abs() < 1e-6);
         assert!(matches!(
-            implied_volatility(&engine, note, &context, 10.0, Default::default()).unwrap_err(),
+            implied_volatility(
+                &engine,
+                &dated(note, &context),
+                &context,
+                10.0,
+                Default::default()
+            )
+            .unwrap_err(),
             Error::RootNotBracketed(_)
         ));
         let missing = note.replace_history(None).unwrap();
         assert!(matches!(
             engine
-                .price(&missing, &market(100.0, date(4, 2)))
+                .price(
+                    &dated(&missing, &market(100.0, date(4, 2))),
+                    &market(100.0, date(4, 2))
+                )
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
@@ -400,11 +433,17 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
             .replace_history(Some(AutocallableBarrierState::KnockedOut))
             .unwrap();
         assert!(matches!(
-            engine.price(&settled, &context).unwrap_err(),
+            engine
+                .price(&dated(&settled, &context), &context)
+                .unwrap_err(),
             Error::InvalidInput(_)
         ));
         let at_expiry = engine
-            .price_with_greeks(note, &market(110.0, date(4, 1)), GreeksRequest::all())
+            .price_with_greeks(
+                &dated(note, &market(110.0, date(4, 1))),
+                &market(110.0, date(4, 1)),
+                GreeksRequest::all(),
+            )
             .unwrap();
         assert_eq!(at_expiry.get(Greek::Theta), None);
         assert_eq!(at_expiry.require(Greek::Vega).unwrap(), 0.0);
@@ -472,7 +511,7 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
                     integration_standard_deviations: e,
                 })
                 .unwrap()
-                .price(&note, &context)
+                .price(&dated(&note, &context), &context)
                 .unwrap()
             })
             .collect();
@@ -484,14 +523,24 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
     let note = TernarySnowballOption::new(terms).unwrap();
     let engine = QuadratureAutocallableEngine::default();
     assert!(matches!(
-        engine.price(&note, &market(100.0, date(1, 2))).unwrap_err(),
+        engine
+            .price(
+                &dated(&note, &market(100.0, date(1, 2))),
+                &market(100.0, date(1, 2))
+            )
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let known = note
         .replace_history(Some(AutocallableBarrierState::KnockedIn))
         .unwrap();
     assert_eq!(
-        engine.price(&known, &market(100.0, date(4, 1))).unwrap(),
+        engine
+            .price(
+                &dated(&known, &market(100.0, date(4, 1))),
+                &market(100.0, date(4, 1))
+            )
+            .unwrap(),
         1.0 - 0.02 * 90.0 / 365.0
     );
 }

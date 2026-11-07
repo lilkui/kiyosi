@@ -41,6 +41,12 @@ macro_rules! average_option {
 
         #[pymethods]
         impl $name {
+            /// Return the timestamp through which supplied history is known, or None.
+            #[getter]
+            fn history_time<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::PyAny>>> {
+                kiyosi::OptionContract::history_time(&self.0).map(|time| crate::conversions::python_timestamp(py, time)).transpose()
+            }
+
     /// Returns a validated replacement without changing this contract.
     ///
     /// Parameters
@@ -69,7 +75,8 @@ macro_rules! average_option {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation or field name is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, averaging_start_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, averaging_start_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
+    #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
         &self,
         #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
@@ -78,7 +85,14 @@ macro_rules! average_option {
         #[pyo3(from_py_with = crate::conversions::supplied)] averaging_start_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] realized_average: Option<&Bound<'_, PyAny>>,
+
+        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<Self> {
+        let history_time = history_time
+            .map(crate::conversions::optional_timestamp)
+            .transpose()?
+            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+
         let changes = kiyosi::AveragePriceOptionChanges {
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
@@ -87,15 +101,17 @@ macro_rules! average_option {
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             realized_average: realized_average.map(history).transpose()?,
         };
-        Ok(Self(domain(self.0.replace(changes))?))
+        Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace(changes))?, history_time)))
     }
             #[new]
-            #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
+            #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE, history_time=None))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 effective_time: &Bound<'_, PyAny>, averaging_start_time: &Bound<'_, PyAny>,
-                expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = history)] realized_average: Option<f64>) -> PyResult<Self> {
-                Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
-                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?))
+                expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = history)] realized_average: Option<f64>,
+                #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
+            ) -> PyResult<Self> {
+                Ok(Self(kiyosi::OptionContract::with_history_time(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
+                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?, history_time)))
             }
             /// Return a validated replacement without changing this value.
             ///
@@ -114,12 +130,19 @@ macro_rules! average_option {
             /// ------
             /// KiyosiError
             ///     If replacement terms fail domain validation. The original is unchanged.
-            #[pyo3(signature = (*, realized_average=crate::conversions::OMITTED))]
+            #[pyo3(signature = (*, realized_average=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
             fn replace_history(&self,
                 #[pyo3(from_py_with = supplied)] realized_average: Option<&Bound<'_, PyAny>>,
+
+                #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
             ) -> PyResult<Self> {
+                let history_time = history_time
+                    .map(crate::conversions::optional_timestamp)
+                    .transpose()?
+                    .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+
                 let realized = realized_average.map(history).transpose()?.unwrap_or(self.0.realized_average());
-                Ok(Self(domain(self.0.replace_history(realized))?))
+                Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace_history(realized))?, history_time)))
             }
             /// Return call or put payoff direction.
             #[getter]

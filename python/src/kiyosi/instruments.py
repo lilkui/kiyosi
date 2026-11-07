@@ -42,6 +42,14 @@ coincident events check knock-out before accumulating. Constructors validate ter
 explicit observation dates and expiry-only knock-in observations. Settlement-only
 expiry dates may be closed without adding observations. Pricing validates
 consistency with the market snapshot and supplied history.
+Supplied history requires ``history_time`` at pricing. It describes events strictly
+before that timestamp. Set it in the constructor or together with the history through
+``replace_history(..., history_time=...)``. Replacements and pickle preserve it.
+Future-dated history is rejected.
+Reuse between discrete observations is allowed; crossing an unaccounted observation
+raises ``InvalidInputError``. Continuous barrier and Asian history require the same
+instant, unless a prior barrier hit resolves monitoring. Settled contracts need no
+further observations. Numerical time sensitivities hold history fixed internally.
 History describes events strictly before valuation; a current observation
 is evaluated from the current spot. ``replace()`` replaces constructor terms on every contract. Omitted terms and
 history are preserved when their observation terms are retained; supplied terms are validated together in Rust.

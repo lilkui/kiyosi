@@ -22,6 +22,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
+from support.history import dated as dated_history
 
 
 class AutocallableRegressionTests(unittest.TestCase):
@@ -67,7 +68,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ["vega", "rho"],
                 **shifts,
             )
-            actual = numerical_greeks(engine, note, context, greeks="all", **shifts)
+            actual = numerical_greeks(
+                engine, dated_history(note, context), context, greeks="all", **shifts
+            )
             self.assertEqual(actual.price, expected.price)
             self.assertEqual(actual.vega, expected.vega)
             self.assertEqual(actual.rho, expected.rho)
@@ -79,7 +82,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                 "color",
             ):
                 with self.subTest(mode=mode, greek=greek):
-                    single = numerical_greeks(engine, note, context, greek, **shifts)
+                    single = numerical_greeks(
+                        engine, dated_history(note, context), context, greek, **shifts
+                    )
                     self.assertEqual(getattr(single, greek), getattr(actual, greek))
 
     def test_automatic_domains_converge_to_volatile_terminal_portfolios(self):
@@ -106,14 +111,18 @@ class AutocallableRegressionTests(unittest.TestCase):
             effective_time=start,
             expiry_time=end,
         )
-        expected = 1 + pricing.AnalyticDigitalEngine().price(digital, context)
+        expected = 1 + pricing.AnalyticDigitalEngine().price(
+            dated_history(digital, context), context
+        )
         for steps in (200, 2000):
             engine = pricing.FiniteDifferenceAutocallableEngine(
                 asset_step_count=steps, time_step_count=2000
             )
             with self.subTest(steps=steps):
                 self.assertAlmostEqual(
-                    engine.price(binary, context), expected, delta=0.0003
+                    engine.price(dated_history(binary, context), context),
+                    expected,
+                    delta=0.0003,
                 )
         common = {
             "effective_time": start,
@@ -123,8 +132,14 @@ class AutocallableRegressionTests(unittest.TestCase):
         }
         downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
         put = lambda strike: pricing.AnalyticEuropeanEngine().price(
-            EuropeanOption(
-                option_type="put", strike=strike, effective_time=start, expiry_time=end
+            dated_history(
+                EuropeanOption(
+                    option_type="put",
+                    strike=strike,
+                    effective_time=start,
+                    expiry_time=end,
+                ),
+                context,
             ),
             context,
         )
@@ -164,14 +179,18 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
         ):
             with self.subTest(product=type(note).__name__):
-                self.assertAlmostEqual(engine.price(note, context), value, delta=0.0003)
+                self.assertAlmostEqual(
+                    engine.price(dated_history(note, context), context),
+                    value,
+                    delta=0.0003,
+                )
         result = engine.price_with_greeks(
-            binary,
+            dated_history(binary, context),
             context,
             ["delta", "gamma", "vega", "rho"],
         )
         reference = pricing.AnalyticDigitalEngine().price_with_greeks(
-            digital,
+            dated_history(digital, context),
             context,
             ["delta", "gamma", "vega", "rho"],
         )
@@ -185,22 +204,30 @@ class AutocallableRegressionTests(unittest.TestCase):
             self.assertAlmostEqual(
                 getattr(result, greek), value, delta=abs(value) * 0.02 + 1e-8
             )
-        quote = engine.price(binary, context)
+        quote = engine.price(dated_history(binary, context), context)
         fixed = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=2000, time_step_count=2000, asset_upper_boundary=1e6
         )
         delta = (
-            fixed.price(binary, context.replace(spot_price=100.1))
-            - fixed.price(binary, context.replace(spot_price=99.9))
+            fixed.price(
+                dated_history(binary, context.replace(spot_price=100.1)),
+                context.replace(spot_price=100.1),
+            )
+            - fixed.price(
+                dated_history(binary, context.replace(spot_price=99.9)),
+                context.replace(spot_price=99.9),
+            )
         ) / 0.2
         self.assertAlmostEqual(
-            fixed.price_with_greeks(binary, context, "delta").delta,
+            fixed.price_with_greeks(
+                dated_history(binary, context), context, "delta"
+            ).delta,
             delta,
             delta=abs(delta) * 0.02,
         )
         volatility = pricing.implied_volatility(
             engine,
-            binary,
+            dated_history(binary, context),
             context,
             quote,
             lower_bound=1.5,
@@ -211,11 +238,17 @@ class AutocallableRegressionTests(unittest.TestCase):
         recovered = context.replace(
             model_parameters=context.model_parameters.replace(volatility=volatility)
         )
-        self.assertAlmostEqual(engine.price(binary, recovered), quote, delta=1e-8)
+        self.assertAlmostEqual(
+            engine.price(dated_history(binary, recovered), recovered), quote, delta=1e-8
+        )
         explicit = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=200, time_step_count=2000, scheme="explicit_euler"
         )
-        self.assertAlmostEqual(explicit.price(binary, context), expected, delta=0.0003)
+        self.assertAlmostEqual(
+            explicit.price(dated_history(binary, context), context),
+            expected,
+            delta=0.0003,
+        )
 
     def test_finite_difference_volatility_trials_refresh_operators_and_isolate_requests(
         self,
@@ -310,19 +343,25 @@ class AutocallableRegressionTests(unittest.TestCase):
                             asset_step_count=32, time_step_count=64, scheme=scheme
                         )
                         quotes = [
-                            engine.price(note, context(volatility))
+                            engine.price(
+                                dated_history(note, context(volatility)),
+                                context(volatility),
+                            )
                             for volatility in (0.17, 0.33)
                         ]
 
                         def solve(quote, *, engine=engine, note=note):
                             return pricing.implied_volatility(
-                                engine, note, base, quote, **bounds
+                                engine, dated_history(note, base), base, quote, **bounds
                             )
 
                         expected = [solve(quote) for quote in quotes]
                         for quote, volatility in zip(quotes, expected):
                             self.assertAlmostEqual(
-                                engine.price(note, context(volatility)),
+                                engine.price(
+                                    dated_history(note, context(volatility)),
+                                    context(volatility),
+                                ),
                                 quote,
                                 delta=1e-10,
                             )
@@ -446,7 +485,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     )
                 )
                 for engine, scheme in engines:
-                    quote = engine.price(note, context)
+                    quote = engine.price(dated_history(note, context), context)
                     conventions = (
                         ({},)
                         if kind is PhoenixOption
@@ -471,7 +510,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                             ):
                                 alternate_terms["maturity_coupon_rate"] = 0.12
                         alternate_quote = engine.price(
-                            kind(**common, **alternate_terms), context
+                            dated_history(kind(**common, **alternate_terms), context),
+                            context,
                         )
 
                         def solve(
@@ -488,7 +528,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                                 else pricing.implied_snowball_coupon
                             )(
                                 engine,
-                                note,
+                                dated_history(note, context),
                                 context,
                                 observed_price,
                                 lower_bound=0,
@@ -514,7 +554,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                                     else pricing.implied_snowball_coupon
                                 )(
                                     engine,
-                                    note,
+                                    dated_history(note, context),
                                     context,
                                     quote,
                                     lower_bound=0.2,
@@ -604,18 +644,30 @@ class AutocallableRegressionTests(unittest.TestCase):
                     shifts = {"volatility_shift": 0.01, "rate_shift": 0.01}
                     result = numerical_greeks(
                         engine,
-                        note,
+                        dated_history(note, base),
                         base,
                         ["vega", "rho"],
                         **shifts,
                     )
-                    self.assertEqual(result.price, engine.price(note, base))
+                    self.assertEqual(
+                        result.price, engine.price(dated_history(note, base), base)
+                    )
                     vol_shift = (0.2 + 0.01) - 0.2
                     self.assertEqual(
                         result.vega,
                         (
-                            engine.price(note, context(volatility=0.2 + vol_shift))
-                            - engine.price(note, context(volatility=0.2 - vol_shift))
+                            engine.price(
+                                dated_history(
+                                    note, context(volatility=0.2 + vol_shift)
+                                ),
+                                context(volatility=0.2 + vol_shift),
+                            )
+                            - engine.price(
+                                dated_history(
+                                    note, context(volatility=0.2 - vol_shift)
+                                ),
+                                context(volatility=0.2 - vol_shift),
+                            )
                         )
                         / (2 * vol_shift),
                     )
@@ -623,8 +675,14 @@ class AutocallableRegressionTests(unittest.TestCase):
                     self.assertEqual(
                         result.rho,
                         (
-                            engine.price(note, context(rate=0.04 + rate_shift))
-                            - engine.price(note, context(rate=0.04 - rate_shift))
+                            engine.price(
+                                dated_history(note, context(rate=0.04 + rate_shift)),
+                                context(rate=0.04 + rate_shift),
+                            )
+                            - engine.price(
+                                dated_history(note, context(rate=0.04 - rate_shift)),
+                                context(rate=0.04 - rate_shift),
+                            )
                         )
                         / (2 * rate_shift),
                     )
@@ -635,7 +693,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     ):
                         with self.assertRaises(expected_error) as error:
                             engine.price_with_greeks(
-                                option,
+                                dated_history(option, shifted),
                                 shifted,
                                 [
                                     "vega",
@@ -649,7 +707,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                                 lambda _, *, engine=engine, note=note, shifts=shifts: (
                                     numerical_greeks(
                                         engine,
-                                        note,
+                                        dated_history(note, base),
                                         base,
                                         [
                                             "vega",
@@ -708,7 +766,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                         valuation_time=time,
                     )
                     result = engine.price_with_greeks(
-                        note, context, ["delta", "gamma", "theta", "charm", "color"]
+                        dated_history(note, context),
+                        context,
+                        ["delta", "gamma", "theta", "charm", "color"],
                     )
                     years = (datetime(2026, 1, 1) - time).total_seconds() / (
                         365 * 86400
@@ -753,7 +813,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                         ),
                     )
                     result = engine.price_with_greeks(
-                        note, context, ["theta", "charm", "color"]
+                        dated_history(note, context),
+                        context,
+                        ["theta", "charm", "color"],
                     )
                     for value in (result.theta, result.charm, result.color):
                         self.assertIsNotNone(value)
@@ -810,11 +872,14 @@ class AutocallableRegressionTests(unittest.TestCase):
         )
         put_prices = [
             pricing.AnalyticEuropeanEngine().price(
-                EuropeanOption(
-                    option_type="put",
-                    strike=strike,
-                    effective_time=start,
-                    expiry_time=end,
+                dated_history(
+                    EuropeanOption(
+                        option_type="put",
+                        strike=strike,
+                        effective_time=start,
+                        expiry_time=end,
+                    ),
+                    context,
                 ),
                 context,
             )
@@ -823,12 +888,15 @@ class AutocallableRegressionTests(unittest.TestCase):
         discount = math.exp(-0.04)
         downside = discount - (put_prices[0] - put_prices[1]) / 100
         digital = pricing.AnalyticDigitalEngine().price(
-            CashOrNothingOption(
-                option_type="call",
-                strike=100,
-                payout=1,
-                effective_time=start,
-                expiry_time=end,
+            dated_history(
+                CashOrNothingOption(
+                    option_type="call",
+                    strike=100,
+                    payout=1,
+                    effective_time=start,
+                    expiry_time=end,
+                ),
+                context,
             ),
             context,
         )
@@ -862,7 +930,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         time_step_count=2000,
                         scheme=scheme,
                         asset_upper_boundary=400,
-                    ).price(note, context)
+                    ).price(dated_history(note, context), context)
                     self.assertAlmostEqual(actual, expected, delta=0.002)
 
     def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(self):
@@ -898,18 +966,24 @@ class AutocallableRegressionTests(unittest.TestCase):
             with self.subTest(engine=type(engine).__name__):
                 self.assertEqual(
                     engine.price(
-                        SnowballOption(
-                            observation_clock_time=clock_time(),
-                            **terms,
-                            knock_in_observation_mode="every_trading_day",
+                        dated_history(
+                            SnowballOption(
+                                observation_clock_time=clock_time(),
+                                **terms,
+                                knock_in_observation_mode="every_trading_day",
+                            ),
+                            context,
                         ),
                         context,
                     ),
                     engine.price(
-                        SnowballOption(
-                            observation_clock_time=None,
-                            **terms,
-                            knock_in_observation_mode="at_expiry",
+                        dated_history(
+                            SnowballOption(
+                                observation_clock_time=None,
+                                **terms,
+                                knock_in_observation_mode="at_expiry",
+                            ),
+                            context,
                         ),
                         context,
                     ),
@@ -921,10 +995,13 @@ class AutocallableRegressionTests(unittest.TestCase):
             asset_upper_boundary=400,
         )
         actual = explicit.price(
-            SnowballOption(
-                observation_clock_time=clock_time(),
-                **terms,
-                knock_in_observation_mode="every_trading_day",
+            dated_history(
+                SnowballOption(
+                    observation_clock_time=clock_time(),
+                    **terms,
+                    knock_in_observation_mode="every_trading_day",
+                ),
+                context,
             ),
             context,
         )
@@ -934,20 +1011,26 @@ class AutocallableRegressionTests(unittest.TestCase):
             scheme="explicit_euler",
             asset_upper_boundary=400,
         ).price(
-            SnowballOption(
-                observation_clock_time=None,
-                **terms,
-                knock_in_observation_mode="at_expiry",
+            dated_history(
+                SnowballOption(
+                    observation_clock_time=None,
+                    **terms,
+                    knock_in_observation_mode="at_expiry",
+                ),
+                context,
             ),
             context,
         )
         self.assertAlmostEqual(actual, reference, delta=0.0002)
         with self.assertRaises(InvalidInputError) as error:
             explicit.price(
-                SnowballOption(
-                    observation_clock_time=None,
-                    **terms,
-                    knock_in_observation_mode="at_expiry",
+                dated_history(
+                    SnowballOption(
+                        observation_clock_time=None,
+                        **terms,
+                        knock_in_observation_mode="at_expiry",
+                    ),
+                    context,
                 ),
                 context,
             )
@@ -973,7 +1056,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             valuation_time=start,
         )
         result = pricing.FiniteDifferenceAutocallableEngine().price_with_greeks(
-            note,
+            dated_history(note, context),
             context,
             ["delta", "gamma", "vega", "rho"],
         )
