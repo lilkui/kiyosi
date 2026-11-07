@@ -748,7 +748,8 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// Local-volatility results provide delta and gamma; other requested Greeks remain
     /// absent. Bumped contexts share the central spatial domain.
-    /// Expiry Greeks follow terminal payoffs; time Greeks are absent.
+    /// At expiry, supported Greeks are exact payoff derivatives away from the strike;
+    /// spot Greeks are undefined at the strike and time Greeks are absent.
     /// Uses [`NumericalShiftSettings`] for bumps; unavailable stencils leave Greeks absent.
     ///
     /// # Errors
@@ -794,6 +795,9 @@ macro_rules! vanilla_pricing {
                 context: &PricingContext,
             ) -> Result<crate::GreekMethod> {
                 <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                if context.valuation_time() == option.expiry_time() {
+                    return Ok(crate::GreekMethod::Native);
+                }
                 Ok(crate::GreekMethod::for_valuation(
                     option,
                     context,
@@ -846,6 +850,23 @@ macro_rules! vanilla_pricing {
                 request: GreeksRequest,
             ) -> Result<PricingResult> {
                 let settings = crate::NumericalShiftSettings::default();
+                if context.valuation_time() == option.expiry_time() {
+                    request.validate()?;
+                    settings.validate()?;
+                    let supported = if local_volatility::local_model(context).is_some() {
+                        GreeksRequest::new([Greek::Delta, Greek::Gamma])
+                    } else {
+                        GreeksRequest::all()
+                    };
+                    let result = PricingResult::new(self.price(option, context)?)?
+                        .with_request(request, supported);
+                    return crate::risk::analytics::vanilla_expiry_greeks(
+                        option.option_type(),
+                        option.strike(),
+                        context,
+                        result,
+                    );
+                }
                 if let Some(model) = local_volatility::local_model(context) {
                     request.validate()?;
                     settings.validate()?;

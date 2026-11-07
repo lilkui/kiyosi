@@ -130,8 +130,9 @@ The last status identifies a numerical stencil that may be recovered with other
 controls, such as a smaller volatility bump; ``result.requested`` and
 ``result.supported`` expose the request and engine/model coverage.
 
-At expiry, ``AnalyticEuropeanEngine`` computes exact payoff derivatives away
-from the strike, with delta, gamma, speed, vanna and zomma absent exactly at the strike.
+At expiry, ``AnalyticEuropeanEngine`` and ``FiniteDifferenceVanillaEngine`` compute
+exact supported payoff derivatives away from the strike, with delta, gamma,
+speed, vanna and zomma absent exactly at the strike.
 Other native engines and ``numerical_greeks`` use terminal-payoff stencils. Supported
 vega, volga, rho and dividend rho are zero because no stochastic evolution or
 discounting remains. Vanna and zomma are zero where spot derivatives exist.

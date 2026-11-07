@@ -246,11 +246,14 @@ class FiniteDifferenceTests(unittest.TestCase):
                     result = engine.price_with_greeks(option, context, greeks="all")
                     self.assertEqual(result.price, expected)
                     self.assertEqual(engine.price(option, context), expected)
+                    at_kink = (
+                        spot == 100 if kind in VANILLA else abs(spot - 100) <= 0.01
+                    )
                     assert_terminal_greeks(
                         self,
                         result,
                         None
-                        if abs(spot - 100) <= 0.01
+                        if at_kink
                         else sign
                         if kind in VANILLA and pays
                         else int(kind is AssetOrNothingOption and pays),

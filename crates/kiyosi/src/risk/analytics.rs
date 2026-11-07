@@ -312,6 +312,38 @@ impl PricingResult {
     }
 }
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact strike equality locates the terminal payoff kink."
+)]
+pub(crate) fn vanilla_expiry_greeks(
+    option_type: crate::OptionType,
+    strike: f64,
+    context: &PricingContext,
+    mut result: PricingResult,
+) -> Result<PricingResult> {
+    let request = GreeksRequest::new(
+        Greek::ALL
+            .into_iter()
+            .filter(|&greek| result.requested().has(greek) && result.supported().has(greek)),
+    );
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        result.set(request, greek, 0.0)?;
+    }
+    let spot = context.spot_price();
+    if spot != strike {
+        let delta = match option_type {
+            crate::OptionType::Call => f64::from(spot > strike),
+            crate::OptionType::Put => -f64::from(spot < strike),
+        };
+        result.set(request, Greek::Delta, delta)?;
+        for greek in [Greek::Gamma, Greek::Speed, Greek::Vanna, Greek::Zomma] {
+            result.set(request, greek, 0.0)?;
+        }
+    }
+    Ok(result)
+}
+
 /// Configures absolute finite-difference bumps.
 ///
 /// Scalar numerical requests validate all bump settings before calculation.

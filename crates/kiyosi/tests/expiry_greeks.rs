@@ -90,6 +90,89 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
 }
 
 #[test]
+fn finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    let local = LocalVolatilityParameters::new(
+        0.05,
+        0.02,
+        LocalVolatilitySurface::new(
+            vec![start, end],
+            vec![80.0, 120.0],
+            vec![vec![0.2, 0.2], vec![0.2, 0.2]],
+        )?,
+    )?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let models: [ModelParameters; 2] = [
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?.into(),
+        local.into(),
+    ];
+    for model in models {
+        for (direction, deltas) in [
+            (OptionType::Call, [Some(0.0), None, Some(1.0)]),
+            (OptionType::Put, [Some(-1.0), None, Some(0.0)]),
+        ] {
+            for (spot, delta) in [
+                f64::from_bits(100_f64.to_bits() - 1),
+                100.0,
+                f64::from_bits(100_f64.to_bits() + 1),
+            ]
+            .into_iter()
+            .zip(deltas)
+            {
+                let context = PricingContext::new(model.clone(), spot, end)?;
+                macro_rules! check {
+                    ($kind:ident) => {{
+                        let option = $kind::new(direction, 100.0, start, end)?;
+                        let result =
+                            engine.price_with_greeks(&option, &context, GreeksRequest::all())?;
+                        let generic: &dyn PricingEngine<$kind> = &engine;
+                        assert_eq!(
+                            result,
+                            generic.price_with_greeks(&option, &context, GreeksRequest::all())?
+                        );
+                        assert_eq!(
+                            generic.greek_method(&option, &context)?,
+                            GreekMethod::Native
+                        );
+                        for greek in Greek::ALL {
+                            let expected = if !result.supported().has(greek)
+                                || matches!(greek, Greek::Theta | Greek::Charm | Greek::Color)
+                            {
+                                None
+                            } else if greek == Greek::Delta {
+                                delta
+                            } else if matches!(
+                                greek,
+                                Greek::Gamma | Greek::Speed | Greek::Vanna | Greek::Zomma
+                            ) {
+                                delta.map(|_| 0.0)
+                            } else {
+                                Some(0.0)
+                            };
+                            assert_eq!(
+                                result.get(greek),
+                                expected,
+                                "{direction:?}, {spot}, {greek:?}"
+                            );
+                        }
+                        let delta_only = engine.price_with_greeks(
+                            &option,
+                            &context,
+                            GreeksRequest::new([Greek::Delta]),
+                        )?;
+                        assert_eq!(delta_only.status(Greek::Gamma), GreekStatus::NotRequested);
+                    }};
+                }
+                check!(EuropeanOption);
+                check!(AmericanOption);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn analytic_terminal_greeks_are_exact_next_to_the_strike() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let strike = 100.0_f64;

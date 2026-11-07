@@ -70,7 +70,8 @@ macro_rules! fd_engine {
         /// price, delta and gamma, including American exercise. Other requested Greeks are None;
         /// implied-parameter solvers raise UnsupportedOperationError. Sigma uses
         /// fixed absolute surface coordinates; expiry Greeks follow terminal payoffs and are absent where
-        /// their stencils cross product events. Surface coverage follows remaining
+        /// their stencils cross product events. Vanilla expiry Greeks use exact
+        /// supported payoff derivatives, undefined at the strike. Surface coverage follows remaining
         /// stochastic evolution; rate coverage follows required future discounting.
         /// Automatic local-volatility domains require convergence checks.
         #[pyclass(frozen, eq, module = "kiyosi._native")]
@@ -93,8 +94,9 @@ macro_rules! fd_engine {
                 /// Before expiry delta and gamma come from the spatial solution,
                 /// except zero BSM volatility uses scalar differences.
                 /// Other BSM Greeks use numerical differences with engine defaults.
-                /// Local volatility provides only delta and gamma. At expiry spot
-                /// Greeks use default terminal-payoff stencils. Use numerical_greeks
+                /// Local volatility provides only delta and gamma. At expiry vanilla
+                /// Greeks use exact supported payoff derivatives; other products use
+                /// default terminal-payoff stencils. Use numerical_greeks
                 /// for configurable scalar differences under BSM.
             ],
             engine_methods!(

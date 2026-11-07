@@ -11,6 +11,69 @@ from support.terminal import assert_terminal_greeks
 
 
 class ExpiryGreekTests(unittest.TestCase):
+    def test_finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility(
+        self,
+    ):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        models = (
+            market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            market.LocalVolatilityParameters(
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                surface=market.LocalVolatilitySurface(
+                    times=[start, end], spots=[80, 120], values=[[0.2, 0.2], [0.2, 0.2]]
+                ),
+            ),
+        )
+        engine = pricing.FiniteDifferenceVanillaEngine()
+        for model in models:
+            for kind in (ins.EuropeanOption, ins.AmericanOption):
+                for direction, deltas in (
+                    ("call", (0, None, 1)),
+                    ("put", (-1, None, 0)),
+                ):
+                    option = kind(
+                        option_type=direction,
+                        strike=100,
+                        effective_time=start,
+                        expiry_time=end,
+                    )
+                    for spot, delta in zip(
+                        (math.nextafter(100, 0), 100, math.nextafter(100, math.inf)),
+                        deltas,
+                        strict=True,
+                    ):
+                        with self.subTest(
+                            model=type(model).__name__,
+                            kind=kind.__name__,
+                            direction=direction,
+                            spot=spot,
+                        ):
+                            context = market.PricingContext(
+                                model_parameters=model,
+                                spot_price=spot,
+                                valuation_time=end,
+                            )
+                            result = engine.price_with_greeks(option, context, "all")
+                            assert_terminal_greeks(self, result, delta)
+                            self.assertEqual(
+                                engine.greek_method(option, context), "native"
+                            )
+                            self.assertEqual(
+                                engine.active_greek_controls(option, context), []
+                            )
+                            if isinstance(model, market.LocalVolatilityParameters):
+                                self.assertEqual(result.supported, ["delta", "gamma"])
+                                self.assertEqual(result.status("vega"), "unsupported")
+                            only_delta = engine.price_with_greeks(
+                                option, context, "delta"
+                            )
+                            self.assertEqual(
+                                only_delta.status("gamma"), "not_requested"
+                            )
+
     def test_resolved_barriers_have_zero_spot_greeks_at_inactive_strikes(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         for at, volatility in ((end, 0.2), (datetime(2025, 7, 1), 0)):

@@ -41,10 +41,6 @@ impl AnalyticEuropeanEngine {
     /// Returns [`Error::InvalidInput`] for empty requests,
     /// then propagates [`Self::price`] errors. Non-finite requested derivatives
     /// return [`Error::ComputationFailure`]. Inputs remain unchanged.
-    #[expect(
-        clippy::float_cmp,
-        reason = "Exact equality locates the terminal payoff kink."
-    )]
     pub fn price_with_greeks(
         &self,
         option: &EuropeanOption,
@@ -61,22 +57,12 @@ impl AnalyticEuropeanEngine {
         let expiry = option.expiry_time();
         let time = valuation.years_until(expiry);
         if time == 0.0 {
-            for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-                result.set(request, greek, 0.0)?;
-            }
-            let spot = context.spot_price();
-            let strike = option.strike();
-            if spot != strike {
-                let delta = match option.option_type() {
-                    OptionType::Call => f64::from(spot > strike),
-                    OptionType::Put => -f64::from(spot < strike),
-                };
-                result.set(request, Greek::Delta, delta)?;
-                for greek in [Greek::Gamma, Greek::Speed, Greek::Vanna, Greek::Zomma] {
-                    result.set(request, greek, 0.0)?;
-                }
-            }
-            return Ok(result);
+            return crate::risk::analytics::vanilla_expiry_greeks(
+                option.option_type(),
+                option.strike(),
+                context,
+                result,
+            );
         }
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, settings);
