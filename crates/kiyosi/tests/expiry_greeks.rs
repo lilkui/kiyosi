@@ -9,6 +9,78 @@ fn context(spot: f64) -> Result<PricingContext> {
 }
 
 #[test]
+fn analytic_terminal_greeks_are_exact_next_to_the_strike() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let strike = 100.0_f64;
+    for volatility in [0.0, 0.2] {
+        for (direction, deltas) in [
+            (OptionType::Call, [Some(0.0), None, Some(1.0)]),
+            (OptionType::Put, [Some(-1.0), None, Some(0.0)]),
+        ] {
+            for (spot, delta) in [
+                f64::from_bits(strike.to_bits() - 1),
+                strike,
+                f64::from_bits(strike.to_bits() + 1),
+            ]
+            .into_iter()
+            .zip(deltas)
+            {
+                let context = context(spot)?.replace(PricingContextChanges {
+                    model_parameters: Some(
+                        BlackScholesMertonParameters::new(0.05, 0.02, volatility)?.into(),
+                    ),
+                    ..Default::default()
+                })?;
+                let option =
+                    EuropeanOption::new(direction, strike, start, context.valuation_time())?;
+                let result = AnalyticEuropeanEngine.price_with_greeks(
+                    &option,
+                    &context,
+                    GreeksRequest::all(),
+                )?;
+                let generic: &dyn PricingEngine = &AnalyticEuropeanEngine;
+                assert_eq!(
+                    result,
+                    generic.price_with_greeks(&option, &context, GreeksRequest::all())?
+                );
+                assert_eq!(
+                    generic.greek_method(&option, &context)?,
+                    GreekMethod::Native
+                );
+                assert_eq!(
+                    generic.greek_method(&option, &context)?.active_controls(),
+                    &[] as &[&str]
+                );
+                for greek in Greek::ALL {
+                    let expected = match greek {
+                        Greek::Theta | Greek::Charm | Greek::Color => None,
+                        Greek::Delta => delta,
+                        Greek::Gamma | Greek::Speed | Greek::Vanna | Greek::Zomma => {
+                            delta.map(|_| 0.0)
+                        }
+                        _ => Some(0.0),
+                    };
+                    assert_eq!(
+                        result.get(greek),
+                        expected,
+                        "{direction:?}, {spot}, {greek:?}"
+                    );
+                    assert_eq!(
+                        result.status(greek),
+                        if expected.is_some() {
+                            GreekStatus::Available
+                        } else {
+                            GreekStatus::Undefined
+                        }
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn automatic_spot_bumps_fit_small_price_units() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let engines: [&dyn PricingEngine; 5] = [

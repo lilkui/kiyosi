@@ -1,5 +1,6 @@
 """Terminal risk follows the payoff while preserving engine coverage."""
 
+import math
 import unittest
 from datetime import datetime
 
@@ -10,6 +11,55 @@ from support.terminal import assert_terminal_greeks
 
 
 class ExpiryGreekTests(unittest.TestCase):
+    def test_analytic_terminal_greeks_are_exact_next_to_the_strike(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        engine = pricing.AnalyticEuropeanEngine()
+        for volatility in (0, 0.2):
+            for direction, deltas in (("call", (0, None, 1)), ("put", (-1, None, 0))):
+                option = ins.EuropeanOption(
+                    option_type=direction,
+                    strike=100,
+                    effective_time=start,
+                    expiry_time=end,
+                )
+                for spot, delta in zip(
+                    (math.nextafter(100, 0), 100, math.nextafter(100, math.inf)),
+                    deltas,
+                    strict=True,
+                ):
+                    with self.subTest(
+                        volatility=volatility, direction=direction, spot=spot
+                    ):
+                        context = market.PricingContext(
+                            model_parameters=market.BlackScholesMertonParameters(
+                                risk_free_rate=0.05,
+                                dividend_yield=0.02,
+                                volatility=volatility,
+                            ),
+                            spot_price=spot,
+                            valuation_time=end,
+                        )
+                        result = engine.price_with_greeks(option, context, "all")
+                        assert_terminal_greeks(self, result, delta)
+                        for greek in result.requested:
+                            expected = (
+                                "undefined"
+                                if (
+                                    greek in ("theta", "charm", "color")
+                                    or (
+                                        delta is None
+                                        and greek
+                                        in ("delta", "gamma", "speed", "vanna", "zomma")
+                                    )
+                                )
+                                else "available"
+                            )
+                            self.assertEqual(result.status(greek), expected)
+                        self.assertEqual(engine.greek_method(option, context), "native")
+                        self.assertEqual(
+                            engine.active_greek_controls(option, context), []
+                        )
+
     def test_automatic_spot_bumps_fit_small_price_units(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         model = market.BlackScholesMertonParameters(
@@ -82,7 +132,7 @@ class ExpiryGreekTests(unittest.TestCase):
             touch_state="untouched",
         )
         cases = [
-            (pricing.AnalyticEuropeanEngine(), option, 1),
+            (pricing.CoxRossRubinsteinVanillaEngine(), option, 1),
             (pricing.CoxRossRubinsteinDigitalEngine(), digital, 0),
             (pricing.CoxRossRubinsteinBarrierEngine(), barrier, 1),
             (pricing.MonteCarloDigitalEngine(path_count=32, seed=42), digital, 0),

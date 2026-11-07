@@ -1321,9 +1321,14 @@ class GreekMethodTests(unittest.TestCase):
                     engine.active_greek_controls(contract, context), controls
                 )
                 terminal = context.replace(valuation_time=end)
-                self.assertEqual(engine.greek_method(contract, terminal), "terminal")
+                exact = isinstance(engine, pricing.AnalyticEuropeanEngine)
                 self.assertEqual(
-                    engine.active_greek_controls(contract, terminal), ["spot_shift"]
+                    engine.greek_method(contract, terminal),
+                    "native" if exact else "terminal",
+                )
+                self.assertEqual(
+                    engine.active_greek_controls(contract, terminal),
+                    [] if exact else ["spot_shift"],
                 )
         zero = context.replace(
             model_parameters=context.model_parameters.replace(volatility=0)

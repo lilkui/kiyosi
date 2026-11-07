@@ -10,6 +10,8 @@
 //! parameter solvers. Engine `price_with_greeks` methods use their native estimators
 //! and default controls. Configure scalar differences explicitly through
 //! [`numerical_greeks`] and [`NumericalShiftSettings`].
+//! [`AnalyticEuropeanEngine`] computes exact expiry payoff derivatives away
+//! from the strike, without numerical spot bumps.
 //! Monte Carlo engines expose `price_with_statistics` for sampling uncertainty;
 //! vanilla statistics require European contracts. See [`MonteCarloEstimate`] for
 //! applicability and [`PricingEngine::price_with_statistics`] for generic access.

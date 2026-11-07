@@ -29,10 +29,9 @@ impl AnalyticEuropeanEngine {
     /// Returns the price and selected analytic Greeks.
     ///
     /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
-    /// Terminal stencils use engine-default spot bumps.
-    /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
-    /// Greeks are zero, while time Greeks are absent. Stencils crossing payoff
-    /// kinks are unavailable. See [`crate::numerical_greeks`] for terminal rules.
+    /// At expiry spot Greeks are exact payoff derivatives, independent of numerical bumps.
+    /// Delta, gamma, speed, vanna and zomma are absent exactly at the strike;
+    /// volatility and rate Greeks are zero, while time Greeks are absent.
     /// Before expiry, time derivatives hold curve nodes fixed and use right-hand
     /// rates at knots. Native derivatives require no numerical bumps.
     /// See the [crate example](crate).
@@ -42,6 +41,10 @@ impl AnalyticEuropeanEngine {
     /// Returns [`Error::InvalidInput`] for empty requests,
     /// then propagates [`Self::price`] errors. Non-finite requested derivatives
     /// return [`Error::ComputationFailure`]. Inputs remain unchanged.
+    #[expect(
+        clippy::float_cmp,
+        reason = "Exact equality locates the terminal payoff kink."
+    )]
     pub fn price_with_greeks(
         &self,
         option: &EuropeanOption,
@@ -54,20 +57,29 @@ impl AnalyticEuropeanEngine {
         settings.validate()?;
         let mut result = PricingResult::new(self.price(option, context)?)?
             .with_request(request, GreeksRequest::all());
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, settings);
-        }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         let time = valuation.years_until(expiry);
         if time == 0.0 {
-            return crate::risk::numerical::expiry_greeks(
-                option,
-                context,
-                settings,
-                result,
-                |context| self.price(option, context),
-            );
+            for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+                result.set(request, greek, 0.0)?;
+            }
+            let spot = context.spot_price();
+            let strike = option.strike();
+            if spot != strike {
+                let delta = match option.option_type() {
+                    OptionType::Call => f64::from(spot > strike),
+                    OptionType::Put => -f64::from(spot < strike),
+                };
+                result.set(request, Greek::Delta, delta)?;
+                for greek in [Greek::Gamma, Greek::Speed, Greek::Vanna, Greek::Zomma] {
+                    result.set(request, greek, 0.0)?;
+                }
+            }
+            return Ok(result);
+        }
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, settings);
         }
         let model = context.bsm_parameters()?;
         let spot = context.spot_price();
@@ -253,15 +265,15 @@ impl PricingEngine for AnalyticEuropeanEngine {
         context: &PricingContext,
     ) -> Result<crate::GreekMethod> {
         <Self as PricingEngine<crate::EuropeanOption>>::validate_applicability(self, context)?;
-        Ok(crate::GreekMethod::for_valuation(
-            option,
-            context,
-            if crate::engines::deterministic::enabled(context) {
+        Ok(
+            if crate::engines::deterministic::enabled(context)
+                && context.valuation_time() != option.expiry_time()
+            {
                 crate::GreekMethod::Numerical
             } else {
                 crate::GreekMethod::Native
             },
-        ))
+        )
     }
 
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {

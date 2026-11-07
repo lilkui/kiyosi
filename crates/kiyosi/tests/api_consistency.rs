@@ -1675,7 +1675,7 @@ fn greek_methods_report_estimators_and_active_controls() -> Result<()> {
     })?;
     assert_eq!(
         AnalyticEuropeanEngine.greek_method(&option, &terminal)?,
-        GreekMethod::Terminal
+        GreekMethod::Native
     );
     assert_eq!(GreekMethod::Terminal.active_controls(), &["spot_shift"]);
     let zero = PricingContext::new(

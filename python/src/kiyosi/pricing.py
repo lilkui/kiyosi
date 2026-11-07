@@ -125,7 +125,9 @@ unavailable measures are None. Inspect ``result.status(name)`` to distinguish
 unrequested, unsupported and undefined measures; ``result.requested`` and
 ``result.supported`` expose the request and engine/model coverage.
 
-At expiry, supported spot sensitivities use terminal-payoff stencils. Supported
+At expiry, ``AnalyticEuropeanEngine`` computes exact payoff derivatives away
+from the strike, with delta, gamma, speed, vanna and zomma absent exactly at the strike.
+Other native engines and ``numerical_greeks`` use terminal-payoff stencils. Supported
 vega, volga, rho and dividend rho are zero because no stochastic evolution or
 discounting remains. Vanna and zomma are zero where spot derivatives exist.
 Theta, charm and color are None at expiry. Spot stencils crossing a payoff
