@@ -59,6 +59,36 @@ def vanilla(direction="call", strike=103):
 
 
 class RateTermStructureTests(unittest.TestCase):
+    def test_public_curve_parts_reconstruct_extreme_shifts_without_loss(self):
+        base = example_curve()
+        for shift in (0.0, 1000.0, -1000.0):
+            with self.subTest(shift=shift):
+                curve = base.shifted(shift)
+                restored = RateTermStructure(
+                    reference_time=curve.reference_time,
+                    times=curve.nodes,
+                    factors=curve.base_factors,
+                ).shifted(curve.parallel_shift)
+                self.assertEqual(restored, curve)
+                self.assertEqual(curve.base_factors, base.factors)
+                self.assertEqual(curve.parallel_shift, shift)
+                self.assertEqual(
+                    restored.log_factor(REFERENCE, MATURITY),
+                    curve.log_factor(REFERENCE, MATURITY),
+                )
+                copied = curve.base_factors
+                copied.clear()
+                self.assertEqual(curve.base_factors, base.factors)
+        self.assertEqual(base.shifted(1000).factors[-1], 0.0)
+        for curve in (
+            RateTermStructure.flat(0.05),
+            RateTermStructure.bounded_flat(
+                0.05, reference_time=REFERENCE, max_time=MATURITY
+            ),
+        ):
+            self.assertEqual(curve.base_factors, [])
+            self.assertEqual(curve.parallel_shift, 0.0)
+
     def test_rounded_flat_nodes_explain_exact_constant_curve_requirement(self):
         curve = RateTermStructure(
             reference_time=START,

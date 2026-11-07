@@ -154,11 +154,27 @@ impl RateTermStructure {
     ///
     /// Notes
     /// -----
-    /// Zero factors cannot reconstruct a curve through its constructor. Pickle
-    /// preserves the original factors and shift, including extreme shifted curves.
+    /// Zero factors cannot reconstruct a curve through its constructor. Reconstruct
+    /// node curves from base_factors, then apply shifted(parallel_shift). Pickle
+    /// preserves this representation, including extreme shifted curves.
     #[getter]
     fn factors(&self) -> PyResult<Vec<f64>> {
         domain(self.0.factors())
+    }
+    /// Return an owned copy of the original node factors, excluding parallel shifts.
+    ///
+    /// Flat curves have no node factors. For node curves, pass these factors with
+    /// reference_time and nodes to RateTermStructure, then call shifted(parallel_shift).
+    #[getter]
+    fn base_factors(&self) -> Vec<f64> {
+        self.0.base_factors().to_vec()
+    }
+    /// Return the accumulated node-curve parallel shift in decimal units.
+    ///
+    /// Flat curves include shifts in their rate and return zero here.
+    #[getter]
+    fn parallel_shift(&self) -> f64 {
+        self.0.parallel_shift()
     }
     /// Return the factor over an ordered, covered interval.
     ///
@@ -477,9 +493,4 @@ fn model_parameters_value(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::ModelPar
     Err(pyo3::exceptions::PyTypeError::new_err(
         "expected BlackScholesMertonParameters, LocalVolatilityParameters or HestonParameters",
     ))
-}
-
-#[pyfunction]
-pub(crate) fn _curve_parts(curve: &RateTermStructure) -> (Vec<f64>, f64) {
-    (curve.0.base_factors().to_vec(), curve.0.parallel_shift())
 }

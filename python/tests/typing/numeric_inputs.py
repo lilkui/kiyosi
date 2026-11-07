@@ -42,6 +42,8 @@ def numeric_protocol_inputs() -> None:
     assert_type(model.volatility, float)
     assert_type(model.flat_risk_free_rate, float)
     assert_type(model.flat_dividend_yield, float)
+    assert_type(model.risk_free_curve.base_factors, list[float])
+    assert_type(model.risk_free_curve.parallel_shift, float)
     assert_type(
         model.replace(risk_free_rate=model.risk_free_curve),
         BlackScholesMertonParameters,

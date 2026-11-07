@@ -81,8 +81,12 @@ def _reduce(
                 fields["max_time"] = value.max_time
                 return _restore, (_native.RateTermStructure.bounded_flat, fields)
             return _restore, (_native.RateTermStructure.flat, fields)
-        factors, shift = _native._curve_parts(value)
-        return _curve, (value.reference_time, value.nodes, factors, shift)
+        return _curve, (
+            value.reference_time,
+            value.nodes,
+            value.base_factors,
+            value.parallel_shift,
+        )
     if isinstance(value, _native.PricingResult):
         values = {name: getattr(value, name) for name in get_args(_native.Greek)}
         return _restore, (
