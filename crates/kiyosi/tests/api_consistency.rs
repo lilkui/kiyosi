@@ -334,6 +334,132 @@ fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Resul
 }
 
 #[test]
+fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let effective = start.add_days(30)?;
+    let expiry = start.add_days(365)?;
+    let mc = MonteCarloDigitalEngine::new(MonteCarloSettings {
+        path_count: 128,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    })?;
+    let fd = FiniteDifferenceDigitalEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 200,
+        time_step_count: 100,
+        ..Default::default()
+    })?;
+    let engines: [&dyn PricingEngine<DigitalOption>; 5] = [
+        &AnalyticDigitalEngine,
+        &CoxRossRubinsteinDigitalEngine::default(),
+        &fd,
+        &QuadratureDigitalEngine::default(),
+        &mc,
+    ];
+    for direction in [OptionType::Call, OptionType::Put] {
+        for future in [
+            DigitalOption::cash_or_nothing(direction, 100.0, 10.0, effective, expiry)?,
+            DigitalOption::asset_or_nothing(direction, 100.0, effective, expiry)?,
+        ] {
+            let existing = future.replace(DigitalOptionChanges {
+                effective_time: Some(start),
+                ..Default::default()
+            })?;
+            assert_eq!(future.valuation_start(), None);
+            for volatility in [0.0, 0.2] {
+                let model = BlackScholesMertonParameters::new(0.05, 0.02, volatility)?;
+                for at in [
+                    start,
+                    Timestamp::new(effective.add_days(-1)?.date(), 23, 59, 59, 999_999)?,
+                    effective,
+                ] {
+                    let context = PricingContext::new(model.clone(), 105.0, at)?;
+                    for engine in engines {
+                        let price = engine.price(&future, &context)?;
+                        assert_eq!(price, engine.price(&existing, &context)?);
+                        let request = GreeksRequest::new([Greek::Delta]);
+                        let native = engine.price_with_greeks(&future, &context, request)?;
+                        assert_eq!(
+                            native,
+                            engine.price_with_greeks(&existing, &context, request)?
+                        );
+                        assert!(native.require(Greek::Delta)?.is_finite());
+                        let numerical = numerical_greeks(
+                            engine,
+                            &future,
+                            &context,
+                            GreeksRequest::new([Greek::Theta]),
+                            Default::default(),
+                        )?;
+                        assert!(numerical.require(Greek::Theta)?.is_finite());
+                        assert_eq!(
+                            numerical,
+                            numerical_greeks(
+                                engine,
+                                &existing,
+                                &context,
+                                GreeksRequest::new([Greek::Theta]),
+                                Default::default()
+                            )?
+                        );
+                        if volatility > 0.0 {
+                            let solved = implied_volatility(
+                                engine,
+                                &future,
+                                &context,
+                                price,
+                                ImpliedVolatilitySettings {
+                                    lower_bound: 0.2,
+                                    upper_bound: 0.3,
+                                    ..Default::default()
+                                },
+                            )?;
+                            assert!((solved - 0.2).abs() < 1e-12);
+                        }
+                    }
+                    assert_eq!(
+                        mc.price_with_statistics(&future, &context)?,
+                        mc.price_with_statistics(&existing, &context)?
+                    );
+                }
+                let short = RateTermStructure::bounded_flat(0.05, start, expiry.add_days(-1)?)?;
+                let uncovered = PricingContext::new(
+                    model.replace(BlackScholesMertonParameterChanges {
+                        risk_free_rate: Some(short.into()),
+                        ..Default::default()
+                    })?,
+                    105.0,
+                    start,
+                )?;
+                let expired =
+                    PricingContext::new(model, 105.0, Timestamp::new(expiry.date(), 0, 0, 0, 1)?)?;
+                for engine in engines {
+                    for invalid in [&uncovered, &expired] {
+                        assert!(matches!(
+                            engine.price(&future, invalid),
+                            Err(Error::InvalidInput(_))
+                        ));
+                    }
+                }
+            }
+            let surface = LocalVolatilitySurface::new(
+                vec![start, expiry],
+                vec![50.0, 150.0],
+                vec![vec![0.2; 2]; 2],
+            )?;
+            let local = PricingContext::new(
+                LocalVolatilityParameters::new(0.05, 0.02, surface)?,
+                105.0,
+                start,
+            )?;
+            assert_eq!(fd.price(&future, &local)?, fd.price(&existing, &local)?);
+            assert_eq!(future.effective_time(), effective);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dates() -> Result<()> {
     let valuation = Date::new(2025, 1, 1)?.start_of_day();
     let effective = valuation.add_days(30)?;

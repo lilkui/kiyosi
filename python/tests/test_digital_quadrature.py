@@ -260,12 +260,10 @@ class DigitalQuadratureTests(unittest.TestCase):
                         if abs(spot - 100) <= 0.01
                         else int(expected > 0 and kind is not CashOrNothingOption),
                     )
-                for at in (
-                    START - timedelta(days=1),
-                    datetime(2026, 1, 1, 0, 0, 0, 1),
-                ):
-                    with self.assertRaises(InvalidInputError):
-                        engine.price(option, market(valuation=at))
+                with self.assertRaises(InvalidInputError):
+                    engine.price(
+                        option, market(valuation=END + timedelta(microseconds=1))
+                    )
                 almost_expired = datetime(2025, 12, 31, 23, 59, 59, 999999)
                 context = market(valuation=almost_expired)
                 self.assertAlmostEqual(

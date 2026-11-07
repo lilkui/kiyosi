@@ -414,7 +414,7 @@ class BinomialTests(unittest.TestCase):
                     START - timedelta(days=1),
                     datetime(2026, 1, 1) + timedelta(microseconds=1),
                 ):
-                    if kind is EuropeanOption and time < START:
+                    if kind is not AmericanOption and time < START:
                         self.assertTrue(
                             math.isfinite(engine.price(option, market(valuation=time)))
                         )

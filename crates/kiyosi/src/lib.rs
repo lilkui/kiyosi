@@ -26,7 +26,7 @@
 //! reject changes affecting known daily history; use `replace` with an explicit history
 //! choice. Payoff-only changes retain history. See [`BarrierOption::replace`] for an exotic example.
 //! Contract effective and expiry timestamps are inclusive and preserve microseconds.
-//! European vanilla pricing permits pre-effective valuation. Other built-in
+//! European vanilla and digital pricing permits pre-effective valuation. Other built-in
 //! contracts reject valuation outside their life, including range accruals.
 //! Settlement alone may fall on a closed calendar date; explicit observations and
 //! expiry-only knock-in observations require open dates.

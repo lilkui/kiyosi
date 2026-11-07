@@ -206,29 +206,24 @@ class DigitalTests(unittest.TestCase):
                         expected,
                     )
         for option in self.options():
-            for time in (
-                datetime(2024, 12, 31, 23, 59, 59, 999999),
-                datetime(2026, 1, 1, 0, 0, 0, 1),
-            ):
-                outside = self.context.replace(valuation_time=time)
-                self.assert_rejection(
-                    InvalidInputError, self.engine.price, option, outside
-                )
-                self.assert_rejection(
-                    InvalidInputError,
-                    self.engine.price_with_greeks,
-                    option,
-                    outside,
-                    [],
-                )
-                self.assert_rejection(
-                    InvalidInputError,
-                    implied_volatility,
-                    self.engine,
-                    option,
-                    outside,
-                    0,
-                )
+            time = datetime(2026, 1, 1, 0, 0, 0, 1)
+            outside = self.context.replace(valuation_time=time)
+            self.assert_rejection(InvalidInputError, self.engine.price, option, outside)
+            self.assert_rejection(
+                InvalidInputError,
+                self.engine.price_with_greeks,
+                option,
+                outside,
+                [],
+            )
+            self.assert_rejection(
+                InvalidInputError,
+                implied_volatility,
+                self.engine,
+                option,
+                outside,
+                0,
+            )
 
     def test_constructor_domains_and_native_representation_errors(self):
         for cls in (CashOrNothingOption, AssetOrNothingOption):

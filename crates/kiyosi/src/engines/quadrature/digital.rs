@@ -59,15 +59,15 @@ impl QuadratureDigitalEngine {
         self.settings
     }
 
-    /// Prices a digital over its inclusive life, settling strictly in the money at expiry.
+    /// Prices a digital through expiry, permitting pre-effective valuation.
     ///
     /// See [`Self::new`] for usage. Equality at expiry pays zero.
     ///
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
-    /// before life validation. Returns [`Error::InvalidInput`] outside contract
-    /// life and [`Error::ComputationFailure`] for unrepresentable transitions,
+    /// before valuation validation. Returns [`Error::InvalidInput`] after expiry
+    /// or outside curve coverage and [`Error::ComputationFailure`] for unrepresentable transitions,
     /// weights or prices. Inputs and settings remain unchanged.
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         <Self as PricingEngine<DigitalOption>>::price(self, option, context)

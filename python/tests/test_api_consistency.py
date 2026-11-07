@@ -14,6 +14,115 @@ from kiyosi.pricing import numerical_greeks
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_european_digitals_allow_pre_effective_pricing_greeks_and_solves(self):
+        start = datetime(2025, 1, 1)
+        effective, expiry = start + timedelta(days=30), start + timedelta(days=365)
+        mc = pricing.MonteCarloDigitalEngine(path_count=128, seed=42, thread_count=1)
+        fd = pricing.FiniteDifferenceDigitalEngine(
+            asset_step_count=200, time_step_count=100
+        )
+        engines = [
+            pricing.AnalyticDigitalEngine(),
+            pricing.CoxRossRubinsteinDigitalEngine(),
+            fd,
+            pricing.QuadratureDigitalEngine(),
+            mc,
+        ]
+        for kind in (ins.CashOrNothingOption, ins.AssetOrNothingOption):
+            for direction in ("call", "put"):
+                future = kind(
+                    option_type=direction,
+                    strike=100,
+                    effective_time=effective,
+                    expiry_time=expiry,
+                    **({"payout": 10} if kind is ins.CashOrNothingOption else {}),
+                )
+                existing = future.replace(effective_time=start)
+                for volatility in (0, 0.2):
+                    model = market.BlackScholesMertonParameters(
+                        risk_free_rate=0.05, dividend_yield=0.02, volatility=volatility
+                    )
+                    for at in (start, effective - timedelta(microseconds=1), effective):
+                        context = market.PricingContext(
+                            model_parameters=model, spot_price=105, valuation_time=at
+                        )
+                        for engine in engines:
+                            with self.subTest(
+                                kind=kind.__name__,
+                                direction=direction,
+                                volatility=volatility,
+                                at=at,
+                                engine=type(engine).__name__,
+                            ):
+                                price = engine.price(future, context)
+                                self.assertEqual(price, engine.price(existing, context))
+                                native = engine.price_with_greeks(
+                                    future, context, "delta"
+                                )
+                                self.assertEqual(
+                                    native,
+                                    engine.price_with_greeks(
+                                        existing, context, "delta"
+                                    ),
+                                )
+                                self.assertTrue(math.isfinite(native.require("delta")))
+                                numerical = numerical_greeks(
+                                    engine, future, context, "theta"
+                                )
+                                self.assertTrue(
+                                    math.isfinite(numerical.require("theta"))
+                                )
+                                self.assertEqual(
+                                    numerical,
+                                    numerical_greeks(
+                                        engine, existing, context, "theta"
+                                    ),
+                                )
+                                if volatility:
+                                    self.assertAlmostEqual(
+                                        pricing.implied_volatility(
+                                            engine,
+                                            future,
+                                            context,
+                                            price,
+                                            lower_bound=0.2,
+                                            upper_bound=0.3,
+                                        ),
+                                        0.2,
+                                        delta=1e-12,
+                                    )
+                        self.assertEqual(
+                            mc.price_with_statistics(future, context),
+                            mc.price_with_statistics(existing, context),
+                        )
+                    short = market.RateTermStructure.bounded_flat(
+                        0.05, reference_time=start, max_time=expiry - timedelta(days=1)
+                    )
+                    uncovered = context.replace(
+                        model_parameters=model.replace(risk_free_rate=short),
+                        valuation_time=start,
+                    )
+                    expired = context.replace(
+                        valuation_time=expiry + timedelta(microseconds=1)
+                    )
+                    for engine in engines:
+                        for invalid in (uncovered, expired):
+                            with self.assertRaises(InvalidInputError):
+                                engine.price(future, invalid)
+                surface = market.LocalVolatilitySurface(
+                    times=[start, expiry],
+                    spots=[50, 150],
+                    values=[[0.2, 0.2], [0.2, 0.2]],
+                )
+                local = context.replace(
+                    model_parameters=market.LocalVolatilityParameters(
+                        risk_free_rate=0.05, dividend_yield=0.02, surface=surface
+                    ),
+                    valuation_time=start,
+                )
+                self.assertEqual(fd.price(future, local), fd.price(existing, local))
+                self.assertEqual(future.effective_time, effective)
+
     def test_european_pre_effective_pricing_preserves_contract_and_model_coverage(self):
         valuation = datetime(2025, 1, 1)
         effective, expiry = (

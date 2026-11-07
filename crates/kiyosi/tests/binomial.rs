@@ -269,15 +269,15 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                     vanilla.price(&european, &context),
                     Err(Error::InvalidInput(_))
                 ));
+                let option =
+                    DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap();
+                assert!(matches!(
+                    digital.price(&option, &context).unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
             }
             assert!(matches!(
                 vanilla.price(&american, &context).unwrap_err(),
-                Error::InvalidInput(_)
-            ));
-            let option =
-                DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap();
-            assert!(matches!(
-                digital.price(&option, &context).unwrap_err(),
                 Error::InvalidInput(_)
             ));
         }

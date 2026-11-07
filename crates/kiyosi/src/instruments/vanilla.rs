@@ -133,7 +133,7 @@ pub trait OptionContract {
 
     /// Returns the earliest valuation time, or `None` when pre-effective valuation is valid.
     ///
-    /// European vanilla contracts allow earlier valuation. Other built-in contracts
+    /// European vanilla and digital contracts allow earlier valuation. Other built-in contracts
     /// use the default effective time. Custom contracts may
     /// allow earlier valuation by returning `None`; see [`Self::effective_time`].
     fn valuation_start(&self) -> Option<Timestamp> {
@@ -192,6 +192,8 @@ impl OptionContract for EuropeanOption {
 /// Owns a validated European cash-or-nothing or asset-or-nothing contract.
 ///
 /// Both pay only strictly in the money; equality at expiry pays zero.
+/// Fixed terminal settlement permits valuation before the effective timestamp,
+/// subject to market coverage; see [`OptionContract::valuation_start`].
 /// See [`Self::cash_or_nothing`] and [`Self::asset_or_nothing`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DigitalOption {
@@ -352,6 +354,9 @@ impl OptionContract for DigitalOption {
     }
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
+    }
+    fn valuation_start(&self) -> Option<Timestamp> {
+        None
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.terms.at_spot_discontinuity(context, radius)

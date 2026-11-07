@@ -216,13 +216,12 @@ class DigitalNumericalTests(unittest.TestCase):
                 )
                 with self.assertRaises(TypeError):
                     numerical_greeks(engine, option, market(), "delta", spot_shift=True)
-                for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
-                    self.assert_rejection(
-                        InvalidInputError,
-                        engine.price,
-                        option,
-                        market(valuation=valuation),
-                    )
+                self.assert_rejection(
+                    InvalidInputError,
+                    engine.price,
+                    option,
+                    market(valuation=END + timedelta(days=1)),
+                )
             for sigma in (1e-200, math.ulp(0.0)):
                 context = market(
                     volatility=sigma,

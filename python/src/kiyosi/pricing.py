@@ -1,6 +1,6 @@
 """Price contracts, compute sensitivities, and solve implied parameters.
 
-European vanilla contracts support valuation before effective_time, including
+European vanilla and digital contracts support valuation before effective_time, including
 Greeks and implied volatility, when the model data covers valuation through expiry.
 Other contracts require valuation within their inclusive life and validate prior history.
 

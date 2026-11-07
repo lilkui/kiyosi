@@ -3,8 +3,8 @@ use std::f64::consts::PI;
 use crate::engines::analytic::european::black_scholes_arguments;
 use crate::numerics::weighted_cdf;
 use crate::{
-    DigitalOption, Error, Greek, GreeksRequest, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result,
+    DigitalOption, Greek, GreeksRequest, OptionType, PricingContext, PricingEngine, PricingResult,
+    Result,
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts under BSM.
@@ -24,9 +24,9 @@ impl AnalyticDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for empty requests
+    /// Returns [`crate::Error::InvalidInput`] for empty requests
     /// before pricing. Propagates [`Self::price`] errors and returns
-    /// [`Error::ComputationFailure`] for non-finite requested derivatives.
+    /// [`crate::Error::ComputationFailure`] for non-finite requested derivatives.
     /// Inputs remain unchanged on success and failure.
     ///
     /// # Examples
@@ -67,13 +67,13 @@ impl AnalyticDigitalEngine {
         )
     }
 
-    /// Prices a digital contract over its inclusive life, settling strictly in the money.
+    /// Prices a digital through expiry, permitting pre-effective valuation.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
-    /// [`Error::InvalidInput`] outside contract life or curve coverage,
-    /// and [`Error::ComputationFailure`] for non-finite numerical results.
+    /// Returns [`crate::Error::UnsupportedOperation`] for non-BSM models,
+    /// [`crate::Error::InvalidInput`] after expiry or outside curve coverage,
+    /// and [`crate::Error::ComputationFailure`] for non-finite numerical results.
     ///
     /// # Examples
     ///
@@ -101,11 +101,7 @@ impl AnalyticDigitalEngine {
     ) -> Result<PricingResult> {
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        if valuation < option.effective_time() || valuation > expiry {
-            return Err(Error::InvalidInput(
-                "valuation must be within the contract life".into(),
-            ));
-        }
+        crate::instruments::monitoring::validate_life(option, context)?;
         let spot = context.spot_price();
         let sign = if option.option_type() == OptionType::Call {
             1.0

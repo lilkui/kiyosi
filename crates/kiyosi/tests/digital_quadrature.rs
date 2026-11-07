@@ -116,7 +116,7 @@ fn greeks_and_implied_volatility_use_shared_contracts() {
 #[test]
 fn expiry_is_strict_and_life_validation_preserves_state() {
     let engine = QuadratureDigitalEngine::default();
-    let (start, end) = dates();
+    let (_, end) = dates();
     for direction in [OptionType::Call, OptionType::Put] {
         for option in options(direction, 100.0, 10.0, end) {
             let original = market(100.0, 0.05, 0.02, 0.2);
@@ -148,23 +148,16 @@ fn expiry_is_strict_and_life_validation_preserves_state() {
                     }
                 }
             }
-            for at in [
-                Date::new(start.date().year() - 1, 12, 31)
-                    .unwrap()
-                    .start_of_day(),
-                Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
-            ] {
-                let invalid = original
-                    .replace(PricingContextChanges {
-                        valuation_time: Some(at),
-                        ..Default::default()
-                    })
-                    .unwrap();
-                assert!(matches!(
-                    engine.price(&option, &invalid),
-                    Err(Error::InvalidInput(_))
-                ));
-            }
+            let invalid = original
+                .replace(PricingContextChanges {
+                    valuation_time: Some(Timestamp::new(end.date(), 0, 0, 0, 1).unwrap()),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert!(matches!(
+                engine.price(&option, &invalid),
+                Err(Error::InvalidInput(_))
+            ));
             let before_expiry = original
                 .replace(PricingContextChanges {
                     valuation_time: Some(

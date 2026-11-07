@@ -1,6 +1,6 @@
 use super::{path_means, scaled_value, unstable};
 use crate::{
-    DigitalOption, Error, Greek, GreeksRequest, MonteCarloEstimate, MonteCarloSampling,
+    DigitalOption, Greek, GreeksRequest, MonteCarloEstimate, MonteCarloSampling,
     MonteCarloSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 
@@ -55,13 +55,13 @@ impl MonteCarloDigitalEngine {
     ///
     /// See [`Self::price_with_greeks`] for an example. Calls finish synchronously
     /// without cancellation polling; operational failures preserve their native
-    /// [`std::io::Error`] through [`Error::Io`].
+    /// [`std::io::Error`] through [`crate::Error::Io`].
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
-    /// validation, [`Error::InvalidInput`] outside the inclusive life,
-    /// and [`Error::ComputationFailure`] for non-finite parameters, samples or
+    /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves before life
+    /// validation, [`crate::Error::InvalidInput`] after expiry or outside curve coverage,
+    /// and [`crate::Error::ComputationFailure`] for non-finite parameters, samples or
     /// results. Inputs remain unchanged on success and failure.
     ///
     /// # Panics
@@ -86,7 +86,7 @@ impl MonteCarloDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
+    /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
     /// for non-finite uncertainty or confidence bounds. Inputs remain unchanged.
     ///
     /// # Panics
@@ -122,8 +122,8 @@ impl MonteCarloDigitalEngine {
     ///
     /// Checks flat-rate applicability before requests, then propagates
     /// [`Self::price`] errors. Empty requests return
-    /// [`Error::InvalidInput`]; non-finite requested Greek samples return
-    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples return
+    /// [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Panics
     ///
@@ -201,11 +201,7 @@ impl MonteCarloDigitalEngine {
         }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        if valuation < option.effective_time() || valuation > expiry {
-            return Err(Error::InvalidInput(
-                "valuation must be within contract life".into(),
-            ));
-        }
+        crate::instruments::monitoring::validate_life(option, context)?;
         let spot = context.spot_price();
         let call = option.option_type() == OptionType::Call;
         let time = valuation.years_until(expiry);

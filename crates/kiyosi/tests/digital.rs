@@ -166,27 +166,22 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                     .unwrap_err(),
                     Error::UnsupportedOperation(_)
                 ));
-                for at in [
-                    Timestamp::new(Date::new(2024, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap(),
-                    Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
-                ] {
-                    let outside = context
-                        .replace(PricingContextChanges {
-                            valuation_time: Some(at),
-                            ..Default::default()
-                        })
-                        .unwrap();
-                    assert!(matches!(
-                        AnalyticDigitalEngine.price(&option, &outside).unwrap_err(),
-                        Error::InvalidInput(_)
-                    ));
-                    assert!(matches!(
-                        AnalyticDigitalEngine
-                            .price_with_greeks(&option, &outside, GreeksRequest::new([]))
-                            .unwrap_err(),
-                        Error::InvalidInput(_)
-                    ));
-                }
+                let outside = context
+                    .replace(PricingContextChanges {
+                        valuation_time: Some(Timestamp::new(end.date(), 0, 0, 0, 1).unwrap()),
+                        ..Default::default()
+                    })
+                    .unwrap();
+                assert!(matches!(
+                    AnalyticDigitalEngine.price(&option, &outside).unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
+                assert!(matches!(
+                    AnalyticDigitalEngine
+                        .price_with_greeks(&option, &outside, GreeksRequest::new([]))
+                        .unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
             }
         }
     }
