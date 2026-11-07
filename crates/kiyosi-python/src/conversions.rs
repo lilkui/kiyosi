@@ -1,5 +1,5 @@
 use crate::error::domain;
-use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::exceptions::{PyOverflowError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{
     PyBool, PyDate, PyDateAccess, PyDateTime, PyDelta, PyDeltaAccess, PyFloat, PyTime, PyTimeAccess,
@@ -78,22 +78,45 @@ pub(crate) fn supplied<'a, 'py>(
 
 pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     let numbers = value.py().import("numbers")?;
-    if value.is_instance_of::<PyBool>() || !value.is_instance(&numbers.getattr("Real")?)? {
-        return Err(PyTypeError::new_err(
-            "expected a real number, excluding bool",
+    let decimal =
+        if !value.is_instance_of::<PyBool>() && value.is_instance(&numbers.getattr("Real")?)? {
+            None
+        } else {
+            let decimal = value.py().import("decimal")?.getattr("Decimal")?;
+            if !value.is_instance(&decimal)? {
+                return Err(PyTypeError::new_err(
+                    "expected a real number or Decimal, excluding bool",
+                ));
+            }
+            Some(decimal)
+        };
+    let converted: f64 = value.extract()?;
+    if decimal.is_some()
+        && !converted.is_finite()
+        && value.call_method0("is_finite")?.extract::<bool>()?
+    {
+        return Err(PyOverflowError::new_err(
+            "Decimal is outside the float range",
         ));
     }
-    let converted: f64 = value.extract()?;
     // Integer scalar equality may round both operands (for example, NumPy integers).
     let exact = if value.is_instance(&numbers.getattr("Integral")?)? {
         integer_index(value)?
     } else {
         value.clone()
     };
-    if converted.is_finite() && !value.is_instance_of::<PyFloat>() && !exact.eq(converted)? {
-        return Err(PyValueError::new_err(
-            "number cannot be represented exactly as a float; convert to float explicitly to round",
-        ));
+    if converted.is_finite() && !value.is_instance_of::<PyFloat>() {
+        let equal = if let Some(decimal) = decimal {
+            // Decimal-to-Decimal equality avoids signaling FloatOperation in the caller's context.
+            exact.eq(decimal.call_method1("from_float", (converted,))?)?
+        } else {
+            exact.eq(converted)?
+        };
+        if !equal {
+            return Err(PyValueError::new_err(
+                "number cannot be represented exactly as a float; convert to float explicitly to round",
+            ));
+        }
     }
     Ok(converted)
 }

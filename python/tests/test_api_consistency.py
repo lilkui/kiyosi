@@ -5,6 +5,7 @@ import pickle
 import unittest
 from datetime import datetime, timedelta
 from datetime import time as clock_time
+from decimal import Decimal, FloatOperation, Inexact, Rounded, localcontext
 from fractions import Fraction
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
@@ -801,6 +802,8 @@ class ApiConsistencyTests(unittest.TestCase):
             CoercingInteger(2**63 - 1),
             Fraction(2**53 + 1, 2**53),
             Fraction(1, 10),
+            Decimal("0.1"),
+            Decimal(2**53 + 1),
         ):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
@@ -811,11 +814,74 @@ class ApiConsistencyTests(unittest.TestCase):
                 self.assertEqual(
                     original.replace(strike=float(value)).strike, float(value)
                 )
-        for value in (2**53 + 2, CoercingInteger(2**53 + 2), Fraction(1, 2)):
+        for value in (
+            2**53 + 2,
+            CoercingInteger(2**53 + 2),
+            Fraction(1, 2),
+            Decimal(100),
+            Decimal("0.125"),
+            Decimal.from_float(0.1),
+        ):
             with self.subTest(value=value):
                 self.assertEqual(
                     ins.EuropeanOption(strike=value, **fields).strike, value
                 )
+
+    def test_decimal_conversion_preserves_context_and_error_categories(self):
+        start, expiry = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        with localcontext() as decimal_context:
+            for signal in (FloatOperation, Inexact, Rounded):
+                decimal_context.traps[signal] = True
+            decimal_context.clear_flags()
+            model = market.BlackScholesMertonParameters(
+                risk_free_rate=Decimal("0.125"),
+                dividend_yield=Decimal(0),
+                volatility=Decimal("0.25"),
+            )
+            context = market.PricingContext(
+                model_parameters=model,
+                spot_price=Decimal(100),
+                valuation_time=start,
+            )
+            option = ins.EuropeanOption(
+                option_type="call",
+                strike=Decimal(100),
+                effective_time=start,
+                expiry_time=expiry,
+            )
+            engine = pricing.AnalyticEuropeanEngine()
+            quote = engine.price(option, context)
+            self.assertAlmostEqual(
+                pricing.implied_volatility(
+                    engine,
+                    option,
+                    context,
+                    Decimal.from_float(quote),
+                    lower_bound=Decimal("0.125"),
+                    upper_bound=Decimal("0.5"),
+                ),
+                0.25,
+                delta=1e-8,
+            )
+            for invalid in (Decimal("1e400"), Decimal("-1e400")):
+                with self.assertRaises(OverflowError):
+                    option.replace(strike=invalid)
+            for invalid in (Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")):
+                with self.assertRaises(InvalidInputError):
+                    option.replace(strike=invalid)
+            for invalid in (Decimal("0.1"), Decimal("1e-400")):
+                with self.assertRaises(ValueError):
+                    option.replace(strike=invalid)
+            self.assertEqual(
+                model.replace(
+                    risk_free_rate=float(Decimal("1e-400"))
+                ).flat_risk_free_rate,
+                0,
+            )
+            with self.assertRaises(TypeError):
+                option.replace(strike=True)
+            self.assertEqual(option.strike, 100)
+            self.assertFalse(any(decimal_context.flags.values()))
 
     def test_terminated_accumulators_have_no_remaining_cashflows(self):
         from kiyosi import InvalidInputError

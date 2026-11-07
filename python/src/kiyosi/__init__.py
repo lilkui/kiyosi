@@ -20,10 +20,12 @@ observation clock with the same timezone and precision rules. Python dates and
 datetimes support years 1 through 9999.
 The Rust core has a wider date range; converting a result outside Python's range
 raises ``ValueError``, including calendar adjustments past either Python limit.
-Numeric inputs reject booleans and unintended lossy conversions. Integers and
-other exact real numbers must be representable exactly as a float; use an explicit
-``float(value)`` conversion to opt into rounding.
+Numeric inputs reject booleans and unintended lossy conversions. Integers,
+Decimal values and other exact real numbers must be representable exactly as a
+float; use an explicit ``float(value)`` conversion to opt into rounding.
 This also applies to integer scalars from libraries such as NumPy.
+Finite Decimal values outside the float range raise ``OverflowError``. Conversion
+preserves the caller's decimal context and flags.
 Integer inputs accept the ``__index__`` protocol, excluding booleans; fractional
 values raise ``TypeError`` and values outside the target integer range raise
 ``OverflowError``.

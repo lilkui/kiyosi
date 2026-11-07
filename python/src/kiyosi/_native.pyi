@@ -2,13 +2,14 @@
 
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal as _Decimal
 from numbers import Real as _RealNumber
 from types import EllipsisType
 from typing import Literal, Never, Self, SupportsIndex, overload
 
 from . import pricing as _pricing
 
-type _Real = float | _RealNumber
+type _Real = float | _RealNumber | _Decimal
 
 __version__: str
 

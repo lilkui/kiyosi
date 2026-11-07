@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from datetime import time as clock_time
+from decimal import Decimal
 from fractions import Fraction
 from typing import assert_type
 
@@ -34,8 +35,9 @@ def numeric_protocol_inputs() -> None:
     )
     assert_type(option.strike, float)
     assert_type(option.replace(strike=Fraction(203, 2)), EuropeanOption)
+    assert_type(option.replace(strike=Decimal("100.5")), EuropeanOption)
     model = BlackScholesMertonParameters(
-        risk_free_rate=Fraction(1, 32), dividend_yield=0, volatility=0.2
+        risk_free_rate=Fraction(1, 32), dividend_yield=0, volatility=Decimal("0.25")
     )
     assert_type(model.volatility, float)
     assert_type(model.flat_risk_free_rate, float)
