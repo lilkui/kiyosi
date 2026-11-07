@@ -3,8 +3,8 @@ use crate::numerics::{
     checked, checked_with_scale, log_ratio, scaled_cash, scaled_cdf, standardize,
 };
 use crate::{
-    AnalyticEuropeanEngine, Error, GreeksRequest, ObservationSchedule, OptionType, PricingContext,
-    PricingEngine, PricingResult, Result, TradingCalendar,
+    AnalyticEuropeanEngine, Error, GreeksRequest, OptionType, PricingContext, PricingEngine,
+    PricingResult, Result,
 };
 use crate::{BarrierOption, RebateTiming};
 
@@ -49,8 +49,16 @@ impl AnalyticBarrierEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
-        price(option, context, None)
+        self.validate_applicability(context)?;
+        validate_life(option, context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::barrier(option, context);
+        }
+        if let Some(value) = resolved_price(option, context)? {
+            return Ok(value);
+        }
+        context.validate_curve_horizon(option.expiry_time())?;
+        analytic_price(option, context)
     }
     /// Computes requested scalar numerical Greeks with shared bump defaults.
     ///
@@ -71,39 +79,6 @@ impl AnalyticBarrierEngine {
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
-fn price(
-    option: &BarrierOption,
-    context: &PricingContext,
-    schedule: Option<&std::cell::OnceCell<ScheduleValidation>>,
-) -> Result<f64> {
-    context.bsm_parameters()?;
-    context.bsm_parameters()?.flat_risk_free_rate()?;
-    context.bsm_parameters()?.flat_dividend_yield()?;
-    validate_life(option, context)?;
-    if crate::engines::deterministic::enabled(context) {
-        return crate::engines::deterministic::barrier(option, context);
-    }
-    let cached = schedule
-        .and_then(|schedule| schedule.get())
-        .filter(|cached| {
-            &cached.schedule == option.observation_schedule()
-                && cached.calendar == *option.calendar()
-        });
-    if cached.is_none() {
-        if let Some(schedule) = schedule {
-            let _ = schedule.set(ScheduleValidation {
-                schedule: option.observation_schedule().clone(),
-                calendar: option.calendar().clone(),
-            });
-        }
-    }
-    if let Some(value) = resolved_price(option, context)? {
-        return Ok(value);
-    }
-    context.validate_curve_horizon(option.expiry_time())?;
-    analytic_price(option, context)
-}
-
 pub(crate) fn resolved_price(
     option: &BarrierOption,
     context: &PricingContext,
@@ -168,32 +143,10 @@ impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
         context.bsm_parameters()?;
         self.price(option, context)
     }
-    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
-        Ok(Some(Box::new(BarrierPricer(std::cell::OnceCell::new()))))
-    }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)
     }
 }
-struct ScheduleValidation {
-    schedule: ObservationSchedule,
-    calendar: TradingCalendar,
-}
-struct BarrierPricer(std::cell::OnceCell<ScheduleValidation>);
-impl PricingEngine<BarrierOption> for BarrierPricer {
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
-        AnalyticBarrierEngine.validate_applicability(context)
-    }
-    fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
-        price(option, context, Some(&self.0))
-    }
-    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
-}
-
 fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f64> {
     let t = context.valuation_time().years_until(option.expiry_time());
     let spot = context.spot_price();

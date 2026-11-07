@@ -749,14 +749,11 @@ fn rare_hit_rebates_survive_tail_scaling_and_cancellation_is_nonnegative() {
 }
 
 #[test]
-fn publicly_prepared_requests_revalidate_different_schedules_and_calendars() {
+fn contract_calendars_reject_closed_observations_on_construction_and_replacement() {
     let mut t = terms(BarrierType::UpAndOut);
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_times = vec![t.expiry_time];
     let option = BarrierOption::new(t.clone()).unwrap();
-    let context = market(100.0, t.effective_time);
-    let prepared = AnalyticBarrierEngine.prepare_request().unwrap().unwrap();
-    prepared.price(&option, &context).unwrap();
     let closed = TradingCalendar::new(|_| false, 365).unwrap();
     assert!(matches!(
         option.replace_calendar(closed),
