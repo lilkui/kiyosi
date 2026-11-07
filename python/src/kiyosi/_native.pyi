@@ -9786,14 +9786,15 @@ class AutocallableObservation:
         *,
         time: datetime | EllipsisType = ...,
         knock_out_level: _Real | EllipsisType = ...,
-        coupon_rate: _Real | EllipsisType = ...,
-        coupon_barrier_level: _Real | EllipsisType = ...,
+        coupon_rate: _Real | None | EllipsisType = ...,
+        coupon_barrier_level: _Real | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated observation with the supplied fields replaced.
 
         Omitted fields or Ellipsis retain their values. Invalid numeric terms raise
         InvalidInputError; representation failures use native Python exceptions.
-        Fields of the other observation kind are rejected, including explicit zero.
+        None coupon fields retain their values, matching omitted Rust changes.
+        Numeric fields of the other observation kind are rejected, including zero.
         Note construction checks schedule and product-specific constraints."""
 
     def __new__(cls, _token: Never, /) -> Self: ...
@@ -9851,12 +9852,12 @@ class AutocallableObservation:
         """Return the positive finite knock-out threshold."""
 
     @property
-    def coupon_rate(self) -> float:
-        """Return the finite signed annual coupon in decimal units."""
+    def coupon_rate(self) -> float | None:
+        """Returns the annual snowball coupon rate, or None for Phoenix observations."""
 
     @property
-    def coupon_barrier_level(self) -> float:
-        """Return the finite nonnegative Phoenix coupon threshold."""
+    def coupon_barrier_level(self) -> float | None:
+        """Returns the Phoenix coupon threshold, or None for snowball observations."""
 
 @overload
 def autocallable_observations(

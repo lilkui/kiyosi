@@ -986,7 +986,7 @@ class ApiConsistencyTests(unittest.TestCase):
             [time], [110], knock_out_coupon_rates=[-0.01]
         )
         self.assertEqual(records[0].coupon_rate, -0.01)
-        self.assertEqual(records[0].coupon_barrier_level, 0)
+        self.assertIsNone(records[0].coupon_barrier_level)
 
     def test_asian_history_uses_optional_positive_averages(self):
         start, end = datetime(2025, 1, 1), datetime(2025, 1, 11)
@@ -1844,6 +1844,39 @@ class GreekMethodTests(unittest.TestCase):
 
 
 class ObservationReplacementTests(unittest.TestCase):
+    def test_observation_coupon_getters_roundtrip_without_placeholder_values(self):
+        at = datetime(2026, 1, 1)
+        for value in (0, 0.08):
+            for record, active, absent in (
+                (
+                    ins.AutocallableObservation.snowball(at, 110, coupon_rate=value),
+                    "coupon_rate",
+                    "coupon_barrier_level",
+                ),
+                (
+                    ins.AutocallableObservation.phoenix(
+                        at, 110, coupon_barrier_level=value
+                    ),
+                    "coupon_barrier_level",
+                    "coupon_rate",
+                ),
+            ):
+                with self.subTest(kind=record.kind, value=value):
+                    self.assertEqual(getattr(record, active), value)
+                    self.assertIsNone(getattr(record, absent))
+                    self.assertEqual(
+                        record.replace(
+                            coupon_rate=record.coupon_rate,
+                            coupon_barrier_level=record.coupon_barrier_level,
+                        ),
+                        record,
+                    )
+                    self.assertEqual(
+                        record.replace(coupon_rate=None, coupon_barrier_level=None),
+                        record,
+                    )
+                    self.assertEqual(pickle.loads(pickle.dumps(record)), record)
+
     def test_zero_coupon_observations_preserve_product_identity(self):
         start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
         snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0)
@@ -1888,7 +1921,7 @@ class ObservationReplacementTests(unittest.TestCase):
         phoenix = ins.AutocallableObservation.phoenix(
             time, 110, coupon_barrier_level=90
         )
-        self.assertEqual(phoenix.coupon_rate, 0)
+        self.assertIsNone(phoenix.coupon_rate)
         self.assertEqual(pickle.loads(pickle.dumps(phoenix)), phoenix)
         self.assertIn("AutocallableObservation.phoenix", repr(phoenix))
         with self.assertRaises(InvalidInputError):
@@ -1903,7 +1936,7 @@ class ObservationReplacementTests(unittest.TestCase):
         self.assertEqual(changed.time, time + timedelta(days=1))
         self.assertEqual(changed.knock_out_level, 120)
         self.assertEqual(changed.coupon_rate, 0.08)
-        self.assertEqual(changed.coupon_barrier_level, 0)
+        self.assertIsNone(changed.coupon_barrier_level)
         self.assertEqual(original.replace(), original)
         self.assertEqual(original.replace(coupon_rate=...), original)
         self.assertEqual(pickle.loads(pickle.dumps(changed)), changed)
@@ -1923,8 +1956,7 @@ class ObservationReplacementTests(unittest.TestCase):
                     original.coupon_rate,
                     original.coupon_barrier_level,
                 ),
-                (time, 110, -0.01, 0),
+                (time, 110, -0.01, None),
             )
-        for value in (None, True):
-            with self.subTest(value=value), self.assertRaises(TypeError):
-                original.replace(coupon_rate=value)
+        with self.assertRaises(TypeError):
+            original.replace(coupon_rate=True)

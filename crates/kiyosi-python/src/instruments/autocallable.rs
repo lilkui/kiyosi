@@ -285,7 +285,8 @@ impl AutocallableObservation {
     ///
     /// Omitted fields or Ellipsis retain their values. Invalid numeric terms raise
     /// InvalidInputError; representation failures use native Python exceptions.
-    /// Fields of the other observation kind are rejected, including explicit zero.
+    /// None coupon fields retain their values, matching omitted Rust changes.
+    /// Numeric fields of the other observation kind are rejected, including zero.
     /// Note construction checks schedule and product-specific constraints.
     #[pyo3(signature = (*, time=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, coupon_rate=crate::conversions::OMITTED, coupon_barrier_level=crate::conversions::OMITTED))]
     fn replace(
@@ -295,14 +296,17 @@ impl AutocallableObservation {
         #[pyo3(from_py_with = supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] coupon_barrier_level: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(self.0.replace(
-            kiyosi::AutocallableObservationChanges {
+        Ok(Self(domain(
+            self.0.replace(kiyosi::AutocallableObservationChanges {
                 time: time.map(timestamp).transpose()?,
                 knock_out_level: knock_out_level.map(real).transpose()?,
-                coupon_rate: coupon_rate.map(real).transpose()?,
-                coupon_barrier_level: coupon_barrier_level.map(real).transpose()?,
-            },
-        ))?))
+                coupon_rate: coupon_rate.filter(|v| !v.is_none()).map(real).transpose()?,
+                coupon_barrier_level: coupon_barrier_level
+                    .filter(|v| !v.is_none())
+                    .map(real)
+                    .transpose()?,
+            }),
+        )?))
     }
     /// Returns snowball or phoenix, independently of coupon values.
     #[getter]
@@ -322,14 +326,14 @@ impl AutocallableObservation {
     fn knock_out_level(&self) -> f64 {
         self.0.knock_out_level()
     }
-    /// Return the finite signed annual coupon in decimal units.
+    /// Returns the annual snowball coupon rate, or None for Phoenix observations.
     #[getter]
-    fn coupon_rate(&self) -> f64 {
+    fn coupon_rate(&self) -> Option<f64> {
         self.0.coupon_rate()
     }
-    /// Return the finite nonnegative Phoenix coupon threshold.
+    /// Returns the Phoenix coupon threshold, or None for snowball observations.
     #[getter]
-    fn coupon_barrier_level(&self) -> f64 {
+    fn coupon_barrier_level(&self) -> Option<f64> {
         self.0.coupon_barrier_level()
     }
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
@@ -346,7 +350,8 @@ impl AutocallableObservation {
         Ok(format!(
             "AutocallableObservation.{kind}({}, {:?}, {field}={value:?})",
             self.time(py)?.repr()?,
-            self.0.knock_out_level()
+            self.0.knock_out_level(),
+            value = value.unwrap_or_default(),
         ))
     }
 }
@@ -822,7 +827,7 @@ snowball_properties! {
         self.0
             .observations()
             .iter()
-            .map(kiyosi::AutocallableObservation::coupon_rate)
+            .map(|r| r.coupon_rate().unwrap_or_default())
             .collect()
     },
     /// Return finite annual maturity coupon rate in decimal units.
@@ -998,7 +1003,7 @@ snowball_properties! {
         self.0
             .observations()
             .iter()
-            .map(kiyosi::AutocallableObservation::coupon_rate)
+            .map(|r| r.coupon_rate().unwrap_or_default())
             .collect()
     },
     /// Return finite annual maturity coupon rate in decimal units.
@@ -1176,7 +1181,7 @@ snowball_properties! {
         self.0
             .observations()
             .iter()
-            .map(kiyosi::AutocallableObservation::coupon_rate)
+            .map(|r| r.coupon_rate().unwrap_or_default())
             .collect()
     },
     /// Return finite annual maturity coupon rate in decimal units.
@@ -1435,7 +1440,7 @@ autocallable_properties! {
         self.0
             .observations()
             .iter()
-            .map(kiyosi::AutocallableObservation::coupon_barrier_level)
+            .map(|r| r.coupon_barrier_level().unwrap_or_default())
             .collect()
     },
     /// Returns the annual coupon rate, or None for a fixed per-period coupon.

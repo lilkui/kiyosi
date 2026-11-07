@@ -220,7 +220,7 @@ pub(crate) fn _repr_previews<'py>(
                     if r.kind() == kiyosi::AutocallableObservationKind::Snowball { "snowball" } else { "phoenix" },
                     python_timestamp(py, r.time())?.repr()?, r.knock_out_level(),
                     if r.kind() == kiyosi::AutocallableObservationKind::Snowball { "coupon_rate" } else { "coupon_barrier_level" },
-                    if r.kind() == kiyosi::AutocallableObservationKind::Snowball { r.coupon_rate() } else { r.coupon_barrier_level() })))?)?;
+                    r.coupon_rate().or(r.coupon_barrier_level()).unwrap_or_default())))?)?;
             }
         )+};
     }

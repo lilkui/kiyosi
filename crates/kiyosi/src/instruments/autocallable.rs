@@ -110,8 +110,8 @@ impl AutocallableObservation {
     /// let time = Date::new(2026, 1, 1)?.start_of_day();
     /// let snowball = AutocallableObservation::snowball(time, 110.0, 0.08)?;
     /// let phoenix = AutocallableObservation::phoenix(time, 110.0, 90.0)?;
-    /// assert_eq!(snowball.coupon_rate(), 0.08);
-    /// assert_eq!(phoenix.coupon_barrier_level(), 90.0);
+    /// assert_eq!(snowball.coupon_rate(), Some(0.08));
+    /// assert_eq!(phoenix.coupon_barrier_level(), Some(90.0));
     /// assert_eq!(phoenix.kind(), kiyosi::AutocallableObservationKind::Phoenix);
     /// # Ok(()) }
     /// ```
@@ -164,8 +164,8 @@ impl AutocallableObservation {
     /// let changed = record.replace(AutocallableObservationChanges {
     ///     coupon_rate: Some(0.08), ..Default::default()
     /// })?;
-    /// assert_eq!(changed.coupon_rate(), 0.08);
-    /// assert_eq!(record.coupon_rate(), 0.0);
+    /// assert_eq!(changed.coupon_rate(), Some(0.08));
+    /// assert_eq!(record.coupon_rate(), Some(0.0));
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: AutocallableObservationChanges) -> Result<Self> {
@@ -201,13 +201,17 @@ impl AutocallableObservation {
     pub fn knock_out_level(&self) -> f64 {
         self.knock_out_level
     }
-    /// Returns the finite annual coupon rate; see [`Self::phoenix`].
-    pub fn coupon_rate(&self) -> f64 {
-        self.coupon_rate
+    /// Returns the annual snowball coupon rate, or `None` for Phoenix observations.
+    ///
+    /// A zero snowball rate is `Some(0.0)`; see [`Self::phoenix`] for inspection.
+    pub fn coupon_rate(&self) -> Option<f64> {
+        (self.kind == AutocallableObservationKind::Snowball).then_some(self.coupon_rate)
     }
-    /// Returns the finite nonnegative coupon threshold; see [`Self::phoenix`].
-    pub fn coupon_barrier_level(&self) -> f64 {
-        self.coupon_barrier_level
+    /// Returns the Phoenix coupon threshold, or `None` for snowball observations.
+    ///
+    /// An unconditional Phoenix coupon is `Some(0.0)`; see [`Self::phoenix`].
+    pub fn coupon_barrier_level(&self) -> Option<f64> {
+        (self.kind == AutocallableObservationKind::Phoenix).then_some(self.coupon_barrier_level)
     }
 
     fn validate(&self) -> Result<()> {
@@ -248,7 +252,7 @@ impl AutocallableObservation {
 /// # fn main() -> kiyosi::Result<()> {
 /// let times = [Date::new(2026, 1, 1)?.start_of_day()];
 /// let records = autocallable_observations(&times, &[110.0], Some(&[0.08]), None)?;
-/// assert_eq!(records[0].coupon_rate(), 0.08);
+/// assert_eq!(records[0].coupon_rate(), Some(0.08));
 /// # Ok(()) }
 /// ```
 pub fn autocallable_observations(

@@ -260,8 +260,8 @@ fn terminal<T: AutocallableTerms>(
                 cash = note.terminal(anchor, false);
             }
             if let Some(r) = record.filter(|r| {
-                r.coupon_barrier_level() == 0.0
-                    || point > log_ratio(r.coupon_barrier_level(), anchor)
+                r.coupon_barrier_level().unwrap_or(0.0) == 0.0
+                    || point > log_ratio(r.coupon_barrier_level().unwrap_or(0.0), anchor)
             }) {
                 cash += note.period_coupon(r);
             }
@@ -288,8 +288,8 @@ fn apply_event<T: AutocallableTerms>(
     let coupon = |point: f64| {
         record
             .filter(|r| {
-                r.coupon_barrier_level() == 0.0
-                    || point >= log_ratio(r.coupon_barrier_level(), anchor)
+                r.coupon_barrier_level().unwrap_or(0.0) == 0.0
+                    || point >= log_ratio(r.coupon_barrier_level().unwrap_or(0.0), anchor)
             })
             .map_or(0.0, |_| amount)
     };
@@ -386,8 +386,8 @@ fn price<T: AutocallableTerms>(
         .filter(|r| r.time() > context.valuation_time())
     {
         breaks.push(log_ratio(r.knock_out_level(), anchor));
-        if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level() > 0.0 {
-            breaks.push(log_ratio(r.coupon_barrier_level(), anchor));
+        if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level().unwrap_or(0.0) > 0.0 {
+            breaks.push(log_ratio(r.coupon_barrier_level().unwrap_or(0.0), anchor));
         }
     }
     breaks.sort_by(f64::total_cmp);

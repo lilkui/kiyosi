@@ -22,6 +22,16 @@ DoubleTouchOption()  # ty: ignore[missing-argument]
 
 
 def observation_choices(at: datetime) -> None:
+    record = AutocallableObservation.snowball(at, 110, coupon_rate=0)
+    assert_type(record.coupon_rate, float | None)
+    assert_type(record.coupon_barrier_level, float | None)
+    assert_type(
+        record.replace(
+            coupon_rate=record.coupon_rate,
+            coupon_barrier_level=record.coupon_barrier_level,
+        ),
+        AutocallableObservation,
+    )
     assert_type(
         AutocallableObservation.phoenix(at, 110, coupon_barrier_level=0).kind,
         Literal["snowball", "phoenix"],

@@ -294,7 +294,7 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         for (a, b) in actual.observations().iter().zip(expected.observations()) {
             assert_eq!(a.time(), b.time());
             assert!((a.knock_out_level() - b.knock_out_level()).abs() < 1e-14);
-            assert!((a.coupon_rate() - b.coupon_rate()).abs() < 1e-14);
+            assert!((a.coupon_rate().unwrap() - b.coupon_rate().unwrap()).abs() < 1e-14);
         }
         assert_eq!(actual.terms().knock_in_observation_mode, mode);
         assert_eq!(

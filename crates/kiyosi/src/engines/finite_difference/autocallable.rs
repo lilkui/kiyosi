@@ -145,7 +145,9 @@ fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
         level = level.max(d.upper_strike).max(d.lower_strike);
     }
     note.observations().iter().fold(level, |level, r| {
-        level.max(r.knock_out_level()).max(r.coupon_barrier_level())
+        level
+            .max(r.knock_out_level())
+            .max(r.coupon_barrier_level().unwrap_or(0.0))
     })
 }
 fn default_upper<T: AutocallableTerms>(
@@ -370,7 +372,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         {
             levels.push(r.knock_out_level());
             if matches!(t.coupon, Coupon::Phoenix(_)) {
-                levels.push(r.coupon_barrier_level());
+                levels.push(r.coupon_barrier_level().unwrap_or(0.0));
             }
         }
         let scale =
@@ -401,7 +403,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     }
     let end_event = event(note, time, context);
     if let Some(r) = end_event {
-        breaks.extend([r.knock_out_level(), r.coupon_barrier_level()]);
+        breaks.extend([r.knock_out_level(), r.coupon_barrier_level().unwrap_or(0.0)]);
     }
     let payment = |asset, knocked_in, record: Option<&AutocallableObservation>| {
         let coupon = record.map_or(0.0, |r| note.observation_coupon(r, asset));
@@ -467,7 +469,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
                 breaks.push(ki.level);
             }
             if let Some(r) = record {
-                breaks.extend([r.knock_out_level(), r.coupon_barrier_level()]);
+                breaks.extend([r.knock_out_level(), r.coupon_barrier_level().unwrap_or(0.0)]);
             }
             for i in 0..size {
                 let correction = project(&space, &breaks, i, |asset| {
