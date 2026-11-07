@@ -315,7 +315,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         let quote = engine
             .price(
                 &dated(
-                    &note.with_shifted_coupons(0.12, convention).unwrap(),
+                    &note.with_quoted_coupon(0.12, convention).unwrap(),
                     &context,
                 ),
                 &context,

@@ -9787,18 +9787,19 @@ class SnowballOption:
         TypeError
             If a representation or field name is invalid."""
 
-    def with_shifted_coupons(
+    def with_quoted_coupon(
         self,
         first_observation_coupon: _Real,
         *,
         quote_convention: _pricing.CouponQuoteConvention,
     ) -> Self:
-        """Returns an independent note with its observation coupon schedule shifted.
+        """Returns a note with the quoted first coupon and preserved coupon spreads.
 
         Parameters
         ----------
         first_observation_coupon : float
-            New first observation coupon; all observation coupons shift equally.
+            Absolute annual first observation coupon, not an additive shift.
+            All observation coupons shift equally to preserve their spreads.
         quote_convention : CouponQuoteConvention
             Whether to shift the maturity coupon or preserve it.
 
@@ -10412,18 +10413,19 @@ class BinarySnowballOption:
         TypeError
             If a representation or field name is invalid."""
 
-    def with_shifted_coupons(
+    def with_quoted_coupon(
         self,
         first_observation_coupon: _Real,
         *,
         quote_convention: _pricing.CouponQuoteConvention,
     ) -> Self:
-        """Returns an independent note with its observation coupon schedule shifted.
+        """Returns a note with the quoted first coupon and preserved coupon spreads.
 
         Parameters
         ----------
         first_observation_coupon : float
-            New first observation coupon; all observation coupons shift equally.
+            Absolute annual first observation coupon, not an additive shift.
+            All observation coupons shift equally to preserve their spreads.
         quote_convention : CouponQuoteConvention
             Whether to shift the maturity coupon or preserve it.
 
@@ -10625,18 +10627,19 @@ class TernarySnowballOption:
         TypeError
             If a representation or field name is invalid."""
 
-    def with_shifted_coupons(
+    def with_quoted_coupon(
         self,
         first_observation_coupon: _Real,
         *,
         quote_convention: _pricing.CouponQuoteConvention,
     ) -> Self:
-        """Returns an independent note with its observation coupon schedule shifted.
+        """Returns a note with the quoted first coupon and preserved coupon spreads.
 
         Parameters
         ----------
         first_observation_coupon : float
-            New first observation coupon; all observation coupons shift equally.
+            Absolute annual first observation coupon, not an additive shift.
+            All observation coupons shift equally to preserve their spreads.
         quote_convention : CouponQuoteConvention
             Whether to shift the maturity coupon or preserve it.
 

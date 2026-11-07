@@ -107,7 +107,7 @@ class ImpliedCouponTests(unittest.TestCase):
                         quote_convention="shift_maturity_coupon",
                         lower_bound=math.nan,
                     )
-                fixed = note.with_shifted_coupons(
+                fixed = note.with_quoted_coupon(
                     0, quote_convention="preserve_maturity_coupon"
                 )
                 self.assertEqual(
@@ -170,7 +170,7 @@ class ImpliedCouponTests(unittest.TestCase):
             self.assertEqual(note.replace_history(barrier_state=Ellipsis), note)
             for convention in get_args(CouponQuoteConvention):
                 with self.subTest(note=type(note).__name__, convention=convention):
-                    replacement = note.with_shifted_coupons(
+                    replacement = note.with_quoted_coupon(
                         0.18, quote_convention=convention
                     )
                     self.assertIs(type(replacement), type(note))
@@ -196,7 +196,7 @@ class ImpliedCouponTests(unittest.TestCase):
                     self.assertAlmostEqual(
                         engine.price(
                             dated_history(
-                                note.with_shifted_coupons(
+                                note.with_quoted_coupon(
                                     solved, quote_convention=convention
                                 ),
                                 context,
@@ -207,11 +207,11 @@ class ImpliedCouponTests(unittest.TestCase):
                         delta=1e-8,
                     )
                     with self.assertRaises(InvalidInputError):
-                        note.with_shifted_coupons(math.nan, quote_convention=convention)
+                        note.with_quoted_coupon(math.nan, quote_convention=convention)
                     with self.assertRaises(TypeError):
-                        note.with_shifted_coupons(True, quote_convention=convention)
+                        note.with_quoted_coupon(True, quote_convention=convention)
             with self.assertRaises(ValueError):
-                note.with_shifted_coupons(0.1, quote_convention="unknown")
+                note.with_quoted_coupon(0.1, quote_convention="unknown")
             self.assertEqual(note.knock_out_coupon_rates, [0.08, 0.12])
             self.assertEqual(note.maturity_coupon_rate, 0.06)
 

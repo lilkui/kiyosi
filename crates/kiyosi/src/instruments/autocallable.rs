@@ -553,7 +553,7 @@ macro_rules! snowball_coupon {
     ($($terms:ty),+) => {$(
         impl SnowballCouponTerms for $terms {}
         impl sealed::SnowballCoupon for $terms {
-            fn with_shifted_coupons(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
+            fn with_quoted_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
                 let mut terms = self.clone();
                 let shift = coupon - terms.observations.first().map_or(0.0, |record| record.coupon_rate);
                 for record in &mut terms.observations {
@@ -583,7 +583,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         };
         let anchor = terms.observations[0].coupon_rate;
         let maturity = terms.maturity_coupon_rate();
-        // Round both inverse operations into the domain used by with_shifted_coupons.
+        // Round both inverse operations into the domain used by with_quoted_coupon.
         let shift = minimum - maturity;
         let shift = if maturity + shift < minimum {
             libm::nextafter(shift, f64::INFINITY)
@@ -598,8 +598,9 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         })
     }
 
-    /// Returns a note with its coupon schedule shifted to the supplied first observation rate.
+    /// Returns a note with the supplied first observation coupon and preserved coupon spreads.
     ///
+    /// The quote is an absolute annual rate, not an additive shift.
     /// The first observation anchors the shift, including past observations.
     /// `convention` controls the maturity coupon; the ternary minimum stays fixed.
     /// See [`crate::implied_snowball_coupon`] for an example.
@@ -608,14 +609,14 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
     ///
     /// Propagates term validation errors, including a shifted maturity coupon below
     /// the ternary minimum. This note remains unchanged on success and failure.
-    pub fn with_shifted_coupons(
+    pub fn with_quoted_coupon(
         &self,
         first_observation_coupon: f64,
         convention: crate::CouponQuoteConvention,
     ) -> Result<Self> {
         Self::new(
             self.0
-                .with_shifted_coupons(first_observation_coupon, convention),
+                .with_quoted_coupon(first_observation_coupon, convention),
         )
         .and_then(|updated| updated.with_history_time(self.1))
     }
@@ -632,11 +633,8 @@ mod sealed {
         fn set_history(&mut self, state: Option<AutocallableBarrierState>);
     }
     pub trait SnowballCoupon: Sized {
-        fn with_shifted_coupons(
-            &self,
-            coupon: f64,
-            convention: crate::CouponQuoteConvention,
-        ) -> Self;
+        fn with_quoted_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention)
+        -> Self;
     }
     #[derive(Clone, Copy)]
     pub struct Downside {

@@ -206,7 +206,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     );
     assert_eq!(
         daily
-            .with_shifted_coupons(0.2, CouponQuoteConvention::ShiftMaturityCoupon)?
+            .with_quoted_coupon(0.2, CouponQuoteConvention::ShiftMaturityCoupon)?
             .calendar(),
         daily.calendar()
     );
@@ -1262,7 +1262,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
-        note.with_shifted_coupons(0.2, CouponQuoteConvention::PreserveMaturityCoupon)?
+        note.with_quoted_coupon(0.2, CouponQuoteConvention::PreserveMaturityCoupon)?
             .calendar(),
         note.calendar()
     );

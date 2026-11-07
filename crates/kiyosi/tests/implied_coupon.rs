@@ -88,7 +88,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                 Err(Error::InvalidInput(_))
             ));
             let fixed =
-                note.with_shifted_coupons(0.0, CouponQuoteConvention::PreserveMaturityCoupon)?;
+                note.with_quoted_coupon(0.0, CouponQuoteConvention::PreserveMaturityCoupon)?;
             let solved = implied_snowball_coupon(
                 engine,
                 &dated(&note, &context),
@@ -189,7 +189,7 @@ fn binary_quote_recovers_schedule_shift_and_maturity_conventions() {
         )
         .unwrap();
         assert!((solved - 0.18).abs() < 1e-7, "{solved}");
-        let replaced = note.with_shifted_coupons(solved, convention).unwrap();
+        let replaced = note.with_quoted_coupon(solved, convention).unwrap();
         assert!(
             (engine.price(&dated(&replaced, &context), &context).unwrap() - quote).abs() < 1e-8
         );
@@ -210,7 +210,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
             CouponQuoteConvention::PreserveMaturityCoupon,
         ] {
             for coupon in [-0.05, 0.18] {
-                let target = note.with_shifted_coupons(coupon, convention).unwrap();
+                let target = note.with_quoted_coupon(coupon, convention).unwrap();
                 let quote = engine.price(&dated(&target, context), context).unwrap();
                 let settings = ImpliedCouponSettings {
                     lower_bound: -0.1,
@@ -232,7 +232,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
                     (engine
                         .price(
                             &dated(
-                                &note.with_shifted_coupons(solved, convention).unwrap(),
+                                &note.with_quoted_coupon(solved, convention).unwrap(),
                                 context
                             ),
                             context
@@ -289,7 +289,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
     recover(&engine, &ternary, &context);
     assert_eq!(
         ternary
-            .with_shifted_coupons(0.18, CouponQuoteConvention::ShiftMaturityCoupon)
+            .with_quoted_coupon(0.18, CouponQuoteConvention::ShiftMaturityCoupon)
             .unwrap()
             .terms()
             .minimum_coupon_rate,
@@ -398,7 +398,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
             .price(
                 &dated(
                     &note
-                        .with_shifted_coupons(bound, PreserveMaturityCoupon)
+                        .with_quoted_coupon(bound, PreserveMaturityCoupon)
                         .unwrap(),
                     &context,
                 ),
@@ -632,7 +632,7 @@ fn named_presets_reuse_the_same_coupon_contract() {
             CouponQuoteConvention::ShiftMaturityCoupon,
             CouponQuoteConvention::PreserveMaturityCoupon,
         ] {
-            let target = note.with_shifted_coupons(0.18, convention).unwrap();
+            let target = note.with_quoted_coupon(0.18, convention).unwrap();
             let quote = engine.price(&dated(&target, &context), &context).unwrap();
             let solved = implied_snowball_coupon(
                 &engine,
@@ -648,7 +648,7 @@ fn named_presets_reuse_the_same_coupon_contract() {
                 (engine
                     .price(
                         &dated(
-                            &note.with_shifted_coupons(solved, convention).unwrap(),
+                            &note.with_quoted_coupon(solved, convention).unwrap(),
                             &context
                         ),
                         &context
@@ -923,7 +923,7 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
             (engine
                 .price(
                     &dated(
-                        &note.with_shifted_coupons(solved, convention).unwrap(),
+                        &note.with_quoted_coupon(solved, convention).unwrap(),
                         &context
                     ),
                     &context
