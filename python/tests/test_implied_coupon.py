@@ -217,18 +217,20 @@ class ImpliedCouponTests(unittest.TestCase):
                 "coupon_rate" if note.coupon_rate is not None else "coupon_per_period"
             )
             original = getattr(note, field)
-            replacement = note.with_coupon(0.18)
+            replacement = note.replace(**{field: 0.18})
             self.assertEqual(getattr(replacement, field), 0.18)
             self.assertEqual(replacement.barrier_state, note.barrier_state)
             self.assertEqual(replacement.observations, note.observations)
             target = engine.price(replacement, context)
             solved = implied_phoenix_coupon(engine, note, context, target)
             self.assertAlmostEqual(
-                engine.price(note.with_coupon(solved), context), target, delta=1e-8
+                engine.price(note.replace(**{field: solved}), context),
+                target,
+                delta=1e-8,
             )
             for value, error in ((math.inf, InvalidInputError), (True, TypeError)):
                 with self.assertRaises(error):
-                    note.with_coupon(value)
+                    note.replace(**{field: value})
             self.assertEqual(getattr(note, field), original)
 
     def test_coupon_signatures_express_product_requirements(self):

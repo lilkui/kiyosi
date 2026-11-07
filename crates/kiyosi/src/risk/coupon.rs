@@ -1,6 +1,6 @@
 use crate::{
-    AutocallableNote, Error, PhoenixOption, PricingContext, PricingEngine, Result,
-    SnowballCouponTerms,
+    AutocallableNote, Error, PhoenixCoupon, PhoenixOption, PhoenixOptionChanges, PricingContext,
+    PricingEngine, Result, SnowballCouponTerms,
 };
 
 /// Selects how a snowball maturity coupon follows its quoted observation coupon.
@@ -131,7 +131,10 @@ pub fn implied_snowball_coupon<
 /// let market = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();
-/// let quote = engine.price(&note.with_coupon(0.12)?, &market)?;
+/// let quoted = note.replace(PhoenixOptionChanges {
+///     coupon: Some(PhoenixCoupon::Annual(0.12)), ..Default::default()
+/// })?;
+/// let quote = engine.price(&quoted, &market)?;
 /// let coupon = implied_phoenix_coupon(&engine, &note, &market, quote, ImpliedCouponSettings::default())?;
 /// assert!((coupon - 0.12).abs() < 1e-7);
 /// # Ok(()) }
@@ -150,7 +153,15 @@ pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
         observed_price,
         settings,
         None,
-        &PhoenixOption::with_coupon,
+        &|note, coupon| {
+            note.replace(PhoenixOptionChanges {
+                coupon: Some(match note.terms().coupon {
+                    PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
+                    PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(coupon),
+                }),
+                ..Default::default()
+            })
+        },
     )
 }
 

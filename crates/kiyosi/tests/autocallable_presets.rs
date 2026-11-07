@@ -84,11 +84,19 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
                 engine.price(&note, &market(110.0, date(2, 3))).unwrap(),
                 0.25 + coupon
             );
-            let changed = note.with_coupon(0.02).unwrap();
+            let changed = note
+                .replace(PhoenixOptionChanges {
+                    coupon: Some(PhoenixCoupon::PerPeriod(0.02)),
+                    ..Default::default()
+                })
+                .unwrap();
             assert_eq!(changed.terms().coupon, PhoenixCoupon::PerPeriod(0.02));
             assert_eq!(note.terms().coupon, PhoenixCoupon::PerPeriod(coupon));
             assert!(matches!(
-                note.with_coupon(f64::NAN),
+                note.replace(PhoenixOptionChanges {
+                    coupon: Some(PhoenixCoupon::PerPeriod(f64::NAN)),
+                    ..Default::default()
+                }),
                 Err(Error::InvalidInput(_))
             ));
             assert_eq!(
@@ -231,8 +239,16 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                 &quad,
                 &note,
                 &context,
-                quad.price(&note.with_coupon(-0.02).unwrap(), &context)
-                    .unwrap(),
+                quad.price(
+                    &note
+                        .replace(PhoenixOptionChanges {
+                            coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                    &context,
+                )
+                .unwrap(),
                 ImpliedCouponSettings {
                     lower_bound: -0.05,
                     upper_bound: 0.05,
@@ -244,8 +260,16 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                 &fd,
                 &note,
                 &context,
-                fd.price(&note.with_coupon(-0.02).unwrap(), &context)
-                    .unwrap(),
+                fd.price(
+                    &note
+                        .replace(PhoenixOptionChanges {
+                            coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                    &context,
+                )
+                .unwrap(),
                 ImpliedCouponSettings {
                     lower_bound: -0.05,
                     upper_bound: 0.05,
@@ -257,8 +281,16 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                 &mc,
                 &note,
                 &context,
-                mc.price(&note.with_coupon(-0.02).unwrap(), &context)
-                    .unwrap(),
+                mc.price(
+                    &note
+                        .replace(PhoenixOptionChanges {
+                            coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                    &context,
+                )
+                .unwrap(),
                 ImpliedCouponSettings {
                     lower_bound: -0.05,
                     upper_bound: 0.05,

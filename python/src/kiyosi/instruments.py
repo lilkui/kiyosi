@@ -62,8 +62,9 @@ Snowball ``with_shifted_coupons(first_observation_coupon, quote_convention=...)`
 shifts every observation coupon by the change to the first observation's annual
 rate, including past observations. The convention controls the maturity coupon.
 It applies the quote returned by ``pricing.implied_snowball_coupon``.
-Phoenix ``with_coupon(coupon)`` replaces its coupon in the existing annual or
-per-period units, matching ``pricing.implied_phoenix_coupon``.
+Phoenix ``replace(coupon_rate=...)`` sets an annual rate;
+``replace(coupon_per_period=...)`` sets a fixed payment per observation.
+``pricing.implied_phoenix_coupon`` returns a value in the contract's existing units.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values. Explicit ``None`` clears nullable history and is rejected for fields
 that require a value.

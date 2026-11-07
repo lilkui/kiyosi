@@ -558,7 +558,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         };
         let anchor = terms.observations[0].coupon_rate;
         let maturity = terms.maturity_coupon_rate();
-        // Round both inverse operations into the domain used by with_coupon.
+        // Round both inverse operations into the domain used by with_shifted_coupons.
         let shift = minimum - maturity;
         let shift = if maturity + shift < minimum {
             libm::nextafter(shift, f64::INFINITY)
@@ -592,25 +592,6 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
             self.0
                 .with_shifted_coupons(first_observation_coupon, convention),
         )
-    }
-}
-
-impl PhoenixOption {
-    /// Returns an owning note with its coupon value replaced in the existing units.
-    ///
-    /// See [`crate::implied_phoenix_coupon`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a non-finite coupon.
-    /// This note remains unchanged on success and failure.
-    pub fn with_coupon(&self, coupon: f64) -> Result<Self> {
-        let mut terms = self.0.clone();
-        terms.coupon = match terms.coupon {
-            PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
-            PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(coupon),
-        };
-        Self::new(terms)
     }
 }
 

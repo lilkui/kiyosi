@@ -187,7 +187,12 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-6, "{sigma}");
     for coupon in [-0.05, 0.18] {
-        let target = note.with_coupon(coupon).unwrap();
+        let target = note
+            .replace(PhoenixOptionChanges {
+                coupon: Some(PhoenixCoupon::Annual(coupon)),
+                ..Default::default()
+            })
+            .unwrap();
         let quote = engine.price(&target, &context).unwrap();
         let solved = implied_phoenix_coupon(
             &engine,
@@ -205,7 +210,15 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         assert!((solved - coupon).abs() < 1e-8);
         assert!(
             (engine
-                .price(&note.with_coupon(solved).unwrap(), &context)
+                .price(
+                    &note
+                        .replace(PhoenixOptionChanges {
+                            coupon: Some(PhoenixCoupon::Annual(solved)),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                    &context
+                )
                 .unwrap()
                 - quote)
                 .abs()

@@ -59,6 +59,11 @@ for name, note, unit in (("Phoenix", phoenix, "年化"), ("FCN", fcn, "每期"))
     coupon = implied_phoenix_coupon(
         engine, note, context, target, lower_bound=0, upper_bound=0.5
     )
-    repriced = engine.price(note.with_coupon(coupon), context)
+    quoted = (
+        note.replace(coupon_rate=coupon)
+        if note.coupon_rate is not None
+        else note.replace(coupon_per_period=coupon)
+    )
+    repriced = engine.price(quoted, context)
     print(f"{name} 平价票息：{coupon:.4%}（{unit}），回代价格：{repriced:.8f}")
     assert abs(repriced - target) < 1e-7

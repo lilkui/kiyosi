@@ -302,7 +302,15 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
     .unwrap();
     for coupon in [-0.05, 0.18] {
         let quote = engine
-            .price(&note.with_coupon(coupon).unwrap(), &context)
+            .price(
+                &note
+                    .replace(PhoenixOptionChanges {
+                        coupon: Some(PhoenixCoupon::Annual(coupon)),
+                        ..Default::default()
+                    })
+                    .unwrap(),
+                &context,
+            )
             .unwrap();
         let solved = implied_phoenix_coupon(
             &engine,
@@ -318,7 +326,15 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         assert!((solved - coupon).abs() < 1e-7);
         assert!(
             (engine
-                .price(&note.with_coupon(solved).unwrap(), &context)
+                .price(
+                    &note
+                        .replace(PhoenixOptionChanges {
+                            coupon: Some(PhoenixCoupon::Annual(solved)),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                    &context
+                )
                 .unwrap()
                 - quote)
                 .abs()
@@ -758,7 +774,15 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
     ));
     let current = market(110.0, date(4, 1));
     let quote = engine
-        .price(&phoenix.with_coupon(0.18).unwrap(), &current)
+        .price(
+            &phoenix
+                .replace(PhoenixOptionChanges {
+                    coupon: Some(PhoenixCoupon::Annual(0.18)),
+                    ..Default::default()
+                })
+                .unwrap(),
+            &current,
+        )
         .unwrap();
     assert!(
         (implied_phoenix_coupon(&engine, &phoenix, &current, quote, Default::default()).unwrap()

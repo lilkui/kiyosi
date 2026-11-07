@@ -1257,25 +1257,6 @@ autocallable_properties! {
         terms.calendar = calendar.0;
         Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
     },
-    /// Returns an independent Phoenix note with a coupon in the existing units.
-    ///
-    /// Parameters
-    /// ----------
-    /// coupon : float
-    ///     Finite annual rate or per-period proportion, matching this note's convention.
-    ///
-    /// Returns
-    /// -------
-    /// PhoenixOption
-    ///     New note preserving history, coupon units and all other terms.
-    ///
-    /// Raises
-    /// ------
-    /// InvalidInputError
-    ///     If the coupon is non-finite. The original is unchanged.
-    fn with_coupon(&self, coupon: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(self.0.with_coupon(real(coupon)?))?))
-    },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
     fn coupon_barrier_levels(&self) -> Vec<f64> {

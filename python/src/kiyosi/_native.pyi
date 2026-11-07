@@ -2698,7 +2698,6 @@ class PhoenixOption:
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
-    def with_coupon(self, coupon: _Real) -> Self: ...
     @overload
     def __init__(
         self,

@@ -208,7 +208,9 @@ Phoenix solves preserve the contract's coupon units: annual rate for annual
 coupons, fixed per-period proportion for FCN/DCN. Bounds, parameter tolerance
 and the returned value use the same units.
 Apply the result with ``note.with_shifted_coupons(coupon, quote_convention=convention)``
-for snowballs or ``note.with_coupon(coupon)`` for Phoenix, then price the new note.
+for snowballs. For Phoenix, use ``note.replace(coupon_rate=coupon)`` for an annual
+rate or ``note.replace(coupon_per_period=coupon)`` for a per-period payment,
+matching the solved contract's convention, then price the new note.
 
 Examples
 --------
@@ -277,7 +279,7 @@ Solve a Phoenix coupon in its existing per-period units:
 ...     observation_clock_time=option.expiry_time.time(),
 ...     effective_time=option.effective_time, expiry_time=option.expiry_time,
 ...     observations=[observation])
->>> target = coupon_engine.price(phoenix.with_coupon(0.02), context)
+>>> target = coupon_engine.price(phoenix.replace(coupon_per_period=0.02), context)
 >>> round(implied_phoenix_coupon(coupon_engine, phoenix, context, target), 6)
 0.02
 
