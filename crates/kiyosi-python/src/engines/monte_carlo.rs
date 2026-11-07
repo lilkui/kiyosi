@@ -37,9 +37,9 @@ macro_rules! sampling_settings {
             |binding, py, instrument, context, request| {
                 let engine = binding.0;
                 let context = &context.0;
-                $with!(&instrument, option, Ok(risk::PricingResult(domain(py.detach(|| {
+                $with!(&instrument, option, Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
                     engine.price_with_greeks(option, context, request)
-                }))?)))
+                })?)?)))
             },
             [
                 /// OSError
@@ -97,9 +97,9 @@ macro_rules! sampling_settings {
             ) -> PyResult<R> {
                 let engine = self.0;
                 let context = &context.0;
-                $with!(&instrument, option, domain(py.detach(|| {
+                $with!(&instrument, option, domain(crate::cancellation::run(py, || {
                     request.evaluate(&engine, option, context)
-                })))
+                })?))
             }
         }
     };
@@ -373,7 +373,8 @@ sampling_settings!(
         let result = binomial::with_vanilla!(
             instrument,
             option,
-            domain(py.detach(|| engine.price_with_greeks(option, context, request)))
+            domain(crate::cancellation::run(py, || engine
+                .price_with_greeks(option, context, request))?)
         )?;
         Ok(risk::PricingResult(result))
     }
@@ -468,9 +469,9 @@ numerical_greeks_methods!(
         let engine = binding.0;
         let option = instrument.contract();
         let context = &context.0;
-        Ok(risk::PricingResult(domain(py.detach(|| {
+        Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
             engine.price_with_greeks(option, context, request)
-        }))?))
+        })?)?))
     },
     [
         /// OSError
@@ -572,9 +573,9 @@ numerical_greeks_methods!(
         asian::with_asian!(
             instrument,
             option,
-            Ok(risk::PricingResult(domain(py.detach(|| {
+            Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
                 engine.price_with_greeks(option, context, request)
-            }))?))
+            })?)?))
         )
     },
     [
@@ -815,7 +816,7 @@ impl MonteCarloVanillaEngine {
         binomial::with_vanilla!(
             instrument,
             option,
-            domain(py.detach(|| request.evaluate(&engine, option, context)))
+            domain(crate::cancellation::run(py, || request.evaluate(&engine, option, context))?)
         )
     }
 }
@@ -835,7 +836,9 @@ impl MonteCarloDigitalEngine {
         let engine = self.0;
         let option = instrument.contract();
         let context = &context.0;
-        domain(py.detach(|| request.evaluate(&engine, option, context)))
+        domain(crate::cancellation::run(py, || {
+            request.evaluate(&engine, option, context)
+        })?)
     }
 }
 
@@ -852,7 +855,7 @@ impl MonteCarloAsianEngine {
         asian::with_asian!(
             instrument,
             option,
-            domain(py.detach(|| request.evaluate(&engine, option, context)))
+            domain(crate::cancellation::run(py, || request.evaluate(&engine, option, context))?)
         )
     }
 }

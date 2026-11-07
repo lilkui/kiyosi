@@ -93,7 +93,7 @@ impl AnalyticDigitalEngine {
         domain(if request.is_price() {
             calculate()
         } else {
-            py.detach(calculate)
+            crate::cancellation::run(py, calculate)?
         })
     }
 }

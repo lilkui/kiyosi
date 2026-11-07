@@ -382,7 +382,13 @@ impl TransitionCache {
         clippy::float_cmp,
         reason = "Transition cache durations must match exactly before reusing an integration matrix."
     )]
-    pub fn get(&mut self, time: f64, nodes: &[f64], drift: f64, deviation: f64) -> &Transition {
+    pub fn get(
+        &mut self,
+        time: f64,
+        nodes: &[f64],
+        drift: f64,
+        deviation: f64,
+    ) -> crate::Result<&Transition> {
         let index = if let Some(index) = self.0.iter().position(|(duration, _)| *duration == time) {
             index
         } else {
@@ -391,10 +397,10 @@ impl TransitionCache {
                 self.0.remove(0);
             }
             self.0
-                .push((time, Transition::new(nodes, drift, deviation)));
+                .push((time, Transition::new(nodes, drift, deviation)?));
             self.0.len() - 1
         };
-        &self.0[index].1
+        Ok(&self.0[index].1)
     }
 }
 
@@ -403,12 +409,13 @@ pub(super) struct Transition {
     rows: Vec<(usize, Vec<usize>)>,
 }
 impl Transition {
-    pub fn new(nodes: &[f64], drift: f64, deviation: f64) -> Self {
+    pub fn new(nodes: &[f64], drift: f64, deviation: f64) -> crate::Result<Self> {
         let mut moments = Vec::new();
         let mut geometries = std::collections::HashMap::new();
         let rows = nodes
             .iter()
             .map(|&node| {
+                crate::cancellation::check()?;
                 let mean = node + drift;
                 let range = active_cells(nodes, mean, deviation);
                 let first = range.start;
@@ -434,14 +441,20 @@ impl Transition {
                         })
                     })
                     .collect();
-                (first, indices)
+                Ok((first, indices))
             })
-            .collect();
-        Self { moments, rows }
+            .collect::<crate::Result<_>>()?;
+        Ok(Self { moments, rows })
     }
-    pub fn integrate(&self, curve: &[Polynomial], discount: f64, values: &mut [f64]) {
+    pub fn integrate(
+        &self,
+        curve: &[Polynomial],
+        discount: f64,
+        values: &mut [f64],
+    ) -> crate::Result<()> {
         let factor = discount.exp();
         for (value, (first, indices)) in values.iter_mut().zip(&self.rows) {
+            crate::cancellation::check()?;
             let mut sum = Sum::default();
             for (cell, &index) in indices.iter().enumerate() {
                 let value = self.moments[index].integrate(&curve[first + cell]);
@@ -453,6 +466,7 @@ impl Transition {
             }
             *value = sum.total();
         }
+        Ok(())
     }
 }
 
@@ -493,7 +507,9 @@ mod tests {
             let mut values = [0.0; 3];
             cache
                 .get(time, &nodes, 0.0, deviation)
-                .integrate(&curve, 0.0, &mut values);
+                .unwrap()
+                .integrate(&curve, 0.0, &mut values)
+                .unwrap();
             for (&node, value) in nodes.iter().zip(values) {
                 let expected = 0.5
                     * (libm::erf((1.0 - node) / (2.0_f64.sqrt() * deviation))

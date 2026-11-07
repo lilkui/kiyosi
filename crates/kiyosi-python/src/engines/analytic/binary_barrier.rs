@@ -20,10 +20,10 @@ numerical_greeks_methods!(
         let result = binary_barrier::with_binary!(
             instrument,
             option,
-            py.detach(|| {
+            crate::cancellation::run(py, || {
                 kiyosi::AnalyticBinaryBarrierEngine
                     .price_with_greeks(option, context, request)
-            })
+            })?
         );
         Ok(risk::PricingResult(domain(result)?))
     },
@@ -85,11 +85,11 @@ impl AnalyticBinaryBarrierEngine {
         binary_barrier::with_binary!(
             instrument,
             option,
-            domain(py.detach(|| request.evaluate(
+            domain(crate::cancellation::run(py, || request.evaluate(
                 &kiyosi::AnalyticBinaryBarrierEngine,
                 option,
                 context
-            )))
+            ))?)
         )
     }
 }

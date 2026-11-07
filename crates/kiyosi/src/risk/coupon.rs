@@ -206,6 +206,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         );
     }
     let checked_price = |note: &I| {
+        crate::cancellation::check()?;
         let price = engine.price(note, context)?;
         if !price.is_finite() {
             return Err(Error::ComputationFailure("non-finite coupon price".into()));
@@ -261,6 +262,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         return Ok(coupon);
     }
     for _ in 0..s.max_iterations {
+        crate::cancellation::check()?;
         let mid = if (lo < 0.0) == (hi < 0.0) {
             lo + 0.5 * (hi - lo)
         } else {

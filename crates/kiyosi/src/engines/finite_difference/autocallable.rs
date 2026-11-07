@@ -423,6 +423,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     let mut stepper = diffusion.stepper(space.count);
     let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
+        crate::cancellation::check()?;
         for (current, dt, weight) in grid.substeps(step, settings.scheme, &mut damping) {
             let middle = current + 0.5 * dt;
             let rate = risk.rate(middle);

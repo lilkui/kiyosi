@@ -232,7 +232,7 @@ fn european_price(
             };
         (log_payoff - rate * time - 0.5 * z * z - 0.918_938_533_204_672_7).exp()
     };
-    checked(simpson(&breaks, settings.asset_step_count, integrand))
+    checked(simpson(&breaks, settings.asset_step_count, integrand)?)
 }
 
 fn american_price(
@@ -278,12 +278,13 @@ fn american_price(
     let mut cache = TransitionCache::default();
     let mut values = vec![0.0; nodes.len()];
     for _ in 1..settings.time_step_count {
+        crate::cancellation::check()?;
         if layer.cells.is_empty() {
             values.fill(0.0);
         } else {
             cache
-                .get(time / intervals, &nodes, drift_step, deviation)
-                .integrate(&layer.cells, discount, &mut values);
+                .get(time / intervals, &nodes, drift_step, deviation)?
+                .integrate(&layer.cells, discount, &mut values)?;
         }
         for ((value, &node), &exercise) in values.iter_mut().zip(&nodes).zip(&intrinsic) {
             let continuation = *value

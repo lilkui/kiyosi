@@ -384,6 +384,7 @@ fn price(
     let intrinsic: Vec<_> = asset.nodes.iter().map(|&s| payoff.value(s)).collect();
     let mut multiplier = vec![0.0; length];
     for step in (0..times.widths.len()).rev() {
+        crate::cancellation::check()?;
         let a = times.times[step];
         let b = times.times[step + 1];
         let dt = times.widths[step];

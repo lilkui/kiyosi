@@ -255,11 +255,11 @@ where
             })?;
             let convention = coupon_convention(convention)?;
             let note = &$note.0;
-            domain(py.detach(|| {
+            domain(crate::cancellation::run(py, || {
                 kiyosi::implied_snowball_coupon(
                     &engine, note, context, observed, convention, controls,
                 )
-            }))
+            })?)
         }};
     }
     match instrument {
@@ -270,9 +270,9 @@ where
                 ));
             }
             let note = &note.0;
-            domain(py.detach(|| {
+            domain(crate::cancellation::run(py, || {
                 kiyosi::implied_phoenix_coupon(&engine, note, context, observed, controls)
-            }))
+            })?)
         }
         AutocallableInstrument::Binary(note) => solve!(note),
         AutocallableInstrument::Ternary(note) => solve!(note),

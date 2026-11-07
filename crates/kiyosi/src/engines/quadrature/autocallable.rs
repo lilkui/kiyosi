@@ -449,6 +449,7 @@ fn price<T: AutocallableTerms>(
     };
     let mut transitions = TransitionCache::default();
     for index in (0..dates.len()).rev() {
+        crate::cancellation::check()?;
         let final_event = index == dates.len() - 1;
         if !final_event {
             apply_event(
@@ -497,10 +498,10 @@ fn price<T: AutocallableTerms>(
                 }
             }
         } else {
-            let transition = transitions.get(time, &nodes, drift, deviation);
-            transition.integrate(&alive.cells, discount, &mut values);
+            let transition = transitions.get(time, &nodes, drift, deviation)?;
+            transition.integrate(&alive.cells, discount, &mut values)?;
             if layers {
-                transition.integrate(&knocked.cells, discount, &mut values_in);
+                transition.integrate(&knocked.cells, discount, &mut values_in)?;
             }
             let tails = alive.tails(&nodes);
             let tails_in = knocked.tails(&nodes);

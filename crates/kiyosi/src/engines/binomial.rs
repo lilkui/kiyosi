@@ -205,12 +205,12 @@ fn scaled(value: f64, exponent: f64) -> f64 {
     clippy::float_cmp,
     reason = "Exact probability endpoints select degenerate trees; bounded node counts fit f64 and the mode is intentionally floored."
 )]
-fn european_levels(values: &[f64], p: f64, discount: f64, level: usize) -> (f64, [f64; 3]) {
+fn european_levels(values: &[f64], p: f64, discount: f64, level: usize) -> Result<(f64, [f64; 3])> {
     let steps = values.len() - 1;
     let log_discount = discount.ln();
     if p == 0.0 || p == 1.0 {
         let first = if p == 1.0 { steps - level } else { 0 };
-        return (
+        return Ok((
             scaled(
                 values[if p == 1.0 { steps } else { 0 }],
                 steps as f64 * log_discount,
@@ -222,22 +222,28 @@ fn european_levels(values: &[f64], p: f64, discount: f64, level: usize) -> (f64,
                     0.0
                 }
             }),
-        );
+        ));
     }
     let mode = steps.min(((steps + 1) as f64 * p) as usize);
     let log_odds = p.ln() - (-p).ln_1p();
     let mut weights = vec![0.0; steps + 1];
     for node in (1..=mode).rev() {
+        if node % 256 == 0 {
+            crate::cancellation::check()?;
+        }
         weights[node - 1] =
             weights[node] + (node as f64 / (steps - node + 1) as f64).ln() - log_odds;
     }
     for node in mode..steps {
+        if node % 256 == 0 {
+            crate::cancellation::check()?;
+        }
         weights[node + 1] =
             weights[node] + ((steps - node) as f64 / (node + 1) as f64).ln() + log_odds;
     }
     let normalization: f64 = weights.iter().map(|w| w.exp()).sum();
     // Sum positive terms in log space so neither large totals nor tiny weights lose a finite price.
-    let weighted = |offset: usize, removed: usize| {
+    let weighted = |offset: usize, removed: usize| -> Result<f64> {
         let term = |index: usize| {
             let from_lower = p <= 0.5;
             let first = if from_lower {
@@ -261,27 +267,34 @@ fn european_levels(values: &[f64], p: f64, discount: f64, level: usize) -> (f64,
             }
             values[first + offset].ln() + weights[index] + log_ratio
         };
-        let maximum = (0..=steps).map(term).fold(f64::NEG_INFINITY, f64::max);
+        let maximum = (0..=steps).try_fold(f64::NEG_INFINITY, |maximum, i| -> Result<f64> {
+            if i % 256 == 0 {
+                crate::cancellation::check()?;
+            }
+            Ok(maximum.max(term(i)))
+        })?;
         if maximum == f64::NEG_INFINITY {
-            return 0.0;
+            return Ok(0.0);
         }
-        let sum: f64 = (0..=steps).map(|i| (term(i) - maximum).exp()).sum();
-        (maximum
+        let sum = (0..=steps).try_fold(0.0, |sum, i| -> Result<f64> {
+            if i % 256 == 0 {
+                crate::cancellation::check()?;
+            }
+            Ok(sum + (term(i) - maximum).exp())
+        })?;
+        Ok((maximum
             + (sum / normalization).ln()
             + removed as f64 * std::f64::consts::LN_2
             + (steps - removed) as f64 * log_discount)
-            .exp()
+            .exp())
     };
-    (
-        weighted(0, 0),
-        std::array::from_fn(|node| {
-            if level > 0 && node <= level {
-                weighted(node, level)
-            } else {
-                0.0
-            }
-        }),
-    )
+    let mut nodes = [0.0; 3];
+    for (node, value) in nodes.iter_mut().enumerate() {
+        if level > 0 && node <= level {
+            *value = weighted(node, level)?;
+        }
+    }
+    Ok((weighted(0, 0)?, nodes))
 }
 
 #[expect(
@@ -323,6 +336,9 @@ fn native(
         spot.ln() - payoff.strike.ln()
     };
     for node in 0..=steps {
+        if node % 256 == 0 {
+            crate::cancellation::check()?;
+        }
         if !node_spot.is_finite() {
             return Err(unstable());
         }
@@ -355,7 +371,7 @@ fn native(
         } else {
             usize::from(request.has(Greek::Delta))
         };
-        let (price, nodes) = european_levels(&values, p, discount, level);
+        let (price, nodes) = european_levels(&values, p, discount, level)?;
         second = nodes;
         first = if level == 2 {
             [
@@ -369,6 +385,7 @@ fn native(
     } else {
         node_spot = spot * down.powi(settings.step_count - 1);
         for level in (0..steps).rev() {
+            crate::cancellation::check()?;
             if level + 1 == 1 {
                 first.copy_from_slice(&values[..2]);
             }

@@ -176,6 +176,69 @@ mod tests {
     use super::*;
 
     #[test]
+    fn cancelled_parallel_work_restores_worker_scopes() -> Result<()> {
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        let token = crate::CancellationToken::default();
+        let visited = AtomicUsize::new(0);
+        let inherited = AtomicBool::new(false);
+        let mut blocks = vec![usize::MAX; 1024];
+        let result = token.run(|| {
+            run_blocks(&mut blocks, 2, |block| {
+                visited.fetch_add(1, Ordering::Relaxed);
+                if block == 0 {
+                    token.cancel();
+                    inherited.store(crate::cancellation::check().is_err(), Ordering::Relaxed);
+                }
+                block
+            })
+        });
+        assert!(
+            matches!(result, Err(Error::Io(error)) if error.kind() == io::ErrorKind::Interrupted)
+        );
+        assert!(inherited.load(Ordering::Relaxed));
+        assert!(visited.load(Ordering::Relaxed) < blocks.len());
+        run_blocks(&mut blocks, 2, |block| {
+            assert!(crate::cancellation::check().is_ok());
+            block
+        })?;
+        assert!(
+            blocks
+                .iter()
+                .enumerate()
+                .all(|(index, &block)| index == block)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn cancellation_stops_sampling_before_all_paths_run() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let token = crate::CancellationToken::default();
+        let samples = AtomicUsize::new(0);
+        let result = token.run(|| {
+            path_samples(
+                MonteCarloSettings {
+                    path_count: 4096,
+                    seed: Some(42),
+                    thread_count: 2,
+                    ..Default::default()
+                },
+                1,
+                false,
+                |_| {
+                    samples.fetch_add(1, Ordering::Relaxed);
+                    token.cancel();
+                    Ok([1.0])
+                },
+            )
+        });
+        assert!(
+            matches!(result, Err(Error::Io(error)) if error.kind() == io::ErrorKind::Interrupted)
+        );
+        assert!(samples.load(Ordering::Relaxed) < 4096);
+    }
+
+    #[test]
     fn configured_seeds_are_preserved() {
         for seed in [0, 42, u64::MAX] {
             let settings = MonteCarloSettings {
@@ -1033,6 +1096,9 @@ fn path_samples<const N: usize>(
         let mut spare = None;
         let mut normals = vec![0.0; dimensions];
         for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
+            if path % 64 == 0 {
+                crate::cancellation::check()?;
+            }
             for normal in &mut normals {
                 *normal = sample_normal(&mut generator, &mut spare, &mut cursor);
             }
@@ -1108,6 +1174,7 @@ fn run_blocks<T: Send>(
     .min(partials.len());
     if workers <= 1 {
         for (block, partial) in partials.iter_mut().enumerate() {
+            crate::cancellation::check()?;
             *partial = simulate(block);
         }
         return Ok(());
@@ -1116,18 +1183,22 @@ fn run_blocks<T: Send>(
     let chunk_size = partials
         .len()
         .div_ceil(workers.min(pool.current_num_threads()));
+    let tokens = crate::cancellation::current();
     pool.install(|| {
         // Each chunk runs sequentially, keeping the number of active workers within the cap.
         partials
             .par_chunks_mut(chunk_size)
             .enumerate()
-            .for_each(|(chunk, values)| {
-                for (index, value) in values.iter_mut().enumerate() {
-                    *value = simulate(chunk * chunk_size + index);
-                }
-            });
-    });
-    Ok(())
+            .try_for_each(|(chunk, values)| {
+                crate::cancellation::with_tokens(tokens.clone(), || {
+                    for (index, value) in values.iter_mut().enumerate() {
+                        crate::cancellation::check()?;
+                        *value = simulate(chunk * chunk_size + index);
+                    }
+                    Ok(())
+                })
+            })
+    })
 }
 
 fn worker_pool(available: usize) -> Result<Arc<rayon::ThreadPool>> {

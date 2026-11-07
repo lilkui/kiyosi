@@ -21,6 +21,7 @@ pub(super) fn march<D: Diffusion>(
     let mut stepper = diffusion.stepper(space.count);
     let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
+        crate::cancellation::check()?;
         for (current, dt, weight) in grid.substeps(step, scheme, &mut damping) {
             let middle = current + 0.5 * dt;
             diffusion.advance(
@@ -75,6 +76,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
     let mut full_stepper = diffusion.stepper(full_space.count);
     let mut damping = 2;
     for step in (0..grid.widths.len()).rev() {
+        crate::cancellation::check()?;
         for (current, dt, weight) in grid.substeps(step, scheme, &mut damping) {
             let middle = current + 0.5 * dt;
             let key = [dt, weight, risk.rate(middle), dividend.rate(middle)];

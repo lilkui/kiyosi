@@ -371,6 +371,7 @@ fn native_model<D: Diffusion>(
     let mut valid_carry_error = true;
     let mut damping = 2;
     for step in (0..time_grid.widths.len()).rev() {
+        crate::cancellation::check()?;
         for (current, dt, weight) in time_grid.substeps(step, settings.scheme, &mut damping) {
             let carry = if payoff.payout.is_some() {
                 risk.rate(if D::LOCAL { current + 0.5 * dt } else { 0.0 })

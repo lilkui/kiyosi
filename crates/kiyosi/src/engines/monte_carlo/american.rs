@@ -132,6 +132,7 @@ impl MonteCarloVanillaEngine {
                 (end - begin) * intervals * if self.settings.antithetic { 2 } else { 1 },
             );
             for path in begin..end {
+                crate::cancellation::check()?;
                 let paired = self.settings.antithetic && path < paths / 2;
                 let offset = values.len();
                 values.resize(offset + intervals * if paired { 2 } else { 1 }, 0.0);
@@ -166,8 +167,12 @@ impl MonteCarloVanillaEngine {
         };
         let mut cash_flows: Vec<_> = rows().map(|path| payoff(path[intervals - 1])).collect();
         for step in (0..intervals - 1).rev() {
+            crate::cancellation::check()?;
             let mut matrix = [[0.0; 4]; 3];
-            for (path, cash) in rows().zip(&mut cash_flows) {
+            for (index, (path, cash)) in rows().zip(&mut cash_flows).enumerate() {
+                if index % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
                 *cash *= discount;
                 if !cash.is_finite() {
                     return Err(unstable());
@@ -197,7 +202,10 @@ impl MonteCarloVanillaEngine {
             matrix[2][0] = matrix[0][2];
             matrix[2][1] = matrix[1][2];
             let coefficients = solve_quadratic(matrix).ok_or_else(unstable)?;
-            for (path, cash) in rows().zip(&mut cash_flows) {
+            for (index, (path, cash)) in rows().zip(&mut cash_flows).enumerate() {
+                if index % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
                 let intrinsic = payoff(path[step]);
                 if intrinsic <= 0.0 {
                     continue;

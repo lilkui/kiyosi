@@ -37,9 +37,9 @@ pub enum Error {
     ///
     /// See [`crate::implied_volatility`].
     NonConvergence(Cow<'static, str>),
-    /// Preserves a native I/O failure, including entropy-source or thread-creation errors.
+    /// Preserves native I/O failures, including cancellation, entropy and thread creation.
     ///
-    /// See [`crate::MonteCarloVanillaEngine::price`].
+    /// See [`crate::CancellationToken`] and [`crate::MonteCarloVanillaEngine::price`].
     Io(io::Error),
 }
 

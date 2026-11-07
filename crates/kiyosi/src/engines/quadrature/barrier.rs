@@ -279,7 +279,7 @@ fn continuous_price(
         &breaks,
         settings.asset_step_count,
         integrand,
-    ));
+    )?);
     if !knock_in && option.rebate_timing() == RebateTiming::AtHit && option.rebate() != 0.0 {
         result.add(hit_value(
             option.rebate(),
@@ -541,6 +541,7 @@ fn scheduled_price(
     let mut values = vec![0.0; nodes.len()];
     let mut transitions = TransitionCache::default();
     for event in (0..dates.len()).rev() {
+        crate::cancellation::check()?;
         let final_event = event + 1 == dates.len();
         let layer = if final_event && dates[event] == option.expiry_time() {
             Layer {
@@ -587,11 +588,11 @@ fn scheduled_price(
         if layer.cells.is_empty() {
             values.fill(0.0);
         } else {
-            transitions.get(time, &nodes, drift, deviation).integrate(
+            transitions.get(time, &nodes, drift, deviation)?.integrate(
                 &layer.cells,
                 discount,
                 &mut values,
-            );
+            )?;
         }
         for (value, &node) in values.iter_mut().zip(&nodes) {
             *value += integrate_terminal(

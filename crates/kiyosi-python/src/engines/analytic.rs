@@ -9,9 +9,9 @@ macro_rules! analytic_engine {
             |_binding, py, instrument, context, request| {
                 let option = &instrument.0;
                 let context = &context.0;
-                Ok(risk::PricingResult(domain(py.detach(|| {
+                Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
                     kiyosi::$engine.price_with_greeks(option, context, request)
-                }))?))
+                })?)?))
             },
             [
                 ///
@@ -67,7 +67,7 @@ macro_rules! analytic_engine {
             ) -> PyResult<R> {
                 let option = &instrument.0;
                 let context = &context.0;
-                domain(py.detach(|| request.evaluate(&kiyosi::$engine, option, context)))
+                domain(crate::cancellation::run(py, || request.evaluate(&kiyosi::$engine, option, context))?)
             }
         }
     };

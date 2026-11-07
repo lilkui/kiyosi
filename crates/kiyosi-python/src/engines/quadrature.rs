@@ -45,9 +45,9 @@ macro_rules! quadrature_engine {
             |binding, py, instrument, context, request| {
                 let engine = binding.0;
                 let context = &context.0;
-                $with!(&instrument, option, Ok(risk::PricingResult(domain(py.detach(|| {
+                $with!(&instrument, option, Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
                     engine.price_with_greeks(option, context, request)
-                }))?)))
+                })?)?)))
             },
             [
                 ///
@@ -141,9 +141,9 @@ macro_rules! quadrature_engine {
             ) -> PyResult<R> {
                 let engine = self.0;
                 let context = &context.0;
-                $with!(&instrument, option, domain(py.detach(|| {
+                $with!(&instrument, option, domain(crate::cancellation::run(py, || {
                     request.evaluate(&engine, option, context)
-                })))
+                })?))
             }
         }
     };

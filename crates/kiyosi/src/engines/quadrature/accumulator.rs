@@ -269,6 +269,7 @@ fn price(
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();
     let mut next_knock_out = None;
     for event in (0..dates.len()).rev() {
+        crate::cancellation::check()?;
         let final_event = event + 1 == dates.len();
         let observes_knock_out = option.observes_knock_out(dates[event]);
         let accumulates = option.accumulates_at(dates[event], option.calendar());
@@ -378,12 +379,12 @@ fn price(
         let transition = if final_event {
             None
         } else {
-            Some(transitions.get(time, &nodes, drift, deviation))
+            Some(transitions.get(time, &nodes, drift, deviation)?)
         };
         for layer in 0..count {
             let mut values = vec![0.0; nodes.len()];
             if let Some(transition) = transition {
-                transition.integrate(&layers[layer].cells, discount, &mut values);
+                transition.integrate(&layers[layer].cells, discount, &mut values)?;
             }
             for (value, &node) in values.iter_mut().zip(&nodes) {
                 *value += integrate_terminal(

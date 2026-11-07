@@ -383,6 +383,7 @@ struct Integrand<'a> {
 
 impl Integrand<'_> {
     fn at(&mut self, t: f64) -> Result<f64> {
+        crate::cancellation::check()?;
         if self.remaining < 2 {
             return Err(nonconvergence());
         }

@@ -103,6 +103,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         return implied_volatility(prepared.as_ref(), option, context, observed_price, settings);
     }
     let evaluate = |volatility| -> Result<f64> {
+        crate::cancellation::check()?;
         let model = context
             .bsm_parameters()?
             .replace(BlackScholesMertonParameterChanges {
@@ -173,6 +174,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     }
     let (mut c, mut fc, mut d, mut bisected) = (a, fa, a, true);
     for _ in 0..s.max_iterations {
+        crate::cancellation::check()?;
         let scale = fa.abs().max(fb.abs()).max(fc.abs());
         let (ya, yb, yc) = (fa / scale, fb / scale, fc / scale);
         let mut trial = a + (b - a) * (ya / (ya - yb));

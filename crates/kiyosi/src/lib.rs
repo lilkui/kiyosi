@@ -139,7 +139,12 @@
 //! predicates retain native Rust behavior.
 //! User-supplied [`PricingEngine`] implementations retain their own
 //! thread-safety and operational-failure contracts.
-//! Calls are synchronous, with no cancellation or signal polling. Domain
+//! Calls are synchronous. [`CancellationToken::run`] enables cooperative cancellation;
+//! clones can request cancellation from another thread. Built-in numerical loops
+//! check between work units and return [`Error::Io`] with
+//! [`std::io::ErrorKind::Interrupted`], without a partial result. Custom engines
+//! must check their token during long work. Allocation and external callbacks may
+//! delay cancellation. Python signal handling and exception mapping belong to the bindings. Domain
 //! rejections use [`Result`], never panics. Allocation exhaustion follows Rust's
 //! allocator behavior (normally process abort); internal panics are not domain errors.
 //! Monte Carlo entropy-source and pool thread-creation failures retain native I/O
@@ -168,6 +173,7 @@
 //! # Ok(()) }
 //! ```
 
+mod cancellation;
 mod engines;
 mod error;
 mod instruments;
@@ -176,6 +182,7 @@ mod numerics;
 mod risk;
 mod time;
 
+pub use cancellation::CancellationToken;
 pub use engines::analytic::american::BjerksundStenslandVanillaEngine;
 pub use engines::analytic::asian::{
     AnalyticGeometricAveragePriceEngine, TurnbullWakemanArithmeticAveragePriceEngine,

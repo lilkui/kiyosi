@@ -82,9 +82,12 @@ Rho and dividend rho are ∂V/∂r and ∂V/∂q for parallel decimal shifts of 
 continuously compounded risk-free and dividend-yield curves, respectively,
 holding other market inputs fixed.
 
-Calls are synchronous, without core cancellation or signal polling. Python
-signal handling, including `KeyboardInterrupt`, resumes when control
-returns to Python.
+Calls are synchronous. Long numerical requests run on a Rust worker while the
+calling Python thread polls signals. An exception raised by a signal handler,
+including ``KeyboardInterrupt``, cancels the request and is propagated after the
+worker stops. No partial result is returned. Cancellation is cooperative;
+allocation and individual work units may delay it. Short analytic calls may
+complete before a signal is handled.
 """
 
 from . import _native

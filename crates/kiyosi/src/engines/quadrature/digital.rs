@@ -154,7 +154,7 @@ impl PricingEngine<DigitalOption> for QuadratureDigitalEngine {
         // Integrate unit mass first so the panel sum cannot overflow a finite price.
         let mass = simpson(&[lower, upper], self.settings.asset_step_count, |z| {
             (-0.5 * z * z - 0.918_938_533_204_672_7).exp()
-        });
+        })?;
         checked((log_weight + mass.ln()).exp())
     }
 }

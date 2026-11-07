@@ -54,9 +54,9 @@ numerical_greeks_methods!(
         binomial::with_vanilla!(
             instrument,
             option,
-            Ok(risk::PricingResult(domain(py.detach(|| {
+            Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
                 engine.price_with_greeks(option, context, request)
-            }))?))
+            })?)?))
         )
     },
     [
@@ -161,7 +161,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         binomial::with_vanilla!(
             instrument,
             option,
-            domain(py.detach(|| request.evaluate(&engine, option, context)))
+            domain(crate::cancellation::run(py, || request.evaluate(&engine, option, context))?)
         )
     }
 }

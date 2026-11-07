@@ -227,6 +227,7 @@ impl CoxRossRubinsteinBarrierEngine {
         let mut first = [0.0; 2];
         let mut second = [0.0; 3];
         for level in (0..=steps).rev() {
+            crate::cancellation::check()?;
             if level < steps {
                 let rebate = if observed[level] && !knock_in {
                     if option.rebate_timing() == RebateTiming::AtHit {

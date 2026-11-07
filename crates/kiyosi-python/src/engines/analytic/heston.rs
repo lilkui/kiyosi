@@ -46,9 +46,9 @@ numerical_greeks_methods!(
         let engine = binding.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(risk::PricingResult(domain(py.detach(|| {
+        Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
             engine.price_with_greeks(option, context, request)
-        }))?))
+        })?)?))
     },
     [
         ///
@@ -142,6 +142,8 @@ impl AnalyticHestonEuropeanEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(py.detach(|| request.evaluate(&engine, option, context)))
+        domain(crate::cancellation::run(py, || {
+            request.evaluate(&engine, option, context)
+        })?)
     }
 }
