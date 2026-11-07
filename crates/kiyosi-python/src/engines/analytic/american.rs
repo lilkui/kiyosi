@@ -99,7 +99,7 @@ impl BjerksundStenslandVanillaEngine {
         domain(if request.is_price() {
             calculate()
         } else {
-            crate::cancellation::run(py, calculate)?
+            request.run(py, calculate)?
         })
     }
 }

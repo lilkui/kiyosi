@@ -85,7 +85,7 @@ impl AnalyticBinaryBarrierEngine {
         binary_barrier::with_binary!(
             instrument,
             option,
-            domain(crate::cancellation::run(py, || request.evaluate(
+            domain(request.run(py, || request.evaluate(
                 &kiyosi::AnalyticBinaryBarrierEngine,
                 option,
                 context

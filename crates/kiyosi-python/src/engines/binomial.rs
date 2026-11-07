@@ -225,7 +225,7 @@ macro_rules! binomial_engine {
                 let option = $contract;
                 let engine = self.0;
                 let context = &context.0;
-                domain(crate::cancellation::run(py, || request.evaluate(&engine, option, context))?)
+                domain(request.run(py, || request.evaluate(&engine, option, context))?)
             }
         }
     };
@@ -264,7 +264,7 @@ impl CoxRossRubinsteinVanillaEngine {
         with_vanilla!(
             instrument,
             option,
-            domain(crate::cancellation::run(py, || request.evaluate(&engine, option, context))?)
+            domain(request.run(py, || request.evaluate(&engine, option, context))?)
         )
     }
 }

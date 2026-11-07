@@ -141,7 +141,7 @@ macro_rules! quadrature_engine {
             ) -> PyResult<R> {
                 let engine = self.0;
                 let context = &context.0;
-                $with!(&instrument, option, domain(crate::cancellation::run(py, || {
+                $with!(&instrument, option, domain(request.run(py, || {
                     request.evaluate(&engine, option, context)
                 })?))
             }

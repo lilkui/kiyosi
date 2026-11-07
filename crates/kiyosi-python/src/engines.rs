@@ -115,6 +115,16 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
     fn is_price(self) -> bool {
         false
     }
+    fn run(
+        self,
+        py: pyo3::Python<'_>,
+        operation: impl FnOnce() -> kiyosi::Result<R> + Send,
+    ) -> pyo3::PyResult<kiyosi::Result<R>>
+    where
+        R: Send,
+    {
+        crate::cancellation::run(py, operation)
+    }
     fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
@@ -179,6 +189,17 @@ impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
 pub(crate) struct GreekMethodRequest;
 
 impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
+    fn run(
+        self,
+        py: pyo3::Python<'_>,
+        operation: impl FnOnce() -> kiyosi::Result<kiyosi::GreekMethod> + Send,
+    ) -> pyo3::PyResult<kiyosi::Result<kiyosi::GreekMethod>> {
+        py.check_signals()?;
+        let result = operation();
+        py.check_signals()?;
+        Ok(result)
+    }
+
     fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,

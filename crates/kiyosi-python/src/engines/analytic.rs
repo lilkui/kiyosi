@@ -67,7 +67,7 @@ macro_rules! analytic_engine {
             ) -> PyResult<R> {
                 let option = &instrument.0;
                 let context = &context.0;
-                domain(crate::cancellation::run(py, || request.evaluate(&kiyosi::$engine, option, context))?)
+                domain(request.run(py, || request.evaluate(&kiyosi::$engine, option, context))?)
             }
         }
     };

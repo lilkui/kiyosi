@@ -97,7 +97,7 @@ macro_rules! sampling_settings {
             ) -> PyResult<R> {
                 let engine = self.0;
                 let context = &context.0;
-                $with!(&instrument, option, domain(crate::cancellation::run(py, || {
+                $with!(&instrument, option, domain(request.run(py, || {
                     request.evaluate(&engine, option, context)
                 })?))
             }
@@ -816,7 +816,7 @@ impl MonteCarloVanillaEngine {
         binomial::with_vanilla!(
             instrument,
             option,
-            domain(crate::cancellation::run(py, || request.evaluate(&engine, option, context))?)
+            domain(request.run(py, || request.evaluate(&engine, option, context))?)
         )
     }
 }
@@ -836,9 +836,7 @@ impl MonteCarloDigitalEngine {
         let engine = self.0;
         let option = instrument.contract();
         let context = &context.0;
-        domain(crate::cancellation::run(py, || {
-            request.evaluate(&engine, option, context)
-        })?)
+        domain(request.run(py, || request.evaluate(&engine, option, context))?)
     }
 }
 
@@ -855,7 +853,7 @@ impl MonteCarloAsianEngine {
         asian::with_asian!(
             instrument,
             option,
-            domain(crate::cancellation::run(py, || request.evaluate(&engine, option, context))?)
+            domain(request.run(py, || request.evaluate(&engine, option, context))?)
         )
     }
 }

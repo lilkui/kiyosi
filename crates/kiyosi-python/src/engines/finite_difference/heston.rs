@@ -161,7 +161,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         binomial::with_vanilla!(
             instrument,
             option,
-            domain(crate::cancellation::run(py, || request.evaluate(&engine, option, context))?)
+            domain(request.run(py, || request.evaluate(&engine, option, context))?)
         )
     }
 }

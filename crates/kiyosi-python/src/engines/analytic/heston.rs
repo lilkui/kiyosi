@@ -142,8 +142,6 @@ impl AnalyticHestonEuropeanEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(crate::cancellation::run(py, || {
-            request.evaluate(&engine, option, context)
-        })?)
+        domain(request.run(py, || request.evaluate(&engine, option, context))?)
     }
 }
