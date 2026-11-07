@@ -270,6 +270,9 @@ class TimestampTests(unittest.TestCase):
         self.assertIsNone(binary.knock_in_observation_schedule)
 
     def test_subday_time_bumps_converge_to_intraday_theta(self):
+        class NanosecondDuration(timedelta):
+            nanoseconds = 1
+
         option = EuropeanOption(
             option_type="call",
             strike=100,
@@ -313,7 +316,7 @@ class TimestampTests(unittest.TestCase):
                     "theta",
                     time_shift=shift,
                 )
-        for shift in (True, 1, 0.001):
+        for shift in (True, 1, 0.001, NanosecondDuration(microseconds=1)):
             with self.subTest(shift=shift), self.assertRaises(TypeError):
                 numerical_greeks(
                     engine,

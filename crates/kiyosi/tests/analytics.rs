@@ -420,6 +420,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
     for shift in [
         std::time::Duration::ZERO,
         std::time::Duration::from_nanos(1),
+        std::time::Duration::from_nanos(1001),
     ] {
         assert!(matches!(
             numerical_greeks(

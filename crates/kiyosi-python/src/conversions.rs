@@ -7,6 +7,11 @@ use pyo3::types::{
 
 pub(crate) fn duration(value: &Bound<'_, PyAny>) -> PyResult<std::time::Duration> {
     let value = value.cast::<PyDelta>()?;
+    if value.hasattr("nanoseconds")? && value.getattr("nanoseconds")?.extract::<u32>()? != 0 {
+        return Err(PyTypeError::new_err(
+            "duration precision must not exceed microseconds",
+        ));
+    }
     let seconds = i64::from(value.get_days()) * 86_400 + i64::from(value.get_seconds());
     let seconds = u64::try_from(seconds)
         .map_err(|_| crate::error::InvalidInputError::new_err("time_shift must be positive"))?;
