@@ -284,9 +284,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
     ] {
         let quote = engine
             .price(
-                &note
-                    .with_first_observation_coupon(0.12, convention)
-                    .unwrap(),
+                &note.with_shifted_coupons(0.12, convention).unwrap(),
                 &context,
             )
             .unwrap();

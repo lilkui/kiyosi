@@ -125,12 +125,12 @@ macro_rules! snowball_properties {
             /// InvalidInputError
             ///     If shifted coupons are non-finite or violate contractual constraints.
             #[pyo3(signature = (first_observation_coupon, *, quote_convention))]
-            fn with_first_observation_coupon(
+            fn with_shifted_coupons(
                 &self,
                 first_observation_coupon: &Bound<'_, PyAny>,
                 quote_convention: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
-                Ok(Self(domain(self.0.with_first_observation_coupon(real(first_observation_coupon)?, coupon_convention(quote_convention)?))?))
+                Ok(Self(domain(self.0.with_shifted_coupons(real(first_observation_coupon)?, coupon_convention(quote_convention)?))?))
             }
         }
     };

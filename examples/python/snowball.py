@@ -57,7 +57,7 @@ coupon = implied_snowball_coupon(
     lower_bound=0,
     upper_bound=0.5,
 )
-quoted = note.with_first_observation_coupon(coupon, quote_convention=convention)
+quoted = note.with_shifted_coupons(coupon, quote_convention=convention)
 repriced = engine.price(quoted, context)
 print(f"平价年化票息：{coupon:.4%}，回代价格：{repriced:.8f}")
 assert abs(repriced - target) < 1e-7

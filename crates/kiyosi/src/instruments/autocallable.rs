@@ -528,7 +528,7 @@ macro_rules! snowball_coupon {
     ($($terms:ty),+) => {$(
         impl SnowballCouponTerms for $terms {}
         impl sealed::SnowballCoupon for $terms {
-            fn with_first_observation_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
+            fn with_shifted_coupons(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
                 let mut terms = self.clone();
                 let shift = coupon - terms.observations.first().map_or(0.0, |record| record.coupon_rate);
                 for record in &mut terms.observations {
@@ -583,14 +583,14 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
     ///
     /// Propagates term validation errors, including a shifted maturity coupon below
     /// the ternary minimum. This note remains unchanged on success and failure.
-    pub fn with_first_observation_coupon(
+    pub fn with_shifted_coupons(
         &self,
         first_observation_coupon: f64,
         convention: crate::CouponQuoteConvention,
     ) -> Result<Self> {
         Self::new(
             self.0
-                .with_first_observation_coupon(first_observation_coupon, convention),
+                .with_shifted_coupons(first_observation_coupon, convention),
         )
     }
 }
@@ -625,7 +625,7 @@ mod sealed {
         fn set_history(&mut self, state: Option<AutocallableBarrierState>);
     }
     pub trait SnowballCoupon: Sized {
-        fn with_first_observation_coupon(
+        fn with_shifted_coupons(
             &self,
             coupon: f64,
             convention: crate::CouponQuoteConvention,

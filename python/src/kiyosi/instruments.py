@@ -58,7 +58,7 @@ Asian averages use ``realized_average=None`` for unknown history; supplied avera
 must be finite and positive. History is required strictly after averaging starts.
 ``replace()`` and ``replace_history()`` return new contracts and expose named
 keyword-only fields through ``inspect.signature``.
-Snowball ``with_first_observation_coupon(first_observation_coupon, quote_convention=...)``
+Snowball ``with_shifted_coupons(first_observation_coupon, quote_convention=...)``
 shifts every observation coupon by the change to the first observation's annual
 rate, including past observations. The convention controls the maturity coupon.
 It applies the quote returned by ``pricing.implied_snowball_coupon``.

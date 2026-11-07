@@ -207,7 +207,7 @@ Unsupported coupon-solver instruments are rejected before checking this choice.
 Phoenix solves preserve the contract's coupon units: annual rate for annual
 coupons, fixed per-period proportion for FCN/DCN. Bounds, parameter tolerance
 and the returned value use the same units.
-Apply the result with ``note.with_first_observation_coupon(coupon, quote_convention=convention)``
+Apply the result with ``note.with_shifted_coupons(coupon, quote_convention=convention)``
 for snowballs or ``note.with_coupon(coupon)`` for Phoenix, then price the new note.
 
 Examples
@@ -263,7 +263,7 @@ Solve a snowball coupon with an explicit maturity convention:
 ...     observations=[observation])
 >>> coupon_engine = QuadratureAutocallableEngine(asset_step_count=64)
 >>> convention = "shift_maturity_coupon"
->>> target = coupon_engine.price(note.with_first_observation_coupon(0.12,
+>>> target = coupon_engine.price(note.with_shifted_coupons(0.12,
 ...     quote_convention=convention), context)
 >>> round(implied_snowball_coupon(coupon_engine, note, context, target,
 ...     quote_convention=convention), 6)
