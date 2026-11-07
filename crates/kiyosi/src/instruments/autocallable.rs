@@ -1538,8 +1538,9 @@ pub struct PhoenixOptionChanges {
 impl PhoenixOption {
     /// Returns a note with a quoted coupon in its existing annual or per-period units.
     ///
-    /// Applies the value returned by [`crate::implied_phoenix_coupon`] without
-    /// changing the coupon convention, history or other terms.
+    /// Applies a scalar coupon in the existing convention, preserving history and other terms.
+    /// Solver results carry their convention; apply [`crate::implied_phoenix_coupon`]
+    /// results with [`Self::replace`] and [`PhoenixOptionChanges::coupon`].
     ///
     /// # Errors
     ///

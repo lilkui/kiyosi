@@ -234,9 +234,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 engine, dated_history(note, context), context, target
             )
             self.assertAlmostEqual(
-                engine.price(
-                    dated_history(note.with_quoted_coupon(solved), context), context
-                ),
+                engine.price(dated_history(note.replace(**solved), context), context),
                 target,
                 delta=1e-8,
             )
@@ -268,10 +266,13 @@ class ImpliedCouponTests(unittest.TestCase):
                         quote,
                         lower_bound=-1,
                     )
-                    self.assertAlmostEqual(solved, coupon, delta=1e-12)
+                    self.assertEqual(set(solved), {field})
+                    self.assertAlmostEqual(solved[field], coupon, delta=1e-12)
+                    with self.assertRaises(TypeError):
+                        note.replace(coupon_rate=solved)
                     self.assertAlmostEqual(
                         engine.price(
-                            dated_history(note.with_quoted_coupon(solved), context),
+                            dated_history(note.replace(**solved), context),
                             context,
                         ),
                         quote,
@@ -297,7 +298,8 @@ class ImpliedCouponTests(unittest.TestCase):
         bound = signature.bind(engine, dated_history(note, context), context, quote)
         bound.apply_defaults()
         solved = implied_phoenix_coupon(*bound.args, **bound.kwargs)
-        self.assertAlmostEqual(solved, note.coupon_rate, delta=1e-8)
+        self.assertEqual(set(solved), {"coupon_rate"})
+        self.assertAlmostEqual(solved["coupon_rate"], note.coupon_rate, delta=1e-8)
         with self.assertRaises(TypeError):
             implied_phoenix_coupon(
                 engine,
@@ -520,6 +522,9 @@ class ImpliedCouponTests(unittest.TestCase):
                             price_tolerance=1e-11,
                             **kwargs,
                         )
+                        if isinstance(original, PhoenixOption):
+                            self.assertEqual(set(solved), {"coupon_rate"})
+                            solved = solved["coupon_rate"]
                         self.assertAlmostEqual(solved, coupon, delta=1e-8)
                         self.assertAlmostEqual(
                             engine.price(

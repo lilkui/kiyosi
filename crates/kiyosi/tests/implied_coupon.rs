@@ -340,14 +340,17 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
             },
         )
         .unwrap();
-        assert!((solved - coupon).abs() < 1e-7);
+        let PhoenixCoupon::Annual(rate) = solved else {
+            panic!("expected an annual coupon")
+        };
+        assert!((rate - coupon).abs() < 1e-7);
         assert!(
             (engine
                 .price(
                     &dated(
                         &note
                             .replace(PhoenixOptionChanges {
-                                coupon: Some(PhoenixCoupon::Annual(solved)),
+                                coupon: Some(solved),
                                 ..Default::default()
                             })
                             .unwrap(),
@@ -824,19 +827,18 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
             &current,
         )
         .unwrap();
-    assert!(
-        (implied_phoenix_coupon(
-            &engine,
-            &dated(&phoenix, &current),
-            &current,
-            quote,
-            Default::default()
-        )
-        .unwrap()
-            - 0.18)
-            .abs()
-            < 1e-8
-    );
+    let solved = implied_phoenix_coupon(
+        &engine,
+        &dated(&phoenix, &current),
+        &current,
+        quote,
+        Default::default(),
+    )
+    .unwrap();
+    let PhoenixCoupon::Annual(rate) = solved else {
+        panic!("expected an annual coupon")
+    };
+    assert!((rate - 0.18).abs() < 1e-8);
     let records = autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None).unwrap();
     let mut terms = SnowballTerms::new(
         0.06,

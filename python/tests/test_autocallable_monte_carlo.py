@@ -251,7 +251,8 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             lower_bound=-0.1,
             upper_bound=0.5,
         )
-        self.assertAlmostEqual(coupon, note.coupon_rate, delta=1e-8)
+        self.assertEqual(set(coupon), {"coupon_rate"})
+        self.assertAlmostEqual(coupon["coupon_rate"], note.coupon_rate, delta=1e-8)
         self.assertEqual((repr(note), repr(context)), snapshot)
         # Each unseeded solve needs one consistent affine sampled curve.
         unseeded = MC(path_count=31)
@@ -272,8 +273,8 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                 upper_bound=0.5,
                 price_tolerance=1e-12,
             )
-            self.assertGreater(solved, 0)
-            self.assertLess(solved, 0.5)
+            self.assertGreater(solved["coupon_rate"], 0)
+            self.assertLess(solved["coupon_rate"], 0.5)
         self.assertIsNone(unseeded.seed)
         fixed = BinarySnowballOption(
             maturity_coupon_rate=0,

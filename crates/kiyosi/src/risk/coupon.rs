@@ -1,5 +1,5 @@
 use crate::{
-    AutocallableNote, Error, PhoenixOption, PricingContext, PricingEngine, Result,
+    AutocallableNote, Error, PhoenixCoupon, PhoenixOption, PricingContext, PricingEngine, Result,
     SnowballCouponTerms,
 };
 
@@ -112,9 +112,9 @@ pub fn implied_snowball_coupon<
 ///
 /// Uses the validation, endpoint, convergence and failure-state contract of
 /// [`implied_snowball_coupon`], without a quote convention.
-/// Bounds, parameter tolerance and result use the contract's coupon units:
-/// an annual rate or a fixed per-period proportion, including FCN/DCN presets.
-/// Apply the result with [`PhoenixOption::with_quoted_coupon`] to retain those units.
+/// Bounds and parameter tolerance use the contract's coupon units. The returned
+/// [`PhoenixCoupon`] retains the annual or per-period convention, including FCN/DCN presets.
+/// Apply it with [`PhoenixOption::replace`] and [`crate::PhoenixOptionChanges::coupon`].
 ///
 /// # Errors
 ///
@@ -135,8 +135,10 @@ pub fn implied_snowball_coupon<
 /// let quoted = note.with_quoted_coupon(0.12)?;
 /// let quote = engine.price(&quoted, &market)?;
 /// let coupon = implied_phoenix_coupon(&engine, &note, &market, quote, ImpliedCouponSettings::default())?;
-/// assert!((coupon - 0.12).abs() < 1e-7);
-/// assert!((engine.price(&note.with_quoted_coupon(coupon)?, &market)? - quote).abs() < 1e-8);
+/// let PhoenixCoupon::Annual(rate) = coupon else { unreachable!() };
+/// assert!((rate - 0.12).abs() < 1e-7);
+/// let repriced = note.replace(PhoenixOptionChanges { coupon: Some(coupon), ..Default::default() })?;
+/// assert!((engine.price(&repriced, &market)? - quote).abs() < 1e-8);
 /// # Ok(()) }
 /// ```
 pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
@@ -145,8 +147,8 @@ pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
     context: &PricingContext,
     observed_price: f64,
     settings: ImpliedCouponSettings,
-) -> Result<f64> {
-    solve(
+) -> Result<PhoenixCoupon> {
+    let coupon = solve(
         engine,
         option,
         context,
@@ -154,7 +156,11 @@ pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
         settings,
         None,
         &PhoenixOption::with_quoted_coupon,
-    )
+    )?;
+    Ok(match option.terms().coupon {
+        PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
+        PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(coupon),
+    })
 }
 
 #[expect(

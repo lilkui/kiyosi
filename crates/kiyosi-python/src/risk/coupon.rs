@@ -6,7 +6,9 @@ use crate::error::UnsupportedOperationError;
 use crate::error::domain;
 use crate::instruments::autocallable::{AutocallableInstrument, coupon_convention};
 use crate::market::PricingContext;
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 /// Solves the annual snowball coupon that reproduces an observed price.
 ///
 /// Parameters
@@ -81,7 +83,7 @@ pub(crate) fn implied_snowball_coupon(
     #[pyo3(from_py_with = real)] price_tolerance: f64,
     #[pyo3(from_py_with = real)] parameter_tolerance: f64,
     #[pyo3(from_py_with = integer)] max_iterations: i32,
-) -> PyResult<f64> {
+) -> PyResult<Py<PyAny>> {
     let controls = kiyosi::ImpliedCouponSettings {
         lower_bound,
         upper_bound,
@@ -125,9 +127,10 @@ pub(crate) fn implied_snowball_coupon(
 ///
 /// Returns
 /// -------
-/// float
-///     Annual rate or per-period proportion, matching the contract's coupon units.
-///     Apply with instrument.with_quoted_coupon(value) to preserve the convention.
+/// PhoenixCouponQuote
+///     Dictionary with exactly one key: coupon_rate for an annual rate or
+///     coupon_per_period for a fixed proportion per observation.
+///     Apply with instrument.replace(**quote) to retain the coupon convention.
 ///
 /// Raises
 /// ------
@@ -161,7 +164,7 @@ pub(crate) fn implied_phoenix_coupon(
     #[pyo3(from_py_with = real)] price_tolerance: f64,
     #[pyo3(from_py_with = real)] parameter_tolerance: f64,
     #[pyo3(from_py_with = integer)] max_iterations: i32,
-) -> PyResult<f64> {
+) -> PyResult<Py<PyAny>> {
     dispatch_coupon(
         py,
         engine,
@@ -187,7 +190,7 @@ fn dispatch_coupon(
     observed_price: f64,
     quote_convention: Option<&Bound<'_, PyAny>>,
     controls: kiyosi::ImpliedCouponSettings,
-) -> PyResult<f64> {
+) -> PyResult<Py<PyAny>> {
     if let Ok(engine) = engine.extract::<PyRef<'_, QuadratureAutocallableEngine>>() {
         return solve_coupon(
             py,
@@ -236,7 +239,7 @@ fn solve_coupon<E>(
     observed: f64,
     convention: Option<&Bound<'_, PyAny>>,
     controls: kiyosi::ImpliedCouponSettings,
-) -> PyResult<f64>
+) -> PyResult<Py<PyAny>>
 where
     E: kiyosi::PricingEngine<kiyosi::SnowballOption>
         + kiyosi::PricingEngine<kiyosi::BinarySnowballOption>
@@ -259,7 +262,8 @@ where
                 kiyosi::implied_snowball_coupon(
                     &engine, note, context, observed, convention, controls,
                 )
-            })?)
+            })?)?
+            .into_py_any(py)
         }};
     }
     match instrument {
@@ -270,9 +274,16 @@ where
                 ));
             }
             let note = &note.0;
-            domain(crate::cancellation::run(py, || {
+            let coupon = domain(crate::cancellation::run(py, || {
                 kiyosi::implied_phoenix_coupon(&engine, note, context, observed, controls)
-            })?)
+            })?)?;
+            let (field, value) = match coupon {
+                kiyosi::PhoenixCoupon::Annual(value) => ("coupon_rate", value),
+                kiyosi::PhoenixCoupon::PerPeriod(value) => ("coupon_per_period", value),
+            };
+            let quote = PyDict::new(py);
+            quote.set_item(field, value)?;
+            Ok(quote.into_any().unbind())
         }
         AutocallableInstrument::Binary(note) => solve!(note),
         AutocallableInstrument::Ternary(note) => solve!(note),

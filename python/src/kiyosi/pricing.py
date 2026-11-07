@@ -218,9 +218,10 @@ Phoenix coupon solves omit this choice.
 Unsupported coupon-solver instruments are rejected before checking this choice.
 Phoenix solves preserve the contract's coupon units: annual rate for annual
 coupons, fixed per-period proportion for FCN/DCN. Bounds, parameter tolerance
-and the returned value use the same units.
+and the quoted value use the same units. Phoenix results are dictionaries with
+exactly one key: ``coupon_rate`` or ``coupon_per_period``.
 Apply the result with ``note.with_quoted_coupon(coupon, quote_convention=convention)``
-for snowballs. For Phoenix, use ``note.with_quoted_coupon(coupon)`` to preserve
+for snowballs. For Phoenix, use ``note.replace(**quote)`` to preserve
 the solved contract's convention, then price the new note.
 
 Examples
@@ -292,7 +293,8 @@ Solve a Phoenix coupon in its existing per-period units:
 ...     observations=[AutocallableObservation.phoenix(
 ...         option.expiry_time, 110, coupon_barrier_level=0)])
 >>> target = coupon_engine.price(phoenix.replace(coupon_per_period=0.02), context)
->>> round(implied_phoenix_coupon(coupon_engine, phoenix, context, target), 6)
+>>> quote = implied_phoenix_coupon(coupon_engine, phoenix, context, target)
+>>> round(quote["coupon_per_period"], 6)
 0.02
 
 Inspect sampling uncertainty for a cash digital using the same market snapshot:
@@ -313,7 +315,7 @@ True
 True
 """
 
-from typing import Literal
+from typing import Literal, NotRequired, TypedDict
 
 from ._native import (
     AnalyticBarrierEngine,
@@ -381,6 +383,20 @@ MonteCarloUncertaintyStatus = Literal[
     "incomplete_antithetic_pair",
 ]
 
+
+class _AnnualPhoenixCouponQuote(TypedDict):
+    coupon_rate: float
+    coupon_per_period: NotRequired[None]
+
+
+class _PerPeriodPhoenixCouponQuote(TypedDict):
+    coupon_rate: NotRequired[None]
+    coupon_per_period: float
+
+
+type PhoenixCouponQuote = _AnnualPhoenixCouponQuote | _PerPeriodPhoenixCouponQuote
+
+
 __all__ = [
     "AnalyticBarrierEngine",
     "AnalyticBinaryBarrierEngine",
@@ -418,6 +434,7 @@ __all__ = [
     "MonteCarloSampling",
     "MonteCarloUncertaintyStatus",
     "MonteCarloVanillaEngine",
+    "PhoenixCouponQuote",
     "PricingResult",
     "QuadratureAccumulatorEngine",
     "QuadratureAutocallableEngine",

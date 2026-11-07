@@ -213,14 +213,17 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
             },
         )
         .unwrap();
-        assert!((solved - coupon).abs() < 1e-8);
+        let PhoenixCoupon::Annual(rate) = solved else {
+            panic!("expected an annual coupon")
+        };
+        assert!((rate - coupon).abs() < 1e-8);
         assert!(
             (engine
                 .price(
                     &dated(
                         &note
                             .replace(PhoenixOptionChanges {
-                                coupon: Some(PhoenixCoupon::Annual(solved)),
+                                coupon: Some(solved),
                                 ..Default::default()
                             })
                             .unwrap(),

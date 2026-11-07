@@ -56,10 +56,11 @@ engine = FiniteDifferenceAutocallableEngine()
 for name, note, unit in (("Phoenix", phoenix, "年化"), ("FCN", fcn, "每期")):
     print(f"{name} 单位本金价格：{engine.price(note, context):.6f}")
     target = 1.0
-    coupon = implied_phoenix_coupon(
+    quote = implied_phoenix_coupon(
         engine, note, context, target, lower_bound=0, upper_bound=0.5
     )
-    quoted = note.with_quoted_coupon(coupon)
+    quoted = note.replace(**quote)
+    coupon = next(iter(quote.values()))
     repriced = engine.price(quoted, context)
     print(f"{name} 平价票息：{coupon:.4%}（{unit}），回代价格：{repriced:.8f}")
     assert abs(repriced - target) < 1e-7

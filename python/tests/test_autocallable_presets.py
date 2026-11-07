@@ -308,7 +308,8 @@ class AutocallablePresetTests(unittest.TestCase):
                     lower_bound=-0.05,
                     upper_bound=0.05,
                 )
-                self.assertAlmostEqual(solved, -0.02, places=7)
+                self.assertEqual(set(solved), {"coupon_per_period"})
+                self.assertAlmostEqual(solved["coupon_per_period"], -0.02, places=7)
                 self.assertEqual(note.coupon_per_period, 0.01)
                 self.assertIsNone(note.coupon_rate)
 

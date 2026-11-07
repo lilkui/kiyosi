@@ -6,14 +6,31 @@ from decimal import Decimal
 from fractions import Fraction
 from typing import assert_type
 
-from kiyosi.instruments import EuropeanOption
-from kiyosi.market import BlackScholesMertonParameters, fixed_interval_schedule
-from kiyosi.pricing import CoxRossRubinsteinVanillaEngine, MonteCarloVanillaEngine
+from kiyosi.instruments import EuropeanOption, PhoenixOption
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    fixed_interval_schedule,
+)
+from kiyosi.pricing import (
+    CoxRossRubinsteinVanillaEngine,
+    MonteCarloVanillaEngine,
+    PhoenixCouponQuote,
+    QuadratureAutocallableEngine,
+    implied_phoenix_coupon,
+)
 
 
 class Index:
     def __index__(self) -> int:
         return 42
+
+
+def phoenix_quote(note: PhoenixOption, context: PricingContext) -> None:
+    quote = implied_phoenix_coupon(QuadratureAutocallableEngine(), note, context, 1)
+    assert_type(quote, PhoenixCouponQuote)
+    assert_type(note.replace(**quote), PhoenixOption)
+    note.replace(coupon_rate=quote)  # ty: ignore[no-matching-overload]
 
 
 def numeric_protocol_inputs() -> None:

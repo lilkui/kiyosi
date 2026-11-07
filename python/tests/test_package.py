@@ -856,6 +856,7 @@ class PackageTests(unittest.TestCase):
                     "MonteCarloSampling",
                     "MonteCarloUncertaintyStatus",
                     "CouponQuoteConvention",
+                    "PhoenixCouponQuote",
                     "GreekMethod",
                     "GreekControl",
                 ):

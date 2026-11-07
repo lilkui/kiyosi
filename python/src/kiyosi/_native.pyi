@@ -120,7 +120,7 @@ def implied_phoenix_coupon(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
+) -> _pricing.PhoenixCouponQuote:
     """Solves a Phoenix coupon without changing its annual or per-period units.
 
     Parameters
@@ -146,9 +146,10 @@ def implied_phoenix_coupon(
 
     Returns
     -------
-    float
-        Annual rate or per-period proportion, matching the contract's coupon units.
-        Apply with instrument.with_quoted_coupon(value) to preserve the convention.
+    PhoenixCouponQuote
+        Dictionary with exactly one key: coupon_rate for an annual rate or
+        coupon_per_period for a fixed proportion per observation.
+        Apply with instrument.replace(**quote) to retain the coupon convention.
 
     Raises
     ------
@@ -10192,7 +10193,7 @@ class PhoenixOption:
     def with_quoted_coupon(self, coupon: _Real) -> Self:
         """Returns a note with the quoted coupon in its existing annual or per-period units.
 
-        Applies implied_phoenix_coupon results while preserving the coupon convention,
+        Applies a scalar coupon while preserving the coupon convention,
         history and other terms. Non-finite coupons raise InvalidInputError;
         invalid numeric representations raise native conversion errors."""
 

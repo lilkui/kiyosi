@@ -340,7 +340,10 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
             )
             .unwrap(),
         ] {
-            assert!((actual + 0.02).abs() < 1e-7);
+            let PhoenixCoupon::PerPeriod(value) = actual else {
+                panic!("expected a per-period coupon")
+            };
+            assert!((value + 0.02).abs() < 1e-7);
         }
     }
 }

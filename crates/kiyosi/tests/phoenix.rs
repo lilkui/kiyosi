@@ -76,16 +76,21 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
                 },
             )
             .unwrap();
-            assert!((solved - coupon).abs() < 1e-12);
+            let ((PhoenixCoupon::Annual(solved_value), PhoenixCoupon::Annual(_))
+            | (PhoenixCoupon::PerPeriod(solved_value), PhoenixCoupon::PerPeriod(_))) =
+                (solved, original_coupon)
+            else {
+                panic!("solved coupon has the wrong payment convention")
+            };
+            assert!((solved_value - coupon).abs() < 1e-12);
+            let repriced = note
+                .replace(PhoenixOptionChanges {
+                    coupon: Some(solved),
+                    ..Default::default()
+                })
+                .unwrap();
             assert!(
-                (engine
-                    .price(
-                        &dated(&note.with_quoted_coupon(solved).unwrap(), &context),
-                        &context
-                    )
-                    .unwrap()
-                    - quote)
-                    .abs()
+                (engine.price(&dated(&repriced, &context), &context).unwrap() - quote).abs()
                     < 1e-12
             );
         }
