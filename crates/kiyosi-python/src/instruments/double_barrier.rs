@@ -46,6 +46,11 @@ pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierTy
 ///     Owned observation calendar; defaults to weekdays on construction and is
 ///     retained on replacement.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -88,6 +93,11 @@ monitoring_properties!(
     /// calendar : TradingCalendar, optional
     ///     Owned observation calendar; defaults to weekdays on construction and is
     ///     retained on replacement.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------

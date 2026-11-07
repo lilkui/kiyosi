@@ -22,6 +22,11 @@ macro_rules! monitoring_properties {
             ///     Strictly prior history. None means unknown; untouched means known no
             ///     hit.
             ///
+            /// history_time : datetime.datetime or None, optional
+            ///     Timestamp of supplied history, covering events strictly before it.
+            ///     Required at pricing whenever history is supplied. Refresh the history
+            ///     payload and timestamp together.
+            ///
             /// Returns
             /// -------
             /// object

@@ -783,7 +783,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let terms = PhoenixTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = PhoenixOption::new(terms)?;
-    /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent))?;
+    /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent))?
+    ///     .with_history_time(Some(start.add_days(1)?))?;
     /// assert_eq!(known.observations(), note.observations());
     /// assert_eq!(note.barrier_state(), None);
     /// let records = autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?;
@@ -872,6 +873,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// `None` clears history; `Some(AutocallableBarrierState::NoEvent)` records no prior event.
     /// See [`Self::new`] for an example. Time consistency is checked during pricing.
+    /// Preserves the history timestamp. Use the product's `replace` method and change
+    /// struct to refresh history and its required timestamp together; see the [history example](crate).
     ///
     /// # Errors
     ///

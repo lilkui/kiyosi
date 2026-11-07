@@ -161,6 +161,8 @@ impl DoubleBarrierOption {
     /// Time consistency is checked during pricing. The original is preserved on every outcome.
     ///
     /// Preserves validated monitoring terms through [`BarrierOption::replace_history`].
+    /// Preserves the history timestamp. Use [`Self::replace`] with
+    /// [`DoubleBarrierOptionChanges::history_time`] to refresh the snapshot.
     ///
     /// # Examples
     ///
@@ -170,7 +172,8 @@ impl DoubleBarrierOption {
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
     ///     100.0, Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0,
     ///     DoubleBarrierType::KnockOut))?;
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched));
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched))
+    ///     .with_history_time(Some(option.effective_time().add_days(1)?))?;
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }

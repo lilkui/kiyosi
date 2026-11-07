@@ -27,6 +27,11 @@ use pyo3::prelude::*;
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -117,6 +122,11 @@ monitoring_properties!(
     ///     retained on replacement.
     /// payout : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------

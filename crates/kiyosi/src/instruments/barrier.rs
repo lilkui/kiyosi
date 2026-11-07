@@ -212,19 +212,25 @@ impl BarrierOption {
     /// Returns an owning copy with replaced history, leaving the original unchanged.
     ///
     /// Time consistency is checked during pricing. `None` restores unknown history.
+    /// Preserves the history timestamp. Use [`Self::replace`] with
+    /// [`BarrierOptionChanges::history_time`] to refresh the payload and timestamp together.
     ///
     /// Preserves the validated terms; typed history cannot invalidate construction.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, BarrierTouchState, Date, OptionType};
+    /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, BarrierTouchState, Date, OptionType,
+    ///     OptionContract, AnalyticBarrierEngine, BlackScholesMertonParameters, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched));
+    /// let at = option.effective_time().add_days(1)?;
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched)).with_history_time(Some(at))?;
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
+    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 120.0, at)?;
+    /// assert_eq!(AnalyticBarrierEngine.price(&known, &context)?, 0.0);
     /// # Ok(()) }
     /// ```
     #[must_use]

@@ -140,13 +140,13 @@ impl Accumulator {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date, OptionType};
+    /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date, OptionType, OptionContract};
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 2, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
     /// let seasoned = option.replace_history(AccumulatorHistoryChanges {
     ///     accumulated_quantity: Some(Some(3.0)), knock_out_settled: Some(Some(false)),
-    /// })?;
+    /// })?.with_history_time(Some(option.effective_time().add_days(1)?))?;
     /// assert_eq!(seasoned.accumulated_quantity(), Some(3.0));
     /// assert_eq!(option.accumulated_quantity(), None);
     /// let settled = option.replace(kiyosi::AccumulatorChanges {
@@ -247,6 +247,8 @@ impl Accumulator {
     /// Omitted fields retain their values. A quantity alone (`f64` or `Option<f64>`)
     /// replaces only quantity; `None` restores unknown quantity. Time consistency
     /// is checked at pricing. The original is unchanged on success and failure.
+    /// Preserves the history timestamp; refresh it with [`Self::replace`] and
+    /// [`AccumulatorChanges::history_time`] alongside the history fields.
     ///
     /// # Errors
     ///
@@ -255,16 +257,20 @@ impl Accumulator {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date};
+    /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date, OptionContract,
+    ///     BlackScholesMertonParameters, PricingContext, QuadratureAccumulatorEngine};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, start.add_days(9)?, kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
     /// let settled = option.replace_history(AccumulatorHistoryChanges {
     ///     knock_out_settled: Some(Some(true)), ..Default::default()
-    /// })?;
+    /// })?.with_history_time(Some(start.add_days(1)?))?;
     /// assert_eq!(settled.knock_out_settled(), Some(true));
     /// assert_eq!(option.knock_out_settled(), None);
     /// assert_eq!(settled.replace_history(3.0)?.knock_out_settled(), Some(true));
+    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+    ///     100.0, start.add_days(1)?)?;
+    /// assert_eq!(QuadratureAccumulatorEngine::default().price(&settled, &context)?, 0.0);
     /// # Ok(()) }
     /// ```
     pub fn replace_history(&self, changes: impl Into<AccumulatorHistoryChanges>) -> Result<Self> {

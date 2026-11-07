@@ -35,6 +35,11 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -87,6 +92,11 @@ impl RangeAccrualOption {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -204,6 +214,11 @@ impl RangeAccrualOption {
     /// ----------
     /// realized_hit_count : int or None, optional
     ///     Hits strictly before valuation, or None for unknown history.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------

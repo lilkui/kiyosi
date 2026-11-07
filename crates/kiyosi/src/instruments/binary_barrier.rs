@@ -186,7 +186,8 @@ impl BinaryBarrierOption {
     ///
     /// See [`crate::BarrierOption::replace_history`] for an example and time consistency rules.
     ///
-    /// Preserves the validated monitoring and payoff terms.
+    /// Preserves the validated monitoring and payoff terms and history timestamp.
+    /// Use [`Self::replace`] with [`BinaryBarrierOptionChanges::history_time`] to refresh the snapshot.
     #[must_use]
     pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
@@ -350,7 +351,8 @@ impl TouchOption {
     ///
     /// See [`crate::BarrierOption::replace_history`] for examples and time consistency rules.
     ///
-    /// Preserves the validated monitoring and payoff terms.
+    /// Preserves the validated monitoring and payoff terms and history timestamp.
+    /// Use [`Self::replace`] with [`TouchOptionChanges::history_time`] to refresh the snapshot.
     #[must_use]
     pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {

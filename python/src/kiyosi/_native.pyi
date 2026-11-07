@@ -6991,6 +6991,11 @@ class GeometricAveragePriceOption:
         at or before averaging starts, and supplied strictly after it;
         time consistency is checked at pricing.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -7028,6 +7033,11 @@ class GeometricAveragePriceOption:
         realized_average : float or None, optional
             Replacement value; omission or Ellipsis retains the current field.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -7064,6 +7074,11 @@ class GeometricAveragePriceOption:
         realized_average : float or None, optional
             Prior average; None restores unknown history. Pricing checks time
             consistency.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -7210,6 +7225,11 @@ class ArithmeticAveragePriceOption:
         at or before averaging starts, and supplied strictly after it;
         time consistency is checked at pricing.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -7247,6 +7267,11 @@ class ArithmeticAveragePriceOption:
         realized_average : float or None, optional
             Replacement value; omission or Ellipsis retains the current field.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -7283,6 +7308,11 @@ class ArithmeticAveragePriceOption:
         realized_average : float or None, optional
             Prior average; None restores unknown history. Pricing checks time
             consistency.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -7442,6 +7472,11 @@ class BarrierOption:
         Owned observation calendar; defaults to weekdays on construction and is
         retained on replacement.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -7504,6 +7539,11 @@ class BarrierOption:
             Owned observation calendar; defaults to weekdays on construction and is
             retained on replacement.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -7546,6 +7586,11 @@ class BarrierOption:
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior history. None means unknown; untouched means known no
             hit.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -7738,6 +7783,11 @@ class DoubleBarrierOption:
         Owned observation calendar; defaults to weekdays on construction and is
         retained on replacement.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -7802,6 +7852,11 @@ class DoubleBarrierOption:
             Owned observation calendar; defaults to weekdays on construction and is
             retained on replacement.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -7845,6 +7900,11 @@ class DoubleBarrierOption:
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior history. None means unknown; untouched means known no
             hit.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -7937,6 +7997,11 @@ class RangeAccrualOption:
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays, independently of PricingContext.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -8003,6 +8068,11 @@ class RangeAccrualOption:
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -8041,6 +8111,11 @@ class RangeAccrualOption:
         ----------
         realized_hit_count : int or None, optional
             Hits strictly before valuation, or None for unknown history.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -8387,6 +8462,11 @@ class BinaryBarrierOption:
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -8489,6 +8569,11 @@ class BinaryBarrierOption:
         payout : float or None, optional
             Cash amount; None is invalid for cash and never changes the payoff kind.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -8514,6 +8599,11 @@ class BinaryBarrierOption:
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior history. None means unknown; untouched means known no
             hit.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -8608,6 +8698,11 @@ class TouchOption:
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
 
     Raises
     ------
@@ -8707,6 +8802,11 @@ class TouchOption:
         payout : float or None, optional
             Cash amount; None is invalid for cash and never changes the payoff kind.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -8732,6 +8832,11 @@ class TouchOption:
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior history. None means unknown; untouched means known no
             hit.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -9149,6 +9254,11 @@ class DoubleTouchOption:
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -9230,6 +9340,11 @@ class DoubleTouchOption:
         payout : float, optional
             Replacement value; omission or Ellipsis retains the current field.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -9255,6 +9370,11 @@ class DoubleTouchOption:
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior history. None means unknown; untouched means known no
             hit.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -9700,6 +9820,11 @@ class SnowballOption:
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays, independently of PricingContext.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -9775,6 +9900,11 @@ class SnowballOption:
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -9846,6 +9976,11 @@ class SnowballOption:
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Strictly prior events. None is unknown; the string no_event means no
             event.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -9955,6 +10090,11 @@ class PhoenixOption:
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays, independently of PricingContext.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     TypeError
@@ -10052,6 +10192,11 @@ class PhoenixOption:
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -10122,6 +10267,11 @@ class PhoenixOption:
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -10194,6 +10344,11 @@ class PhoenixOption:
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
+
         Returns
         -------
         object
@@ -10262,6 +10417,11 @@ class PhoenixOption:
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Strictly prior events. None is unknown; the string no_event means no
             event.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -10359,6 +10519,11 @@ class BinarySnowballOption:
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays, independently of PricingContext.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -10409,6 +10574,11 @@ class BinarySnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -10475,6 +10645,11 @@ class BinarySnowballOption:
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Strictly prior events. None is unknown; the string no_event means no
             event.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -10556,6 +10731,11 @@ class TernarySnowballOption:
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays, independently of PricingContext.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Raises
     ------
     InvalidInputError
@@ -10623,6 +10803,11 @@ class TernarySnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -10693,6 +10878,11 @@ class TernarySnowballOption:
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Strictly prior events. None is unknown; the string no_event means no
             event.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -10798,6 +10988,11 @@ def standard_snowball(
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Returns
     -------
     SnowballOption
@@ -10856,6 +11051,11 @@ def european_snowball(
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
 
     Returns
     -------
@@ -10918,6 +11118,11 @@ def step_down_snowball(
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
 
     Returns
     -------
@@ -10987,6 +11192,11 @@ def both_down_snowball(
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Returns
     -------
     SnowballOption
@@ -11052,6 +11262,11 @@ def dual_coupon_snowball(
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Returns
     -------
     SnowballOption
@@ -11113,6 +11328,11 @@ def parachute_snowball(
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
 
     Returns
     -------
@@ -11176,6 +11396,11 @@ def otm_snowball(
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Returns
     -------
     SnowballOption
@@ -11238,6 +11463,11 @@ def loss_capped_snowball(
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Returns
     -------
     SnowballOption
@@ -11292,6 +11522,11 @@ class Accumulator:
 
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays, independently of PricingContext.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
 
     Raises
     ------
@@ -11377,6 +11612,11 @@ class Accumulator:
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -11465,6 +11705,11 @@ class Accumulator:
         knock_out_settled : bool or None, optional
             None restores unknown history; omission retains the current state. Pricing
             rejects knock-out settlement before or at the first knock-out observation.
+
+        history_time : datetime.datetime or None, optional
+            Timestamp of supplied history, covering events strictly before it.
+            Required at pricing whenever history is supplied. Refresh the history
+            payload and timestamp together.
 
         Returns
         -------
@@ -11634,6 +11879,11 @@ def fixed_coupon_note(
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
 
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
+
     Returns
     -------
     PhoenixOption
@@ -11693,6 +11943,11 @@ def digital_coupon_note(
         Nonnegative normalized principal, independent of coupon and loss components.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
 
     Returns
     -------
@@ -11759,6 +12014,11 @@ def early_profit_snowball(
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
 
     Returns
     -------
@@ -11833,6 +12093,11 @@ def butterfly_snowball(
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required at pricing whenever history is supplied. Refresh the history
+        payload and timestamp together.
 
     Returns
     -------

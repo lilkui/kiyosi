@@ -23,6 +23,11 @@ macro_rules! autocallable_properties {
             ///     Strictly prior events. None is unknown; the string no_event means no
             ///     event.
             ///
+            /// history_time : datetime.datetime or None, optional
+            ///     Timestamp of supplied history, covering events strictly before it.
+            ///     Required at pricing whenever history is supplied. Refresh the history
+            ///     payload and timestamp together.
+            ///
             /// Returns
             /// -------
             /// object
@@ -404,6 +409,11 @@ macro_rules! snowball_preset {
         /// calendar : TradingCalendar, optional
         ///     Owned contractual calendar; defaults to weekdays.
         ///
+        /// history_time : datetime.datetime or None, optional
+        ///     Timestamp of supplied history, covering events strictly before it.
+        ///     Required at pricing whenever history is supplied. Refresh the history
+        ///     payload and timestamp together.
+        ///
         /// Returns
         /// -------
         /// SnowballOption
@@ -632,6 +642,11 @@ times, stages may have no observations, and rates need not decrease."
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -673,6 +688,11 @@ snowball_properties! {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -835,6 +855,11 @@ snowball_properties! {
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -863,6 +888,11 @@ snowball_properties! {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -979,6 +1009,11 @@ snowball_properties! {
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -1015,6 +1050,11 @@ snowball_properties! {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -1175,6 +1215,11 @@ snowball_properties! {
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// TypeError
@@ -1229,6 +1274,11 @@ autocallable_properties! {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -1438,6 +1488,11 @@ macro_rules! phoenix_preset {
         ///     Nonnegative normalized principal, independent of coupon and loss components.
         /// calendar : TradingCalendar, optional
         ///     Owned contractual calendar; defaults to weekdays.
+        ///
+        /// history_time : datetime.datetime or None, optional
+        ///     Timestamp of supplied history, covering events strictly before it.
+        ///     Required at pricing whenever history is supplied. Refresh the history
+        ///     payload and timestamp together.
         ///
         /// Returns
         /// -------

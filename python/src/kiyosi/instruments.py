@@ -130,6 +130,25 @@ maturity uses the final stage rate.
 
 Examples
 --------
+Refresh a continuous average and its snapshot timestamp together, then price it:
+
+>>> from datetime import datetime
+>>> from kiyosi.market import BlackScholesMertonParameters, PricingContext
+>>> from kiyosi.pricing import AnalyticGeometricAveragePriceEngine
+>>> average = GeometricAveragePriceOption(
+...     option_type="call", strike=100, effective_time=datetime(2025, 1, 1),
+...     averaging_start_time=datetime(2025, 1, 1), expiry_time=datetime(2026, 1, 1),
+... )
+>>> at = datetime(2025, 2, 1)
+>>> seasoned = average.replace_history(realized_average=105, history_time=at)
+>>> context = PricingContext(
+...     model_parameters=BlackScholesMertonParameters(
+...         risk_free_rate=0, dividend_yield=0, volatility=0),
+...     spot_price=105, valuation_time=at,
+... )
+>>> round(AnalyticGeometricAveragePriceEngine().price(seasoned, context), 6)
+5.0
+
 Construct a digital call, then create an independent strike replacement.
 Cash and asset digitals pay zero when the expiry spot equals the strike:
 

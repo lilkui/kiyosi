@@ -31,6 +31,11 @@ macro_rules! average_option {
         ///     at or before averaging starts, and supplied strictly after it;
         ///     time consistency is checked at pricing.
         ///
+        /// history_time : datetime.datetime or None, optional
+        ///     Timestamp of supplied history, covering events strictly before it.
+        ///     Required at pricing whenever history is supplied. Refresh the history
+        ///     payload and timestamp together.
+        ///
         /// Raises
         /// ------
         /// InvalidInputError
@@ -63,6 +68,11 @@ macro_rules! average_option {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// realized_average : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -121,6 +131,11 @@ macro_rules! average_option {
             /// realized_average : float or None, optional
             ///     Prior average; None restores unknown history. Pricing checks time
             ///     consistency.
+            ///
+            /// history_time : datetime.datetime or None, optional
+            ///     Timestamp of supplied history, covering events strictly before it.
+            ///     Required at pricing whenever history is supplied. Refresh the history
+            ///     payload and timestamp together.
             ///
             /// Returns
             /// -------

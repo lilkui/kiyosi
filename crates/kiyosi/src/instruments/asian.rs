@@ -299,14 +299,18 @@ macro_rules! average_option {
             /// # Examples
             ///
             /// ```rust
-            /// use kiyosi::{Date, OptionType, GeometricAveragePriceOption};
+            /// use kiyosi::{Date, OptionType, OptionContract, GeometricAveragePriceOption,
+            ///     AnalyticGeometricAveragePriceEngine, BlackScholesMertonParameters, PricingContext};
             /// # fn main() -> kiyosi::Result<()> {
             /// let start = Date::new(2025, 1, 1)?.start_of_day();
             /// let original = GeometricAveragePriceOption::new(OptionType::Call,
             ///     100.0, start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
-            /// let seasoned = original.replace_history(105.0)?;
+            /// let at = start.add_days(30)?;
+            /// let seasoned = original.replace_history(105.0)?.with_history_time(Some(at))?;
             /// assert_eq!(seasoned.realized_average(), Some(105.0));
             /// assert_eq!(original.realized_average(), None);
+            /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?, 105.0, at)?;
+            /// assert!((AnalyticGeometricAveragePriceEngine.price(&seasoned, &context)? - 5.0).abs() < 1e-12);
             /// # Ok(()) }
             /// ```
             pub fn replace_history(

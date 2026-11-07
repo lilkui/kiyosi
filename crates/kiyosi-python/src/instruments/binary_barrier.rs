@@ -67,6 +67,11 @@ fn replace_payoff(
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -104,6 +109,11 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 ///     Strictly prior touch history; defaults to unknown.
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays.
+///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -226,6 +236,11 @@ binary_properties!(
     ///     Explicit settlement choice; omission preserves the current kind.
     /// payout : float or None, optional
     ///     Cash amount; None is invalid for cash and never changes the payoff kind.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -393,6 +408,11 @@ binary_properties!(
     ///     Explicit settlement choice; omission preserves the current kind.
     /// payout : float or None, optional
     ///     Cash amount; None is invalid for cash and never changes the payoff kind.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------

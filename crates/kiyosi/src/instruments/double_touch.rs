@@ -115,7 +115,8 @@ impl DoubleTouchOption {
     ///     120.0, start.into())?;
     /// let engine = FiniteDifferenceDoubleTouchEngine::default();
     /// assert!((engine.price(&option, &context)? - 10.0 * (-0.03_f64).exp()).abs() < 1e-12);
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched));
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched))
+    ///     .with_history_time(Some(start.add_days(1)?))?;
     /// assert_eq!(option.touch_state(), None);
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// # Ok(()) }
@@ -211,6 +212,8 @@ impl DoubleTouchOption {
     ///
     /// Preserves validated monitoring terms without reconstructing the contract.
     /// The original value remains unchanged.
+    /// Preserves the history timestamp. Use [`Self::replace`] with
+    /// [`DoubleTouchOptionChanges::history_time`] to refresh the snapshot.
     #[must_use]
     pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {

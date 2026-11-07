@@ -49,6 +49,11 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
 ///
+/// history_time : datetime.datetime or None, optional
+///     Timestamp of supplied history, covering events strictly before it.
+///     Required at pricing whenever history is supplied. Refresh the history
+///     payload and timestamp together.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -110,6 +115,11 @@ impl Accumulator {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -256,6 +266,11 @@ impl Accumulator {
     /// knock_out_settled : bool or None, optional
     ///     None restores unknown history; omission retains the current state. Pricing
     ///     rejects knock-out settlement before or at the first knock-out observation.
+    ///
+    /// history_time : datetime.datetime or None, optional
+    ///     Timestamp of supplied history, covering events strictly before it.
+    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     payload and timestamp together.
     ///
     /// Returns
     /// -------
