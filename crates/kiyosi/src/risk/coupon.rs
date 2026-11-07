@@ -1,6 +1,6 @@
 use crate::{
-    AutocallableNote, Error, PhoenixCoupon, PhoenixOption, PhoenixOptionChanges, PricingContext,
-    PricingEngine, Result, SnowballCouponTerms,
+    AutocallableNote, Error, PhoenixOption, PricingContext, PricingEngine, Result,
+    SnowballCouponTerms,
 };
 
 /// Selects how a snowball maturity coupon follows its quoted observation coupon.
@@ -114,6 +114,7 @@ pub fn implied_snowball_coupon<
 /// [`implied_snowball_coupon`], without a quote convention.
 /// Bounds, parameter tolerance and result use the contract's coupon units:
 /// an annual rate or a fixed per-period proportion, including FCN/DCN presets.
+/// Apply the result with [`PhoenixOption::with_quoted_coupon`] to retain those units.
 ///
 /// # Errors
 ///
@@ -131,12 +132,11 @@ pub fn implied_snowball_coupon<
 /// let market = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();
-/// let quoted = note.replace(PhoenixOptionChanges {
-///     coupon: Some(PhoenixCoupon::Annual(0.12)), ..Default::default()
-/// })?;
+/// let quoted = note.with_quoted_coupon(0.12)?;
 /// let quote = engine.price(&quoted, &market)?;
 /// let coupon = implied_phoenix_coupon(&engine, &note, &market, quote, ImpliedCouponSettings::default())?;
 /// assert!((coupon - 0.12).abs() < 1e-7);
+/// assert!((engine.price(&note.with_quoted_coupon(coupon)?, &market)? - quote).abs() < 1e-8);
 /// # Ok(()) }
 /// ```
 pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
@@ -153,15 +153,7 @@ pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
         observed_price,
         settings,
         None,
-        &|note, coupon| {
-            note.replace(PhoenixOptionChanges {
-                coupon: Some(match note.terms().coupon {
-                    PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
-                    PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(coupon),
-                }),
-                ..Default::default()
-            })
-        },
+        &PhoenixOption::with_quoted_coupon,
     )
 }
 

@@ -215,9 +215,8 @@ Phoenix solves preserve the contract's coupon units: annual rate for annual
 coupons, fixed per-period proportion for FCN/DCN. Bounds, parameter tolerance
 and the returned value use the same units.
 Apply the result with ``note.with_shifted_coupons(coupon, quote_convention=convention)``
-for snowballs. For Phoenix, use ``note.replace(coupon_rate=coupon)`` for an annual
-rate or ``note.replace(coupon_per_period=coupon)`` for a per-period payment,
-matching the solved contract's convention, then price the new note.
+for snowballs. For Phoenix, use ``note.with_quoted_coupon(coupon)`` to preserve
+the solved contract's convention, then price the new note.
 
 Examples
 --------

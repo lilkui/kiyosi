@@ -66,6 +66,7 @@ It applies the quote returned by ``pricing.implied_snowball_coupon``.
 Phoenix ``replace(coupon_rate=...)`` sets an annual rate;
 ``replace(coupon_per_period=...)`` sets a fixed payment per observation.
 ``pricing.implied_phoenix_coupon`` returns a value in the contract's existing units.
+Apply it with ``with_quoted_coupon(coupon)`` to preserve those units.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values. Explicit ``None`` clears nullable history and is rejected for fields
 that require a value.

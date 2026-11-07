@@ -224,7 +224,7 @@ class ImpliedCouponTests(unittest.TestCase):
             target = engine.price(replacement, context)
             solved = implied_phoenix_coupon(engine, note, context, target)
             self.assertAlmostEqual(
-                engine.price(note.replace(**{field: solved}), context),
+                engine.price(note.with_quoted_coupon(solved), context),
                 target,
                 delta=1e-8,
             )
@@ -232,6 +232,42 @@ class ImpliedCouponTests(unittest.TestCase):
                 with self.assertRaises(error):
                     note.replace(**{field: value})
             self.assertEqual(getattr(note, field), original)
+
+    def test_quoted_phoenix_coupons_preserve_units_and_validate_inputs(self):
+        context = market().replace(
+            model_parameters=market().model_parameters.replace(
+                risk_free_rate=0, dividend_yield=0, volatility=0
+            )
+        )
+        engine = QuadratureAutocallableEngine()
+        for field, note in (
+            ("coupon_rate", phoenix(coupon_rate=0.01)),
+            ("coupon_per_period", phoenix(coupon_rate=None, coupon_per_period=0.01)),
+        ):
+            for coupon in (-0.02, 0, 0.02):
+                with self.subTest(field=field, coupon=coupon):
+                    changed = note.with_quoted_coupon(coupon)
+                    self.assertEqual(changed, note.replace(**{field: coupon}))
+                    quote = engine.price(changed, context)
+                    solved = implied_phoenix_coupon(
+                        engine, note, context, quote, lower_bound=-1
+                    )
+                    self.assertAlmostEqual(solved, coupon, delta=1e-12)
+                    self.assertAlmostEqual(
+                        engine.price(note.with_quoted_coupon(solved), context),
+                        quote,
+                        delta=1e-12,
+                    )
+            for value, error in (
+                (math.nan, InvalidInputError),
+                (math.inf, InvalidInputError),
+                (-math.inf, InvalidInputError),
+                (True, TypeError),
+                (None, TypeError),
+            ):
+                with self.subTest(field=field, value=value), self.assertRaises(error):
+                    note.with_quoted_coupon(value)
+            self.assertEqual(getattr(note, field), 0.01)
 
     def test_coupon_signatures_express_product_requirements(self):
         engine = QuadratureAutocallableEngine(asset_step_count=64)

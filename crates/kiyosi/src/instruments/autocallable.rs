@@ -1504,6 +1504,29 @@ pub struct PhoenixOptionChanges {
 }
 
 impl PhoenixOption {
+    /// Returns a note with a quoted coupon in its existing annual or per-period units.
+    ///
+    /// Applies the value returned by [`crate::implied_phoenix_coupon`] without
+    /// changing the coupon convention, history or other terms.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a non-finite coupon. The original
+    /// note remains unchanged on success and failure.
+    ///
+    /// # Examples
+    ///
+    /// See [`crate::implied_phoenix_coupon`] for solving and applying a quote.
+    pub fn with_quoted_coupon(&self, coupon: f64) -> Result<Self> {
+        self.replace(PhoenixOptionChanges {
+            coupon: Some(match self.0.coupon {
+                PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
+                PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(coupon),
+            }),
+            ..Default::default()
+        })
+    }
+
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.

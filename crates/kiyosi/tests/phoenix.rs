@@ -35,6 +35,63 @@ fn market(spot: f64, valuation: Timestamp) -> PricingContext {
     .unwrap()
 }
 #[test]
+fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
+    let engine = QuadratureAutocallableEngine::default();
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.0).unwrap(),
+        100.0,
+        date(1, 1),
+    )
+    .unwrap();
+    for original_coupon in [PhoenixCoupon::Annual(0.08), PhoenixCoupon::PerPeriod(0.01)] {
+        let mut input = terms();
+        input.coupon = original_coupon;
+        input.observations =
+            autocallable_observations(&[date(4, 1)], &[110.0], None, None).unwrap();
+        let note = PhoenixOption::new(input.clone()).unwrap();
+        for coupon in [-0.02, 0.0, 0.02] {
+            let (expected_coupon, payment) = match original_coupon {
+                PhoenixCoupon::Annual(_) => (PhoenixCoupon::Annual(coupon), coupon * 90.0 / 365.0),
+                PhoenixCoupon::PerPeriod(_) => (PhoenixCoupon::PerPeriod(coupon), coupon),
+            };
+            let quoted = note.with_quoted_coupon(coupon).unwrap();
+            let mut expected = input.clone();
+            expected.coupon = expected_coupon;
+            assert_eq!(quoted.terms(), &expected);
+            let quote = 1.0 + payment;
+            assert!((engine.price(&quoted, &context).unwrap() - quote).abs() < 1e-14);
+            let solved = implied_phoenix_coupon(
+                &engine,
+                &note,
+                &context,
+                quote,
+                ImpliedCouponSettings {
+                    lower_bound: -1.0,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert!((solved - coupon).abs() < 1e-12);
+            assert!(
+                (engine
+                    .price(&note.with_quoted_coupon(solved).unwrap(), &context)
+                    .unwrap()
+                    - quote)
+                    .abs()
+                    < 1e-12
+            );
+        }
+        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(matches!(
+                note.with_quoted_coupon(invalid),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+        assert_eq!(note.terms(), &input);
+    }
+}
+
+#[test]
 fn conditional_period_coupons_are_inclusive_and_independent_of_principal_and_loss() {
     let engine = QuadratureAutocallableEngine::default();
     for coupon in [0.365, -0.365] {

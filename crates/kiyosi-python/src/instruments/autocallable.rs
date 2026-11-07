@@ -1257,6 +1257,14 @@ autocallable_properties! {
         terms.calendar = calendar.0;
         Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
     },
+    /// Returns a note with the quoted coupon in its existing annual or per-period units.
+    ///
+    /// Applies implied_phoenix_coupon results while preserving the coupon convention,
+    /// history and other terms. Non-finite coupons raise InvalidInputError;
+    /// invalid numeric representations raise native conversion errors.
+    fn with_quoted_coupon(&self, coupon: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(self.0.with_quoted_coupon(real(coupon)?))?))
+    },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
     fn coupon_barrier_levels(&self) -> Vec<f64> {

@@ -127,6 +127,7 @@ pub(crate) fn implied_snowball_coupon(
 /// -------
 /// float
 ///     Annual rate or per-period proportion, matching the contract's coupon units.
+///     Apply with instrument.with_quoted_coupon(value) to preserve the convention.
 ///
 /// Raises
 /// ------
