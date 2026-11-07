@@ -358,7 +358,15 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
         .unwrap()
     );
     for bad in [-1.0, f64::INFINITY, f64::NAN] {
-        for field in 0..4 {
+        for (field, name) in [
+            "notional",
+            "annual_coupon_rate",
+            "lower_bound",
+            "upper_bound",
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let mut input = terms();
             match field {
                 0 => input.notional = bad,
@@ -367,34 +375,44 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
                 _ => input.upper_bound = bad,
             }
             input.expiry_time = input.effective_time;
-            assert!(matches!(
-                RangeAccrualOption::new(input).unwrap_err(),
-                Error::InvalidInput(_)
-            ));
+            let error = RangeAccrualOption::new(input).unwrap_err();
+            assert!(matches!(error, Error::InvalidInput(_)));
+            assert!(error.to_string().contains(name), "{name}: {error}");
         }
     }
-    for input in [
-        RangeAccrualTerms {
-            notional: 0.0,
-            ..terms()
-        },
-        RangeAccrualTerms {
-            lower_bound: 110.0,
-            ..terms()
-        },
-        RangeAccrualTerms {
-            upper_bound: 90.0,
-            ..terms()
-        },
-        RangeAccrualTerms {
-            realized_hit_count: Some(-1),
-            ..terms()
-        },
+    for (input, name) in [
+        (
+            RangeAccrualTerms {
+                notional: 0.0,
+                ..terms()
+            },
+            "notional",
+        ),
+        (
+            RangeAccrualTerms {
+                lower_bound: 110.0,
+                ..terms()
+            },
+            "lower_bound",
+        ),
+        (
+            RangeAccrualTerms {
+                upper_bound: 90.0,
+                ..terms()
+            },
+            "upper_bound",
+        ),
+        (
+            RangeAccrualTerms {
+                realized_hit_count: Some(-1),
+                ..terms()
+            },
+            "realized_hit_count",
+        ),
     ] {
-        assert!(matches!(
-            RangeAccrualOption::new(input).unwrap_err(),
-            Error::InvalidInput(_)
-        ));
+        let error = RangeAccrualOption::new(input).unwrap_err();
+        assert!(matches!(error, Error::InvalidInput(_)));
+        assert!(error.to_string().contains(name), "{name}: {error}");
     }
     for end in [day(1), add(day(1), -1)] {
         assert!(matches!(

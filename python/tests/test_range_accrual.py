@@ -291,20 +291,19 @@ class RangeAccrualTests(unittest.TestCase):
                 with self.subTest(name=name, value=value), self.assertRaises(TypeError):
                     contract(**{name: value})
             for value in (-1, math.inf, math.nan):
-                self.assert_rejection(InvalidInputError, contract, **{name: value})
+                with self.assertRaisesRegex(InvalidInputError, name):
+                    contract(**{name: value})
         for values in (
             {"notional": 0},
             {"lower_bound": 110},
             {"upper_bound": 90},
             {"realized_hit_count": -1},
         ):
-            self.assert_rejection(InvalidInputError, contract, **values)
+            with self.assertRaisesRegex(InvalidInputError, next(iter(values))):
+                contract(**values)
         self.assert_rejection(InvalidInputError, contract, expiry_time=START)
-        self.assert_rejection(
-            InvalidInputError,
-            option.replace_history,
-            realized_hit_count=-1,
-        )
+        with self.assertRaisesRegex(InvalidInputError, "realized_hit_count"):
+            option.replace_history(realized_hit_count=-1)
         self.assertEqual(option, contract())
         self.assertIn("realized_hit_count", repr(changed))
         with self.assertRaises(AttributeError):

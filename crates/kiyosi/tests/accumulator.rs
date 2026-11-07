@@ -183,7 +183,16 @@ fn history_replacement_owns_validated_values_and_preserves_terms() {
 #[test]
 fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
-        for field in 0..5 {
+        for (field, name) in [
+            "strike",
+            "knock_out_level",
+            "daily_quantity",
+            "acceleration_factor",
+            "accumulated_quantity",
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let mut t = terms(day(1, 1));
             match field {
                 0 => t.strike = invalid,
@@ -192,10 +201,9 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
                 3 => t.acceleration_factor = invalid,
                 _ => t.accumulated_quantity = Some(invalid),
             }
-            assert!(matches!(
-                Accumulator::new(t).unwrap_err(),
-                Error::InvalidInput(_)
-            ));
+            let error = Accumulator::new(t).unwrap_err();
+            assert!(matches!(error, Error::InvalidInput(_)));
+            assert!(error.to_string().contains(name), "{name}: {error}");
         }
     }
     let mut t = terms(day(1, 1));

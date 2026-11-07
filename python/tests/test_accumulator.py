@@ -283,21 +283,17 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     observation_clock_time=clock_time(), **(fields | {field: 10**400})
                 )
             for value in (-1, math.nan, math.inf):
-                self.assert_rejection(
-                    InvalidInputError,
-                    Accumulator,
-                    observation_clock_time=clock_time(),
-                    **(fields | {field: value}),
-                )
+                with self.assertRaisesRegex(InvalidInputError, field):
+                    Accumulator(
+                        observation_clock_time=clock_time(),
+                        **(fields | {field: value}),
+                    )
         for value in (True, "3", object()):
             with self.assertRaises(TypeError):
                 updated.replace_history(accumulated_quantity=value)
         for value in (-1, math.nan, math.inf):
-            self.assert_rejection(
-                InvalidInputError,
-                updated.replace_history,
-                accumulated_quantity=value,
-            )
+            with self.assertRaisesRegex(InvalidInputError, "accumulated_quantity"):
+                updated.replace_history(accumulated_quantity=value)
         with self.assertRaises(OverflowError):
             updated.replace_history(accumulated_quantity=10**400)
         for changes in ({"strike": 90}, {"accumulated_quantity": 3, "extra": 0}):

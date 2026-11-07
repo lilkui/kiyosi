@@ -83,18 +83,26 @@ impl RangeAccrualOption {
     /// # Ok(()) }
     /// ```
     pub fn new(terms: RangeAccrualTerms) -> Result<Self> {
-        if !terms.notional.is_finite()
-            || terms.notional <= 0.0
-            || !terms.annual_coupon_rate.is_finite()
-            || terms.annual_coupon_rate < 0.0
-            || !terms.lower_bound.is_finite()
-            || !terms.upper_bound.is_finite()
-            || terms.lower_bound < 0.0
-            || terms.lower_bound >= terms.upper_bound
-            || terms.realized_hit_count.is_some_and(|n| n < 0)
-        {
+        crate::error::finite(terms.notional, true, "notional")?;
+        for (field, value) in [
+            ("annual_coupon_rate", terms.annual_coupon_rate),
+            ("lower_bound", terms.lower_bound),
+            ("upper_bound", terms.upper_bound),
+        ] {
+            if !value.is_finite() || value < 0.0 {
+                return Err(Error::InvalidInput(
+                    format!("{field} must be finite and nonnegative").into(),
+                ));
+            }
+        }
+        if terms.lower_bound >= terms.upper_bound {
             return Err(Error::InvalidInput(
-                "invalid range accrual amounts, bounds or history".into(),
+                "upper_bound must exceed lower_bound".into(),
+            ));
+        }
+        if terms.realized_hit_count.is_some_and(|n| n < 0) {
+            return Err(Error::InvalidInput(
+                "realized_hit_count must be nonnegative".into(),
             ));
         }
         if terms.expiry_time <= terms.effective_time {

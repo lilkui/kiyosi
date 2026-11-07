@@ -166,17 +166,19 @@ impl Accumulator {
     pub fn new(terms: AccumulatorTerms) -> Result<Self> {
         crate::error::finite(terms.strike, true, "strike")?;
         crate::error::finite(terms.knock_out_level, true, "knock_out_level")?;
-        if [
-            terms.daily_quantity,
-            terms.acceleration_factor,
-            terms.accumulated_quantity.unwrap_or(0.0),
-        ]
-        .iter()
-        .any(|v| !v.is_finite() || *v < 0.0)
-        {
-            return Err(Error::InvalidInput(
-                "quantities must be finite and nonnegative".into(),
-            ));
+        for (field, value) in [
+            ("daily_quantity", terms.daily_quantity),
+            ("acceleration_factor", terms.acceleration_factor),
+            (
+                "accumulated_quantity",
+                terms.accumulated_quantity.unwrap_or(0.0),
+            ),
+        ] {
+            if !value.is_finite() || value < 0.0 {
+                return Err(Error::InvalidInput(
+                    format!("{field} must be finite and nonnegative").into(),
+                ));
+            }
         }
         if terms.expiry_time < terms.effective_time {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
