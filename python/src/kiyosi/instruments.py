@@ -1,6 +1,11 @@
 """Validated derivative contracts, autocallable presets and observation adapters.
 
-``AutocallableObservation`` and ``autocallable_observations`` validate positive
+``AutocallableObservation.snowball(..., coupon_rate=...)`` supplies snowball
+knock-out coupons. ``AutocallableObservation.phoenix(..., coupon_barrier_level=...)``
+supplies Phoenix thresholds; the note supplies the coupon amount. The basic
+``AutocallableObservation(time, knock_out_level)`` constructor sets both coupon
+fields to zero. Mixed nonzero coupon fields are rejected immediately.
+Observation constructors and ``autocallable_observations`` validate positive
 knock-out levels, finite signed coupon rates and nonnegative coupon barriers
 on construction. Notes additionally validate ordering, life bounds and their
 product-specific coupon rules. Observation ``replace()`` validates supplied

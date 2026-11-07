@@ -165,12 +165,12 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
 #[test]
 fn phoenix_validation_defaults_and_history_share_core_categories() {
     let mut t = terms();
-    t.observations[0] = t.observations[0]
-        .replace(AutocallableObservationChanges {
-            coupon_rate: Some(0.1),
-            ..Default::default()
-        })
-        .unwrap();
+    t.observations[0] = AutocallableObservation::snowball(
+        t.observations[0].time(),
+        t.observations[0].knock_out_level(),
+        0.1,
+    )
+    .unwrap();
     assert!(matches!(
         PhoenixOption::new(t).unwrap_err(),
         Error::InvalidInput(_)

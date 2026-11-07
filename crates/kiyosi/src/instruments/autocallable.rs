@@ -34,7 +34,7 @@ pub enum AutocallableBarrierState {
 /// Constructors and replacements validate numeric terms. Note construction also
 /// validates ordering, life bounds and product-specific coupon constraints.
 /// Fields are private so every public record has valid numeric terms. See
-/// [`Self::with_coupons`] and [`Self::replace`] for construction and replacement.
+/// [`Self::snowball`], [`Self::phoenix`] and [`Self::replace`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AutocallableObservation {
     /// Sets the exact observation time.
@@ -84,26 +84,46 @@ impl AutocallableObservation {
         Ok(record)
     }
 
-    /// Creates a validated record with explicit coupon terms.
+    /// Creates a snowball observation with an annual knock-out coupon.
     ///
-    /// Note construction checks ordering, life bounds and product-specific constraints.
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a nonpositive or non-finite knock-out level
+    /// or a non-finite coupon rate. See [`Self::phoenix`] for a usage example.
+    pub fn snowball(time: Timestamp, knock_out_level: f64, coupon_rate: f64) -> Result<Self> {
+        Self::with_coupons(time, knock_out_level, coupon_rate, 0.0)
+    }
+
+    /// Creates a Phoenix observation with a conditional coupon threshold.
+    ///
+    /// The note supplies its coupon amount; observations supply only its threshold.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for a nonpositive or non-finite knock-out level,
-    /// non-finite coupon rate, or negative or non-finite coupon barrier.
+    /// or a negative or non-finite coupon threshold.
     ///
     /// # Examples
     ///
     /// ```rust
     /// use kiyosi::{AutocallableObservation, Date};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let record = AutocallableObservation::with_coupons(
-    ///     Date::new(2026, 1, 1)?.start_of_day(), 110.0, -0.01, 0.0)?;
-    /// assert_eq!(record.coupon_rate(), -0.01);
+    /// let time = Date::new(2026, 1, 1)?.start_of_day();
+    /// let snowball = AutocallableObservation::snowball(time, 110.0, 0.08)?;
+    /// let phoenix = AutocallableObservation::phoenix(time, 110.0, 90.0)?;
+    /// assert_eq!(snowball.coupon_rate(), 0.08);
+    /// assert_eq!(phoenix.coupon_barrier_level(), 90.0);
     /// # Ok(()) }
     /// ```
-    pub fn with_coupons(
+    pub fn phoenix(
+        time: Timestamp,
+        knock_out_level: f64,
+        coupon_barrier_level: f64,
+    ) -> Result<Self> {
+        Self::with_coupons(time, knock_out_level, 0.0, coupon_barrier_level)
+    }
+
+    fn with_coupons(
         time: Timestamp,
         knock_out_level: f64,
         coupon_rate: f64,
@@ -123,7 +143,7 @@ impl AutocallableObservation {
     ///
     /// # Errors
     ///
-    /// Reuses [`Self::with_coupons`] numeric validation. The original is preserved
+    /// Validates numeric terms and rejects mixed snowball and Phoenix coupon fields. The original is preserved
     /// on success and failure; the note validates schedule and product constraints.
     ///
     /// # Examples
@@ -150,19 +170,19 @@ impl AutocallableObservation {
         )
     }
 
-    /// Returns the exact timestamp; see [`Self::with_coupons`].
+    /// Returns the exact timestamp; see [`Self::phoenix`].
     pub fn time(&self) -> Timestamp {
         self.time
     }
-    /// Returns the positive finite knock-out threshold; see [`Self::with_coupons`].
+    /// Returns the positive finite knock-out threshold; see [`Self::phoenix`].
     pub fn knock_out_level(&self) -> f64 {
         self.knock_out_level
     }
-    /// Returns the finite annual coupon rate; see [`Self::with_coupons`].
+    /// Returns the finite annual coupon rate; see [`Self::phoenix`].
     pub fn coupon_rate(&self) -> f64 {
         self.coupon_rate
     }
-    /// Returns the finite nonnegative coupon threshold; see [`Self::with_coupons`].
+    /// Returns the finite nonnegative coupon threshold; see [`Self::phoenix`].
     pub fn coupon_barrier_level(&self) -> f64 {
         self.coupon_barrier_level
     }
@@ -173,6 +193,11 @@ impl AutocallableObservation {
         finite(self.coupon_barrier_level, false, "coupon_barrier_level")?;
         if self.coupon_barrier_level < 0.0 {
             return Err(Error::InvalidInput("negative coupon barrier".into()));
+        }
+        if self.coupon_rate != 0.0 && self.coupon_barrier_level != 0.0 {
+            return Err(Error::InvalidInput(
+                "coupon_rate and coupon_barrier_level belong to different products".into(),
+            ));
         }
         Ok(())
     }
@@ -186,7 +211,7 @@ impl AutocallableObservation {
 /// # Errors
 ///
 /// Returns [`Error::InvalidInput`] for unequal sequence lengths or invalid numeric
-/// terms; see [`AutocallableObservation::with_coupons`].
+/// terms; see [`AutocallableObservation::phoenix`].
 ///
 /// # Examples
 ///
@@ -1373,7 +1398,8 @@ impl sealed::View<'_> {
             for r in terms.observations {
                 if r.coupon_rate != 0.0 {
                     return Err(Error::InvalidInput(
-                        "invalid Phoenix observation terms".into(),
+                        "Phoenix observations do not accept coupon_rate; set the note coupon"
+                            .into(),
                     ));
                 }
             }

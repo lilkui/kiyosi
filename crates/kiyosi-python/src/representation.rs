@@ -216,8 +216,11 @@ pub(crate) fn _repr_previews<'py>(
                     result.set_item("calendar", calendar(py, v.0.calendar())?)?;
                 }
                 result.set_item("observations", preview(v.0.observations(), |r| Ok(format!(
-                    "AutocallableObservation({}, {:?}, coupon_rate={:?}, coupon_barrier_level={:?})",
-                    python_timestamp(py, r.time())?.repr()?, r.knock_out_level(), r.coupon_rate(), r.coupon_barrier_level())))?)?;
+                    "AutocallableObservation.{}({}, {:?}, {}={:?})",
+                    if r.coupon_barrier_level() == 0.0 { "snowball" } else { "phoenix" },
+                    python_timestamp(py, r.time())?.repr()?, r.knock_out_level(),
+                    if r.coupon_barrier_level() == 0.0 { "coupon_rate" } else { "coupon_barrier_level" },
+                    if r.coupon_barrier_level() == 0.0 { r.coupon_rate() } else { r.coupon_barrier_level() })))?)?;
             }
         )+};
     }

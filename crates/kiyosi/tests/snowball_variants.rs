@@ -628,12 +628,12 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         Error::InvalidInput(_)
     ));
     let mut binary = BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), observations());
-    binary.observations[0] = binary.observations[0]
-        .replace(AutocallableObservationChanges {
-            coupon_barrier_level: Some(1.0),
-            ..Default::default()
-        })
-        .unwrap();
+    binary.observations[0] = AutocallableObservation::phoenix(
+        binary.observations[0].time(),
+        binary.observations[0].knock_out_level(),
+        1.0,
+    )
+    .unwrap();
     assert!(matches!(
         BinarySnowballOption::new(binary).unwrap_err(),
         Error::InvalidInput(_)

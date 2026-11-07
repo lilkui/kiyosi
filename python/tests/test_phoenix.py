@@ -193,7 +193,7 @@ class PhoenixTests(unittest.TestCase):
         for value in (-1, math.nan, math.inf):
             self.assert_rejection(
                 InvalidInputError,
-                AutocallableObservation,
+                AutocallableObservation.phoenix,
                 END,
                 110,
                 coupon_barrier_level=value,
@@ -201,7 +201,7 @@ class PhoenixTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             contract,
-            observations=[AutocallableObservation(END, 110, coupon_rate=0.1)],
+            observations=[AutocallableObservation.snowball(END, 110, coupon_rate=0.1)],
         )
         engine = QuadratureAutocallableEngine()
         unknown = contract(

@@ -1993,7 +1993,20 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
 #[test]
 fn observation_replacement_preserves_validity_and_original_values() -> Result<()> {
     let time = Date::new(2026, 1, 1)?.start_of_day();
-    let original = AutocallableObservation::with_coupons(time, 110.0, -0.01, 90.0)?;
+    let original = AutocallableObservation::snowball(time, 110.0, -0.01)?;
+    let phoenix = AutocallableObservation::phoenix(time, 110.0, 90.0)?;
+    assert_eq!(phoenix.coupon_rate(), 0.0);
+    assert!(matches!(
+        phoenix.replace(AutocallableObservationChanges {
+            coupon_rate: Some(0.12),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        autocallable_observations(&[time], &[110.0], Some(&[0.12]), Some(&[90.0])),
+        Err(Error::InvalidInput(_))
+    ));
     let changed = original.replace(AutocallableObservationChanges {
         time: Some(time.add_days(1)?),
         knock_out_level: Some(120.0),
@@ -2003,7 +2016,7 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
     assert_eq!(changed.time(), time.add_days(1)?);
     assert_eq!(changed.knock_out_level(), 120.0);
     assert_eq!(changed.coupon_rate(), 0.08);
-    assert_eq!(changed.coupon_barrier_level(), 90.0);
+    assert_eq!(changed.coupon_barrier_level(), 0.0);
     assert_eq!(original.replace(Default::default())?, original);
     for changes in [
         AutocallableObservationChanges {
@@ -2033,7 +2046,7 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
         ));
         assert_eq!(original.knock_out_level(), 110.0);
         assert_eq!(original.coupon_rate(), -0.01);
-        assert_eq!(original.coupon_barrier_level(), 90.0);
+        assert_eq!(original.coupon_barrier_level(), 0.0);
     }
     Ok(())
 }

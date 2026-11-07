@@ -2520,14 +2520,15 @@ class AutocallableObservation:
         coupon_rate: _Real | EllipsisType = ...,
         coupon_barrier_level: _Real | EllipsisType = ...,
     ) -> Self: ...
-    def __init__(
-        self,
-        time: datetime,
-        knock_out_level: _Real,
-        *,
-        coupon_rate: _Real = ...,
-        coupon_barrier_level: _Real = ...,
-    ) -> None: ...
+    def __init__(self, time: datetime, knock_out_level: _Real) -> None: ...
+    @staticmethod
+    def snowball(
+        time: datetime, knock_out_level: _Real, *, coupon_rate: _Real
+    ) -> AutocallableObservation: ...
+    @staticmethod
+    def phoenix(
+        time: datetime, knock_out_level: _Real, *, coupon_barrier_level: _Real
+    ) -> AutocallableObservation: ...
     @property
     def time(self) -> datetime: ...
     @property

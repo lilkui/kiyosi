@@ -797,7 +797,10 @@ class ApiConsistencyTests(unittest.TestCase):
             for invalid in invalids:
                 with self.subTest(field=field, invalid=invalid):
                     with self.assertRaises(InvalidInputError):
-                        ins.AutocallableObservation(time, 110, **{field: invalid})
+                        getattr(
+                            ins.AutocallableObservation,
+                            "snowball" if field == "coupon_rate" else "phoenix",
+                        )(time, 110, **{field: invalid})
                     with self.assertRaises(InvalidInputError):
                         ins.autocallable_observations(
                             [time], [110], **{keyword: [invalid]}
@@ -1600,16 +1603,26 @@ class GreekMethodTests(unittest.TestCase):
 class ObservationReplacementTests(unittest.TestCase):
     def test_observation_replacement_preserves_validity_and_original_values(self):
         time = datetime(2026, 1, 1)
-        original = ins.AutocallableObservation(
-            time, 110, coupon_rate=-0.01, coupon_barrier_level=90
+        original = ins.AutocallableObservation.snowball(time, 110, coupon_rate=-0.01)
+        phoenix = ins.AutocallableObservation.phoenix(
+            time, 110, coupon_barrier_level=90
         )
+        self.assertEqual(phoenix.coupon_rate, 0)
+        self.assertEqual(pickle.loads(pickle.dumps(phoenix)), phoenix)
+        self.assertIn("AutocallableObservation.phoenix", repr(phoenix))
+        with self.assertRaises(InvalidInputError):
+            phoenix.replace(coupon_rate=0.12)
+        with self.assertRaises(InvalidInputError):
+            ins.autocallable_observations(
+                [time], [110], knock_out_coupon_rates=[0.12], coupon_barrier_levels=[90]
+            )
         changed = original.replace(
             time=time + timedelta(days=1), knock_out_level=120, coupon_rate=0.08
         )
         self.assertEqual(changed.time, time + timedelta(days=1))
         self.assertEqual(changed.knock_out_level, 120)
         self.assertEqual(changed.coupon_rate, 0.08)
-        self.assertEqual(changed.coupon_barrier_level, 90)
+        self.assertEqual(changed.coupon_barrier_level, 0)
         self.assertEqual(original.replace(), original)
         self.assertEqual(original.replace(coupon_rate=...), original)
         self.assertEqual(pickle.loads(pickle.dumps(changed)), changed)
@@ -1629,7 +1642,7 @@ class ObservationReplacementTests(unittest.TestCase):
                     original.coupon_rate,
                     original.coupon_barrier_level,
                 ),
-                (time, 110, -0.01, 90),
+                (time, 110, -0.01, 0),
             )
         for value in (None, True):
             with self.subTest(value=value), self.assertRaises(TypeError):

@@ -166,7 +166,7 @@ class SnowballTests(unittest.TestCase):
             (
                 {
                     "observations": [
-                        AutocallableObservation(END, 110, coupon_barrier_level=1)
+                        AutocallableObservation.phoenix(END, 110, coupon_barrier_level=1)
                     ]
                 },
                 InvalidInputError,

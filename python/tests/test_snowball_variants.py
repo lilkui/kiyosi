@@ -436,7 +436,7 @@ class SnowballVariantTests(unittest.TestCase):
             for records, expected_error in (
                 ([], InvalidInputError),
                 (
-                    [AutocallableObservation(END, 110, coupon_barrier_level=1)],
+                    [AutocallableObservation.phoenix(END, 110, coupon_barrier_level=1)],
                     InvalidInputError,
                 ),
             ):

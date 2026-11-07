@@ -117,6 +117,21 @@ def _reduce(
                 "seed": value.seed,
             },
         )
+    if isinstance(value, _native.AutocallableObservation):
+        field = "coupon_barrier_level" if value.coupon_barrier_level else "coupon_rate"
+        factory = (
+            _native.AutocallableObservation.phoenix
+            if value.coupon_barrier_level
+            else _native.AutocallableObservation.snowball
+        )
+        return _restore, (
+            factory,
+            {
+                "time": value.time,
+                "knock_out_level": value.knock_out_level,
+                field: getattr(value, field),
+            },
+        )
     rate_fields = {
         "risk_free_rate": "risk_free_curve",
         "dividend_yield": "dividend_curve",

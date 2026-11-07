@@ -17,7 +17,7 @@ class AutocallableValidationTests(unittest.TestCase):
                 "barrier_state": history,
                 "effective_time": start,
                 "observations": [
-                    AutocallableObservation(datetime(2025, 1, 2), 110, coupon_rate=0.08)
+                    AutocallableObservation.snowball(datetime(2025, 1, 2), 110, coupon_rate=0.08)
                 ],
             }
             with self.assertRaises(InvalidInputError):

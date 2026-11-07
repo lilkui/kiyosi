@@ -197,10 +197,8 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 ///     Exact observation time.
 /// knock_out_level : float
 ///     Positive inclusive knock-out threshold.
-/// coupon_rate : float, optional
-///     Finite annual coupon rate in decimal units.
-/// coupon_barrier_level : float, optional
-///     Finite nonnegative inclusive Phoenix coupon threshold; must be zero for snowballs.
+/// Use snowball(..., coupon_rate=...) or phoenix(..., coupon_barrier_level=...)
+/// for product-specific coupon terms. The basic constructor uses zero coupon fields.
 ///
 /// Notes
 /// -----
@@ -213,23 +211,41 @@ pub(crate) struct AutocallableObservation(pub kiyosi::AutocallableObservation);
 #[pymethods]
 impl AutocallableObservation {
     #[new]
-    #[pyo3(signature = (time, knock_out_level, *, coupon_rate=kiyosi::AutocallableObservation::DEFAULT_COUPON_RATE, coupon_barrier_level=kiyosi::AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL))]
-    fn new(
+    #[pyo3(signature = (time, knock_out_level))]
+    fn new(time: &Bound<'_, PyAny>, knock_out_level: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(kiyosi::AutocallableObservation::new(
+            timestamp(time)?,
+            real(knock_out_level)?,
+        ))?))
+    }
+    /// Create a snowball observation with an annual knock-out coupon.
+    #[staticmethod]
+    #[pyo3(signature = (time, knock_out_level, *, coupon_rate))]
+    fn snowball(
         time: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = real)] coupon_rate: f64,
-        #[pyo3(from_py_with = real)] coupon_barrier_level: f64,
+        coupon_rate: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(
-            kiyosi::AutocallableObservation::with_coupons(
-                crate::conversions::timestamp(time)?,
-                real(knock_out_level)?,
-                coupon_rate,
-                coupon_barrier_level,
-            ),
-        )?))
+        Ok(Self(domain(kiyosi::AutocallableObservation::snowball(
+            timestamp(time)?,
+            real(knock_out_level)?,
+            real(coupon_rate)?,
+        ))?))
     }
-
+    /// Create a Phoenix observation with a coupon threshold; the note supplies the amount.
+    #[staticmethod]
+    #[pyo3(signature = (time, knock_out_level, *, coupon_barrier_level))]
+    fn phoenix(
+        time: &Bound<'_, PyAny>,
+        knock_out_level: &Bound<'_, PyAny>,
+        coupon_barrier_level: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        Ok(Self(domain(kiyosi::AutocallableObservation::phoenix(
+            timestamp(time)?,
+            real(knock_out_level)?,
+            real(coupon_barrier_level)?,
+        ))?))
+    }
     /// Return a validated observation with the supplied fields replaced.
     ///
     /// Omitted fields or Ellipsis retain their values. Invalid numeric terms raise
@@ -273,12 +289,19 @@ impl AutocallableObservation {
         self.0.coupon_barrier_level()
     }
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        let (kind, field, value) = if self.0.coupon_barrier_level() == 0.0 {
+            ("snowball", "coupon_rate", self.0.coupon_rate())
+        } else {
+            (
+                "phoenix",
+                "coupon_barrier_level",
+                self.0.coupon_barrier_level(),
+            )
+        };
         Ok(format!(
-            "AutocallableObservation({}, {:?}, coupon_rate={:?}, coupon_barrier_level={:?})",
+            "AutocallableObservation.{kind}({}, {:?}, {field}={value:?})",
             self.time(py)?.repr()?,
-            self.0.knock_out_level(),
-            self.0.coupon_rate(),
-            self.0.coupon_barrier_level()
+            self.0.knock_out_level()
         ))
     }
 }
