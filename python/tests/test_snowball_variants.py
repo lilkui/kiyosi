@@ -731,7 +731,9 @@ class SnowballVariantTests(unittest.TestCase):
             fixed = self.fixed(
                 kind,
                 maturity_coupon_rate=0,
-                observations=autocallable_observations([END], [110]),
+                observations=autocallable_observations(
+                    [END], [110], knock_out_coupon_rates=[0]
+                ),
                 **({"minimum_coupon_rate": 0} if kind is TernarySnowballOption else {}),
             )
             self.assertAlmostEqual(

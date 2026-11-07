@@ -448,7 +448,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         0.0,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], None, None).unwrap(),
+        autocallable_observations(&[end], &[110.0], Some(&[0.0]), None).unwrap(),
     ))
     .unwrap();
     let result = engine

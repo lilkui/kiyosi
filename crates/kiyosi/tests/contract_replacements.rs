@@ -916,13 +916,15 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
         principal_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
-        observations: vec![AutocallableObservation::new(end, 110.0).unwrap()],
+        observations: vec![AutocallableObservation::snowball(end, 110.0, 0.0).unwrap()],
     })
     .unwrap();
     let saved = original.clone();
     assert!(matches!(
         original.replace(SnowballOptionChanges {
-            observations: Some(vec![AutocallableObservation::new(end, 115.0).unwrap()]),
+            observations: Some(vec![
+                AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()
+            ]),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -1019,7 +1021,7 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
         original,
         SnowballOptionChanges,
         observations,
-        vec![AutocallableObservation::new(end, 115.0).unwrap()],
+        vec![AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()],
         terms().observations
     );
     assert!(matches!(
@@ -1049,13 +1051,15 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         principal_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
-        observations: vec![AutocallableObservation::new(end, 110.0).unwrap()],
+        observations: vec![AutocallableObservation::snowball(end, 110.0, 0.0).unwrap()],
     })
     .unwrap();
     let saved = original.clone();
     assert!(matches!(
         original.replace(PhoenixOptionChanges {
-            observations: Some(vec![AutocallableObservation::new(end, 115.0).unwrap()]),
+            observations: Some(vec![
+                AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()
+            ]),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -1152,7 +1156,7 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         original,
         PhoenixOptionChanges,
         observations,
-        vec![AutocallableObservation::new(end, 115.0).unwrap()],
+        vec![AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()],
         terms().observations
     );
     assert!(matches!(
@@ -1176,13 +1180,15 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
         principal_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
-        observations: vec![AutocallableObservation::new(end, 110.0).unwrap()],
+        observations: vec![AutocallableObservation::snowball(end, 110.0, 0.0).unwrap()],
     })
     .unwrap();
     let saved = original.clone();
     assert!(matches!(
         original.replace(BinarySnowballOptionChanges {
-            observations: Some(vec![AutocallableObservation::new(end, 115.0).unwrap()]),
+            observations: Some(vec![
+                AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()
+            ]),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -1239,7 +1245,7 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
         original,
         BinarySnowballOptionChanges,
         observations,
-        vec![AutocallableObservation::new(end, 115.0).unwrap()],
+        vec![AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()],
         terms().observations
     );
     assert!(matches!(
@@ -1267,13 +1273,15 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
         principal_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
-        observations: vec![AutocallableObservation::new(end, 110.0).unwrap()],
+        observations: vec![AutocallableObservation::snowball(end, 110.0, 0.0).unwrap()],
     })
     .unwrap();
     let saved = original.clone();
     assert!(matches!(
         original.replace(TernarySnowballOptionChanges {
-            observations: Some(vec![AutocallableObservation::new(end, 115.0).unwrap()]),
+            observations: Some(vec![
+                AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()
+            ]),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -1358,7 +1366,7 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
         original,
         TernarySnowballOptionChanges,
         observations,
-        vec![AutocallableObservation::new(end, 115.0).unwrap()],
+        vec![AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()],
         terms().observations
     );
     assert!(matches!(

@@ -62,29 +62,9 @@ pub struct AutocallableObservationChanges {
 }
 
 impl AutocallableObservation {
-    /// Supplies a zero observation coupon; see [`Self::new`].
-    pub const DEFAULT_COUPON_RATE: f64 = 0.0;
-    /// Supplies a zero coupon barrier; see [`Self::new`].
-    pub const DEFAULT_COUPON_BARRIER_LEVEL: f64 = 0.0;
-
-    /// Creates a validated record with zero coupon and coupon barrier.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] unless the knock-out level is finite and positive.
-    /// See [`autocallable_observations`] for a sequence construction example.
-    pub fn new(time: Timestamp, knock_out_level: f64) -> Result<Self> {
-        let record = Self {
-            time,
-            knock_out_level,
-            coupon_rate: Self::DEFAULT_COUPON_RATE,
-            coupon_barrier_level: Self::DEFAULT_COUPON_BARRIER_LEVEL,
-        };
-        record.validate()?;
-        Ok(record)
-    }
-
     /// Creates a snowball observation with an annual knock-out coupon.
+    ///
+    /// A zero rate explicitly selects no knock-out coupon; see [`Self::phoenix`] for an example.
     ///
     /// # Errors
     ///
@@ -97,6 +77,7 @@ impl AutocallableObservation {
     /// Creates a Phoenix observation with a conditional coupon threshold.
     ///
     /// The note supplies its coupon amount; observations supply only its threshold.
+    /// A zero threshold explicitly selects an unconditional coupon.
     ///
     /// # Errors
     ///
@@ -151,7 +132,7 @@ impl AutocallableObservation {
     /// ```rust
     /// use kiyosi::{AutocallableObservation, AutocallableObservationChanges, Date};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let record = AutocallableObservation::new(Date::new(2026, 1, 1)?.start_of_day(), 110.0)?;
+    /// let record = AutocallableObservation::snowball(Date::new(2026, 1, 1)?.start_of_day(), 110.0, 0.0)?;
     /// let changed = record.replace(AutocallableObservationChanges {
     ///     coupon_rate: Some(0.08), ..Default::default()
     /// })?;
@@ -203,14 +184,16 @@ impl AutocallableObservation {
     }
 }
 
-/// Associates parallel sequences, using core record defaults for omitted coupons.
+/// Associates parallel sequences with explicit snowball coupons or Phoenix coupon barriers.
 ///
 /// Numeric terms are validated here. Ordering, life bounds and product-specific
 /// constraints are validated when constructing a note.
+/// Supply exactly one of `coupons` and `coupon_barriers`; zero coupons and
+/// unconditional Phoenix coupons require explicit zero values.
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidInput`] for unequal sequence lengths or invalid numeric
+/// Returns [`Error::InvalidInput`] for missing or mixed coupon choices, unequal sequence lengths or invalid numeric
 /// terms; see [`AutocallableObservation::phoenix`].
 ///
 /// # Examples
@@ -229,6 +212,11 @@ pub fn autocallable_observations(
     coupons: Option<&[f64]>,
     coupon_barriers: Option<&[f64]>,
 ) -> Result<Vec<AutocallableObservation>> {
+    if coupons.is_some() == coupon_barriers.is_some() {
+        return Err(Error::InvalidInput(
+            "supply exactly one of coupons and coupon_barriers".into(),
+        ));
+    }
     if times.len() != levels.len()
         || coupons.is_some_and(|v| v.len() != times.len())
         || coupon_barriers.is_some_and(|v| v.len() != times.len())
@@ -245,13 +233,8 @@ pub fn autocallable_observations(
             AutocallableObservation::with_coupons(
                 time,
                 level,
-                coupons.map_or(AutocallableObservation::DEFAULT_COUPON_RATE, |values| {
-                    values[i]
-                }),
-                coupon_barriers.map_or(
-                    AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL,
-                    |values| values[i],
-                ),
+                coupons.map_or(0.0, |values| values[i]),
+                coupon_barriers.map_or(0.0, |values| values[i]),
             )
         })
         .collect()
@@ -947,7 +930,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let end = start.add_days(2)?;
     /// let note = SnowballOption::new(SnowballTerms::new(
     ///     0.1, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     vec![AutocallableObservation::new(end, 110.0)?], Some(TimeOfDay::new(0, 0, 0, 0)?)))?;
+    ///     vec![AutocallableObservation::snowball(end, 110.0, 0.0)?], Some(TimeOfDay::new(0, 0, 0, 0)?)))?;
     /// assert_eq!(note.knock_in_observation_schedule()?.map(|s| s.len()), Some(3));
     /// # Ok(()) }
     /// ```

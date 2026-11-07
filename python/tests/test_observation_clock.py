@@ -55,7 +55,7 @@ def snowball_terms():
         "lower_strike": 0,
         "effective_time": START,
         "expiry_time": END,
-        "observations": [AutocallableObservation(END, 1000)],
+        "observations": [AutocallableObservation.snowball(END, 1000, coupon_rate=0)],
     }
 
 
@@ -324,7 +324,9 @@ class ObservationClockTests(unittest.TestCase):
                 snowball_terms()
                 | {
                     "observations": [
-                        AutocallableObservation(datetime(2025, 1, 6, 10), 1000)
+                        AutocallableObservation.snowball(
+                            datetime(2025, 1, 6, 10), 1000, coupon_rate=0
+                        )
                     ]
                 }
             ),

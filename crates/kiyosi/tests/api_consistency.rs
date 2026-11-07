@@ -4,6 +4,59 @@ use support::dated;
 use kiyosi::*;
 
 #[test]
+fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_days(365)?;
+    for choices in [(None, None), (Some(&[0.0][..]), Some(&[0.0][..]))] {
+        assert!(matches!(
+            autocallable_observations(&[end], &[110.0], choices.0, choices.1),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+        110.0,
+        end,
+    )?;
+    let engine = QuadratureAutocallableEngine::default();
+    for (coupon, expected) in [(0.0, 1.0), (0.12, 1.12)] {
+        let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.12,
+            start,
+            end,
+            vec![AutocallableObservation::snowball(end, 110.0, coupon)?],
+        ))?
+        .replace_history(Some(AutocallableBarrierState::NoEvent))?
+        .with_history_time(Some(end))?;
+        assert!((engine.price(&note, &context)? - expected).abs() < 1e-12);
+    }
+    for (barrier, expected) in [(0.0, 1.03), (90.0, 1.0)] {
+        let mut terms = PhoenixTerms::new(
+            0.0,
+            100.0,
+            80.0,
+            100.0,
+            100.0,
+            start,
+            end,
+            vec![AutocallableObservation::phoenix(end, 200.0, barrier)?],
+            None,
+        );
+        terms.coupon = PhoenixCoupon::PerPeriod(0.03);
+        terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+        let note = PhoenixOption::new(terms)?
+            .replace_history(Some(AutocallableBarrierState::NoEvent))?
+            .with_history_time(Some(end))?;
+        let context = context.replace(PricingContextChanges {
+            spot_price: Some(50.0),
+            ..Default::default()
+        })?;
+        assert!((engine.price(&note, &context)? - expected).abs() < 1e-12);
+    }
+    Ok(())
+}
+
+#[test]
 fn current_barrier_touches_retain_cashflow_parameter_greeks() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     for volatility in [0.0, 0.2] {
@@ -238,7 +291,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         0.0,
         start,
         end,
-        vec![AutocallableObservation::new(end, 110.0)?],
+        vec![AutocallableObservation::snowball(end, 110.0, 0.0)?],
         Some((end).time_of_day()),
     ))?;
     let daily = note.replace_calendar(TradingCalendar::all_days()).unwrap();
@@ -649,11 +702,11 @@ fn observation_construction_validates_numeric_terms_before_note_creation() -> Re
     let time = Date::new(2026, 1, 1)?.start_of_day();
     for level in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            AutocallableObservation::new(time, level),
+            AutocallableObservation::snowball(time, level, 0.0),
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
-            autocallable_observations(&[time], &[level], None, None),
+            autocallable_observations(&[time], &[level], Some(&[0.0]), None),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -669,10 +722,10 @@ fn observation_construction_validates_numeric_terms_before_note_creation() -> Re
             Err(Error::InvalidInput(_))
         ));
     }
-    let records = autocallable_observations(&[time], &[110.0], Some(&[-0.01]), Some(&[0.0]))?;
+    let records = autocallable_observations(&[time], &[110.0], Some(&[-0.01]), None)?;
     assert_eq!(records[0].coupon_rate(), -0.01);
     assert_eq!(records[0].coupon_barrier_level(), 0.0);
-    let edited = AutocallableObservation::new(time, 110.0)?;
+    let edited = AutocallableObservation::snowball(time, 110.0, 0.0)?;
     assert!(matches!(
         edited.replace(AutocallableObservationChanges {
             coupon_rate: Some(f64::NAN),
@@ -1290,7 +1343,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         0.1,
         start,
         end,
-        autocallable_observations(&[closed], &[110.0], None, None)?,
+        autocallable_observations(&[closed], &[110.0], Some(&[0.0]), None)?,
     );
     assert!(matches!(
         BinarySnowballOption::new(terms.clone()),
@@ -1452,7 +1505,7 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         autocallable_observations(
             &[start.add_days(1)?, start.add_days(2)?, expiry],
             &[120.0; 3],
-            None,
+            Some(&[0.0; 3]),
             None,
         )?,
     );
@@ -1562,7 +1615,7 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
 fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
-    let observations = autocallable_observations(&[end], &[110.0], None, None)?;
+    let observations = autocallable_observations(&[end], &[110.0], Some(&[0.0]), None)?;
     for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
             invalid,

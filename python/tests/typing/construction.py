@@ -13,11 +13,35 @@ from kiyosi.instruments import (
     SnowballOption,
     TernarySnowballOption,
     TouchOption,
+    autocallable_observations,
 )
 
 BinaryBarrierOption()  # ty: ignore[no-matching-overload]
 TouchOption()  # ty: ignore[no-matching-overload]
 DoubleTouchOption()  # ty: ignore[missing-argument]
+
+
+def observation_choices(at: datetime) -> None:
+    assert_type(
+        AutocallableObservation.snowball(at, 110, coupon_rate=0),
+        AutocallableObservation,
+    )
+    assert_type(
+        AutocallableObservation.phoenix(at, 110, coupon_barrier_level=0),
+        AutocallableObservation,
+    )
+    assert_type(
+        autocallable_observations([at], [110], knock_out_coupon_rates=[0]),
+        list[AutocallableObservation],
+    )
+    assert_type(
+        autocallable_observations([at], [110], coupon_barrier_levels=[0]),
+        list[AutocallableObservation],
+    )
+    autocallable_observations([at], [110])  # ty: ignore[no-matching-overload]
+    autocallable_observations(
+        [at], [110], knock_out_coupon_rates=[0], coupon_barrier_levels=[0]
+    )  # ty: ignore[no-matching-overload]
 
 
 def accumulator_history(option: Accumulator) -> None:
@@ -30,7 +54,7 @@ def accumulator_history(option: Accumulator) -> None:
 def phoenix_choices() -> None:
     # Keep date and observation types visible to the overload checker.
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
-    observations = [AutocallableObservation(end, 110)]
+    observations = [AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)]
     assert_type(
         PhoenixOption(
             observation_clock_time=clock_time(),
@@ -251,7 +275,7 @@ def settlement_replacement_types(
 
 def expiry_only_snowballs() -> None:
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
-    observations = [AutocallableObservation(end, 110)]
+    observations = [AutocallableObservation.snowball(end, 110, coupon_rate=0)]
     assert_type(
         SnowballOption(
             observation_clock_time=None,

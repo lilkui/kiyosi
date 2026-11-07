@@ -290,7 +290,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         0.0,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], None, None).unwrap(),
+        autocallable_observations(&[end], &[110.0], Some(&[0.0]), None).unwrap(),
     ))
     .unwrap();
     let risk = RateTermStructure::new(start, vec![end], vec![0.99]).unwrap();

@@ -568,6 +568,11 @@ class PackageTests(unittest.TestCase):
                         "coupon_per_period",
                     ):
                         self.assertIs(parameter.default, Ellipsis)
+                    elif factory is instruments.autocallable_observations and name in (
+                        "knock_out_coupon_rates",
+                        "coupon_barrier_levels",
+                    ):
+                        self.assertIsNone(parameter.default)
                     elif (
                         factory
                         in (
@@ -592,7 +597,9 @@ class PackageTests(unittest.TestCase):
             "knock_in_level": 80,
             "effective_time": start,
             "expiry_time": end,
-            "observations": [instruments.AutocallableObservation(end, 110)],
+            "observations": [
+                instruments.AutocallableObservation.snowball(end, 110, coupon_rate=0)
+            ],
         }
         for cls, extra in (
             (

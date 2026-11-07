@@ -15,6 +15,63 @@ from support.history import dated as dated_history
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_observation_coupon_choices_are_explicit_and_control_cashflows(self):
+        start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+        with self.assertRaises(TypeError):
+            ins.AutocallableObservation(end, 110)
+        for choices in (
+            {},
+            {"knock_out_coupon_rates": [0], "coupon_barrier_levels": [0]},
+        ):
+            with self.assertRaises(InvalidInputError):
+                ins.autocallable_observations([end], [110], **choices)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0,
+                dividend_yield=0,
+                volatility=0.2,
+            ),
+            spot_price=110,
+            valuation_time=end,
+        )
+        engine = pricing.QuadratureAutocallableEngine()
+        for coupon, expected in ((0, 1), (0.12, 1.12)):
+            note = ins.BinarySnowballOption(
+                maturity_coupon_rate=0.12,
+                effective_time=start,
+                expiry_time=end,
+                observations=[
+                    ins.AutocallableObservation.snowball(end, 110, coupon_rate=coupon)
+                ],
+                barrier_state="no_event",
+                history_time=end,
+            )
+            self.assertAlmostEqual(engine.price(note, context), expected, delta=1e-12)
+        for barrier, expected in ((0, 1.03), (90, 1)):
+            note = ins.PhoenixOption(
+                coupon_per_period=0.03,
+                initial_spot=100,
+                knock_in_level=80,
+                upper_strike=100,
+                lower_strike=100,
+                effective_time=start,
+                expiry_time=end,
+                knock_in_observation_mode="at_expiry",
+                observation_clock_time=None,
+                observations=[
+                    ins.AutocallableObservation.phoenix(
+                        end, 200, coupon_barrier_level=barrier
+                    )
+                ],
+                barrier_state="no_event",
+                history_time=end,
+            )
+            self.assertAlmostEqual(
+                engine.price(note, context.replace(spot_price=50)),
+                expected,
+                delta=1e-12,
+            )
+
     def test_current_barrier_touches_retain_cashflow_parameter_greeks(self):
         start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
         for volatility in (0, 0.2):
@@ -283,7 +340,9 @@ class ApiConsistencyTests(unittest.TestCase):
         common = {
             "effective_time": start,
             "expiry_time": end,
-            "observations": ins.autocallable_observations([end], [110]),
+            "observations": ins.autocallable_observations(
+                [end], [110], knock_out_coupon_rates=[0]
+            ),
         }
         for invalid in (math.nan, math.inf, -math.inf):
             for factory, fields, field in (
@@ -353,7 +412,9 @@ class ApiConsistencyTests(unittest.TestCase):
             expiry_time=end,
             barrier_state="no_event",
             observations=ins.autocallable_observations(
-                [datetime(2025, 1, 2), valuation, end], [120, 120, 120]
+                [datetime(2025, 1, 2), valuation, end],
+                [120, 120, 120],
+                knock_out_coupon_rates=[0] * 3,
             ),
         )
         for kind, contract, settled, active, current_value in (
@@ -375,7 +436,9 @@ class ApiConsistencyTests(unittest.TestCase):
                 note.replace(
                     barrier_state=note.barrier_state,
                     observations=ins.autocallable_observations(
-                        [datetime(2025, 1, 2), valuation, end], [150, 150, 150]
+                        [datetime(2025, 1, 2), valuation, end],
+                        [150, 150, 150],
+                        knock_out_coupon_rates=[0] * 3,
                     ),
                 ),
                 1,
@@ -548,7 +611,9 @@ class ApiConsistencyTests(unittest.TestCase):
                 dict(
                     life,
                     maturity_coupon_rate=0.1,
-                    observations=[ins.AutocallableObservation(closed, 110)],
+                    observations=[
+                        ins.AutocallableObservation.snowball(closed, 110, coupon_rate=0)
+                    ],
                 ),
             ),
             (
@@ -889,9 +954,11 @@ class ApiConsistencyTests(unittest.TestCase):
         for level in (0, -1, float("nan"), float("inf")):
             with self.subTest(level=level):
                 with self.assertRaises(InvalidInputError):
-                    ins.AutocallableObservation(time, level)
+                    ins.AutocallableObservation.snowball(time, level, coupon_rate=0)
                 with self.assertRaises(InvalidInputError):
-                    ins.autocallable_observations([time], [level])
+                    ins.autocallable_observations(
+                        [time], [level], knock_out_coupon_rates=[0]
+                    )
         for field, keyword, invalids in (
             (
                 "coupon_rate",
@@ -916,7 +983,7 @@ class ApiConsistencyTests(unittest.TestCase):
                             [time], [110], **{keyword: [invalid]}
                         )
         records = ins.autocallable_observations(
-            [time], [110], knock_out_coupon_rates=[-0.01], coupon_barrier_levels=[0]
+            [time], [110], knock_out_coupon_rates=[-0.01]
         )
         self.assertEqual(records[0].coupon_rate, -0.01)
         self.assertEqual(records[0].coupon_barrier_level, 0)

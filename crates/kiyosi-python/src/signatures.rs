@@ -26,14 +26,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     )?;
     defaults.set_item("rebate", kiyosi::BarrierOptionTerms::DEFAULT_REBATE)?;
     defaults.set_item(
-        "coupon_rate",
-        kiyosi::AutocallableObservation::DEFAULT_COUPON_RATE,
-    )?;
-    defaults.set_item(
-        "coupon_barrier_level",
-        kiyosi::AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL,
-    )?;
-    defaults.set_item(
         "observation_mode",
         match kiyosi::ObservationMode::default() {
             kiyosi::ObservationMode::Continuous => "continuous",

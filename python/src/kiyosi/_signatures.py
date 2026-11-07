@@ -55,8 +55,6 @@ def install(native: ModuleType) -> None:
                     for key, p in original.parameters.items()
                     if p.default is Ellipsis
                 )
-            if name == "PhoenixOption":
-                constructor_defaults.pop("coupon_rate", None)
             resolved = _signature(value, constructor_defaults)
             if resolved != original:
                 value.__signature__ = resolved

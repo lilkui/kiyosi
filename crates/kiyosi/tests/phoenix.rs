@@ -50,7 +50,7 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
         let mut input = terms();
         input.coupon = original_coupon;
         input.observations =
-            autocallable_observations(&[date(4, 1)], &[110.0], None, None).unwrap();
+            autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[0.0])).unwrap();
         let note = PhoenixOption::new(input.clone()).unwrap();
         for coupon in [-0.02, 0.0, 0.02] {
             let (expected_coupon, payment) = match original_coupon {
@@ -343,7 +343,8 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     t.lower_strike = 100.0;
     t.principal_ratio = 0.25;
     t.expiry_time = end;
-    t.observations = autocallable_observations(&[middle, end], &[100.0; 2], None, None).unwrap();
+    t.observations =
+        autocallable_observations(&[middle, end], &[100.0; 2], None, Some(&[0.0; 2])).unwrap();
     let note = PhoenixOption::new(t).unwrap();
     let ctx = market(100.0, date(1, 1))
         .replace(PricingContextChanges {

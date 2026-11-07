@@ -95,8 +95,9 @@ class SnowballTests(unittest.TestCase):
         )
         self.assertEqual(contract().principal_ratio, 1)
         self.assertIsNone(contract().barrier_state)
-        self.assertEqual(AutocallableObservation(END, 110).coupon_rate, 0)
-        observations = autocallable_observations(iter([END]), iter([110]))
+        observations = autocallable_observations(
+            iter([END]), iter([110]), knock_out_coupon_rates=[0]
+        )
         note = contract(observations=iter(observations))
         observations.clear()
         copy = note.observations
@@ -124,7 +125,10 @@ class SnowballTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(exception):
                 note.replace_history(**changes)
         self.assertEqual(
-            note, contract(observations=[AutocallableObservation(END, 110)])
+            note,
+            contract(
+                observations=[AutocallableObservation.snowball(END, 110, coupon_rate=0)]
+            ),
         )
         for fields in (
             {"initial_spot": True},
@@ -138,13 +142,13 @@ class SnowballTests(unittest.TestCase):
                 contract(**fields)
         with self.assertRaises(ValueError):
             contract(knock_in_observation_mode="daily")
-        for fields in (
-            {"coupon_rate": None},
-            {"coupon_rate": True},
-            {"coupon_barrier_level": "0"},
+        for factory, fields in (
+            (AutocallableObservation.snowball, {"coupon_rate": None}),
+            (AutocallableObservation.snowball, {"coupon_rate": True}),
+            (AutocallableObservation.phoenix, {"coupon_barrier_level": "0"}),
         ):
             with self.assertRaises(TypeError):
-                AutocallableObservation(END, 110, **fields)
+                factory(END, 110, **fields)
         for fields, error in (
             ({"asset_step_count": True}, TypeError),
             ({"asset_step_count": 4.5}, TypeError),
@@ -161,7 +165,12 @@ class SnowballTests(unittest.TestCase):
         for fields, expected_error in (
             ({"observations": []}, InvalidInputError),
             (
-                {"observations": [AutocallableObservation(END, 110)] * 2},
+                {
+                    "observations": [
+                        AutocallableObservation.snowball(END, 110, coupon_rate=0)
+                    ]
+                    * 2
+                },
                 InvalidInputError,
             ),
             ({"lower_strike": 101}, InvalidInputError),
@@ -180,7 +189,13 @@ class SnowballTests(unittest.TestCase):
             ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
         ):
             self.assert_rejection(expected_error, contract, **fields)
-        self.assert_rejection(InvalidInputError, AutocallableObservation, END, math.nan)
+        self.assert_rejection(
+            InvalidInputError,
+            AutocallableObservation.snowball,
+            END,
+            math.nan,
+            coupon_rate=0,
+        )
         engine = QuadratureAutocallableEngine()
         unknown = contract(knock_in_observation_mode="every_trading_day")
         self.assert_rejection(
@@ -208,12 +223,20 @@ class SnowballTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError):
             contract(
                 expiry_time=datetime(2025, 4, 5),
-                observations=[AutocallableObservation(datetime(2025, 2, 1), 110)],
+                observations=[
+                    AutocallableObservation.snowball(
+                        datetime(2025, 2, 1), 110, coupon_rate=0
+                    )
+                ],
             )
         with self.assertRaises(InvalidInputError):
             contract(
                 expiry_time=datetime(2025, 4, 5),
-                observations=[AutocallableObservation(datetime(2025, 2, 3), 110)],
+                observations=[
+                    AutocallableObservation.snowball(
+                        datetime(2025, 2, 3), 110, coupon_rate=0
+                    )
+                ],
             )
         for valuation in (datetime(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1)):
             self.assert_rejection(
@@ -299,7 +322,9 @@ class SnowballTests(unittest.TestCase):
             lower_strike=0,
             knock_in_level=100,
             maturity_coupon_rate=0,
-            observations=autocallable_observations([end], [100]),
+            observations=autocallable_observations(
+                [end], [100], knock_out_coupon_rates=[0]
+            ),
         )
         price = QuadratureAutocallableEngine().price(
             dated_history(note, context), context
@@ -332,6 +357,7 @@ class SnowballTests(unittest.TestCase):
                                 datetime(2025, 1, 7),
                             ],
                             [110] * 3,
+                            knock_out_coupon_rates=[0] * 3,
                         ),
                     )
                     context = market(15, valuation, 0.2, rate, dividend)
@@ -454,7 +480,9 @@ class SnowballTests(unittest.TestCase):
             lower_strike=100,
             maturity_coupon_rate=0,
             barrier_state="no_event",
-            observations=autocallable_observations([END], [110]),
+            observations=autocallable_observations(
+                [END], [110], knock_out_coupon_rates=[0]
+            ),
         )
         engine = QuadratureAutocallableEngine()
         context = market(80)

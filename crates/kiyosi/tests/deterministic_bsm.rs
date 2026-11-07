@@ -196,7 +196,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             &FiniteDifferenceDoubleTouchEngine::default(),
         ],
     )?;
-    let observations = autocallable_observations(&[end], &[120.0], None, None)?;
+    let observations = autocallable_observations(&[end], &[120.0], Some(&[0.0]), None)?;
     macro_rules! note {
         ($option:expr) => {
             verify(
@@ -512,7 +512,12 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
         0.0,
         start,
         end,
-        autocallable_observations(&[start.add_days(30)?, end], &[300.0, 300.0], None, None)?,
+        autocallable_observations(
+            &[start.add_days(30)?, end],
+            &[300.0, 300.0],
+            Some(&[0.0; 2]),
+            None,
+        )?,
         Some((end).time_of_day()),
     );
     terms.calendar = TradingCalendar::all_days();

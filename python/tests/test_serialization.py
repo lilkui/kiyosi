@@ -50,7 +50,7 @@ def values():
         "knock_in_level": 80,
         "upper_strike": 100,
         "lower_strike": 0,
-        "observations": [i.AutocallableObservation(END, 110)],
+        "observations": [i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
         **life,
     }
     yield from (
@@ -86,7 +86,7 @@ def values():
             spot_price=100,
             valuation_time=START,
         ),
-        i.AutocallableObservation(END, 110),
+        i.AutocallableObservation.snowball(END, 110, coupon_rate=0),
         i.EuropeanOption(**vanilla),
         i.AmericanOption(**vanilla),
         i.CashOrNothingOption(payout=10, **vanilla),
@@ -390,7 +390,10 @@ class SerializationTests(unittest.TestCase):
         from datetime import timedelta
 
         times = [START + timedelta(days=n) for n in range(1000)]
-        observations = [i.AutocallableObservation(time, 110) for time in times]
+        observations = [
+            i.AutocallableObservation.snowball(time, 110, coupon_rate=0)
+            for time in times
+        ]
         for original in values():
             if isinstance(original, i.Accumulator):
                 option = original.replace(

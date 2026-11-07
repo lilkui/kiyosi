@@ -2,9 +2,11 @@
 
 ``AutocallableObservation.snowball(..., coupon_rate=...)`` supplies snowball
 knock-out coupons. ``AutocallableObservation.phoenix(..., coupon_barrier_level=...)``
-supplies Phoenix thresholds; the note supplies the coupon amount. The basic
-``AutocallableObservation(time, knock_out_level)`` constructor sets both coupon
-fields to zero. Mixed nonzero coupon fields are rejected immediately.
+supplies Phoenix thresholds; the note supplies the coupon amount. Construction
+requires one of these product-specific factories. Zero knock-out coupons and
+unconditional Phoenix coupons require explicit zero values.
+``autocallable_observations`` requires exactly one of ``knock_out_coupon_rates``
+and ``coupon_barrier_levels``. Mixed nonzero coupon fields are rejected immediately.
 Observation constructors and ``autocallable_observations`` validate positive
 knock-out levels, finite signed coupon rates and nonnegative coupon barriers
 on construction. Notes additionally validate ordering, life bounds and their

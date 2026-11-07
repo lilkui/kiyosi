@@ -25,7 +25,16 @@ class AutocallableValidationTests(unittest.TestCase):
             }
             with self.assertRaises(InvalidInputError):
                 BinarySnowballOption(
-                    **(fields | {"observations": [AutocallableObservation(end, 110)]}),
+                    **(
+                        fields
+                        | {
+                            "observations": [
+                                AutocallableObservation.snowball(
+                                    end, 110, coupon_rate=0
+                                )
+                            ]
+                        }
+                    ),
                     expiry_time=end,
                 )
             note = BinarySnowballOption(**fields, expiry_time=datetime(2025, 1, 3))

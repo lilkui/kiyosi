@@ -173,15 +173,11 @@ impl SnowballPresetTerms {
         let observations = self
             .observation_times
             .into_iter()
-            .map(|date| {
-                let mut record = AutocallableObservation {
-                    time: date,
-                    knock_out_level: self.knock_out_level,
-                    coupon_rate: AutocallableObservation::DEFAULT_COUPON_RATE,
-                    coupon_barrier_level: AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL,
-                };
-                record.coupon_rate = self.coupon_rate;
-                record
+            .map(|date| AutocallableObservation {
+                time: date,
+                knock_out_level: self.knock_out_level,
+                coupon_rate: self.coupon_rate,
+                coupon_barrier_level: 0.0,
             })
             .collect();
         let mut terms = SnowballTerms::new(
@@ -378,7 +374,7 @@ impl PhoenixPresetTerms {
     /// ```
     pub fn expand(self, preset: PhoenixPreset) -> Result<PhoenixOption> {
         let coupon_barrier = match preset {
-            PhoenixPreset::FixedCouponNote => AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL,
+            PhoenixPreset::FixedCouponNote => 0.0,
             PhoenixPreset::DigitalCouponNote {
                 coupon_barrier_level,
             } => coupon_barrier_level,
@@ -386,15 +382,11 @@ impl PhoenixPresetTerms {
         let observations = self
             .observation_times
             .into_iter()
-            .map(|date| {
-                let mut record = AutocallableObservation {
-                    time: date,
-                    knock_out_level: self.knock_out_level,
-                    coupon_rate: AutocallableObservation::DEFAULT_COUPON_RATE,
-                    coupon_barrier_level: AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL,
-                };
-                record.coupon_barrier_level = coupon_barrier;
-                record
+            .map(|date| AutocallableObservation {
+                time: date,
+                knock_out_level: self.knock_out_level,
+                coupon_rate: 0.0,
+                coupon_barrier_level: coupon_barrier,
             })
             .collect();
         let mut terms = PhoenixTerms::new(

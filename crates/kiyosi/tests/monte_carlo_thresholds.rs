@@ -116,7 +116,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
                 100.0,
                 start,
                 end,
-                autocallable_observations(&[end], &[120.0], None, None).unwrap(),
+                autocallable_observations(&[end], &[120.0], Some(&[0.0]), None).unwrap(),
                 Some((end).time_of_day()),
             );
             terms.knock_in_observation_mode = mode;

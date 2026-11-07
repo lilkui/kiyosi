@@ -210,17 +210,10 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 
 /// Observation with validated numeric terms for an autocallable note.
 ///
-/// Parameters
-/// ----------
-/// time : datetime.datetime
-///     Exact observation time.
-/// knock_out_level : float
-///     Positive inclusive knock-out threshold.
-/// Use snowball(..., coupon_rate=...) or phoenix(..., coupon_barrier_level=...)
-/// for product-specific coupon terms. The basic constructor uses zero coupon fields.
-///
 /// Notes
 /// -----
+/// Construct with snowball(..., coupon_rate=...) or phoenix(..., coupon_barrier_level=...).
+/// A zero knock-out coupon or unconditional Phoenix coupon requires an explicit zero.
 /// Numeric terms are validated in Rust on construction. Note construction also
 /// validates observation ordering, life bounds and product-specific constraints.
 /// Invalid numeric terms raise InvalidInputError.
@@ -229,15 +222,21 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 pub(crate) struct AutocallableObservation(pub kiyosi::AutocallableObservation);
 #[pymethods]
 impl AutocallableObservation {
-    #[new]
-    #[pyo3(signature = (time, knock_out_level))]
-    fn new(time: &Bound<'_, PyAny>, knock_out_level: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::AutocallableObservation::new(
-            timestamp(time)?,
-            real(knock_out_level)?,
-        ))?))
-    }
     /// Create a snowball observation with an annual knock-out coupon.
+    ///
+    /// Parameters
+    /// ----------
+    /// time : datetime.datetime
+    ///     Exact observation timestamp.
+    /// knock_out_level : float
+    ///     Positive finite inclusive knock-out threshold.
+    /// coupon_rate : float
+    ///     Finite signed annual knock-out coupon; supply zero explicitly for no coupon.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInputError
+    ///     If the level is nonpositive or non-finite, or the coupon is non-finite.
     #[staticmethod]
     #[pyo3(signature = (time, knock_out_level, *, coupon_rate))]
     fn snowball(
@@ -252,6 +251,21 @@ impl AutocallableObservation {
         ))?))
     }
     /// Create a Phoenix observation with a coupon threshold; the note supplies the amount.
+    ///
+    /// Parameters
+    /// ----------
+    /// time : datetime.datetime
+    ///     Exact observation timestamp.
+    /// knock_out_level : float
+    ///     Positive finite inclusive knock-out threshold.
+    /// coupon_barrier_level : float
+    ///     Nonnegative finite coupon threshold; supply zero explicitly for unconditional coupons.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInputError
+    ///     If the knock-out level is nonpositive or non-finite, or the coupon threshold
+    ///     is negative or non-finite.
     #[staticmethod]
     #[pyo3(signature = (time, knock_out_level, *, coupon_barrier_level))]
     fn phoenix(
@@ -334,9 +348,9 @@ impl AutocallableObservation {
 /// knock_out_levels : iterable of float
 ///     Positive inclusive knock-out levels, one per observation timestamp.
 /// knock_out_coupon_rates : iterable of float or None, optional
-///     Annual snowball coupons; None uses zero for every observation.
+///     Explicit annual snowball coupons, including zero for no coupon.
 /// coupon_barrier_levels : iterable of float or None, optional
-///     Phoenix coupon thresholds; None uses zero for every observation.
+///     Explicit Phoenix coupon thresholds, including zero for unconditional coupons.
 ///
 /// Returns
 /// -------
@@ -346,11 +360,13 @@ impl AutocallableObservation {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If sequence lengths differ or numeric levels or coupons are invalid.
+///     If neither or both coupon choices are supplied, sequence lengths differ,
+///     or numeric levels or coupons are invalid.
 ///
 /// Notes
 /// -----
 /// The note constructor validates ordering, life bounds and product-specific constraints.
+/// Supply exactly one of knock_out_coupon_rates and coupon_barrier_levels.
 #[pyfunction]
 #[pyo3(signature = (observation_times, knock_out_levels, *, knock_out_coupon_rates=None, coupon_barrier_levels=None))]
 pub(crate) fn autocallable_observations(

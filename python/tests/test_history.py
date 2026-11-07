@@ -184,7 +184,11 @@ class HistoryTests(unittest.TestCase):
             maturity_coupon_rate=0.1,
             effective_time=start,
             expiry_time=end,
-            observations=[i.AutocallableObservation(datetime(2025, 1, 3), 110)],
+            observations=[
+                i.AutocallableObservation.snowball(
+                    datetime(2025, 1, 3), 110, coupon_rate=0
+                )
+            ],
             barrier_state="knocked_out",
             history_time=start,
         )

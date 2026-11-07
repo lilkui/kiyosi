@@ -201,7 +201,14 @@ class PhoenixTests(unittest.TestCase):
             ({"principal_ratio": -1}, InvalidInputError),
             ({"observations": []}, InvalidInputError),
             (
-                {"observations": [AutocallableObservation(END, 110)] * 2},
+                {
+                    "observations": [
+                        AutocallableObservation.phoenix(
+                            END, 110, coupon_barrier_level=0
+                        )
+                    ]
+                    * 2
+                },
                 InvalidInputError,
             ),
             ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
@@ -245,7 +252,11 @@ class PhoenixTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError):
             contract(
                 expiry_time=datetime(2025, 4, 5),
-                observations=[AutocallableObservation(datetime(2025, 2, 1), 110)],
+                observations=[
+                    AutocallableObservation.phoenix(
+                        datetime(2025, 2, 1), 110, coupon_barrier_level=0
+                    )
+                ],
             )
         with self.assertRaises(InvalidInputError):
             contract(expiry_time=datetime(2025, 4, 5), barrier_state=None)
@@ -325,7 +336,9 @@ class PhoenixTests(unittest.TestCase):
         for coupon in (0.08, -0.2, 0):
             note = contract(
                 coupon_rate=coupon,
-                observations=autocallable_observations([MIDDLE, END], [200, 190]),
+                observations=autocallable_observations(
+                    [MIDDLE, END], [200, 190], coupon_barrier_levels=[0] * 2
+                ),
             )
             for valuation in (START, MIDDLE, datetime(2025, 2, 3, 0, 0, 0, 1)):
                 v = (
@@ -364,7 +377,9 @@ class PhoenixTests(unittest.TestCase):
             lower_strike=100,
             principal_ratio=0.25,
             expiry_time=end,
-            observations=autocallable_observations([middle, end], [100, 100]),
+            observations=autocallable_observations(
+                [middle, end], [100, 100], coupon_barrier_levels=[0] * 2
+            ),
         )
         time = 181 / 365
         survival = math.erfc((0.03 - 2) * math.sqrt(time) / (2 * math.sqrt(2))) / 2
@@ -384,7 +399,10 @@ class PhoenixTests(unittest.TestCase):
             )
         # Only a final unconditional coupon remains, so volatility cannot affect cashflows.
         fixed = contract(
-            lower_strike=100, observations=autocallable_observations([END], [110])
+            lower_strike=100,
+            observations=autocallable_observations(
+                [END], [110], coupon_barrier_levels=[0]
+            ),
         )
         engine = QuadratureAutocallableEngine()
         quote = engine.price(dated_history(fixed, market()), market())

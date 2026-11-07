@@ -270,7 +270,7 @@ Recover the model volatility from its price using a chosen bracket:
 Solve a snowball coupon with an explicit maturity convention:
 
 >>> from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
->>> observation = AutocallableObservation(option.expiry_time, 110)
+>>> observation = AutocallableObservation.snowball(option.expiry_time, 110, coupon_rate=0)
 >>> note = BinarySnowballOption(maturity_coupon_rate=0.06,
 ...     effective_time=option.effective_time, expiry_time=option.expiry_time,
 ...     observations=[observation])
@@ -289,7 +289,8 @@ Solve a Phoenix coupon in its existing per-period units:
 ...     knock_in_level=80, upper_strike=100, lower_strike=100,
 ...     observation_clock_time=option.expiry_time.time(),
 ...     effective_time=option.effective_time, expiry_time=option.expiry_time,
-...     observations=[observation])
+...     observations=[AutocallableObservation.phoenix(
+...         option.expiry_time, 110, coupon_barrier_level=0)])
 >>> target = coupon_engine.price(phoenix.replace(coupon_per_period=0.02), context)
 >>> round(implied_phoenix_coupon(coupon_engine, phoenix, context, target), 6)
 0.02

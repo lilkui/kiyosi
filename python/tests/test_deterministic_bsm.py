@@ -126,7 +126,7 @@ def cases():
         ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
         10,
     )
-    obs = ins.autocallable_observations([END], [120])
+    obs = ins.autocallable_observations([END], [120], knock_out_coupon_rates=[0])
     note = dict(life, observations=obs)
     downside = {
         "initial_spot": 100,
@@ -635,7 +635,9 @@ class DeterministicBsmTests(unittest.TestCase):
             lower_strike=0,
             knock_in_observation_mode="at_expiry",
             observations=ins.autocallable_observations(
-                [START + timedelta(days=30), end], [300, 300]
+                [START + timedelta(days=30), end],
+                [300, 300],
+                knock_out_coupon_rates=[0] * 2,
             ),
             calendar=all_days_calendar(),
         )

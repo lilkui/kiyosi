@@ -130,7 +130,7 @@ def contracts():
         principal_ratio=1,
         effective_time=START,
         expiry_time=END,
-        observations=[i.AutocallableObservation(END, 110)],
+        observations=[i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
     )
     yield i.PhoenixOption(
         observation_clock_time=clock_time(),
@@ -144,7 +144,7 @@ def contracts():
         principal_ratio=1,
         effective_time=START,
         expiry_time=END,
-        observations=[i.AutocallableObservation(END, 110)],
+        observations=[i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
     )
     yield i.BinarySnowballOption(
         maturity_coupon_rate=0.1,
@@ -152,7 +152,7 @@ def contracts():
         principal_ratio=1,
         effective_time=START,
         expiry_time=END,
-        observations=[i.AutocallableObservation(END, 110)],
+        observations=[i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
     )
     yield i.TernarySnowballOption(
         observation_clock_time=clock_time(),
@@ -164,7 +164,7 @@ def contracts():
         principal_ratio=1,
         effective_time=START,
         expiry_time=END,
-        observations=[i.AutocallableObservation(END, 110)],
+        observations=[i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
     )
     yield i.GeometricAveragePriceOption(
         option_type="call",
@@ -218,7 +218,7 @@ UPDATES = {
     "observation_clock_time": clock_time(1, 2, 3, 456789),
     "barrier_state": "knocked_out",
     "principal_ratio": 0.9,
-    "observations": [i.AutocallableObservation(END, 115)],
+    "observations": [i.AutocallableObservation.snowball(END, 115, coupon_rate=0)],
     "maturity_coupon_rate": 0.15,
     "minimum_coupon_rate": 0.03,
     "coupon_rate": 0.15,
@@ -548,7 +548,7 @@ class ContractReplacementTests(unittest.TestCase):
         note = next(
             value for value in contracts() if isinstance(value, i.PhoenixOption)
         )
-        records = [i.AutocallableObservation(END, 115)]
+        records = [i.AutocallableObservation.snowball(END, 115, coupon_rate=0)]
         changed = note.replace(
             observations=records,
             coupon_per_period=0.02,

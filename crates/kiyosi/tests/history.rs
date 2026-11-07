@@ -103,8 +103,8 @@ fn dated_history_survives_future_schedule_edits() -> Result<()> {
         start,
         end,
         vec![
-            AutocallableObservation::new(past, 110.0)?,
-            AutocallableObservation::new(end, 110.0)?,
+            AutocallableObservation::snowball(past, 110.0, 0.0)?,
+            AutocallableObservation::snowball(end, 110.0, 0.0)?,
         ],
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
@@ -112,8 +112,8 @@ fn dated_history_survives_future_schedule_edits() -> Result<()> {
     let updated = original.replace(BinarySnowballOptionChanges {
         observations: Some(vec![
             original.observations()[0],
-            AutocallableObservation::new(at, 110.0)?,
-            AutocallableObservation::new(future, 110.0)?,
+            AutocallableObservation::snowball(at, 110.0, 0.0)?,
+            AutocallableObservation::snowball(future, 110.0, 0.0)?,
             original.observations()[1],
         ]),
         ..Default::default()
@@ -309,7 +309,7 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
         Accumulator::new(accumulator)?,
         &market,
     )?;
-    let records = vec![AutocallableObservation::new(end, 110.0)?];
+    let records = vec![AutocallableObservation::snowball(end, 110.0, 0.0)?];
     let state = Some(AutocallableBarrierState::NoEvent);
     check(
         &QuadratureAutocallableEngine::default(),
@@ -485,7 +485,11 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
         0.1,
         start,
         end,
-        vec![AutocallableObservation::new(start.add_days(1)?, 110.0)?],
+        vec![AutocallableObservation::snowball(
+            start.add_days(1)?,
+            110.0,
+            0.0,
+        )?],
     ))?
     .replace_history(Some(AutocallableBarrierState::KnockedOut))?
     .with_history_time(Some(start))?;

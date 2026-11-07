@@ -128,7 +128,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
             &[observation]
         );
 
-        let records = vec![AutocallableObservation::new(observation, 110.0)?];
+        let records = vec![AutocallableObservation::snowball(observation, 110.0, 0.0)?];
         let mut terms = SnowballTerms::new(
             0.12,
             100.0,
@@ -452,7 +452,7 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
         0.0,
         time(6, 9, 0),
         time(7, 15, 0),
-        vec![AutocallableObservation::new(time(7, 15, 0), 110.0).unwrap()],
+        vec![AutocallableObservation::snowball(time(7, 15, 0), 110.0, 0.0).unwrap()],
         Some((time(7, 15, 0)).time_of_day()),
     ))
     .unwrap();
@@ -620,7 +620,7 @@ fn empty_daily_windows_are_valid_except_for_range_accrual() -> Result<()> {
         0.0,
         start,
         end,
-        vec![AutocallableObservation::new(end, 1000.0)?],
+        vec![AutocallableObservation::snowball(end, 1000.0, 0.0)?],
         Some(clock),
     ))?;
     assert_eq!(
@@ -690,7 +690,11 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
         0.0,
         time(6, 9, 0),
         time(6, 18, 0),
-        vec![AutocallableObservation::new(time(6, 10, 0), 1000.0)?],
+        vec![AutocallableObservation::snowball(
+            time(6, 10, 0),
+            1000.0,
+            0.0,
+        )?],
         Some(clock),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
@@ -783,7 +787,11 @@ fn knock_in_mode_replacement_requires_clock_and_preserves_original_on_failure() 
         0.0,
         time(6, 9, 0),
         time(7, 18, 0),
-        vec![AutocallableObservation::new(time(7, 15, 0), 110.0)?],
+        vec![AutocallableObservation::snowball(
+            time(7, 15, 0),
+            110.0,
+            0.0,
+        )?],
         Some(clock),
     ))?;
     let inactive = original.replace(SnowballOptionChanges {
@@ -875,7 +883,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         0.0,
         start,
         expiry,
-        vec![AutocallableObservation::new(time(6, 10, 0), 1000.0).unwrap()],
+        vec![AutocallableObservation::snowball(time(6, 10, 0), 1000.0, 0.0).unwrap()],
         Some((expiry).time_of_day()),
     ))
     .unwrap();
@@ -906,7 +914,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         0.0,
         start,
         expiry,
-        vec![AutocallableObservation::new(time(6, 10, 0), 110.0).unwrap()],
+        vec![AutocallableObservation::snowball(time(6, 10, 0), 110.0, 0.0).unwrap()],
         Some((expiry).time_of_day()),
     );
     terms.observations[0] = terms.observations[0]
@@ -976,8 +984,8 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
             start,
             last,
             vec![
-                AutocallableObservation::new(first, 1000.0).unwrap(),
-                AutocallableObservation::new(last, 1000.0).unwrap(),
+                AutocallableObservation::snowball(first, 1000.0, 0.0).unwrap(),
+                AutocallableObservation::snowball(last, 1000.0, 0.0).unwrap(),
             ],
             Some((last).time_of_day()),
         )
@@ -1084,7 +1092,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         assert_eq!(changed.accumulation_schedule()?.times(), &[start, last]);
     }
 
-    let observations = vec![AutocallableObservation::new(expiry, 110.0)?];
+    let observations = vec![AutocallableObservation::snowball(expiry, 110.0, 0.0)?];
     let mut terms = SnowballTerms::new(
         0.1,
         100.0,

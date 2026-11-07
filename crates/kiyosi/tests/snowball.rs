@@ -16,7 +16,7 @@ fn terms() -> SnowballTerms {
         60.0,
         date(1, 1),
         date(4, 1),
-        vec![AutocallableObservation::new(date(4, 1), 110.0).unwrap()],
+        vec![AutocallableObservation::snowball(date(4, 1), 110.0, 0.0).unwrap()],
         Some((date(4, 1)).time_of_day()),
     )
 }
@@ -80,7 +80,7 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        autocallable_observations(&[date(4, 1)], &[], None, None).unwrap_err(),
+        autocallable_observations(&[date(4, 1)], &[], Some(&[0.0]), None).unwrap_err(),
         Error::InvalidInput(_)
     ));
     let note = SnowballOption::new(terms()).unwrap();
@@ -224,7 +224,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
             t.observations = autocallable_observations(
                 &[date(1, 3), date(1, 6), date(1, 7)],
                 &[110.0; 3],
-                None,
+                Some(&[0.0; 3]),
                 None,
             )
             .unwrap();

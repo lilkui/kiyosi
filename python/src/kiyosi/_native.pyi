@@ -9706,17 +9706,10 @@ class QuadratureAutocallableEngine:
 class AutocallableObservation:
     """Observation with validated numeric terms for an autocallable note.
 
-    Parameters
-    ----------
-    time : datetime.datetime
-        Exact observation time.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    Use snowball(..., coupon_rate=...) or phoenix(..., coupon_barrier_level=...)
-    for product-specific coupon terms. The basic constructor uses zero coupon fields.
-
     Notes
     -----
+    Construct with snowball(..., coupon_rate=...) or phoenix(..., coupon_barrier_level=...).
+    A zero knock-out coupon or unconditional Phoenix coupon requires an explicit zero.
     Numeric terms are validated in Rust on construction. Note construction also
     validates observation ordering, life bounds and product-specific constraints.
     Invalid numeric terms raise InvalidInputError."""
@@ -9735,18 +9728,47 @@ class AutocallableObservation:
         InvalidInputError; representation failures use native Python exceptions.
         Note construction checks schedule and product-specific constraints."""
 
-    def __init__(self, time: datetime, knock_out_level: _Real) -> None: ...
+    def __new__(cls, _token: Never, /) -> Self: ...
     @staticmethod
     def snowball(
         time: datetime, knock_out_level: _Real, *, coupon_rate: _Real
     ) -> AutocallableObservation:
-        """Create a snowball observation with an annual knock-out coupon."""
+        """Create a snowball observation with an annual knock-out coupon.
+
+        Parameters
+        ----------
+        time : datetime.datetime
+            Exact observation timestamp.
+        knock_out_level : float
+            Positive finite inclusive knock-out threshold.
+        coupon_rate : float
+            Finite signed annual knock-out coupon; supply zero explicitly for no coupon.
+
+        Raises
+        ------
+        InvalidInputError
+            If the level is nonpositive or non-finite, or the coupon is non-finite."""
 
     @staticmethod
     def phoenix(
         time: datetime, knock_out_level: _Real, *, coupon_barrier_level: _Real
     ) -> AutocallableObservation:
-        """Create a Phoenix observation with a coupon threshold; the note supplies the amount."""
+        """Create a Phoenix observation with a coupon threshold; the note supplies the amount.
+
+        Parameters
+        ----------
+        time : datetime.datetime
+            Exact observation timestamp.
+        knock_out_level : float
+            Positive finite inclusive knock-out threshold.
+        coupon_barrier_level : float
+            Nonnegative finite coupon threshold; supply zero explicitly for unconditional coupons.
+
+        Raises
+        ------
+        InvalidInputError
+            If the knock-out level is nonpositive or non-finite, or the coupon threshold
+            is negative or non-finite."""
 
     @property
     def time(self) -> datetime:
@@ -9764,12 +9786,13 @@ class AutocallableObservation:
     def coupon_barrier_level(self) -> float:
         """Return the finite nonnegative Phoenix coupon threshold."""
 
+@overload
 def autocallable_observations(
     observation_times: Iterable[datetime],
     knock_out_levels: Iterable[_Real],
     *,
-    knock_out_coupon_rates: Iterable[_Real] | None = None,
-    coupon_barrier_levels: Iterable[_Real] | None = None,
+    knock_out_coupon_rates: Iterable[_Real],
+    coupon_barrier_levels: None = None,
 ) -> list[AutocallableObservation]:
     """Associate parallel sequences into input observation records.
 
@@ -9780,9 +9803,9 @@ def autocallable_observations(
     knock_out_levels : iterable of float
         Positive inclusive knock-out levels, one per observation timestamp.
     knock_out_coupon_rates : iterable of float or None, optional
-        Annual snowball coupons; None uses zero for every observation.
+        Explicit annual snowball coupons, including zero for no coupon.
     coupon_barrier_levels : iterable of float or None, optional
-        Phoenix coupon thresholds; None uses zero for every observation.
+        Explicit Phoenix coupon thresholds, including zero for unconditional coupons.
 
     Returns
     -------
@@ -9792,11 +9815,50 @@ def autocallable_observations(
     Raises
     ------
     InvalidInputError
-        If sequence lengths differ or numeric levels or coupons are invalid.
+        If neither or both coupon choices are supplied, sequence lengths differ,
+        or numeric levels or coupons are invalid.
 
     Notes
     -----
-    The note constructor validates ordering, life bounds and product-specific constraints."""
+    The note constructor validates ordering, life bounds and product-specific constraints.
+    Supply exactly one of knock_out_coupon_rates and coupon_barrier_levels."""
+
+@overload
+def autocallable_observations(
+    observation_times: Iterable[datetime],
+    knock_out_levels: Iterable[_Real],
+    *,
+    knock_out_coupon_rates: None = None,
+    coupon_barrier_levels: Iterable[_Real],
+) -> list[AutocallableObservation]:
+    """Associate parallel sequences into input observation records.
+
+    Parameters
+    ----------
+    observation_times : iterable of datetime.datetime
+        Observation times; the note constructor checks ordering and life bounds.
+    knock_out_levels : iterable of float
+        Positive inclusive knock-out levels, one per observation timestamp.
+    knock_out_coupon_rates : iterable of float or None, optional
+        Explicit annual snowball coupons, including zero for no coupon.
+    coupon_barrier_levels : iterable of float or None, optional
+        Explicit Phoenix coupon thresholds, including zero for unconditional coupons.
+
+    Returns
+    -------
+    list of AutocallableObservation
+        Owned result; no input is mutated.
+
+    Raises
+    ------
+    InvalidInputError
+        If neither or both coupon choices are supplied, sequence lengths differ,
+        or numeric levels or coupons are invalid.
+
+    Notes
+    -----
+    The note constructor validates ordering, life bounds and product-specific constraints.
+    Supply exactly one of knock_out_coupon_rates and coupon_barrier_levels."""
 
 class SnowballOption:
     """Snowball with knock-out coupons and capped knock-in downside loss.

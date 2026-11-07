@@ -118,7 +118,9 @@ class TimestampTests(unittest.TestCase):
                 upper_strike=100,
                 lower_strike=0,
                 observation_clock_time=clock_time(15),
-                observations=autocallable_observations([observation], [110]),
+                observations=autocallable_observations(
+                    [observation], [110], knock_out_coupon_rates=[0]
+                ),
                 barrier_state="no_event",
                 **life,
             )
@@ -224,7 +226,9 @@ class TimestampTests(unittest.TestCase):
             changed = accumulator.replace(knock_out_observation_times=explicit)
             self.assertEqual(list(changed.knock_out_observation_schedule), explicit)
             self.assertEqual(list(changed.accumulation_schedule), [start, last])
-        observations = autocallable_observations([expiry], [110])
+        observations = autocallable_observations(
+            [expiry], [110], knock_out_coupon_rates=[0]
+        )
         terms = dict(
             initial_spot=100,
             knock_in_level=80,
@@ -339,7 +343,9 @@ class TimestampTests(unittest.TestCase):
                 lambda value=value: market(value),
                 lambda value=value: accumulator(effective_time=value),
                 lambda value=value: RateTermStructure.flat(0.02, reference_time=value),
-                lambda value=value: autocallable_observations([value], [110]),
+                lambda value=value: autocallable_observations(
+                    [value], [110], knock_out_coupon_rates=[0]
+                ),
                 lambda value=value: fixed_interval_schedule(
                     observation_clock_time=clock_time(),
                     start_time=value,
@@ -540,7 +546,9 @@ class TimestampTests(unittest.TestCase):
             lower_strike=0,
             effective_time=time(6, 9),
             expiry_time=time(7, 15),
-            observations=autocallable_observations([time(7, 15)], [110]),
+            observations=autocallable_observations(
+                [time(7, 15)], [110], knock_out_coupon_rates=[0]
+            ),
         )
         engine = QuadratureAutocallableEngine()
         self.assertAlmostEqual(
@@ -589,7 +597,9 @@ class TimestampTests(unittest.TestCase):
             lower_strike=0,
             effective_time=time(6, 9),
             expiry_time=time(6, 15),
-            observations=autocallable_observations([time(6, 10)], [1000]),
+            observations=autocallable_observations(
+                [time(6, 10)], [1000], knock_out_coupon_rates=[0]
+            ),
         )
         context = market(time(6, 9), 70).replace(
             model_parameters=BlackScholesMertonParameters(
@@ -664,7 +674,9 @@ class TimestampTests(unittest.TestCase):
             lower_strike=1,
             effective_time=start,
             expiry_time=last,
-            observations=autocallable_observations([first, last], [1000, 1000]),
+            observations=autocallable_observations(
+                [first, last], [1000, 1000], knock_out_coupon_rates=[0] * 2
+            ),
             knock_in_observation_mode="at_expiry",
         )
         context = market(start, 100)
