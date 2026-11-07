@@ -248,7 +248,9 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
     let result = engine
         .price_with_greeks(&dated(&option, &boundary), &boundary, GreeksRequest::all())
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+    assert_eq!(result.get(Greek::Delta), None);
+    assert_eq!(result.get(Greek::Vega), Some(0.0));
+    assert_eq!(result.get(Greek::Rho), Some(0.0));
     assert!(matches!(
         engine.price(&dated(&option, &past), &past).unwrap_err(),
         Error::InvalidInput(_)

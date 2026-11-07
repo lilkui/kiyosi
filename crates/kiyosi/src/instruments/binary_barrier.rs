@@ -445,6 +445,14 @@ macro_rules! monitoring_accessors {
                             .digital
                             .is_some_and(|digital| digital.at_spot_discontinuity(context, radius))
             }
+            fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
+                self.monitoring.all_greeks_unavailable(context, None)
+                    || !self.monitoring.payoff_terminated(context, None)
+                        && self
+                            .contract()
+                            .digital
+                            .is_some_and(|digital| digital.all_greeks_unavailable(context))
+            }
             fn time_stencil_available(
                 &self,
                 context: &PricingContext,

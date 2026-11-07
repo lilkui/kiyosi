@@ -317,7 +317,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertAlmostEqual(actual.price, 3 * math.exp(-0.04), delta=1e-12)
             self.assertIsNone(actual.delta)
             self.assertIsNone(actual.gamma)
-            self.assertIsNone(actual.vega)
+            self.assertEqual(actual.vega, 0)
             future = contract(
                 observation_mode="scheduled", observation_times=[END], rebate=3
             )
@@ -906,9 +906,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                         "delta",
                         "gamma",
                         "speed",
-                        "vega",
-                        "rho",
-                        "theta",
                         "charm",
                         "color",
                         "vanna",

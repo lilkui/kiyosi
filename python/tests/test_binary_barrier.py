@@ -407,7 +407,8 @@ class BinaryBarrierTests(unittest.TestCase):
                 self.context(120),
                 greeks="all",
             )
-            self.assertTrue(all(getattr(boundary, g) is None for g in GREEKS))
+            self.assertIsNone(boundary.delta)
+            self.assertIsNone(boundary.gamma)
             near = engine.price_with_greeks(
                 dated_history(option, self.context(119.995)),
                 self.context(119.995),

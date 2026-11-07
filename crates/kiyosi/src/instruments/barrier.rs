@@ -330,6 +330,11 @@ impl OptionContract for BarrierOption {
             || !self.monitoring.payoff_terminated(context, None)
                 && self.vanilla.at_spot_discontinuity(context, radius)
     }
+    fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
+        self.monitoring.all_greeks_unavailable(context, None)
+            || !self.monitoring.payoff_terminated(context, None)
+                && self.vanilla.all_greeks_unavailable(context)
+    }
     fn time_stencil_available(
         &self,
         context: &PricingContext,

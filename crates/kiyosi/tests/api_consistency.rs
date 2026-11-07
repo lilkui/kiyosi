@@ -4,6 +4,50 @@ use support::dated;
 use kiyosi::*;
 
 #[test]
+fn current_barrier_touches_retain_cashflow_parameter_greeks() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    for volatility in [0.0, 0.2] {
+        for timing in [RebateTiming::AtHit, RebateTiming::AtExpiry] {
+            let mut terms = BarrierOptionTerms::new(
+                OptionType::Call,
+                100.0,
+                start,
+                start.add_days(365)?,
+                120.0,
+                BarrierType::UpAndOut,
+            );
+            terms.rebate = 10.0;
+            terms.rebate_timing = timing;
+            let option = BarrierOption::new(terms)?;
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(0.05, 0.02, volatility)?,
+                120.0,
+                start,
+            )?;
+            let result = AnalyticBarrierEngine.price_with_greeks(
+                &option,
+                &context,
+                GreeksRequest::new([Greek::Delta, Greek::Rho, Greek::DividendRho, Greek::Vega]),
+            )?;
+            let expected = if timing == RebateTiming::AtExpiry {
+                -10.0 * (-0.05_f64).exp()
+            } else {
+                0.0
+            };
+            assert!((result.require(Greek::Rho)? - expected).abs() < 2e-8);
+            assert_eq!(result.require(Greek::DividendRho)?, 0.0);
+            assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
+            if volatility > 0.0 {
+                assert_eq!(result.require(Greek::Vega)?, 0.0);
+            } else {
+                assert_eq!(result.status(Greek::Vega), GreekStatus::Undefined);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn bounded_barrier_grids_keep_resolution_when_the_unused_upper_bound_changes() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let expiry = start.add_days(365)?;

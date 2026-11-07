@@ -420,7 +420,8 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
         .price_with_greeks(&dated(&unknown, &hit), &hit, GreeksRequest::all())
         .unwrap();
     assert_eq!(result.price(), 3.0);
-    assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+    assert_eq!(result.get(Greek::Delta), None);
+    assert_eq!(result.get(Greek::Gamma), None);
     assert!(matches!(
         engine
             .price_with_greeks(&dated(&unknown, &hit), &hit, GreeksRequest::new([]))
@@ -515,7 +516,8 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
             if time == t.expiry_time {
                 assert_eq!(result.get(Greek::Theta), None);
             } else if time == t.observation_times[0] {
-                assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+                assert_eq!(result.get(Greek::Delta), None);
+                assert_eq!(result.get(Greek::Gamma), None);
             }
         }
         t.observation_mode = ObservationMode::Continuous;

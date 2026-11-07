@@ -555,6 +555,7 @@ fn continuous_grid_refinement_schemes_and_settings_preserve_contracts() {
                 GreeksRequest::all(),
             )
             .unwrap();
-        assert!(Greek::ALL.iter().all(|&g| !result.has(g)));
+        assert_eq!(result.get(Greek::Delta), None);
+        assert_eq!(result.get(Greek::Gamma), None);
     }
 }

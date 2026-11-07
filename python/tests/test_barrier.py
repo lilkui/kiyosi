@@ -344,7 +344,9 @@ class BarrierTests(unittest.TestCase):
         result = engine.price_with_greeks(
             dated_history(option, self.context(120)), self.context(120), greeks="all"
         )
-        self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
+        self.assertIsNone(result.delta)
+        self.assertEqual(result.vega, 0)
+        self.assertAlmostEqual(result.require("rho"), -7 * math.exp(-0.05), delta=2e-8)
         near = engine.price_with_greeks(
             dated_history(option, self.context(119.995)),
             self.context(119.995),

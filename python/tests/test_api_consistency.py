@@ -15,6 +15,43 @@ from support.history import dated as dated_history
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_current_barrier_touches_retain_cashflow_parameter_greeks(self):
+        start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+        for volatility in (0, 0.2):
+            for timing in ("at_hit", "at_expiry"):
+                option = ins.BarrierOption(
+                    option_type="call",
+                    strike=100,
+                    effective_time=start,
+                    expiry_time=end,
+                    barrier_level=120,
+                    barrier_type="up_and_out",
+                    rebate=10,
+                    rebate_timing=timing,
+                )
+                context = market.PricingContext(
+                    model_parameters=market.BlackScholesMertonParameters(
+                        risk_free_rate=0.05,
+                        dividend_yield=0.02,
+                        volatility=volatility,
+                    ),
+                    spot_price=120,
+                    valuation_time=start,
+                )
+                result = pricing.AnalyticBarrierEngine().price_with_greeks(
+                    option,
+                    context,
+                    ["delta", "rho", "dividend_rho", "vega"],
+                )
+                expected = -10 * math.exp(-0.05) if timing == "at_expiry" else 0
+                self.assertAlmostEqual(result.require("rho"), expected, delta=2e-8)
+                self.assertEqual(result.require("dividend_rho"), 0)
+                self.assertEqual(result.status("delta"), "undefined")
+                if volatility:
+                    self.assertEqual(result.require("vega"), 0)
+                else:
+                    self.assertEqual(result.status("vega"), "undefined")
+
     def test_european_digitals_allow_pre_effective_pricing_greeks_and_solves(self):
         start = datetime(2025, 1, 1)
         effective, expiry = start + timedelta(days=30), start + timedelta(days=365)

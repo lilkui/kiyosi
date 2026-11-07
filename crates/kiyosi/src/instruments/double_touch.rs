@@ -249,6 +249,10 @@ impl OptionContract for DoubleTouchOption {
         self.monitoring
             .spot_discontinuity(context, radius, Some(self.upper_barrier))
     }
+    fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
+        self.monitoring
+            .all_greeks_unavailable(context, Some(self.upper_barrier))
+    }
     fn time_stencil_available(
         &self,
         context: &PricingContext,

@@ -141,7 +141,9 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
     let result = AnalyticBarrierEngine
         .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+    assert_eq!(result.get(Greek::Delta), None);
+    assert_eq!(result.get(Greek::Vega), Some(0.0));
+    assert!((result.require(Greek::Rho).unwrap() + 7.0 * (-0.05_f64).exp()).abs() < 2e-8);
     let near = market(119.995, t.effective_time);
     let result = numerical_greeks(
         &AnalyticBarrierEngine,

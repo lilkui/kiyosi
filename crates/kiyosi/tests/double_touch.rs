@@ -602,7 +602,8 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
                     GreeksRequest::all(),
                 )
                 .unwrap();
-            assert!(Greek::ALL.into_iter().all(|g| !boundary.has(g)));
+            assert_eq!(boundary.get(Greek::Delta), None);
+            assert_eq!(boundary.get(Greek::Gamma), None);
         }
     }
 }
@@ -1129,7 +1130,8 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
                     GreeksRequest::all(),
                 )
                 .unwrap();
-            assert!(Greek::ALL.into_iter().all(|g| !at.has(g)));
+            assert_eq!(at.get(Greek::Delta), None);
+            assert_eq!(at.get(Greek::Gamma), None);
         }
         assert_eq!(
             engine.price(&dated(&option, &ctx), &ctx).unwrap(),

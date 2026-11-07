@@ -255,6 +255,16 @@ impl Monitoring {
             })
     }
 
+    pub(crate) fn all_greeks_unavailable(
+        &self,
+        context: &PricingContext,
+        upper: Option<f64>,
+    ) -> bool {
+        self.state(context, upper)
+            .is_ok_and(|(_, touched, _)| !touched)
+            && self.deterministic_discontinuity(context, 0.0, upper)
+    }
+
     pub(crate) fn spot_discontinuity(
         &self,
         context: &PricingContext,

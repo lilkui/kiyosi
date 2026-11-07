@@ -298,6 +298,16 @@ impl OptionContract for DoubleBarrierOption {
     ) -> bool {
         self.lower.time_stencil_available(context, before, after)
     }
+    fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
+        self.lower
+            .monitoring
+            .all_greeks_unavailable(context, Some(self.upper))
+            || !self
+                .lower
+                .monitoring
+                .payoff_terminated(context, Some(self.upper))
+                && self.vanilla().all_greeks_unavailable(context)
+    }
 }
 
 /// Selects replacements for [`DoubleBarrierOption::replace`]; absent fields retain their values.

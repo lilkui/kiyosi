@@ -97,7 +97,8 @@ impl AnalyticDoubleTouchEngine {
 
     /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
     ///
-    /// Expiry Greeks follow terminal payoffs. Before expiry, current barrier equality without a prior touch suppresses Greeks.
+    /// Expiry Greeks follow terminal payoffs. Current touches retain rate and volatility Greeks
+    /// of the resolved payoff; spot derivatives remain absent at equality.
     /// Stencils crossing either boundary or changing monitoring or history regimes
     /// omit affected measures.
     ///

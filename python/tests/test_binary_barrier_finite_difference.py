@@ -340,7 +340,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         equality = engine.price_with_greeks(
             dated_history(touch(), market(120.13)), market(120.13), greeks="all"
         )
-        self.assertTrue(all(getattr(equality, g) is None for g in greeks))
+        self.assertIsNone(equality.delta)
+        self.assertIsNone(equality.gamma)
         paid = touch(settlement_timing="at_hit", touch_state="touched")
         self.assert_rejection(
             UnsupportedOperationError,

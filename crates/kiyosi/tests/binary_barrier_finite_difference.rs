@@ -460,7 +460,8 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     let result_at = engine
         .price_with_greeks(&dated(&unknown, &at), &at, GreeksRequest::all())
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| !result_at.has(g)));
+    assert_eq!(result_at.get(Greek::Delta), None);
+    assert_eq!(result_at.get(Greek::Gamma), None);
     assert_eq!(
         engine.price(&dated(&option, &ctx), &ctx).unwrap(),
         result.price()

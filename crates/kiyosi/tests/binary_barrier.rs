@@ -404,7 +404,8 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
             GreeksRequest::all(),
         )
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| !boundary.has(g)));
+    assert_eq!(boundary.get(Greek::Delta), None);
+    assert_eq!(boundary.get(Greek::Gamma), None);
     let curve = RateTermStructure::new(
         context.valuation_time(),
         vec![

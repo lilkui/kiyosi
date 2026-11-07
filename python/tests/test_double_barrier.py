@@ -269,9 +269,6 @@ class DoubleBarrierTests(unittest.TestCase):
                 for name in (
                     "delta",
                     "gamma",
-                    "vega",
-                    "rho",
-                    "theta",
                     "speed",
                     "charm",
                     "color",

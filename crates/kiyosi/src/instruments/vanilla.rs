@@ -166,11 +166,16 @@ pub trait OptionContract {
 
     /// Reports whether every Greek is unavailable at a pre-expiry spot discontinuity.
     ///
-    /// Defaults to [`Self::at_spot_discontinuity`] with zero radius. Range coupons retain
-    /// vega and rho; see [`crate::AnalyticRangeAccrualEngine::price_with_greeks`].
+    /// Defaults to deterministic BSM discontinuities from [`Self::at_spot_discontinuity`]
+    /// with zero radius. Current barrier touches retain cash-flow parameter Greeks;
+    /// see [`crate::AnalyticBarrierEngine::price_with_greeks`].
     /// Expiry Greeks use terminal-payoff rules in [`crate::numerical_greeks`].
     fn all_greeks_unavailable(&self, context: &crate::PricingContext) -> bool {
-        self.at_spot_discontinuity(context, 0.0)
+        context
+            .model_parameters()
+            .as_bsm()
+            .is_ok_and(|model| model.volatility() == 0.0)
+            && self.at_spot_discontinuity(context, 0.0)
     }
 
     /// Reports whether a spot interval crosses a payoff discontinuity or derivative kink.

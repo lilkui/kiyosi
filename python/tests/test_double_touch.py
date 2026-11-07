@@ -626,14 +626,9 @@ class DoubleTouchTests(unittest.TestCase):
                 boundary = engine.price_with_greeks(
                     dated_history(option, market(spot)), market(spot), greeks="all"
                 )
-                for name in (
-                    "delta",
-                    "gamma",
-                    "theta",
-                    "vega",
-                    "rho",
-                ):
-                    self.assertIsNone(getattr(boundary, name))
+                self.assertIsNone(boundary.delta)
+                self.assertIsNone(boundary.gamma)
+                self.assertEqual(boundary.vega, 0)
         scheduled = contract(
             cash_double_no_touch,
             observation_mode="scheduled",
@@ -1262,7 +1257,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                     dated_history(option, market(spot)), market(spot), greeks="all"
                 )
                 self.assertIsNone(result.delta)
-                self.assertIsNone(result.vega)
+                self.assertEqual(result.vega, 0)
         with ThreadPoolExecutor(max_workers=2) as executor:
             values = list(
                 executor.map(

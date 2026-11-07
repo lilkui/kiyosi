@@ -241,7 +241,8 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                 )
                 .unwrap();
             if spot == 80.0 || spot == 120.0 {
-                assert!(result.values().iter().all(Option::is_none));
+                assert_eq!(result.get(Greek::Delta), None);
+                assert_eq!(result.get(Greek::Gamma), None);
             }
         }
     }
