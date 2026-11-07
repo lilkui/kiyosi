@@ -191,6 +191,16 @@ impl Monitoring {
                 option_type == OptionType::Put && strike <= self.barrier_level()
             }
     }
+    pub(crate) fn payoff_terminated(&self, context: &PricingContext, upper: Option<f64>) -> bool {
+        self.state(context, upper)
+            .is_ok_and(|(_, touched, finished)| {
+                if self.barrier_type().is_knock_in() {
+                    !touched && finished
+                } else {
+                    touched
+                }
+            })
+    }
     fn deterministic_discontinuity(
         &self,
         context: &PricingContext,

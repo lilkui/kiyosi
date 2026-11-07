@@ -9,6 +9,87 @@ fn context(spot: f64) -> Result<PricingContext> {
 }
 
 #[test]
+fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
+    fn check<I: OptionContract>(
+        engine: &impl PricingEngine<I>,
+        option: &I,
+        context: &PricingContext,
+        inactive: bool,
+    ) -> Result<()> {
+        let result = engine.price_with_greeks(
+            option,
+            context,
+            GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+        )?;
+        for greek in [Greek::Delta, Greek::Gamma] {
+            assert_eq!(result.get(greek), inactive.then_some(0.0));
+            assert_eq!(
+                result.status(greek),
+                if inactive {
+                    GreekStatus::Available
+                } else {
+                    GreekStatus::Undefined
+                }
+            );
+        }
+        Ok(())
+    }
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    for (at, volatility) in [(end, 0.2), (start.add_days(180)?, 0.0)] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.0, 0.0, volatility)?,
+            100.0,
+            at,
+        )?;
+        for (kind, history, inactive) in [
+            (BarrierType::UpAndOut, BarrierTouchState::Touched, true),
+            (BarrierType::UpAndIn, BarrierTouchState::Touched, false),
+        ] {
+            let mut terms =
+                BarrierOptionTerms::new(OptionType::Call, 100.0, start, end, 120.0, kind);
+            terms.touch_state = Some(history);
+            check(
+                &AnalyticBarrierEngine,
+                &BarrierOption::new(terms)?,
+                &context,
+                inactive,
+            )?;
+            let mut terms = DoubleBarrierOptionTerms::new(
+                OptionType::Call,
+                100.0,
+                start,
+                end,
+                80.0,
+                120.0,
+                if kind == BarrierType::UpAndIn {
+                    DoubleBarrierType::KnockIn
+                } else {
+                    DoubleBarrierType::KnockOut
+                },
+            );
+            terms.touch_state = Some(history);
+            check(
+                &AnalyticDoubleBarrierEngine,
+                &DoubleBarrierOption::new(terms)?,
+                &context,
+                inactive,
+            )?;
+            let mut terms =
+                BinaryBarrierTerms::new(OptionType::Call, 100.0, start, end, 120.0, kind);
+            terms.touch_state = Some(history);
+            check(
+                &AnalyticBinaryBarrierEngine,
+                &BinaryBarrierOption::cash(terms, 10.0)?,
+                &context,
+                inactive,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn analytic_terminal_greeks_are_exact_next_to_the_strike() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let strike = 100.0_f64;

@@ -319,7 +319,8 @@ impl OptionContract for BarrierOption {
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.monitoring.at_spot_discontinuity(context, radius)
-            || self.vanilla.at_spot_discontinuity(context, radius)
+            || !self.monitoring.payoff_terminated(context, None)
+                && self.vanilla.at_spot_discontinuity(context, radius)
     }
     fn time_stencil_available(
         &self,

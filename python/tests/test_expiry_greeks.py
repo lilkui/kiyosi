@@ -11,6 +11,58 @@ from support.terminal import assert_terminal_greeks
 
 
 class ExpiryGreekTests(unittest.TestCase):
+    def test_resolved_barriers_have_zero_spot_greeks_at_inactive_strikes(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        for at, volatility in ((end, 0.2), (datetime(2025, 7, 1), 0)):
+            context = market.PricingContext(
+                model_parameters=market.BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=volatility
+                ),
+                spot_price=100,
+                valuation_time=at,
+            )
+            common = {
+                "option_type": "call",
+                "strike": 100,
+                "effective_time": start,
+                "expiry_time": end,
+                "touch_state": "touched",
+            }
+            for engine, option in (
+                (
+                    pricing.AnalyticBarrierEngine(),
+                    ins.BarrierOption(
+                        **common, barrier_level=120, barrier_type="up_and_out"
+                    ),
+                ),
+                (
+                    pricing.AnalyticDoubleBarrierEngine(),
+                    ins.DoubleBarrierOption(
+                        **common,
+                        lower_barrier=80,
+                        upper_barrier=120,
+                        barrier_type="knock_out",
+                    ),
+                ),
+                (
+                    pricing.AnalyticBinaryBarrierEngine(),
+                    ins.cash_binary_barrier_option(
+                        **common,
+                        barrier_level=120,
+                        barrier_type="up_and_out",
+                        payout=10,
+                    ),
+                ),
+            ):
+                with self.subTest(engine=type(engine).__name__, at=at):
+                    result = engine.price_with_greeks(
+                        option, context, ["delta", "gamma"]
+                    )
+                    self.assertEqual(result.price, 0)
+                    for greek in ("delta", "gamma"):
+                        self.assertEqual(result.require(greek), 0)
+                        self.assertEqual(result.status(greek), "available")
+
     def test_analytic_terminal_greeks_are_exact_next_to_the_strike(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         engine = pricing.AnalyticEuropeanEngine()

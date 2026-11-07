@@ -431,10 +431,11 @@ macro_rules! monitoring_accessors {
             }
             fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
                 self.monitoring.at_spot_discontinuity(context, radius)
-                    || self
-                        .contract()
-                        .digital
-                        .is_some_and(|digital| digital.at_spot_discontinuity(context, radius))
+                    || !self.monitoring.payoff_terminated(context, None)
+                        && self
+                            .contract()
+                            .digital
+                            .is_some_and(|digital| digital.at_spot_discontinuity(context, radius))
             }
             fn time_stencil_available(
                 &self,
