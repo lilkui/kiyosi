@@ -1410,8 +1410,8 @@ class AnalyticEuropeanEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1537,8 +1537,8 @@ class AnalyticHestonEuropeanEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1637,8 +1637,8 @@ class BjerksundStenslandVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: AmericanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1729,8 +1729,8 @@ class AnalyticDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -1840,8 +1840,8 @@ class CoxRossRubinsteinBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1956,8 +1956,8 @@ class QuadratureBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -2083,8 +2083,8 @@ class QuadratureDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -2219,8 +2219,8 @@ class QuadratureVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -2322,8 +2322,8 @@ class CoxRossRubinsteinVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -2436,8 +2436,8 @@ class CoxRossRubinsteinDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -2590,8 +2590,8 @@ class FiniteDifferenceAccumulatorEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -2743,8 +2743,8 @@ class FiniteDifferenceBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -2896,8 +2896,8 @@ class FiniteDifferenceDoubleBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -3059,8 +3059,8 @@ class FiniteDifferenceAutocallableEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -3222,8 +3222,8 @@ class FiniteDifferenceDoubleTouchEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -3375,8 +3375,8 @@ class FiniteDifferenceBinaryBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
@@ -3527,8 +3527,8 @@ class FiniteDifferenceHestonVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -3681,8 +3681,8 @@ class FiniteDifferenceVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -3840,8 +3840,8 @@ class FiniteDifferenceDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -4239,8 +4239,8 @@ class MonteCarloDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -4434,8 +4434,8 @@ class MonteCarloBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -4492,6 +4492,8 @@ class MonteCarloBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None = None,
     ) -> PricingResult:
         """Returns the price and selected sensitivities.
 
@@ -4503,6 +4505,10 @@ class MonteCarloBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump for event availability, at-hit rebates
+            and expiry stencils; None selects the automatic bump.
+            Retains the native Monte Carlo estimator before expiry.
 
         Returns
         -------
@@ -4523,7 +4529,7 @@ class MonteCarloBarrierEngine:
 
         Notes
         -----
-        Barrier engines use the default spot bump for event-availability
+        Barrier engines use spot_shift for event-availability
         checks and continuous at-hit rebate derivatives. Autocallable and
         accumulator engines use numerical differences with engine defaults.
         At expiry spot Greeks use default terminal-payoff stencils.
@@ -4623,8 +4629,8 @@ class MonteCarloDoubleBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -4681,6 +4687,8 @@ class MonteCarloDoubleBarrierEngine:
         instrument: DoubleBarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None = None,
     ) -> PricingResult:
         """Returns the price and selected sensitivities.
 
@@ -4692,6 +4700,10 @@ class MonteCarloDoubleBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump for event availability, at-hit rebates
+            and expiry stencils; None selects the automatic bump.
+            Retains the native Monte Carlo estimator before expiry.
 
         Returns
         -------
@@ -4712,7 +4724,7 @@ class MonteCarloDoubleBarrierEngine:
 
         Notes
         -----
-        Barrier engines use the default spot bump for event-availability
+        Barrier engines use spot_shift for event-availability
         checks and continuous at-hit rebate derivatives. Autocallable and
         accumulator engines use numerical differences with engine defaults.
         At expiry spot Greeks use default terminal-payoff stencils.
@@ -4824,8 +4836,8 @@ class MonteCarloAutocallableEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -4928,7 +4940,7 @@ class MonteCarloAutocallableEngine:
 
         Notes
         -----
-        Barrier engines use the default spot bump for event-availability
+        Barrier engines use spot_shift for event-availability
         checks and continuous at-hit rebate derivatives. Autocallable and
         accumulator engines use numerical differences with engine defaults.
         At expiry spot Greeks use default terminal-payoff stencils.
@@ -5027,8 +5039,8 @@ class MonteCarloAccumulatorEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -5116,7 +5128,7 @@ class MonteCarloAccumulatorEngine:
 
         Notes
         -----
-        Barrier engines use the default spot bump for event-availability
+        Barrier engines use spot_shift for event-availability
         checks and continuous at-hit rebate derivatives. Autocallable and
         accumulator engines use numerical differences with engine defaults.
         At expiry spot Greeks use default terminal-payoff stencils.
@@ -5229,8 +5241,8 @@ class MonteCarloAsianEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -7138,8 +7150,8 @@ class AnalyticGeometricAveragePriceEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: GeometricAveragePriceOption, context: PricingContext
@@ -7373,8 +7385,8 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: ArithmeticAveragePriceOption, context: PricingContext
@@ -7684,8 +7696,8 @@ class AnalyticBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8181,8 +8193,8 @@ class AnalyticRangeAccrualEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: RangeAccrualOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8270,8 +8282,8 @@ class AnalyticDoubleBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8369,8 +8381,8 @@ class AnalyticDoubleTouchEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -9163,8 +9175,8 @@ class AnalyticBinaryBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
@@ -9616,8 +9628,8 @@ class QuadratureAutocallableEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -11775,8 +11787,8 @@ class QuadratureAccumulatorEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Monte Carlo barrier calls
+        accept spot_shift; use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.

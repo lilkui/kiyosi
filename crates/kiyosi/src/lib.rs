@@ -10,6 +10,8 @@
 //! parameter solvers. Engine `price_with_greeks` methods use their native estimators
 //! and default controls. Configure scalar differences explicitly through
 //! [`numerical_greeks`] and [`NumericalShiftSettings`].
+//! Native Monte Carlo barrier spot controls are available through
+//! [`MonteCarloBarrierEngine::price_with_greeks_with_spot_shift`] and its double-barrier counterpart.
 //! [`AnalyticEuropeanEngine`] and [`FiniteDifferenceVanillaEngine`] compute exact
 //! supported expiry payoff derivatives away from the strike, without numerical spot bumps.
 //! Monte Carlo engines expose `price_with_statistics` for sampling uncertainty;

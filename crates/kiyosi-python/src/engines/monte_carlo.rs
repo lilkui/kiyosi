@@ -29,16 +29,19 @@ macro_rules! sampling_settings {
         kiyosi::$engine::with_step_count($settings, $step)
     };
     (@barrier $engine:ident, $instrument:ty) => {
-        sampling_settings!(@structured $engine, $instrument, with_contract);
+        sampling_settings!(@structured_impl $engine, $instrument, with_contract, price_with_greeks_with_spot_shift, [spot_shift]);
     };
     (@structured $engine:ident, $instrument:ty, $with:path) => {
+        sampling_settings!(@structured_impl $engine, $instrument, $with, price_with_greeks, []);
+    };
+    (@structured_impl $engine:ident, $instrument:ty, $with:path, $greeks:ident, [$($spot_shift:ident)?]) => {
         numerical_greeks_methods!(
             $instrument,
             |binding, py, instrument, context, request| {
                 let engine = binding.0;
                 let context = &context.0;
                 $with!(&instrument, option, Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
-                    engine.price_with_greeks(option, context, request)
+                    engine.$greeks(option, context, request $(, $spot_shift)?)
                 })?)?)))
             },
             [
@@ -47,13 +50,14 @@ macro_rules! sampling_settings {
                 ///
                 /// Notes
                 /// -----
-                /// Barrier engines use the default spot bump for event-availability
+                /// Barrier engines use spot_shift for event-availability
                 /// checks and continuous at-hit rebate derivatives. Autocallable and
                 /// accumulator engines use numerical differences with engine defaults.
                 /// At expiry spot Greeks use default terminal-payoff stencils.
                 /// Use numerical_greeks for
                 /// explicit scalar bump calculations on supported BSM pairs.
             ],
+            $(@spot_shift $spot_shift,)?
             sampling_settings!(
                 $engine,
                 [],

@@ -5,7 +5,9 @@ Greeks and implied volatility, when the model data covers valuation through expi
 Other contracts require valuation within their inclusive life and validate prior history.
 
 Engine ``price_with_greeks(instrument, context, greeks)`` methods use the engine's
-estimator and default controls. They accept no bump arguments. Configure scalar
+estimator and default controls. Monte Carlo single- and double-barrier engines accept
+an optional keyword-only ``spot_shift`` for event checks, at-hit rebate derivatives
+and expiry stencils, retaining their native estimator. Other engines accept no bump arguments. Configure scalar
 finite differences explicitly through ``numerical_greeks(engine, instrument,
 context, greeks, spot_shift=..., volatility_shift=..., rate_shift=...,
 time_shift=...)``. All numerical controls are validated there.
@@ -116,7 +118,7 @@ dividends and nonnegative rates) do not allocate this grid or apply this limit.
 
 Analytic estimators and native Monte Carlo/binomial estimators retain their
 supported measures and engine defaults. Monte Carlo single- and double-barrier
-engines provide delta and gamma, using the default spot stencil where needed
+engines provide delta and gamma, using the optional spot stencil where needed
 for availability checks and continuous at-hit rebates. Use ``numerical_greeks``
 to select scalar price differences and control their bumps. Its rate shift applies
 separately to the risk-free and dividend curves; its volatility shift controls
@@ -146,8 +148,9 @@ Inspect ``engine.greek_method(instrument, context)`` before a parameter sweep:
 ``"mixed"`` completes native estimates numerically, and ``"native_with_spot_control"``
 uses spot controls for numerical derivatives or availability checks. ``"terminal"``
 uses expiry payoff stencils; ``"unsupported"`` supplies no Greeks.
-``engine.active_greek_controls(instrument, context)`` lists internal default
-controls potentially used across supported requests. Queries check model
+``engine.active_greek_controls(instrument, context)`` lists shift controls
+potentially used across supported requests. Monte Carlo barrier methods expose
+``spot_shift``; other controls use internal defaults. Queries check model
 applicability without pricing or sampling; pricing validates life and history.
 Use ``numerical_greeks`` for configurable scalar differences. This can provide
 measures beyond native engine coverage; Heston and local volatility are

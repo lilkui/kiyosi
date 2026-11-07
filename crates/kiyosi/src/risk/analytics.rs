@@ -347,7 +347,8 @@ pub(crate) fn vanilla_expiry_greeks(
 /// Configures absolute finite-difference bumps.
 ///
 /// Scalar numerical requests validate all bump settings before calculation.
-/// Engine `price_with_greeks` methods use defaults and accept no settings.
+/// Engine `price_with_greeks` methods use defaults. Monte Carlo barrier engines also
+/// expose `price_with_greeks_with_spot_shift` for native spot control.
 /// See [`crate::numerical_greeks`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct NumericalShiftSettings {
@@ -439,7 +440,8 @@ impl NumericalShiftSettings {
 ///
 /// This describes the calculation path, independently of the requested measures.
 /// A listed control may be unused for a particular request or resolved payoff.
-/// Listed controls describe internal defaults; customize scalar differences with
+/// Monte Carlo barrier engines expose native spot control; other listed controls
+/// describe internal defaults. Customize scalar differences with
 /// [`crate::numerical_greeks`]. See
 /// [`PricingEngine::greek_method`] for an example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -473,8 +475,9 @@ impl GreekMethod {
 
     /// Returns names of shift controls potentially used by this calculation path.
     ///
-    /// Names correspond to [`NumericalShiftSettings`] fields and describe internal
-    /// defaults. See [`PricingEngine::greek_method`] for an example.
+    /// Names correspond to [`NumericalShiftSettings`] fields. Monte Carlo barrier
+    /// engines expose native spot control; other controls use internal defaults.
+    /// See [`PricingEngine::greek_method`] for an example.
     pub const fn active_controls(self) -> &'static [&'static str] {
         match self {
             Self::Native | Self::Unsupported => &[],

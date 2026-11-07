@@ -36,6 +36,92 @@ const KINDS: [BarrierType; 4] = [
 ];
 
 #[test]
+fn native_barrier_spot_controls_recover_near_boundary_greeks() -> Result<()> {
+    let single = BarrierOption::new(terms(BarrierType::UpAndOut, OptionType::Call))?;
+    let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        single.effective_time(),
+        single.expiry_time(),
+        80.0,
+        120.0,
+        DoubleBarrierType::KnockOut,
+    ))?;
+    let context = market(0.05).replace(PricingContextChanges {
+        spot_price: Some(119.995),
+        ..Default::default()
+    })?;
+    let settings = MonteCarloSettings {
+        path_count: 64,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    };
+    let single_engine = MonteCarloBarrierEngine::new(settings)?;
+    let double_engine = MonteCarloDoubleBarrierEngine::new(settings)?;
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let defaults = [
+        single_engine.price_with_greeks(&single, &context, request)?,
+        double_engine.price_with_greeks(&double, &context, request)?,
+    ];
+    for result in defaults {
+        assert_eq!(result.status(Greek::Delta), GreekStatus::StencilUnavailable);
+    }
+    for (result, tighter) in [
+        (
+            single_engine.price_with_greeks_with_spot_shift(
+                &single,
+                &context,
+                request,
+                Some(0.0001),
+            )?,
+            single_engine.price_with_greeks_with_spot_shift(
+                &single,
+                &context,
+                request,
+                Some(0.00005),
+            )?,
+        ),
+        (
+            double_engine.price_with_greeks_with_spot_shift(
+                &double,
+                &context,
+                request,
+                Some(0.0001),
+            )?,
+            double_engine.price_with_greeks_with_spot_shift(
+                &double,
+                &context,
+                request,
+                Some(0.00005),
+            )?,
+        ),
+    ] {
+        assert!(result.require(Greek::Delta)? < 0.0);
+        assert_eq!(result, tighter);
+    }
+    for invalid in [0.0, -1.0, f64::INFINITY, f64::NAN] {
+        for result in [
+            single_engine.price_with_greeks_with_spot_shift(
+                &single,
+                &context,
+                request,
+                Some(invalid),
+            ),
+            double_engine.price_with_greeks_with_spot_shift(
+                &double,
+                &context,
+                request,
+                Some(invalid),
+            ),
+        ] {
+            assert!(matches!(result, Err(Error::InvalidInput(_))));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
     let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
         path_count: 32,

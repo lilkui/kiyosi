@@ -4,6 +4,7 @@ import inspect
 import unittest
 from datetime import datetime
 
+from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
@@ -57,6 +58,31 @@ class SpotShiftDefaultTests(unittest.TestCase):
                     engine, option, context, "delta", spot_shift=0.01
                 )
                 self.assertEqual(actual.delta, explicit.delta)
+                near = context.replace(spot_price=119.995)
+                default_native = engine.price_with_greeks(
+                    option, near, ["delta", "gamma"]
+                )
+                self.assertEqual(default_native.status("delta"), "stencil_unavailable")
+                tuned = engine.price_with_greeks(
+                    option, near, ["delta", "gamma"], spot_shift=0.0001
+                )
+                tighter = engine.price_with_greeks(
+                    option, near, ["delta", "gamma"], spot_shift=0.00005
+                )
+                self.assertEqual(tuned.status("delta"), "available")
+                self.assertLess(tuned.require("delta"), 0)
+                self.assertEqual(tuned, tighter)
+                self.assertEqual(tuned.price, engine.price(option, near))
+                for invalid in (0, -1, float("inf"), float("nan")):
+                    with self.assertRaises(InvalidInputError):
+                        engine.price_with_greeks(
+                            option, near, "delta", spot_shift=invalid
+                        )
+                for invalid in (True, "0.01"):
+                    with self.assertRaises(TypeError):
+                        engine.price_with_greeks(
+                            option, near, "delta", spot_shift=invalid
+                        )
 
     def test_automatic_american_bump_matches_explicit_core_control(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)

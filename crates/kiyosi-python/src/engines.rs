@@ -19,6 +19,7 @@ macro_rules! numerical_greeks_methods {
     ($instrument:ty,
      |$engine:ident, $py:ident, $option:ident, $context:ident, $request:ident| $body:block,
      [$(#[$extra_doc:meta])*],
+     $(@spot_shift $spot_shift:ident,)?
      $methods:ident!($($args:tt)*)) => {
         $methods! {
             $($args)*,
@@ -36,8 +37,8 @@ macro_rules! numerical_greeks_methods {
             },
             /// Return shift-control names potentially used by this Greek calculation path.
             ///
-            /// Individual requests may use fewer internal default controls. Use
-            /// numerical_greeks for configurable scalar differences.
+            /// Individual requests may use fewer controls. Monte Carlo barrier calls
+            /// accept spot_shift; use numerical_greeks for configurable scalar differences.
             fn active_greek_controls(
                 &self,
                 py: pyo3::Python<'_>,
@@ -56,6 +57,12 @@ macro_rules! numerical_greeks_methods {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str
             ///     Greek names or "all" to request every measure; duplicates are ignored.
+            $(
+                #[doc = concat!(stringify!($spot_shift), " : float or None, optional")]
+                ///     Positive absolute spot bump for event availability, at-hit rebates
+                ///     and expiry stencils; None selects the automatic bump.
+                ///     Retains the native Monte Carlo estimator before expiry.
+            )?
             ///
             /// Returns
             /// -------
@@ -72,7 +79,7 @@ macro_rules! numerical_greeks_methods {
             /// TypeError
             ///     If greeks is not a string or iterable of strings.
             $(#[$extra_doc])*
-            #[pyo3(signature = (instrument, context, greeks))]
+            #[pyo3(signature = (instrument, context, greeks $(, *, $spot_shift=None)?))]
             ///
             /// See Also
             /// --------
@@ -84,8 +91,10 @@ macro_rules! numerical_greeks_methods {
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &$crate::market::PricingContext,
                 greeks: &pyo3::Bound<'_, pyo3::PyAny>,
+                $($spot_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,)?
             ) -> pyo3::PyResult<$crate::risk::PricingResult> {
                 let $request = $crate::risk::greeks_request(greeks)?;
+                $(let $spot_shift = $spot_shift.map(crate::conversions::real).transpose()?;)?
                 let $engine = self;
                 let $py = py;
                 let $option = instrument;

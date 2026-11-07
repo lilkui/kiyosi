@@ -485,7 +485,7 @@ class PackageTests(unittest.TestCase):
                         dated_history(option, context), context, "delta", unknown=True
                     )
 
-    def test_all_engines_expose_the_same_native_greek_signature(self):
+    def test_native_greek_signatures_expose_only_applicable_controls(self):
         for name in pricing.__all__:
             if not name.endswith("Engine"):
                 continue
@@ -503,6 +503,15 @@ class PackageTests(unittest.TestCase):
                         "instrument",
                         "context",
                         "greeks",
+                        *(
+                            ("spot_shift",)
+                            if name
+                            in (
+                                "MonteCarloBarrierEngine",
+                                "MonteCarloDoubleBarrierEngine",
+                            )
+                            else ()
+                        ),
                     ),
                 )
 
