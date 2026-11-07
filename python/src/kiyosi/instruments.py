@@ -82,8 +82,8 @@ settlement without changing the original contract. Rust uses the same operation
 with ``AccumulatorHistoryChanges`` to replace quantity, termination or both;
 omitted fields retain their values.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
-monitoring to ``"every_trading_day"``, matching Rust terms, and require an explicit
-``observation_clock_time`` argument. Supply None explicitly for expiry-only monitoring.
+monitoring to ``"every_trading_day"``, matching Rust terms. Daily monitoring requires
+an explicit ``observation_clock_time``; expiry-only monitoring defaults the clock to None.
 Replacing daily monitoring with ``"at_expiry"`` clears its clock; switching to daily
 monitoring requires the clock in the same replacement.
 
