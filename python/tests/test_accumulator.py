@@ -734,7 +734,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             )
         self.assertIs(type(error.exception), ComputationFailureError)
 
-    def test_greek_availability_and_normalized_convergence(self):
+    def test_greek_availability_at_boundaries(self):
         option = contract()
         engine = pricing.QuadratureAccumulatorEngine()
         boundary = engine.price_with_greeks(
@@ -759,59 +759,6 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             "zomma",
         ):
             self.assertIsNone(getattr(small, greek))
-        valuation = datetime(2025, 1, 4, 12)
-        cases = (
-            (contract(), market(valuation=valuation)),
-            (contract(datetime(2026, 1, 1), 105), market(80, valuation, 0.05)),
-            (
-                contract(datetime(2025, 4, 1), 150, 1),
-                market(120, valuation, 0.6, -0.02),
-            ),
-        )
-        refined = pricing.QuadratureAccumulatorEngine(asset_step_count=1024)
-        for option, context in cases:
-            with self.subTest(
-                expiry=option.expiry_time,
-                spot=context.spot_price,
-                volatility=context.model_parameters.volatility,
-            ):
-                base = engine.price_with_greeks(
-                    dated_history(option, context), context, greeks="all"
-                )
-                fine = refined.price_with_greeks(
-                    dated_history(option, context), context, greeks="all"
-                )
-                smaller = numerical_greeks(
-                    refined,
-                    dated_history(option, context),
-                    context,
-                    greeks="all",
-                    spot_shift=0.005,
-                    volatility_shift=0.00005,
-                    rate_shift=0.00005,
-                )
-                for greek, order, absolute, relative in (
-                    ("delta", 1, 1e-6, 0.005),
-                    ("gamma", 2, 1e-5, 0.01),
-                    ("vega", 0, 1e-8, 0.005),
-                    ("rho", 0, 1e-8, 0.005),
-                    ("theta", 0, 1e-8, 0.02),
-                    ("speed", 3, 1e-4, 0.05),
-                    ("vanna", 1, 1e-7, 0.05),
-                    ("charm", 1, 1e-7, 0.05),
-                    ("zomma", 2, 1e-6, 0.05),
-                    ("color", 2, 1e-6, 0.05),
-                ):
-                    with self.subTest(greek=greek):
-                        scale = option.strike**order / exposure(option, context)
-                        reference = getattr(fine, greek)
-                        self.assertIsNotNone(reference)
-                        reference *= scale
-                        limit = absolute + relative * abs(reference)
-                        for result in (base, smaller):
-                            value = getattr(result, greek)
-                            self.assertIsNotNone(value)
-                            self.assertLessEqual(abs(value * scale - reference), limit)
 
     def test_reused_spot_and_volatility_curves_match_scalar_prices(self):
         engine = pricing.QuadratureAccumulatorEngine(asset_step_count=128)

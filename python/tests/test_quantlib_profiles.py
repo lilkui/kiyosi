@@ -8,10 +8,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from kiyosi import pricing
-from quantlib_reference import oracle
+from quantlib_reference import oracle, structured
 
 
 class QuantLibProfileTests(unittest.TestCase):
+    def test_structured_portfolios_match_direct_payoffs(self):
+        structured.check_portfolios()
+
     def test_fixture_defaults_and_overrides_are_expanded(self):
         config = oracle.load_fixture("scenarios.json")
         first = config["scenarios"][0]

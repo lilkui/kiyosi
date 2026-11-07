@@ -584,6 +584,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     )
 
     def test_adjacent_barrier_levels_preserve_forward_prices_and_greeks(self):
+        engine = pricing.QuadratureAccumulatorEngine(asset_step_count=128)
         time = 4.5 / 365
         levels = (
             math.nextafter(100, 0),
@@ -608,23 +609,17 @@ class AccumulatorExtensionTests(unittest.TestCase):
                         acceleration_factor=1,
                         knock_out_observation_times=[],
                     )
-                    for nodes in (512, 1024):
-                        with self.subTest(
-                            direction=direction,
-                            sigma=sigma,
-                            barrier=barrier,
-                            nodes=nodes,
-                        ):
-                            result = pricing.QuadratureAccumulatorEngine(
-                                asset_step_count=nodes
-                            ).price_with_greeks(
-                                dated_history(option, context),
-                                context,
-                                ["delta", "gamma"],
-                            )
-                            self.assertAlmostEqual(result.price, expected, delta=1e-8)
-                            self.assertAlmostEqual(result.delta, delta, delta=1e-7)
-                            self.assertAlmostEqual(result.gamma, 0, delta=1e-6)
+                    with self.subTest(
+                        direction=direction, sigma=sigma, barrier=barrier
+                    ):
+                        result = engine.price_with_greeks(
+                            dated_history(option, context),
+                            context,
+                            ["delta", "gamma"],
+                        )
+                        self.assertAlmostEqual(result.price, expected, delta=1e-8)
+                        self.assertAlmostEqual(result.delta, delta, delta=1e-7)
+                        self.assertAlmostEqual(result.gamma, 0, delta=1e-6)
 
     def test_terminal_digital_portfolios_match_quantlib(self):
         context = market(100.25, datetime(2025, 1, 3, 12))

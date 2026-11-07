@@ -21,7 +21,10 @@ fn rounded_flat_nodes_require_explicit_constant_curve_representation() {
     assert!(error.to_string().contains("bounded_flat"));
     let explicit = RateTermStructure::bounded_flat(0.05, start, end).unwrap();
     assert_eq!(explicit.exact_flat_rate(), Some(0.05));
-    assert!(explicit.forward_rate(end.add_days(1).unwrap()).is_err());
+    assert!(matches!(
+        explicit.forward_rate(end.add_days(1).unwrap()),
+        Err(Error::InvalidInput(_))
+    ));
 }
 
 #[test]

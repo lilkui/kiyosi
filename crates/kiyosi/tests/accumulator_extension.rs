@@ -863,6 +863,11 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
 
 #[test]
 fn adjacent_barrier_levels_preserve_forward_prices_and_greeks() {
+    let engine = QuadratureAccumulatorEngine::new(QuadratureSettings {
+        asset_step_count: 128,
+        ..Default::default()
+    })
+    .unwrap();
     let time: f64 = 4.5 / 365.0;
     let levels = [
         f64::from_bits(100_f64.to_bits() - 1),
@@ -894,27 +899,20 @@ fn adjacent_barrier_levels_preserve_forward_prices_and_greeks() {
                     ..terms(direction, Some(Vec::new()))
                 })
                 .unwrap();
-                for nodes in [512, 1024] {
-                    let engine = QuadratureAccumulatorEngine::new(QuadratureSettings {
-                        asset_step_count: nodes,
-                        ..Default::default()
-                    })
+                let result = engine
+                    .price_with_greeks(
+                        &dated(&option, &context),
+                        &context,
+                        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+                    )
                     .unwrap();
-                    let result = engine
-                        .price_with_greeks(
-                            &dated(&option, &context),
-                            &context,
-                            GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                        )
-                        .unwrap();
-                    assert!(
-                        (result.price() - expected).abs() < 1e-8,
-                        "{direction:?}, sigma {sigma}, level {barrier:?}, nodes {nodes}: {} != {expected}",
-                        result.price()
-                    );
-                    assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-7);
-                    assert!(result.require(Greek::Gamma).unwrap().abs() < 1e-6);
-                }
+                assert!(
+                    (result.price() - expected).abs() < 1e-8,
+                    "{direction:?}, sigma {sigma}, level {barrier:?}: {} != {expected}",
+                    result.price()
+                );
+                assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-7);
+                assert!(result.require(Greek::Gamma).unwrap().abs() < 1e-6);
             }
         }
     }

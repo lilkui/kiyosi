@@ -156,7 +156,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 spot_shift=0,
             )
 
-    def test_expiry_settlement_has_no_greeks(self):
+    def test_expiry_settlement_has_terminal_spot_greeks(self):
         for engine in engines():
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")

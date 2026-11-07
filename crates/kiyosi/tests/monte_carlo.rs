@@ -57,10 +57,14 @@ fn uncertainty_status_explains_missing_estimates() -> Result<()> {
         assert_eq!(result.uncertainty_status(), expected);
         assert_eq!(result.standard_error().is_some(), expected == Available);
     }
-    assert!(MonteCarloEstimate::from_statistics(10.0, None, Available, None).is_err());
-    assert!(
-        MonteCarloEstimate::from_statistics(10.0, Some(0.0), UnsupportedSampling, None).is_err()
-    );
+    assert!(matches!(
+        MonteCarloEstimate::from_statistics(10.0, None, Available, None),
+        Err(Error::ComputationFailure(_))
+    ));
+    assert!(matches!(
+        MonteCarloEstimate::from_statistics(10.0, Some(0.0), UnsupportedSampling, None),
+        Err(Error::ComputationFailure(_))
+    ));
     Ok(())
 }
 

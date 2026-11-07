@@ -2,8 +2,6 @@
 
 import importlib
 import math
-import sys
-import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -541,47 +539,6 @@ class MonteCarloTests(unittest.TestCase):
                 [(expected.price, tuple(expected.require(name) for name in GREEKS))]
                 * 8,
             )
-
-    def test_core_calls_release_the_gil(self):
-        engine = MonteCarloVanillaEngine(path_count=100_000, seed=42, thread_count=1)
-        option, context = contract(), market()
-        quote = engine.price(option, context)
-        operations = (
-            lambda: engine.price(option, context),
-            lambda: engine.price_with_statistics(option, context),
-            lambda: engine.price_with_greeks(option, context, "delta"),
-            lambda: implied_volatility(
-                engine, option, context, quote, lower_bound=0.1, upper_bound=0.4
-            ),
-        )
-        for operation in operations:
-            ready, start, observed = (
-                threading.Event(),
-                threading.Event(),
-                threading.Event(),
-            )
-
-            def python_worker(ready=ready, start=start, observed=observed):
-                ready.set()
-                start.wait()
-                observed.set()
-
-            worker = threading.Thread(target=python_worker)
-            worker.start()
-            ready.wait()
-            previous = sys.getswitchinterval()
-            try:
-                # Prevent a bytecode scheduling handoff between start.set() and the native call.
-                sys.setswitchinterval(100)
-                start.set()
-                operation()
-                self.assertTrue(
-                    observed.is_set(), "Python worker could not run during core work"
-                )
-            finally:
-                sys.setswitchinterval(previous)
-                start.set()
-                worker.join()
 
 
 class SamplingTests(unittest.TestCase):

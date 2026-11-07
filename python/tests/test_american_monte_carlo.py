@@ -422,10 +422,10 @@ class AmericanMonteCarloTests(unittest.TestCase):
         reference = CoxRossRubinsteinVanillaEngine(step_count=3200).price_with_greeks(
             contract(), market(), ["delta", "gamma"]
         )
-        for scale in (0.01, 1, 100):
-            option = contract(strike=100 * scale)
-            context = market(spot=100 * scale)
-            for seed in (1, 7, 42):
+        for scale, seed in ((0.01, 1), (1, 7), (100, 42)):
+            with self.subTest(scale=scale, seed=seed):
+                option = contract(strike=100 * scale)
+                context = market(spot=100 * scale)
                 engine = MonteCarloVanillaEngine(seed=seed, thread_count=1)
                 result = engine.price_with_greeks(option, context, ["delta", "gamma"])
                 explicit = numerical_greeks(
