@@ -454,13 +454,6 @@ class BinomialTests(unittest.TestCase):
                     option,
                     market(sigma=sigma, rate=rate, dividend=dividend),
                 )
-            self.assert_rejection(
-                InvalidInputError,
-                engine.price_with_greeks,
-                option,
-                market(),
-                [],
-            )
             if kind in VANILLA:
                 for shifts in (
                     {"spot_shift": 0},

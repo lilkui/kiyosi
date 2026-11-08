@@ -323,8 +323,7 @@ macro_rules! asian_analytics {
             ///
             /// # Errors
             ///
-            /// Returns [`Error::InvalidInput`] for empty requests
-            /// before pricing, [`Error::ComputationFailure`] for non-finite derivatives,
+            /// Returns [`Error::ComputationFailure`] for non-finite derivatives,
             /// and propagates pricing and feasible bumped-pricing errors.
             /// Inputs remain unchanged; unavailable stencils leave measures absent.
             pub fn price_with_greeks(

@@ -298,7 +298,6 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
-        request.validate()?;
         settings.validate()?;
         if context.valuation_time() == option.expiry_time() {
             let result = PricingResult::new(self.price(option, context)?)?

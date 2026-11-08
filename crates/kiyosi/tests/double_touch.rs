@@ -1118,12 +1118,7 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
             implied_volatility(&engine, &dated(&option, &ctx), &ctx, 2.0, controls).unwrap_err(),
             Error::RootNotBracketed(_)
         ));
-        assert!(matches!(
-            engine
-                .price_with_greeks(&dated(&option, &ctx), &ctx, GreeksRequest::new([]))
-                .unwrap_err(),
-            Error::InvalidInput(_)
-        ));
+
         assert!(matches!(
             kiyosi::numerical_greeks(
                 &engine,

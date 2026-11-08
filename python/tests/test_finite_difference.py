@@ -303,13 +303,6 @@ class FiniteDifferenceTests(unittest.TestCase):
                     "delta",
                     **settings,
                 )
-            self.assert_rejection(
-                InvalidInputError,
-                engine.price_with_greeks,
-                option,
-                context,
-                [],
-            )
             for settings in (
                 {"spot_shift": True},
                 {"volatility_shift": None},

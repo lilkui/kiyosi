@@ -1467,6 +1467,7 @@ class AnalyticEuropeanEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -1487,7 +1488,7 @@ class AnalyticEuropeanEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -1622,6 +1623,7 @@ class AnalyticHestonEuropeanEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -1642,7 +1644,7 @@ class AnalyticHestonEuropeanEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -1732,6 +1734,7 @@ class BjerksundStenslandVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -1752,7 +1755,7 @@ class BjerksundStenslandVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -1844,6 +1847,7 @@ class AnalyticDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -1864,7 +1868,7 @@ class AnalyticDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -1967,6 +1971,7 @@ class CoxRossRubinsteinBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -1987,7 +1992,7 @@ class CoxRossRubinsteinBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -2104,6 +2109,7 @@ class QuadratureBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -2124,7 +2130,7 @@ class QuadratureBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -2256,6 +2262,7 @@ class QuadratureDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -2276,7 +2283,7 @@ class QuadratureDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -2412,6 +2419,7 @@ class QuadratureVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -2432,7 +2440,7 @@ class QuadratureVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -2531,6 +2539,7 @@ class CoxRossRubinsteinVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -2551,7 +2560,7 @@ class CoxRossRubinsteinVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -2663,6 +2672,7 @@ class CoxRossRubinsteinDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -2683,7 +2693,7 @@ class CoxRossRubinsteinDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -2868,6 +2878,7 @@ class FiniteDifferenceAccumulatorEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -2888,7 +2899,7 @@ class FiniteDifferenceAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -3076,6 +3087,7 @@ class FiniteDifferenceBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -3096,7 +3108,7 @@ class FiniteDifferenceBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -3284,6 +3296,7 @@ class FiniteDifferenceDoubleBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -3304,7 +3317,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -3512,6 +3525,7 @@ class FiniteDifferenceAutocallableEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -3532,7 +3546,7 @@ class FiniteDifferenceAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -3720,6 +3734,7 @@ class FiniteDifferenceDoubleTouchEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -3740,7 +3755,7 @@ class FiniteDifferenceDoubleTouchEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -3930,6 +3945,7 @@ class FiniteDifferenceBinaryBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -3950,7 +3966,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -4110,6 +4126,7 @@ class FiniteDifferenceHestonVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -4130,7 +4147,7 @@ class FiniteDifferenceHestonVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -4315,6 +4332,7 @@ class FiniteDifferenceVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -4335,7 +4353,7 @@ class FiniteDifferenceVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -4531,6 +4549,7 @@ class FiniteDifferenceDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -4551,7 +4570,7 @@ class FiniteDifferenceDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -4764,6 +4783,7 @@ class MonteCarloVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -4784,7 +4804,7 @@ class MonteCarloVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -5016,6 +5036,7 @@ class MonteCarloDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -5036,7 +5057,7 @@ class MonteCarloDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -5231,6 +5252,7 @@ class MonteCarloBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -5251,7 +5273,7 @@ class MonteCarloBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -5448,6 +5470,7 @@ class MonteCarloDoubleBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -5468,7 +5491,7 @@ class MonteCarloDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -5692,6 +5715,7 @@ class MonteCarloAutocallableEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -5712,7 +5736,7 @@ class MonteCarloAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -5908,6 +5932,7 @@ class MonteCarloAccumulatorEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -5928,7 +5953,7 @@ class MonteCarloAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -6147,6 +6172,7 @@ class MonteCarloAsianEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -6167,7 +6193,7 @@ class MonteCarloAsianEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -7184,7 +7210,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7240,7 +7266,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7291,7 +7317,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7344,7 +7370,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7395,7 +7421,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7450,7 +7476,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7501,7 +7527,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7552,7 +7578,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7603,7 +7629,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7658,7 +7684,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7709,7 +7735,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7762,7 +7788,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -7813,7 +7839,7 @@ def numerical_greeks(
     Raises
     ------
     KiyosiError
-        If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+        If settings are invalid, or model, contract or bumped pricing fails.
     ValueError
         If a Greek name is unknown.
     TypeError
@@ -8044,6 +8070,7 @@ class AnalyticGeometricAveragePriceEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -8064,7 +8091,7 @@ class AnalyticGeometricAveragePriceEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -8298,6 +8325,7 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -8318,7 +8346,7 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -8626,6 +8654,7 @@ class AnalyticBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -8646,7 +8675,7 @@ class AnalyticBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -9145,6 +9174,7 @@ class AnalyticRangeAccrualEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -9165,7 +9195,7 @@ class AnalyticRangeAccrualEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -9250,6 +9280,7 @@ class AnalyticDoubleBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -9270,7 +9301,7 @@ class AnalyticDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -9365,6 +9396,7 @@ class AnalyticDoubleTouchEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -9385,7 +9417,7 @@ class AnalyticDoubleTouchEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -10183,6 +10215,7 @@ class AnalyticBinaryBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -10203,7 +10236,7 @@ class AnalyticBinaryBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -10668,6 +10701,7 @@ class QuadratureAutocallableEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -10688,7 +10722,7 @@ class QuadratureAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
@@ -12938,6 +12972,7 @@ class QuadratureAccumulatorEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
@@ -12958,7 +12993,7 @@ class QuadratureAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            If controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError

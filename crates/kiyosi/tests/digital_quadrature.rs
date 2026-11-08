@@ -233,10 +233,7 @@ fn invalid_controls_and_unsupported_curves_keep_error_categories() {
         }
     }
     let context = market(100.0, 0.05, 0.02, 0.2);
-    assert!(matches!(
-        engine.price_with_greeks(option, &context, GreeksRequest::new([])),
-        Err(Error::InvalidInput(_))
-    ));
+
     assert!(matches!(
         engine.price(option, &market(100.0, f64::MAX, -f64::MAX, 0.2)),
         Err(Error::ComputationFailure(_))

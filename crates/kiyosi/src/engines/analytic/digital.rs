@@ -24,8 +24,7 @@ impl AnalyticDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] for empty requests
-    /// before pricing. Propagates [`Self::price`] errors and returns
+    /// Propagates [`Self::price`] errors and returns
     /// [`crate::Error::ComputationFailure`] for non-finite requested derivatives.
     /// Inputs remain unchanged on success and failure.
     ///
@@ -92,7 +91,6 @@ impl AnalyticDigitalEngine {
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        request.validate()?;
         settings.validate()?;
         crate::risk::numerical::complete_greeks(
             option,

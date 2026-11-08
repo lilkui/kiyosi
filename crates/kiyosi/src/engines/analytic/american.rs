@@ -380,7 +380,7 @@ impl BjerksundStenslandVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request/shift validation, then reuses
+    /// Checks flat-rate applicability before shift validation, then reuses
     /// [`Self::price`] and [`numerical_greeks`] errors. Inputs remain unchanged.
     ///
     /// # Examples

@@ -462,7 +462,7 @@ class AsianMonteCarloTests(unittest.TestCase):
             context,
         )
         self.assert_rejection(
-            InvalidInputError,
+            UnsupportedOperationError,
             engine.price_with_greeks,
             dated_history(option(GeometricAveragePriceOption), context),
             context,

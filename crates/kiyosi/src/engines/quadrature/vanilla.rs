@@ -139,7 +139,7 @@ impl QuadratureVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate BSM applicability before request and shift validation, then
+    /// Checks flat-rate BSM applicability before shift validation, then
     /// propagates [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
     pub fn price_with_greeks<I: OptionContract>(
         &self,

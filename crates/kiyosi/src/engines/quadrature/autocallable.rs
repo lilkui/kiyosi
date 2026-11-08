@@ -95,7 +95,7 @@ impl QuadratureAutocallableEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request/shift validation, then
+    /// Checks flat-rate applicability before shift validation, then
     /// propagates [`crate::numerical_greeks`] errors. Inputs remain unchanged.
     pub fn price_with_greeks<T: AutocallableTerms>(
         &self,

@@ -220,8 +220,7 @@ impl AnalyticHestonEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Checks Heston applicability first, then rejects empty requests
-    /// with [`Error::InvalidInput`] and propagates
+    /// Checks Heston applicability and propagates
     /// [`Self::price`] errors. Inputs remain unchanged; valid numerical shifts are unused.
     pub fn price_with_greeks(
         &self,
@@ -231,7 +230,6 @@ impl AnalyticHestonEuropeanEngine {
     ) -> Result<PricingResult> {
         let settings = crate::NumericalShiftSettings::default();
         self.validate_applicability(context)?;
-        request.validate()?;
         settings.validate()?;
         PricingResult::new(self.price(option, context)?)
             .map(|result| result.with_request(request, GreeksRequest::new([])))

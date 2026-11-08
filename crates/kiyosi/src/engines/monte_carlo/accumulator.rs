@@ -259,7 +259,7 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat rates before requests and shifts, then propagates
+    /// Checks flat rates before shift validation, then propagates
     /// [`crate::numerical_greeks`] and [`Self::price`] errors.
     /// Inputs and engine settings remain unchanged on every outcome.
     ///

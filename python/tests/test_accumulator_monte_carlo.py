@@ -401,10 +401,6 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price_with_greeks(dated_history(note, context), context, []),
-        )
-        self.assert_rejection(
-            InvalidInputError,
             lambda: numerical_greeks(
                 engine, dated_history(note, context), context, "delta", spot_shift=0
             ),

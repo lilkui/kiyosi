@@ -623,12 +623,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     for greek in Greek::ALL {
         assert!(result.require(greek).unwrap().is_finite());
     }
-    assert!(matches!(
-        engine
-            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,

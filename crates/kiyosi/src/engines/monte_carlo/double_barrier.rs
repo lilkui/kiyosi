@@ -239,7 +239,6 @@ impl MonteCarloDoubleBarrierEngine {
         }
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
-        request.validate()?;
         let settings = shifts;
         settings.validate()?;
         let result = self

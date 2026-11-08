@@ -378,12 +378,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
             .abs()
             < 1e-6
     );
-    assert!(matches!(
-        engine
-            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     for spot in [100.0, 120.0] {
         let expiry = market(spot, option.expiry_time());
         assert_eq!(

@@ -781,7 +781,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Rejects nonconstant rate curves before validating requests and shifts, then propagates
+    /// Rejects nonconstant rate curves before validating shifts, then propagates
     /// [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
     ///
     /// # Examples

@@ -1645,13 +1645,6 @@ class ApiConsistencyTests(unittest.TestCase):
                 context,
                 "unknown",
             )
-        with self.assertRaises(InvalidInputError):
-            pricing.numerical_greeks(
-                pricing.AnalyticEuropeanEngine(),
-                dated_history(option, context),
-                context,
-                [],
-            )
 
     def test_double_touch_barrier_type_roundtrips_through_replacement(self):
         for factory, expected in (

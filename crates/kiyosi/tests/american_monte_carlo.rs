@@ -537,12 +537,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         implied_volatility(&engine, &put, &node, f64::NAN, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    assert!(matches!(
-        engine
-            .price_with_greeks(&put, &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,

@@ -1084,6 +1084,17 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
             let generic = PricingEngine::price_with_greeks(&engine, $option, &context, request)?;
             assert_eq!(direct, generic);
             assert_eq!(direct.status(Greek::Delta), GreekStatus::Available);
+            let price_only = PricingEngine::price_with_greeks(
+                &engine,
+                $option,
+                &context,
+                GreeksRequest::new([]),
+            )?;
+            assert_eq!(price_only.price(), direct.price());
+            for greek in Greek::ALL {
+                assert_eq!(price_only.status(greek), GreekStatus::NotRequested);
+                assert_eq!(price_only.get(greek), None);
+            }
         }};
     }
     check!(AnalyticEuropeanEngine, &vanilla);

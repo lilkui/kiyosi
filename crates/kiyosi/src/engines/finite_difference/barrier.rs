@@ -44,7 +44,7 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Leaves other local-volatility Greeks absent. Validates requests and shifts before pricing. Propagates [`Self::price`] and
+    /// Leaves other local-volatility Greeks absent. Validates shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
     /// Inputs and immutable engine settings remain unchanged on success and failure.
     ///
@@ -190,7 +190,6 @@ fn analysis(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
-    request.validate()?;
     shifts.validate()?;
     local_volatility::validate_request(context, request)?;
     let mut settings = settings;
@@ -246,7 +245,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
+    /// Validates shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged on success and failure.
     ///
     /// # Examples

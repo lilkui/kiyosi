@@ -456,12 +456,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
         .unwrap_err(),
         Error::RootNotBracketed(_)
     ));
-    assert!(matches!(
-        engine
-            .price_with_greeks(&dated(&option, &ctx), &ctx, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     let at = context(120.13, start());
     let unknown = option.replace_history(None, None).unwrap();
     let result_at = engine

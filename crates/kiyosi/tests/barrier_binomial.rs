@@ -426,12 +426,7 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     assert_eq!(result.price(), 3.0);
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
-    assert!(matches!(
-        engine
-            .price_with_greeks(&dated(&unknown, &hit), &hit, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert_eq!(unknown.touch_state(), None);
     assert_eq!(engine.settings().step_count, 3);
 

@@ -200,13 +200,6 @@ class BarrierQuadratureTests(unittest.TestCase):
                 )
             self.assert_rejection(
                 InvalidInputError,
-                engine.price_with_greeks,
-                option(),
-                market(),
-                [],
-            )
-            self.assert_rejection(
-                InvalidInputError,
                 partial(numerical_greeks, engine),
                 option(),
                 market(),

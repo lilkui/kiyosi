@@ -863,13 +863,6 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertIsNotNone(result.rho)
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
-            dated_history(option, market()),
-            market(),
-            [],
-        )
-        self.assert_rejection(
-            InvalidInputError,
             partial(numerical_greeks, engine),
             option,
             market(),

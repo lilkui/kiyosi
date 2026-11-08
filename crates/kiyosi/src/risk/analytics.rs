@@ -79,7 +79,7 @@ impl Greek {
 /// Selects price sensitivities, ignoring duplicates.
 ///
 /// Select measures explicitly with [`Self::new`] or [`Self::all`].
-/// Empty requests fail at valuation.
+/// Empty requests select price only; every sensitivity is not requested.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GreeksRequest([bool; Greek::ALL.len()]);
 impl GreeksRequest {
@@ -106,12 +106,6 @@ impl GreeksRequest {
     /// Reports whether this Greek was requested; see [`Self::all`].
     pub fn has(self, greek: Greek) -> bool {
         self.0[greek as usize]
-    }
-    pub(crate) fn validate(self) -> Result<()> {
-        if !self.0.contains(&true) {
-            return Err(Error::InvalidInput("empty Greeks request".into()));
-        }
-        Ok(())
     }
 }
 
@@ -564,7 +558,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     ///
     /// # Errors
     ///
-    /// Checks engine applicability before request and shift validation, then propagates
+    /// Checks engine applicability before shift validation, then propagates
     /// pricing failures. See [`crate::numerical_greeks`] for scalar difference errors.
     ///
     /// # Examples

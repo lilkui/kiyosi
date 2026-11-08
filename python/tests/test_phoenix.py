@@ -281,13 +281,6 @@ class PhoenixTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
-            dated_history(contract(), market()),
-            market(),
-            [],
-        )
-        self.assert_rejection(
-            InvalidInputError,
             partial(numerical_greeks, engine),
             contract(),
             market(),

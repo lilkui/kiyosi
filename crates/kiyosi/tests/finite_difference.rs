@@ -599,12 +599,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Theta), None);
     assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
-    assert!(matches!(
-        engine
-            .price_with_greeks(&option, &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,

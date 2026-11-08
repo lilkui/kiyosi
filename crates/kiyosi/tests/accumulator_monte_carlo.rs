@@ -466,12 +466,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             Error::InvalidInput(_)
         ));
     }
-    assert!(matches!(
-        engine
-            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,

@@ -326,13 +326,6 @@ class AmericanTests(unittest.TestCase):
         self.assertEqual(self.engine.price(self.option, self.context), quote)
 
     def test_analysis_rejects_protocols_and_unsupported_pairs(self):
-        self.assert_rejection(
-            InvalidInputError,
-            self.engine.price_with_greeks,
-            self.option,
-            self.context,
-            [],
-        )
         for settings in (
             {"spot_shift": 0},
             {"volatility_shift": float("nan")},

@@ -86,7 +86,13 @@ fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
     };
     let request = GreeksRequest::new([Greek::Delta]);
     for (request, settings) in [
-        (GreeksRequest::new([]), NumericalShiftSettings::default()),
+        (
+            request,
+            NumericalShiftSettings {
+                rate_shift: 0.0,
+                ..Default::default()
+            },
+        ),
         (
             request,
             NumericalShiftSettings {

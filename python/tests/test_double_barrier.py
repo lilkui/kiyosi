@@ -608,12 +608,6 @@ class DoubleBarrierTests(unittest.TestCase):
                 quote,
                 max_iterations=2**80,
             )
-        self.assert_rejection(
-            InvalidInputError,
-            lambda: engine.price_with_greeks(
-                dated_history(option, context), context, []
-            ),
-        )
         fixed = contract(rebate=3, touch_state="touched")
         self.assert_rejection(
             UnsupportedOperationError,

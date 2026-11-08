@@ -1,8 +1,9 @@
 use kiyosi::Timestamp;
 use kiyosi::{
     AmericanOption, AnalyticHestonEuropeanEngine, Date, Error, EuropeanOption,
-    FiniteDifferenceHestonVanillaEngine, GreeksRequest, HestonFiniteDifferenceSettings,
-    HestonParameters, OptionType, PricingContext, RateTermStructure,
+    FiniteDifferenceHestonVanillaEngine, Greek, GreekStatus, GreeksRequest,
+    HestonFiniteDifferenceSettings, HestonParameters, OptionType, PricingContext,
+    RateTermStructure,
 };
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -369,12 +370,9 @@ fn settings_and_unsupported_sensitivities_have_structured_errors() {
     }
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Put, 100.0, start, end).unwrap();
-    assert!(matches!(
-        FiniteDifferenceHestonVanillaEngine::default().price_with_greeks(
-            &option,
-            &context(0.3, -0.7),
-            GreeksRequest::new([])
-        ),
-        Err(Error::InvalidInput(_))
-    ));
+    let result = FiniteDifferenceHestonVanillaEngine::default()
+        .price_with_greeks(&option, &context(0.3, -0.7), GreeksRequest::new([]))
+        .unwrap();
+    assert_eq!(result.status(Greek::Delta), GreekStatus::NotRequested);
+    assert!(result.values().iter().all(Option::is_none));
 }

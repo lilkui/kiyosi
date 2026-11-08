@@ -844,12 +844,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
             Error::UnsupportedOperation(_)
         ));
     }
-    assert!(matches!(
-        engine
-            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,

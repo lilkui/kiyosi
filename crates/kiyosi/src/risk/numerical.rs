@@ -135,8 +135,8 @@ pub(crate) fn expiry_greeks(
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidInput`](crate::Error::InvalidInput) for empty requests
-/// or invalid bumps, and [`Error::ComputationFailure`](crate::Error::ComputationFailure)
+/// Returns [`Error::InvalidInput`](crate::Error::InvalidInput) for invalid bumps,
+/// and [`Error::ComputationFailure`](crate::Error::ComputationFailure)
 /// for non-finite prices or derivatives. Propagates engine and bumped-context errors.
 /// Inputs remain unchanged.
 ///
@@ -165,7 +165,6 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
 ) -> Result<PricingResult> {
     context.bsm_parameters()?;
     engine.validate_applicability(context)?;
-    request.validate()?;
     settings.validate()?;
     let settings = NumericalShiftSettings {
         spot_shift: Some(settings.spot_shift.unwrap_or_else(|| {
@@ -218,7 +217,7 @@ pub(crate) fn complete_greeks(
     native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
 ) -> Result<PricingResult> {
     result = result.with_request(request, GreeksRequest::all());
-    // Entry points validate requests and shifts before any fallible preparation.
+    // Entry points validate shifts before any fallible preparation.
     let p0 = result.price();
     let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
     let time = context.valuation_time();

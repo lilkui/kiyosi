@@ -540,12 +540,6 @@ class BarrierTests(unittest.TestCase):
                     engine, dated_history(option, context), context, "delta", **fields
                 ),
             )
-        self.assert_rejection(
-            InvalidInputError,
-            lambda: engine.price_with_greeks(
-                dated_history(option, context), context, []
-            ),
-        )
         for changes in (
             {"lower_bound": -0.1},
             {"max_iterations": 0},

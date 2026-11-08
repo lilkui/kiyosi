@@ -120,7 +120,7 @@ impl QuadratureBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request/shift validation and propagates
+    /// Checks flat-rate applicability before shift validation and propagates
     /// [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
     pub fn price_with_greeks(
         &self,

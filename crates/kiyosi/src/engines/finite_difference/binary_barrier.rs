@@ -44,7 +44,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
+    /// Validates shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs and engine settings remain unchanged.
     ///
     /// # Examples
@@ -147,7 +147,6 @@ macro_rules! binary_pricing {
                 request: GreeksRequest,
             ) -> Result<PricingResult> {
                 let shifts = self.settings.greek_shifts();
-                request.validate()?;
                 shifts.validate()?;
                 local_volatility::validate_request(context, request)?;
                 let mut settings = self.settings;
@@ -209,7 +208,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// # Errors
     ///
-    /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
+    /// Validates shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged.
     ///
     /// # Examples

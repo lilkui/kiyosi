@@ -660,7 +660,6 @@ fn analysis<I: OptionContract>(
         NumericalShiftSettings,
     ) -> Result<(PricingResult, Option<f64>)>,
 ) -> Result<PricingResult> {
-    request.validate()?;
     shifts.validate()?;
     local_volatility::validate_request(context, request)?;
     let (result, upper) = native(option, context, settings, request, shifts)?;
@@ -798,7 +797,7 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Validates requests and shifts before pricing; reuses [`Self::price`] and
+    /// Validates shifts before pricing; reuses [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Feasible bumped failures propagate.
     /// Inputs and engine settings remain unchanged on success and failure.
     ///
@@ -920,7 +919,6 @@ macro_rules! vanilla_pricing {
             ) -> Result<PricingResult> {
                 let settings = self.settings.greek_shifts();
                 if context.valuation_time() == option.expiry_time() {
-                    request.validate()?;
                     settings.validate()?;
                     let supported = if local_volatility::local_model(context).is_some() {
                         GreeksRequest::new([Greek::Delta, Greek::Gamma])
@@ -937,7 +935,6 @@ macro_rules! vanilla_pricing {
                     );
                 }
                 if let Some(model) = local_volatility::local_model(context) {
-                    request.validate()?;
                     settings.validate()?;
                     let result = local_volatility::price(
                         option,
@@ -1032,7 +1029,7 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request and shift validation, then reuses
+    /// Checks flat-rate applicability before shift validation, then reuses
     /// [`Self::price`] and [`crate::numerical_greeks`] errors. Inputs remain unchanged.
     pub fn price_with_greeks(
         &self,

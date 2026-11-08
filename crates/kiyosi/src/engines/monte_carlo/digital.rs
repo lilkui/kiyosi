@@ -120,9 +120,8 @@ impl MonteCarloDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before requests, then propagates
-    /// [`Self::price`] errors. Empty requests return
-    /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples return
+    /// Checks flat-rate applicability before shifts, then propagates
+    /// [`Self::price`] errors. Non-finite requested Greek samples return
     /// [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Panics
@@ -176,7 +175,6 @@ impl MonteCarloDigitalEngine {
         }
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
-        request.validate()?;
         settings.validate()?;
         let result = self
             .native(option, context, request, false)?

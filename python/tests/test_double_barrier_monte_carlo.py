@@ -589,13 +589,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
-            option,
-            context,
-            [],
-        )
-        self.assert_rejection(
-            InvalidInputError,
             partial(numerical_greeks, engine),
             option,
             context,

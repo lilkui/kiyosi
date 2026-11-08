@@ -219,9 +219,6 @@ class AnalyticsTests(unittest.TestCase):
         for request in ("Delta", "unknown"):
             with self.assertRaises(ValueError):
                 self.engine.price_with_greeks(self.option, self.context, request)
-        with self.assertRaises(InvalidInputError) as error:
-            self.engine.price_with_greeks(self.option, self.context, [])
-        self.assertIs(type(error.exception), InvalidInputError)
         for value in (1, "unknown"):
             with self.assertRaises(TypeError if value == 1 else ValueError):
                 full.require(value)

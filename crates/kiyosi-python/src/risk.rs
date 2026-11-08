@@ -241,7 +241,7 @@ pub(crate) fn _pricing_result(
 /// Raises
 /// ------
 /// KiyosiError
-///     If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+///     If settings are invalid, or model, contract or bumped pricing fails.
 /// ValueError
 ///     If a Greek name is unknown.
 /// TypeError

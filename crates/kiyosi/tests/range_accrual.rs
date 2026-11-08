@@ -744,17 +744,7 @@ fn request_and_solver_errors_preserve_inputs() {
     .unwrap();
     let context = market(day(1), 100.0);
     let shifts = NumericalShiftSettings::default();
-    assert!(matches!(
-        kiyosi::numerical_greeks(
-            &engine,
-            &dated(&option, &context),
-            &context,
-            GreeksRequest::new([]),
-            shifts
-        )
-        .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,

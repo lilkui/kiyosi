@@ -270,6 +270,46 @@ def terminal_delta(instrument):
 
 
 class SupportMatrixTests(unittest.TestCase):
+    def test_empty_greek_requests_return_price_only_for_every_engine(self):
+        for instrument, names, expected in self.cases:
+            for name in names:
+                context = self.context_for(name)
+                option = dated_history(instrument, context)
+                with self.subTest(instrument=type(instrument).__name__, engine=name):
+                    result = self.engines[name].price_with_greeks(option, context, [])
+                    self.assertAlmostEqual(result.price, expected, delta=1e-12)
+                    self.assertEqual(result.requested, ())
+                    self.assertEqual(result.status("delta"), "not_requested")
+                    self.assertIsNone(result.delta)
+                    self.assertIsNone(result.seed)
+
+    def test_empty_requests_price_before_expiry_and_validate_controls(self):
+        for instrument, names, _ in self.cases[:4]:
+            for name in names:
+                context = self.context_for(name).replace(
+                    valuation_time=instrument.effective_time
+                )
+                engine = self.engines[name]
+                if name.startswith("MonteCarlo"):
+                    engine = (
+                        engine.replace(path_count=32, seed=42, step_count=4)
+                        if name == "MonteCarloVanillaEngine"
+                        else engine.replace(path_count=32, seed=42)
+                    )
+                with self.subTest(instrument=type(instrument).__name__, engine=name):
+                    result = engine.price_with_greeks(instrument, context, [])
+                    self.assertEqual(result.price, engine.price(instrument, context))
+                    self.assertEqual(result.requested, ())
+                    self.assertEqual(result.status("vega"), "not_requested")
+                    with self.assertRaises(InvalidInputError):
+                        engine.price_with_greeks(instrument, context, [], spot_shift=0)
+                    if name not in HESTON_ENGINES:
+                        scalar = pricing.numerical_greeks(
+                            engine, instrument, context, []
+                        )
+                        self.assertEqual(scalar.price, result.price)
+                        self.assertEqual(scalar.requested, ())
+
     @classmethod
     def setUpClass(cls):
         cls.cases = terminal_cases()

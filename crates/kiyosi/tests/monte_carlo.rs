@@ -610,12 +610,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             Error::UnsupportedOperation(_)
         ));
     }
-    assert!(matches!(
-        engine
-            .price_with_greeks(&option, &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     let baseline = engine.price(&option, &context).unwrap();
     assert!(matches!(
         kiyosi::numerical_greeks(

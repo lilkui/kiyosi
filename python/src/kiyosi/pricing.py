@@ -134,8 +134,8 @@ separately to the risk-free and dividend curves; its volatility shift controls
 vega and volga. Numerical volga requires a positive lower volatility leg.
 
 Pass ``greeks="all"`` to request every measure, a Greek name for one measure,
-or an iterable of names for a selection. The ``greeks`` argument is required;
-unavailable measures are None. Inspect ``result.status(name)`` to distinguish
+or an iterable of names for a selection. The ``greeks`` argument is required; an empty iterable requests price only.
+Unavailable measures are None. Inspect ``result.status(name)`` to distinguish
 unrequested, unsupported, undefined and ``"stencil_unavailable"`` measures.
 The last status identifies a numerical stencil that may be recovered with other
 controls, such as a smaller volatility bump; ``result.requested`` and

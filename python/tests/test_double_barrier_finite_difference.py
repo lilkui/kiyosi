@@ -874,7 +874,10 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                     "delta",
                     **{name: value},
                 )
-        for request, controls in (([], {}), (["delta"], {"spot_shift": 0})):
+        for request, controls in (
+            ([], {"spot_shift": 0}),
+            (["delta"], {"spot_shift": 0}),
+        ):
             self.assert_core_error(
                 InvalidInputError,
                 lambda request=request, controls=controls: numerical_greeks(

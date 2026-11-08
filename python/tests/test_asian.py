@@ -276,13 +276,6 @@ class AsianTests(unittest.TestCase):
                     )
             self.assert_rejection(
                 InvalidInputError,
-                engine.price_with_greeks,
-                dated_history(option, context),
-                context,
-                [],
-            )
-            self.assert_rejection(
-                InvalidInputError,
                 partial(numerical_greeks, engine),
                 option,
                 context,
@@ -429,9 +422,8 @@ class AsianTests(unittest.TestCase):
             dated_history(arithmetic, context),
             context,
         )
-        # Request validation precedes pricing applicability for these analytic engines.
         self.assert_rejection(
-            InvalidInputError,
+            UnsupportedOperationError,
             engine.price_with_greeks,
             dated_history(arithmetic, context),
             context,

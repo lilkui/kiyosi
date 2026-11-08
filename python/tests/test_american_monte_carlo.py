@@ -336,13 +336,6 @@ class AmericanMonteCarloTests(unittest.TestCase):
             [],
         )
         self.assert_rejection(
-            InvalidInputError,
-            engine.price_with_greeks,
-            option,
-            context,
-            [],
-        )
-        self.assert_rejection(
             ComputationFailureError, engine.price, option, market(sigma=1000)
         )
         self.assert_rejection(

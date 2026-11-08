@@ -41,7 +41,7 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Validates requests and shifts, then propagates [`Self::price`] and
+    /// Validates shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
     /// Unsupported local-volatility Greeks are absent.
     ///

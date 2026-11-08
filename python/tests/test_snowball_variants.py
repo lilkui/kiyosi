@@ -492,13 +492,6 @@ class SnowballVariantTests(unittest.TestCase):
             )
             self.assert_rejection(
                 InvalidInputError,
-                engine.price_with_greeks,
-                dated_history(note, market()),
-                market(),
-                [],
-            )
-            self.assert_rejection(
-                InvalidInputError,
                 engine.price,
                 dated_history(note, market(100, datetime(2025, 4, 2))),
                 market(100, datetime(2025, 4, 2)),

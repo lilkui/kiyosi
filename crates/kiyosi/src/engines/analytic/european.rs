@@ -38,8 +38,7 @@ impl AnalyticEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for empty requests,
-    /// then propagates [`Self::price`] errors. Non-finite requested derivatives
+    /// Propagates [`Self::price`] errors. Non-finite requested derivatives
     /// return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price_with_greeks(
         &self,
@@ -58,7 +57,6 @@ impl AnalyticEuropeanEngine {
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        request.validate()?;
         settings.validate()?;
         let mut result = PricingResult::new(self.price(option, context)?)?
             .with_request(request, GreeksRequest::all());

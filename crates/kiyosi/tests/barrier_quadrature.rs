@@ -365,12 +365,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
             Error::InvalidInput(_)
         ));
     }
-    assert!(matches!(
-        engine
-            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     for sigma in [f64::MAX, 1e200] {
         let model = BlackScholesMertonParameters::new(0.04, 0.01, sigma).unwrap();
         let invalid = context

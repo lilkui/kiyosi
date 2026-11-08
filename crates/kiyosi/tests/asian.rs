@@ -304,16 +304,7 @@ macro_rules! contract_tests {
                         .abs()
                         < 1e-7
                 );
-                assert!(matches!(
-                    $engine
-                        .price_with_greeks(
-                            &dated(&option, &context),
-                            &context,
-                            GreeksRequest::new([])
-                        )
-                        .unwrap_err(),
-                    Error::InvalidInput(_)
-                ));
+
                 assert!(matches!(
                     kiyosi::numerical_greeks(
                         &$engine,

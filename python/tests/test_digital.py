@@ -295,13 +295,6 @@ class DigitalTests(unittest.TestCase):
                     numerical_greeks(self.engine, option, self.context, **changes)
             with self.assertRaises(ValueError):
                 self.engine.price_with_greeks(option, self.context, "Delta")
-            self.assert_rejection(
-                InvalidInputError,
-                self.engine.price_with_greeks,
-                option,
-                self.context,
-                [],
-            )
             for field in (
                 "spot_shift",
                 "volatility_shift",

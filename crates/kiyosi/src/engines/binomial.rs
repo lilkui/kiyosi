@@ -109,7 +109,7 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request/shift validation, then reuses
+    /// Checks flat-rate applicability before shift validation, then reuses
     /// [`Self::price`] and [`crate::numerical_greeks`] errors. Inputs remain unchanged.
     ///
     /// # Examples
@@ -501,7 +501,6 @@ macro_rules! vanilla_pricing {
             ) -> Result<PricingResult> {
                 context.bsm_parameters()?;
                 flat_rates(context)?;
-                request.validate()?;
                 settings.validate()?;
                 let evaluate = |context: &PricingContext, request| {
                     native(
@@ -586,7 +585,7 @@ impl CoxRossRubinsteinDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request validation, then reuses
+    /// Checks flat-rate applicability before shift validation, then reuses
     /// [`Self::price`] errors. Empty requests return
     /// [`Error::InvalidInput`]. Inputs remain unchanged.
     ///
@@ -625,7 +624,6 @@ impl CoxRossRubinsteinDigitalEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         flat_rates(context)?;
-        request.validate()?;
         settings.validate()?;
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(&self, option, context, request, settings).map(

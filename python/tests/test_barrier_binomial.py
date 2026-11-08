@@ -212,13 +212,6 @@ class BarrierBinomialTests(unittest.TestCase):
                     dated_history(option(), market(valuation=valuation)),
                     market(valuation=valuation),
                 )
-            self.assert_rejection(
-                InvalidInputError,
-                engine.price_with_greeks,
-                dated_history(option(), market()),
-                market(),
-                [],
-            )
 
     def test_expiry_settlement_has_terminal_spot_greeks(self):
         for engine in engines():

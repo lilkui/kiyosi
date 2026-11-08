@@ -53,6 +53,7 @@ macro_rules! numerical_greeks_methods {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str
             ///     Greek names or "all" to request every measure; duplicates are ignored.
+            ///     An empty iterable requests price only.
             /// spot_shift : float or None, optional
             ///     Positive absolute spot bump; None selects the product's automatic bump.
             /// volatility_shift, rate_shift : float, optional
@@ -73,7 +74,7 @@ macro_rules! numerical_greeks_methods {
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
+            ///     If controls are invalid, pricing fails or a feasible bumped valuation fails.
             /// ValueError
             ///     If a Greek name is unknown.
             /// TypeError

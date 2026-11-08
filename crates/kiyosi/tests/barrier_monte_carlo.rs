@@ -796,12 +796,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_times = vec![day(1, 4)];
     assert!(matches!(BarrierOption::new(t), Err(Error::InvalidInput(_))));
-    assert!(matches!(
-        engine
-            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,

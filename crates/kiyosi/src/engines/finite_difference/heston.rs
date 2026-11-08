@@ -162,8 +162,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Checks Heston applicability first, then rejects empty requests
-    /// with [`crate::Error::InvalidInput`] and propagates
+    /// Checks Heston applicability and propagates
     /// [`Self::price`] errors. Inputs remain unchanged.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
@@ -176,7 +175,6 @@ impl FiniteDifferenceHestonVanillaEngine {
     {
         let settings = crate::NumericalShiftSettings::default();
         <Self as PricingEngine<I>>::validate_applicability(self, context)?;
-        request.validate()?;
         settings.validate()?;
         PricingResult::new(self.price(option, context)?)
             .map(|result| result.with_request(request, GreeksRequest::new([])))

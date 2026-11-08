@@ -76,7 +76,7 @@ impl QuadratureAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request/shift validation, then propagates
+    /// Checks flat-rate applicability before shift validation, then propagates
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged on every outcome.
     pub fn price_with_greeks(
         &self,

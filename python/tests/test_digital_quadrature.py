@@ -279,8 +279,6 @@ class DigitalQuadratureTests(unittest.TestCase):
                         with self.assertRaises(UnsupportedOperationError):
                             engine.price_with_greeks(option, context, [])
                 with self.assertRaises(InvalidInputError):
-                    engine.price_with_greeks(option, market(), [])
-                with self.assertRaises(InvalidInputError):
                     numerical_greeks(engine, option, market(), "delta", spot_shift=0)
                 with self.assertRaises(ComputationFailureError):
                     engine.price(option, market(rate=1.79e308, dividend=-1.79e308))

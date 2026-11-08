@@ -192,13 +192,6 @@ class DigitalNumericalTests(unittest.TestCase):
             for engine in (
                 pricing.MonteCarloDigitalEngine(path_count=2, seed=42, antithetic=True),
             ):
-                self.assert_rejection(
-                    InvalidInputError,
-                    engine.price_with_greeks,
-                    option,
-                    market(),
-                    [],
-                )
                 controlled = numerical_greeks(
                     engine,
                     option,

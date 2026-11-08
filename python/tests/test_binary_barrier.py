@@ -388,12 +388,6 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assertAlmostEqual(sigma, 0.2, delta=1e-7)
             self.assert_rejection(
                 InvalidInputError,
-                lambda context=context, option=option: engine.price_with_greeks(
-                    dated_history(option, context), context, []
-                ),
-            )
-            self.assert_rejection(
-                InvalidInputError,
                 lambda context=context, option=option: numerical_greeks(
                     engine,
                     dated_history(option, context),

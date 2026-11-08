@@ -782,16 +782,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    assert!(matches!(
-        engine
-            .price_with_greeks(
-                &dated(&option, &boundary),
-                &boundary,
-                GreeksRequest::new([])
-            )
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     for settings in [
         QuadratureSettings {
             asset_step_count: 3,

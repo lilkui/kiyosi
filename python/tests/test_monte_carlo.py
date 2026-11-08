@@ -315,13 +315,6 @@ class MonteCarloTests(unittest.TestCase):
             )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
-            option,
-            context,
-            [],
-        )
-        self.assert_rejection(
-            InvalidInputError,
             partial(numerical_greeks, engine),
             option,
             context,
@@ -924,9 +917,6 @@ class SamplingTests(unittest.TestCase):
                 with self.assertRaises(UnsupportedOperationError) as error:
                     engine.price_with_greeks(option, node, [])
                 self.assertIs(type(error.exception), UnsupportedOperationError)
-                with self.assertRaises(InvalidInputError) as error:
-                    engine.price_with_greeks(option, context, [])
-                self.assertIs(type(error.exception), InvalidInputError)
                 self.assertEqual(engine.price(option, context), baseline)
         # First Sobol path is finite; its opposite overflows, so the paired call fails.
         context = market().replace(

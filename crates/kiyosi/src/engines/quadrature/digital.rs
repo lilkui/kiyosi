@@ -80,7 +80,7 @@ impl QuadratureDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat-rate BSM applicability before request and shift validation,
+    /// Checks flat-rate BSM applicability before shift validation,
     /// then propagates [`crate::numerical_greeks`] and [`Self::price`] errors.
     /// Inputs and settings remain unchanged.
     pub fn price_with_greeks(

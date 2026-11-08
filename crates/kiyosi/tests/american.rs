@@ -227,12 +227,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
             implied_volatility(&engine, &option, &context, quote, settings).unwrap_err()
         ));
     }
-    assert!(matches!(
-        engine
-            .price_with_greeks(&option, &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,

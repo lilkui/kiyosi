@@ -223,8 +223,7 @@ impl MonteCarloAsianEngine {
     ///
     /// # Errors
     ///
-    /// Rejects empty requests with [`Error::InvalidInput`]
-    /// before pricing, then propagates [`Self::price`] errors.
+    /// Propagates [`Self::price`] errors.
     /// Non-finite requested Greeks return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on success and failure.
     ///
@@ -603,7 +602,6 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        request.validate()?;
         settings.validate()?;
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, settings).map(
@@ -712,7 +710,6 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        request.validate()?;
         settings.validate()?;
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, settings).map(
