@@ -45,24 +45,24 @@ pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierTy
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays on construction and is
 ///     retained on replacement.
-///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-///     payload and timestamp together.
+///     Required with history; refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
 ///     If boundaries, strike, rebate, life times, monitoring schedule or
-///     rebate timing are invalid. Calendar compatibility is checked on construction; history is checked during pricing.
+///     rebate timing are invalid. Calendar compatibility is checked on
+///     construction; history is checked during pricing.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
 
 monitoring_properties!(
     DoubleBarrierOption,
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -70,13 +70,9 @@ monitoring_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// strike : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_time : datetime.datetime, optional
+    /// effective_time, expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// lower_barrier : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// upper_barrier : float, optional
+    /// lower_barrier, upper_barrier : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// barrier_type : {'knock_in', 'knock_out'}, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -87,29 +83,30 @@ monitoring_properties!(
     /// observation_mode : {'continuous', 'scheduled'}, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observation_times : Iterable[datetime.datetime], optional
-    ///     Omission retains times; switching to continuous requires an explicitly empty iterable.
+    ///     Omission retains times; switching to continuous requires an explicitly
+    ///     empty iterable.
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned observation calendar; defaults to weekdays on construction and is
     ///     retained on replacement.
-    ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-    ///     payload and timestamp together.
+    ///     Required with history; refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
     /// object
-    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///     Independent contract of the same class, preserving omitted history and
+    ///     terms.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If the resulting contract fails core validation; the original is unchanged.
+    ///     If the resulting contract fails core validation.
     /// TypeError
     ///     If a representation or field name is invalid.
+    ///
     #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, rebate=crate::conversions::OMITTED, rebate_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,

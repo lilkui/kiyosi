@@ -9,40 +9,40 @@ macro_rules! monitoring_properties {
                 kiyosi::OptionContract::history_time(&self.0).map(|time| crate::conversions::python_timestamp(py, time)).transpose()
             }
 
-            /// Returns an owned copy of the contract's observation calendar.
+            /// Return an owned copy of the contract's observation calendar.
             #[getter]
             fn calendar(&self) -> $crate::calendar::TradingCalendar {
                 $crate::calendar::TradingCalendar(self.0.calendar().clone())
             }
-            /// Returns a validated replacement.
+            /// Return a validated replacement.
             ///
-            /// Clearing the final history payload clears an omitted history_time.
-            /// An explicitly supplied history_time is validated and retained.
+            /// Clearing the final history payload clears an omitted history_time. An
+            /// explicitly supplied history_time is validated and retained.
             ///
             /// Parameters
             /// ----------
             /// touch_state : {'untouched', 'touched'} or None, optional
             ///     Strictly prior history. None means unknown; untouched means known no
             ///     hit.
-            ///
             /// history_time : datetime.datetime or None, optional
             ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-            ///     payload and timestamp together.
+            ///     Required with history; refresh payload and timestamp together.
             ///
             /// Returns
             /// -------
             /// object
-            ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+            ///     Validated copy; omitted fields or Ellipsis retain their values.
             ///
             /// Raises
             /// ------
             /// InvalidInputError
-            ///     If supplied history has no timestamp or history_time falls outside the contract life.
+            ///     If supplied history has no timestamp or history_time falls outside the
+            ///     contract life.
             /// TypeError
             ///     If a field is unknown or touch_state is not a string, None or Ellipsis.
             /// ValueError
             ///     If touch_state is an unknown choice.
+            ///
             #[pyo3(signature = (*, touch_state=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
             fn replace_history(
                 &self,
@@ -65,7 +65,7 @@ macro_rules! monitoring_properties {
                 });
                 Ok(Self($crate::error::domain(self.0.replace_history(state, at))?))
             }
-            /// Returns the inclusive contract start.
+            /// Return the inclusive contract start.
             #[getter]
             fn effective_time<'py>(
                 &self,
@@ -73,7 +73,7 @@ macro_rules! monitoring_properties {
             ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyAny>> {
                 $crate::conversions::python_timestamp(py, self.0.effective_time())
             }
-            /// Returns the inclusive expiry time.
+            /// Return the inclusive expiry time.
             #[getter]
             fn expiry_time<'py>(
                 &self,
@@ -81,7 +81,7 @@ macro_rules! monitoring_properties {
             ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyAny>> {
                 $crate::conversions::python_timestamp(py, self.0.expiry_time())
             }
-            /// Returns continuous monitoring or observations on the supplied times.
+            /// Return continuous monitoring or observations on the supplied times.
             #[getter]
             fn observation_mode(&self) -> &'static str {
                 match self.0.observation_mode() {
@@ -89,12 +89,12 @@ macro_rules! monitoring_properties {
                     kiyosi::ObservationMode::Scheduled => "scheduled",
                 }
             }
-            /// Returns an owned copy of the monitoring schedule.
+            /// Return an owned copy of the monitoring schedule.
             #[getter]
             fn observation_schedule(&self) -> $crate::schedule::ObservationSchedule {
                 $crate::schedule::ObservationSchedule(self.0.observation_schedule().clone())
             }
-            /// Returns a copy of the contractual observation times.
+            /// Return a copy of the contractual observation times.
             #[getter]
             fn observation_times<'py>(
                 &self,
@@ -106,7 +106,7 @@ macro_rules! monitoring_properties {
                     .map(|&d| $crate::conversions::python_timestamp(py, d))
                     .collect()
             }
-            /// Returns strictly prior touch history, or None if unknown.
+            /// Return strictly prior touch history, or None if unknown.
             #[getter]
             fn touch_state(&self) -> Option<&'static str> {
                 self.0.touch_state().map(|s| match s {

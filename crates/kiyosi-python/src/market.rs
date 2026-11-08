@@ -12,8 +12,7 @@ use pyo3::types::PyDate;
 /// times : iterable of datetime.datetime
 ///     Strictly increasing nodes after the reference.
 /// factors : iterable of float
-///     Positive finite factors at the nodes; log factors interpolate
-///     linearly.
+///     Positive finite factors at the nodes; log factors interpolate linearly.
 ///
 /// Raises
 /// ------
@@ -24,10 +23,11 @@ use pyo3::types::PyDate;
 ///
 /// Notes
 /// -----
-/// Uses the Actual/365 Fixed day-count convention. Log-linear interpolation
-/// of discount factors gives piecewise constant instantaneous forward rates.
-/// Dated curves reject times before their reference; node-based rate curves also reject
-/// times after the last node. Negative rates are allowed.
+/// Uses the Actual/365 Fixed day-count convention. Log-linear interpolation of
+/// discount factors gives piecewise constant instantaneous forward rates.
+/// Dated curves reject times before their reference; node-based rate curves
+/// also reject times after the last node. Negative rates are allowed.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct RateTermStructure(pub(crate) kiyosi::RateTermStructure);
@@ -72,6 +72,7 @@ impl RateTermStructure {
     /// ------
     /// InvalidInputError
     ///     If the rate is non-finite.
+    ///
     #[staticmethod]
     #[pyo3(signature = (rate, *, reference_time=None))]
     fn flat(rate: &Bound<'_, PyAny>, reference_time: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
@@ -99,6 +100,7 @@ impl RateTermStructure {
     /// ------
     /// InvalidInputError
     ///     If the rate is non-finite or max_time precedes reference_time.
+    ///
     #[staticmethod]
     #[pyo3(signature = (rate, *, reference_time, max_time))]
     fn bounded_flat(
@@ -114,8 +116,9 @@ impl RateTermStructure {
     }
     /// Return the scalar rate when all implied forwards are exactly constant.
     ///
-    /// Nonconstant curves return None. Node-based coverage is preserved.
-    /// This query does not change the curve or its coverage bounds.
+    /// Nonconstant curves return None. Node-based coverage is preserved. This
+    /// query does not change the curve or its coverage bounds.
+    ///
     #[getter]
     fn exact_flat_rate(&self) -> Option<f64> {
         self.0.exact_flat_rate()
@@ -154,17 +157,21 @@ impl RateTermStructure {
     ///
     /// Notes
     /// -----
-    /// Zero factors cannot reconstruct a curve through its constructor. Reconstruct
-    /// node curves from base_factors, then apply shifted(parallel_shift). Pickle
-    /// preserves this representation, including extreme shifted curves.
+    /// Zero factors cannot reconstruct a curve through its constructor.
+    /// Reconstruct node curves from base_factors, then apply
+    /// shifted(parallel_shift). Pickle preserves this representation, including
+    /// extreme shifted curves.
+    ///
     #[getter]
     fn factors(&self) -> PyResult<Vec<f64>> {
         domain(self.0.factors())
     }
-    /// Return an owned copy of the original node factors, excluding parallel shifts.
+    /// Return original node factors without parallel shifts.
     ///
     /// Flat curves have no node factors. For node curves, pass these factors with
-    /// reference_time and nodes to RateTermStructure, then call shifted(parallel_shift).
+    /// reference_time and nodes to RateTermStructure, then call
+    /// shifted(parallel_shift).
+    ///
     #[getter]
     fn base_factors(&self) -> Vec<f64> {
         self.0.base_factors().to_vec()
@@ -172,6 +179,7 @@ impl RateTermStructure {
     /// Return the accumulated node-curve parallel shift in decimal units.
     ///
     /// Flat curves include shifts in their rate and return zero here.
+    ///
     #[getter]
     fn parallel_shift(&self) -> f64 {
         self.0.parallel_shift()
@@ -194,6 +202,7 @@ impl RateTermStructure {
     ///     If endpoints are reversed or outside curve coverage.
     /// ComputationFailureError
     ///     If the log factor is non-finite or exponentiation overflows.
+    ///
     fn factor(&self, start_time: &Bound<'_, PyAny>, end_time: &Bound<'_, PyAny>) -> PyResult<f64> {
         domain(self.0.factor(timestamp(start_time)?, timestamp(end_time)?))
     }
@@ -215,6 +224,7 @@ impl RateTermStructure {
     ///     If endpoints are reversed or outside curve coverage.
     /// ComputationFailureError
     ///     If the result is non-finite.
+    ///
     fn log_factor(
         &self,
         start_time: &Bound<'_, PyAny>,
@@ -241,6 +251,7 @@ impl RateTermStructure {
     /// ------
     /// InvalidInputError
     ///     If the instant is outside curve coverage.
+    ///
     fn forward_rate(&self, time: &Bound<'_, PyAny>) -> PyResult<f64> {
         domain(self.0.forward_rate(timestamp(time)?))
     }
@@ -260,6 +271,7 @@ impl RateTermStructure {
     /// ------
     /// InvalidInputError
     ///     If the shift or resulting rates are non-finite.
+    ///
     fn shifted(&self, shift: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self(domain(self.0.shifted(real(shift)?))?))
     }
@@ -289,6 +301,7 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
 /// ------
 /// InvalidInputError
 ///     If scalar rates are non-finite or volatility is negative or non-finite.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BlackScholesMertonParameters(pub(crate) kiyosi::BlackScholesMertonParameters);
@@ -308,7 +321,7 @@ impl BlackScholesMertonParameters {
             real(volatility)?,
         ))?))
     }
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -322,12 +335,13 @@ impl BlackScholesMertonParameters {
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+    ///     Validated copy; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
+    ///     If replacement terms fail domain validation.
+    ///
     #[pyo3(signature = (*, risk_free_rate=crate::conversions::OMITTED, dividend_yield=crate::conversions::OMITTED, volatility=crate::conversions::OMITTED))]
     fn replace(
         &self,
@@ -342,18 +356,21 @@ impl BlackScholesMertonParameters {
         };
         Ok(Self(domain(self.0.replace(update))?))
     }
-    /// Returns the scalar rate for dated or undated constant curves.
+    /// Return the scalar rate for dated or undated constant curves.
     ///
-    /// Raises UnsupportedOperationError for nonconstant curves; use risk_free_curve
-    /// to preserve coverage when passing rates to constructors or replacements.
+    /// Raises UnsupportedOperationError for nonconstant curves; use
+    /// risk_free_curve to preserve coverage when passing rates to constructors or
+    /// replacements.
+    ///
     #[getter]
     fn flat_risk_free_rate(&self) -> PyResult<f64> {
         domain(self.0.flat_risk_free_rate())
     }
-    /// Returns the scalar yield for dated or undated constant curves.
+    /// Return the scalar yield for dated or undated constant curves.
     ///
     /// Raises UnsupportedOperationError for nonconstant curves; use dividend_curve
     /// to preserve coverage when passing yields to constructors or replacements.
+    ///
     #[getter]
     fn flat_dividend_yield(&self) -> PyResult<f64> {
         domain(self.0.flat_dividend_yield())
@@ -392,6 +409,7 @@ impl BlackScholesMertonParameters {
 ///     If spot_price is nonpositive or non-finite or valuation_time is outside
 ///     either rate curve or the local-volatility surface. Contract-life and
 ///     expiry coverage checks occur at pricing.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PricingContext(pub(crate) kiyosi::PricingContext);
@@ -411,7 +429,7 @@ impl PricingContext {
             timestamp(valuation_time)?,
         ))?))
     }
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -425,12 +443,13 @@ impl PricingContext {
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+    ///     Validated copy; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
+    ///     If replacement terms fail domain validation.
+    ///
     #[pyo3(signature = (*, model_parameters=crate::conversions::OMITTED, spot_price=crate::conversions::OMITTED, valuation_time=crate::conversions::OMITTED))]
     fn replace(
         &self,

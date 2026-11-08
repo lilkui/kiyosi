@@ -106,7 +106,7 @@ impl QuadratureBarrierEngine {
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves. Returns
     /// [`Error::InvalidInput`] outside life, for missing or impossible history,
     /// or outside required curve coverage. Unrepresentable grids,
-    /// transitions or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// transitions or results return [`Error::ComputationFailure`].
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         price(option, context, self.settings, None)
@@ -121,7 +121,7 @@ impl QuadratureBarrierEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation and propagates
-    /// [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
+    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
     pub fn price_with_greeks(
         &self,
         option: &BarrierOption,

@@ -26,7 +26,6 @@ impl AnalyticDigitalEngine {
     ///
     /// Propagates [`Self::price`] errors and returns
     /// [`crate::Error::ComputationFailure`] for non-finite requested derivatives.
-    /// Inputs remain unchanged on success and failure.
     ///
     /// # Examples
     ///

@@ -782,7 +782,7 @@ impl MonteCarloVanillaEngine {
     /// # Errors
     ///
     /// Rejects nonconstant rate curves before validating shifts, then propagates
-    /// [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
+    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
     ///
     /// # Examples
     ///
@@ -815,7 +815,7 @@ impl MonteCarloVanillaEngine {
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
     /// validation, [`Error::InvalidInput`] outside the inclusive contract
     /// life, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
-    /// or non-finite terminal prices, or non-finite results. Inputs remain unchanged.
+    /// or non-finite terminal prices, or non-finite results.
     /// Entropy and thread-creation failures retain their native [`std::io::Error`]
     /// in [`Error::Io`].
     /// American pricing before expiry returns [`Error::InvalidInput`]
@@ -867,7 +867,7 @@ impl MonteCarloVanillaEngine {
     /// # Errors
     ///
     /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
-    /// when uncertainty or interval endpoints are non-finite. Inputs remain unchanged.
+    /// when uncertainty or interval endpoints are non-finite.
     ///
     /// # Panics
     ///

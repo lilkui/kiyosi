@@ -1,116 +1,36 @@
-//! Prices derivatives under Black-Scholes-Merton (BSM), local-volatility and Heston models.
+//! Prices derivatives under Black-Scholes-Merton, local-volatility, and Heston models.
 //!
-//! Supports vanilla and exotic options, autocallable notes and accumulators with
-//! analytic, binomial, quadrature, finite-difference and Monte Carlo engines.
-//! Provides calendars, schedules, Greeks and implied-parameter solvers.
-//! The core builds with Cargo alone; Python bindings live in a separate crate.
+//! Construct a contract and a [`PricingContext`], then select an engine for the
+//! contract and model. Engine methods return prices, selected Greeks, and Monte
+//! Carlo sampling statistics. [`numerical_greeks`] selects scalar BSM differences;
+//! [`implied_volatility`] and the coupon solvers invert an engine's price curve.
+//! Engine documentation specifies model support and numerical controls.
 //!
-//! Construct a contract and a [`PricingContext`], then choose an engine for that
-//! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
-//! parameter solvers. Engine `price_with_greeks` methods use their native estimators
-//! and configured controls. [`PricingEngine::price_with_greeks_with_settings`] accepts
-//! request-level shifts while retaining native estimators and engine/model coverage.
-//! [`PricingEngine::greek_settings`] returns each engine's defaults.
-//! Configure scalar differences explicitly through
-//! [`numerical_greeks`] and [`NumericalShiftSettings`].
-//! [`AnalyticEuropeanEngine`] and [`FiniteDifferenceVanillaEngine`] compute exact
-//! supported expiry payoff derivatives away from the strike, without numerical spot bumps.
-//! Monte Carlo engines expose `price_with_statistics` for sampling uncertainty;
-//! vanilla statistics require European contracts. See [`MonteCarloEstimate`] for
-//! applicability and [`PricingEngine::price_with_statistics`] for generic access.
-//! Contract constructors validate terms and contractual calendar compatibility; pricing validates
-//! valuation dates and required prior history. All built-in
-//! contracts support validated `replace` operations; omitted terms and
-//! history remain unchanged when their observation terms are retained. Known history
-//! with a timestamp is retained when schedule, expiry or calendar edits affect only
-//! events at or after that timestamp.
-//! Known history must be explicitly replaced or cleared when terms defining past events change:
-//! barrier levels/direction, observation times, averaging start, range bounds or daily
-//! monitoring and accumulation rules. Accumulators require both quantity and knock-out settlement
-//! choices. Clearing the final history payload clears an omitted history timestamp;
-//! an explicitly supplied timestamp is validated and retained. Partial accumulator
-//! clears retain the timestamp while either history field remains known.
-//! Reasserting the same history explicitly is allowed. Calendar-only helpers
-//! reject changes affecting known daily history; use `replace` with an explicit history
-//! choice. Payoff-only changes retain history. See [`BarrierOption::replace`] for an exotic example.
-//! Switching barrier or touch monitoring to continuous requires explicitly empty observation times.
-//! Explicit times must agree with the selected mode; scheduled monitoring requires nonempty times.
-//! Contract effective and expiry timestamps are inclusive and preserve microseconds.
-//! European vanilla and digital pricing permits pre-effective valuation. Other built-in
-//! contracts reject valuation outside their life, including range accruals.
-//! Settlement alone may fall on a closed calendar date; explicit observations and
-//! expiry-only knock-in observations require open dates.
-//! Contractual, observation and market times use [`Timestamp`] and share a
-//! caller-selected time basis. Calendars classify dates without moving contract
-//! boundaries. Pure calendar inputs remain [`Date`] values.
-//! Barrier and touch contracts, range accruals, accumulators and autocallables own their observation calendars
-//! (weekdays by default). Set `terms.calendar` before construction to validate
-//! observations against a custom calendar. Constructors validate immediately.
-//! Inspect [`RangeAccrualOption::observation_schedule`],
-//! [`Accumulator::accumulation_schedule`], [`Accumulator::knock_out_observation_schedule`]
-//! and [`AutocallableNote::knock_in_observation_schedule`] for owned whole-life
-//! schedules using the same contractual observation rules as pricing.
-//! `replace_calendar` amends an existing validated contract and borrows the original,
-//! preserving it on success and failure, like `replace`. Both validate independently
-//! of [`PricingContext`].
-//! See [`RangeAccrualOption::replace_calendar`] for a weekend-expiry construction example.
-//! Explicit observations use their exact timestamps. Automatically generated observations
-//! require an explicit [`TimeOfDay`]; snowballs and accumulators include the effective instant,
-//! while range accruals exclude it. Events strictly before valuation require history;
-//! events at valuation use the current spot. Maturity settlement does not add daily
-//! observations. Range accruals require a nonempty observation schedule and discount
-//! their coupon to expiry even after the last observation. Finite-difference grids return
-//! [`Error::ComputationFailure`] when distinct event timestamps cannot be represented
-//! as distinct floating-point year fractions.
+//! # Conventions
 //!
-//! Annual rates and annualized volatility use decimal units. Rates and dividend
-//! yields are continuously compounded. BSM volatility may be zero; built-in engines
-//! then value the deterministic path exactly, including American exercise and
-//! contractual barrier, coupon and accumulation observations. Model and rate-curve
-//! applicability checks apply before deterministic pricing. Before expiry, volatility Greeks
-//! are undefined at zero because their symmetric stencils leave the model domain.
-//! Deterministic payoff kinks and event thresholds also leave affected Greeks absent. Rate curves use the Actual/365 Fixed
-//! day-count convention; [`TradingCalendar::trading_year_fraction`] uses its own
-//! basis. [`Greek`] documents sensitivity reporting units.
+//! Annual rates and annualized volatility use decimal units. Rates are continuously
+//! compounded; rate curves use Actual/365 Fixed. [`Greek`] defines sensitivity units.
+//! BSM volatility may be zero, selecting deterministic pricing. Check numerical
+//! convergence separately from Monte Carlo sampling uncertainty and solver tolerances.
 //!
-//! Local volatility uses [`LocalVolatilitySurface`] with fixed absolute time/spot
-//! nodes, bilinear interpolation of local volatility and constant extrapolation
-//! in the spot dimension. Time extrapolation is rejected. Finite-difference
-//! engines support this model for European and American vanilla options, digitals,
-//! single and double barriers, binary barriers, touch and
-//! no-touch options, autocallable notes and accumulators. They provide price,
-//! delta and gamma with the surface held fixed. Other Greeks are absent. Other engine families
-//! and implied-parameter solvers reject this model. Digital pricing requires
-//! constant risk-free rates and dividend yields.
-//! Future coverage follows remaining stochastic evolution and required discounts;
-//! settled cash flows do not require volatility coverage through contractual expiry.
-//! Settled barrier, accumulator and autocallable payments do not require rate
-//! curves through contractual expiry either; remaining cash flows retain coverage checks.
-//! [`ModelParameters`] selects the concrete model at the pricing entry point.
-//! [`HestonParameters`] supplies constant risk-neutral variance parameters and
-//! deterministic rate curves. [`AnalyticHestonEuropeanEngine`] supports European call/put
-//! prices by Fourier integration; [`FiniteDifferenceHestonVanillaEngine`] supports
-//! European and American call and put prices using the modified Craig-Sneyd scheme
-//! with Ikonen-Toivanen splitting for American exercise. Both accept zero variance
-//! parameters, correlation endpoints and violations of the Feller condition.
-//! All Heston Greeks are absent. Other engines and implied-parameter solvers reject Heston.
-//! See each engine's constructor for examples, numerical controls and convergence checks.
+//! Contract and market times use [`Timestamp`] in a caller-selected time basis.
+//! Contract boundaries are inclusive. Calendars classify [`Date`] values without
+//! moving those boundaries. Constructors validate terms and observation calendars;
+//! pricing validates valuation times, model coverage, and required history.
+//! European vanilla and digital options permit pre-effective valuation; other
+//! contracts require valuation within their life.
+//!
+//! Values own their data; accessors may borrow it. Replacement returns a validated
+//! value and preserves the original on success and failure. See each contract's
+//! `replace` method for history preservation rules.
 //!
 //! # History snapshots
 //!
-//! Supplied history requires a timestamp on construction and replacement. Set
-//! `history_time` in construction terms, or pass it with an Asian historical average.
-//! [`OptionContract::with_history_time`] replaces an existing timestamp and rejects
-//! clearing it while history remains known.
-//! Its timestamp is validated against the contract life when supplied.
-//! It describes events strictly before that instant. Discrete history can be reused
-//! between observations; unaccounted observations require a fresh snapshot. Continuous
-//! barrier and Asian history require the same instant, except resolved barrier monitoring.
-//! Refresh history and its timestamp together with the contract's `replace` method and
-//! change struct, or use `replace_history` to supply the payload and timestamp together.
-//! Its explicit timestamp argument accepts `None` only when all history is cleared.
-//! Numerical time sensitivities freeze observed history
-//! internally while moving hypothetical valuation; caller inputs remain unchanged.
+//! Supplied history requires `history_time` and covers events strictly before it.
+//! Discrete history can be reused between observations. Continuous barrier and Asian
+//! history require the same instant unless barrier monitoring is resolved. Refresh
+//! payload and timestamp together with `replace_history`; clearing all history
+//! permits clearing its timestamp. Numerical time sensitivities hold history fixed.
 //!
 //! ```rust
 //! use kiyosi::*;
@@ -139,32 +59,23 @@
 //!
 //! # Concurrency and errors
 //!
-//! Built-in contracts, market data, engines and results own their data and are
-//! `Send + Sync`. Distinct and shared instances support concurrent reads and
-//! pricing without synchronization.
-//! Mutation requires exclusive Rust access; Python exposes immutable values.
-//! Parallel Monte Carlo calls reuse one library-owned Rayon pool, with per-call
-//! worker caps and request-owned buffers; [`MonteCarloSettings::max_active_workers`]
-//! controls participation. Serial calls stay on the calling thread. The pool is
-//! initialized lazily and leaves the application's global Rayon pool unchanged.
-//! Handles returned by [`PricingEngine::prepare_request`] support sequential use
-//! within the calling thread and need not be `Send` or `Sync`. Concurrent requests
-//! prepare independent handles from the same engine.
-//! Custom calendar predicates must return stable answers for the lifetime of the
-//! calendar and all clones, as required by [`TradingCalendar`]; panics in user
-//! predicates retain native Rust behavior.
-//! User-supplied [`PricingEngine`] implementations retain their own
-//! thread-safety and operational-failure contracts.
-//! Calls are synchronous. [`CancellationToken::run`] enables cooperative cancellation;
-//! clones can request cancellation from another thread. Built-in numerical loops
-//! check between work units and return [`Error::Io`] with
-//! [`std::io::ErrorKind::Interrupted`], without a partial result. Custom engines
-//! must check their token during long work. Allocation and external callbacks may
-//! delay cancellation. Python signal handling and exception mapping belong to the bindings. Domain
-//! rejections use [`Result`], never panics. Allocation exhaustion follows Rust's
-//! allocator behavior (normally process abort); internal panics are not domain errors.
-//! Monte Carlo entropy-source and pool thread-creation failures retain native I/O
-//! details through [`Error::Io`] and the standard error source.
+//! Built-in contracts, market data, engines, and results are `Send + Sync`.
+//! Distinct and shared instances support concurrent reads and pricing. Mutation
+//! requires exclusive Rust access. Parallel Monte Carlo calls share a library-owned
+//! Rayon pool with per-call buffers and worker caps; serial calls use the calling
+//! thread. The pool leaves the application's global Rayon pool unchanged.
+//! [`PricingEngine::prepare_request`] handles support sequential use on the calling
+//! thread and need not be `Send` or `Sync`; concurrent requests prepare their own.
+//! Custom calendar predicates must return stable answers throughout the calendar's
+//! lifetime, including clones. Custom engines define their own concurrency contract.
+//!
+//! Domain rejections return [`Result<T>`]. Operational failures retain native I/O
+//! details through [`Error::Io`]. Calls are synchronous; [`CancellationToken::run`]
+//! enables cooperative cancellation from another thread. Built-in loops check between
+//! work units and return [`std::io::ErrorKind::Interrupted`] without a partial result.
+//! Custom engines must check their token. Allocation and callbacks may delay checks.
+//! Panics, including user callback panics, retain Rust behavior; allocation exhaustion
+//! normally aborts. Python signal handling and exception mappings belong to the bindings.
 //!
 //! # Examples
 //!
@@ -181,8 +92,6 @@
 //! let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context,
 //!     kiyosi::GreeksRequest::all())?;
 //! assert!(result.require(kiyosi::Greek::Delta)? > 0.0);
-//! assert!((result.require(kiyosi::Greek::Volga)? - 2.36882234437609).abs() < 1e-12);
-//! assert!(result.require(kiyosi::Greek::DividendRho)? < 0.0);
 //! let sigma = kiyosi::implied_volatility(&AnalyticEuropeanEngine, &option,
 //!     &context, result.price(), Default::default())?;
 //! assert!((sigma - 0.2).abs() < 1e-8);

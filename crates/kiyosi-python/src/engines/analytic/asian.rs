@@ -11,11 +11,12 @@ analytic_engine!(
     /// See Also
     /// --------
     /// GeometricAveragePriceOption : Supported contract.
+    ///
     AnalyticGeometricAveragePriceEngine,
     GeometricAveragePriceOption
 );
 analytic_engine!(
-    /// Approximates continuously monitored arithmetic average-price Asian option prices.
+    /// Continuous arithmetic average-price Asian approximation.
     ///
     /// Requires flat rates before expiry. Uses the Turnbull-Wakeman
     /// (Levy-compatible) lognormal moment-matching approximation.
@@ -23,6 +24,7 @@ analytic_engine!(
     /// See Also
     /// --------
     /// ArithmeticAveragePriceOption : Supported contract.
+    ///
     TurnbullWakemanArithmeticAveragePriceEngine,
     ArithmeticAveragePriceOption
 );

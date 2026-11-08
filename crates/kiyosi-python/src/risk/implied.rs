@@ -10,20 +10,22 @@ use pyo3::prelude::*;
 /// engine : object
 ///     Supported pricing engine for the instrument.
 /// instrument : object
-///     Contract to reprice; the original is unchanged.
+///     Contract to reprice.
 /// context : PricingContext
-///     Market snapshot; the original is unchanged.
+///     Market snapshot.
 /// observed_price : float
 ///     Finite target price in the engine's payment units.
 /// lower_bound : float, optional
-///     Nonnegative finite lower annualized volatility in decimal units; defaults to zero.
+///     Nonnegative finite lower annualized volatility in decimal units;
+///     defaults to zero.
 /// upper_bound : float, optional
 ///     Finite upper annualized volatility, above lower_bound; defaults to 4.
 /// price_tolerance : float, optional
 ///     Positive finite absolute price residual tolerance; defaults to 1e-8.
 /// parameter_tolerance : float, optional
 ///     Positive finite bracket-width tolerance in decimal units; defaults to
-///     1e-8. Bracket convergence without a price match raises NonConvergenceError.
+///     1e-8. Bracket convergence without a price match raises
+///     NonConvergenceError.
 /// max_iterations : int, optional
 ///     Positive iteration budget; defaults to 100.
 ///
@@ -41,16 +43,19 @@ use pyo3::prelude::*;
 /// RootNotBracketedError
 ///     If the supplied endpoints do not bracket the target.
 /// NonConvergenceError
-///     If the iteration budget is exhausted or the bracket converges without a price match.
+///     If the iteration budget is exhausted or the bracket converges without a
+///     price match.
 /// ComputationFailureError
 ///     If a price, residual or numerical evaluation is non-finite.
 ///
 /// Notes
 /// -----
-/// Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
-/// tolerances constrain the sampled price curve, not its sampling error.
-/// Digital prices can have several volatility roots. The supplied bracket
-/// selects a root; CRR engines restrict it to their admissible tree domain.
+/// Pricing failures propagate. Monte Carlo solves require an explicit seed;
+/// call with_resolved_seed() first; tolerances constrain the sampled price
+/// curve, not its sampling error. Digital prices can have several volatility
+/// roots. The supplied bracket selects a root; CRR engines restrict it to
+/// their admissible tree domain.
+///
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound=kiyosi::ImpliedVolatilitySettings::default().lower_bound, upper_bound=kiyosi::ImpliedVolatilitySettings::default().upper_bound, price_tolerance=kiyosi::ImpliedVolatilitySettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedVolatilitySettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedVolatilitySettings::default().max_iterations))]
 #[expect(clippy::too_many_arguments, reason = "explicit solver controls")]

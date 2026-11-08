@@ -12,6 +12,7 @@ macro_rules! analytic_engine {
                 /// -----
                 /// Before expiry requested Greeks use scalar numerical differences and the
                 /// engine defaults. Use numerical_greeks for configurable scalar differences.
+                ///
             ],
             engine_methods!(
                 $engine,
@@ -19,7 +20,7 @@ macro_rules! analytic_engine {
                 fn new() -> Self {
                     Self
                 },
-                /// Returns the price.
+                /// Return the price.
                 ///
                 /// Parameters
                 /// ----------
@@ -37,6 +38,7 @@ macro_rules! analytic_engine {
                 /// ------
                 /// KiyosiError
                 ///     If domain validation, engine applicability or numerical pricing fails.
+                ///
                 fn price(
                     &self,
                     py: Python<'_>,

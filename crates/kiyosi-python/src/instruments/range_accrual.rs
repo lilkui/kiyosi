@@ -25,36 +25,35 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 ///     Inclusive finite upper spot boundary, above the lower boundary.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
-/// observation_clock_time : datetime.time
-///     Required daily observation time, without timezone information.
 /// expiry_time : datetime.datetime
 ///     Inclusive expiry time.
+/// observation_clock_time : datetime.time
+///     Required daily observation time, without timezone information.
 /// realized_hit_count : int or None, optional
 ///     Hits strictly before valuation, or None for unknown history.
-///
 /// calendar : TradingCalendar, optional
-///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
-///
+///     Owned observation calendar; defaults to weekdays, independently of
+///     PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-///     payload and timestamp together.
+///     Required with history; refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
 ///     If amounts, bounds or history are invalid, or expiry is not after
-///     effective_time, or the observation schedule is empty.
-///     Pricing checks the inclusive contract life and history
-///     against elapsed observations.
+///     effective_time, or the observation schedule is empty. Pricing checks
+///     the inclusive contract life and history against elapsed observations.
 ///
 /// Notes
 /// -----
 /// Observe trading times in (effective_time, expiry_time]. Bounds are
-/// inclusive. Settlement may fall on a closed date without adding an observation.
-/// Payment is notional times annual coupon times Actual/365 Fixed
-/// life times the fraction of observations inside the range. Payment is at expiry;
-/// a completed observation schedule still has a discounted future payment.
+/// inclusive. Settlement may fall on a closed date without adding an
+/// observation. Payment is notional times annual coupon times Actual/365 Fixed
+/// life times the fraction of observations inside the range. Payment is at
+/// expiry; a completed observation schedule still has a discounted future
+/// payment.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
@@ -72,43 +71,37 @@ impl RangeAccrualOption {
             .transpose()
     }
 
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
-    /// notional : float, optional
+    /// notional, annual_coupon_rate, lower_bound, upper_bound : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// annual_coupon_rate : float, optional
+    /// effective_time, expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// lower_bound : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// upper_bound : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observation_clock_time : datetime.time, optional
+    ///     Daily observation clock, without timezone information.
     /// realized_hit_count : int | None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
-    ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-    ///     payload and timestamp together.
+    ///     Required with history; refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
     /// object
-    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///     Independent contract of the same class, preserving omitted history and
+    ///     terms.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If the resulting contract fails core validation; the original is unchanged.
+    ///     If the resulting contract fails core validation.
     /// TypeError
     ///     If a representation or field name is invalid.
+    ///
     #[pyo3(signature = (*, notional=crate::conversions::OMITTED, annual_coupon_rate=crate::conversions::OMITTED, lower_bound=crate::conversions::OMITTED, upper_bound=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, realized_hit_count=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
@@ -208,30 +201,29 @@ impl RangeAccrualOption {
         ))?))
     }
 
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
-    /// Clearing the final history payload clears an omitted history_time.
-    /// An explicitly supplied history_time is validated and retained.
+    /// Clearing the final history payload clears an omitted history_time. An
+    /// explicitly supplied history_time is validated and retained.
     ///
     /// Parameters
     /// ----------
     /// realized_hit_count : int or None, optional
     ///     Hits strictly before valuation, or None for unknown history.
-    ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-    ///     payload and timestamp together.
+    ///     Required with history; refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+    ///     Validated copy; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
+    ///     If replacement terms fail domain validation.
+    ///
     #[pyo3(signature = (*, realized_hit_count=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     fn replace_history(
         &self,
@@ -253,22 +245,25 @@ impl RangeAccrualOption {
             },
         ))?))
     }
-    /// Returns the explicitly specified daily observation clock time.
+    /// Return the explicitly specified daily observation clock time.
     #[getter]
     fn observation_clock_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         crate::conversions::python_clock_time(py, self.0.observation_clock_time())
     }
 
-    /// Returns an owned schedule of daily range observations, excluding the effective instant.
+    /// Return the daily range observation schedule.
+    ///
+    /// Observations exclude the effective instant.
     ///
     /// Applies the contract calendar and clock through expiry, independently of
     /// supplied history. Payment adds no observation.
+    ///
     #[getter]
     fn observation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
         domain(self.0.observation_schedule()).map(crate::schedule::ObservationSchedule)
     }
 
-    /// Returns an owned copy of the contract's observation calendar.
+    /// Return an owned copy of the contract's observation calendar.
     #[getter]
     fn calendar(&self) -> TradingCalendar {
         TradingCalendar(self.0.calendar().clone())

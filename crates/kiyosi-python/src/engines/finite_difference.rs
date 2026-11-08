@@ -35,26 +35,30 @@ macro_rules! fd_engine {
         /// Parameters
         /// ----------
         /// asset_step_count : int, optional
-        ///     Number of spatial steps, at least 3; defaults to 800.
-        ///     Continuous barrier grids use all steps between their actual domain edges.
+        ///     Number of spatial steps, at least 3; defaults to 800. Continuous
+        ///     barrier grids use all steps between their actual domain edges.
         /// time_step_count : int, optional
-        ///     Positive base number of time intervals; event dates and curve knots are added.
+        ///     Positive base number of time intervals; event dates and curve knots are
+        ///     added.
+        ///
         #[doc = concat!("    Read `", stringify!($name), "().time_step_count` for the engine's default.")]
         /// scheme : FiniteDifferenceScheme, optional
         ///     Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-        ///     "crank_nicolson" uses standard Crank-Nicolson without time-step damping.
+        ///     "crank_nicolson" uses standard Crank-Nicolson without time-step
+        ///     damping.
         /// asset_upper_boundary : float or None, optional
         ///     Finite positive upper spot boundary, or None (default) for the
         ///     automatic domain. Must exceed spot, strike and barriers at pricing.
-        ///     Continuous up and double barriers fix their own upper grid edge;
-        ///     this bound is inactive for that grid. Local-volatility knock-in
-        ///     vanilla components and scheduled monitoring use the full domain.
+        ///     Continuous up and double barriers fix their own upper grid edge; this
+        ///     bound is inactive for that grid. Local-volatility knock-in vanilla
+        ///     components and scheduled monitoring use the full domain.
         /// spot_shift : float or None, optional
         ///     Positive absolute spot bump for native Greek availability and terminal
-        ///     stencils. None selects the automatic bump; prices and grids are unchanged.
+        ///     stencils. None selects the automatic bump; prices and grids are
+        ///     unchanged.
         /// volatility_shift, rate_shift : float, optional
-        ///     Positive decimal bumps for numerical Greeks; defaults to 0.0001.
-        ///     Native spatial delta and gamma retain their estimator.
+        ///     Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
+        ///     spatial delta and gamma retain their estimator.
         /// time_shift : datetime.timedelta or None, optional
         ///     Positive whole-microsecond time bump, or None for automatic selection.
         ///
@@ -62,8 +66,8 @@ macro_rules! fd_engine {
         /// ------
         /// InvalidInputError
         ///     If asset_step_count is below 3, time_step_count is below 1, or an
-        ///     explicit upper boundary or Greek bump is invalid. Boundary coverage
-        ///     and explicit-Euler stability are checked during pricing.
+        ///     explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        ///     explicit-Euler stability are checked during pricing.
         ///
         /// Notes
         /// -----
@@ -74,13 +78,15 @@ macro_rules! fd_engine {
         /// variants and PhoenixOption. Other engines accept their named product.
         /// Digital pricing requires constant rates; other families accept
         /// deterministic rate curves. All FD product families support local-volatility
-        /// price, delta and gamma, including American exercise. Other requested Greeks are None;
-        /// implied-parameter solvers raise UnsupportedOperationError. Sigma uses
-        /// fixed absolute surface coordinates; expiry Greeks follow terminal payoffs and are absent where
-        /// their stencils cross product events. Vanilla expiry Greeks use exact
-        /// supported payoff derivatives, undefined at the strike. Surface coverage follows remaining
-        /// stochastic evolution; rate coverage follows required future discounting.
-        /// Automatic local-volatility domains require convergence checks.
+        /// price, delta and gamma, including American exercise. Other requested Greeks
+        /// are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+        /// uses fixed absolute surface coordinates; expiry Greeks follow terminal
+        /// payoffs and are absent where their stencils cross product events. Vanilla
+        /// expiry Greeks use exact supported payoff derivatives, undefined at the
+        /// strike. Surface coverage follows remaining stochastic evolution; rate
+        /// coverage follows required future discounting. Automatic local-volatility
+        /// domains require convergence checks.
+        ///
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
@@ -91,13 +97,13 @@ macro_rules! fd_engine {
                 ///
                 /// Notes
                 /// -----
-                /// Before expiry delta and gamma come from the spatial solution,
-                /// except zero BSM volatility uses scalar differences.
-                /// Other BSM Greeks use numerical differences with the configured shifts.
-                /// Local volatility provides only delta and gamma. At expiry vanilla
-                /// Greeks use exact supported payoff derivatives; other products use
-                /// default terminal-payoff stencils. Use numerical_greeks
-                /// for configurable scalar differences under BSM.
+                /// Before expiry delta and gamma come from the spatial solution, except zero
+                /// BSM volatility uses scalar differences. Other BSM Greeks use numerical
+                /// differences with the configured shifts. Local volatility provides only
+                /// delta and gamma. At expiry vanilla Greeks use exact supported payoff
+                /// derivatives; other products use default terminal-payoff stencils. Use
+                /// numerical_greeks for configurable scalar differences under BSM.
+                ///
             ],
             engine_methods!(
                 $name,
@@ -150,7 +156,7 @@ macro_rules! fd_engine {
                 fn asset_upper_boundary(&self) -> Option<f64> {
                     self.0.settings().asset_upper_boundary
                 },
-                /// Returns the native Greek spot bump, or None for automatic selection.
+                /// Return the native Greek spot bump, or None for automatic selection.
                 #[getter]
                 fn spot_shift(&self) -> Option<f64> {
                     self.0.settings().spot_shift
@@ -170,7 +176,7 @@ macro_rules! fd_engine {
                 fn time_shift<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, pyo3::types::PyDelta>>> {
                     self.0.settings().time_shift.map(|value| crate::conversions::python_duration(py, value)).transpose()
                 },
-                /// Returns the price.
+                /// Return the price.
                 ///
                 /// Parameters
                 /// ----------
@@ -188,6 +194,7 @@ macro_rules! fd_engine {
                 /// ------
                 /// KiyosiError
                 ///     If domain validation, engine applicability or numerical pricing fails.
+                ///
                 fn price(
                     &self,
                     py: Python<'_>,

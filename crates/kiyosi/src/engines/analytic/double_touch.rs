@@ -30,7 +30,7 @@ impl AnalyticDoubleTouchEngine {
     /// or outside required curve coverage. Unresolved scheduled monitoring at positive volatility returns
     /// [`Error::UnsupportedOperation`]. Unrepresentable calculations return
     /// [`Error::ComputationFailure`]; exhausted series or integration limits return
-    /// [`Error::NonConvergence`]. Inputs remain unchanged on failure.
+    /// [`Error::NonConvergence`].
     ///
     /// # Examples
     ///
@@ -105,7 +105,7 @@ impl AnalyticDoubleTouchEngine {
     /// # Errors
     ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
-    /// Inputs remain unchanged on failure.
+    ///
     pub fn price_with_greeks(
         &self,
         option: &DoubleTouchOption,

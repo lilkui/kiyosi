@@ -37,7 +37,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// Prices after validating flat rates, inclusive life and prior history.
     ///
     /// Resolved payoffs settle before grid validation; resolved vanilla payoffs use
-    /// analytic pricing. Prior at-hit rebates are already paid. Inputs remain unchanged.
+    /// analytic pricing. Prior at-hit rebates are already paid.
     /// Settled cash flows do not require curve coverage through expiry.
     ///
     /// # Errors
@@ -46,7 +46,6 @@ impl CoxRossRubinsteinBarrierEngine {
     /// fixings. Returns [`Error::InvalidInput`] outside life, for missing or
     /// impossible history, or outside required curve coverage.
     /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
-    /// Inputs remain unchanged.
     ///
     /// # Examples
     ///
@@ -83,7 +82,7 @@ impl CoxRossRubinsteinBarrierEngine {
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
     /// [`Self::price`] errors. Empty requests return
-    /// [`Error::InvalidInput`]. Inputs remain unchanged.
+    /// [`Error::InvalidInput`].
     pub fn price_with_greeks(
         &self,
         option: &BarrierOption,

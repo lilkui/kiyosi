@@ -18,13 +18,16 @@ use pyo3::prelude::*;
 /// Raises
 /// ------
 /// InvalidInputError
-///     If strike is nonpositive or non-finite, or expiry precedes effective_time.
+///     If strike is nonpositive or non-finite, or expiry precedes
+///     effective_time.
 ///
 /// Notes
 /// -----
-/// Pricing permits valuation before effective_time for this fixed-strike terminal
-/// payoff. Model data must cover valuation through expiry; valuation after expiry
-/// remains invalid. Other contract families retain their own valuation bounds.
+/// Pricing permits valuation before effective_time for this fixed-strike
+/// terminal payoff. Model data must cover valuation through expiry; valuation
+/// after expiry remains invalid. Other contract families retain their own
+/// valuation bounds.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct EuropeanOption(pub(crate) kiyosi::EuropeanOption);
@@ -48,7 +51,7 @@ impl EuropeanOption {
         ))?))
     }
 
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -64,12 +67,13 @@ impl EuropeanOption {
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+    ///     Validated copy; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
+    ///     If replacement terms fail domain validation.
+    ///
     #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED))]
     fn replace(
         &self,

@@ -2,6 +2,8 @@ use crate::{Error, Result, error::finite};
 use crate::{PricingContext, Timestamp};
 
 /// Selects the call or put payoff direction.
+///
+/// See [`EuropeanOption::new`] for a contract example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OptionType {
     /// Pays the positive excess of spot over strike.

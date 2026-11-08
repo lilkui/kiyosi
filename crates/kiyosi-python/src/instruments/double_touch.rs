@@ -21,16 +21,15 @@ use pyo3::prelude::*;
 /// observation_mode : {'continuous', 'scheduled'}, optional
 ///     Monitoring frequency; defaults to continuous.
 /// observation_times : iterable of datetime.datetime, optional
-///     Strictly increasing scheduled times within life; empty for continuous monitoring.
+///     Strictly increasing scheduled times within life; empty for continuous
+///     monitoring.
 /// touch_state : {'untouched', 'touched'} or None, optional
 ///     Strictly prior touch history; defaults to unknown.
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays.
-///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-///     payload and timestamp together.
+///     Required with history; refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -40,10 +39,11 @@ use pyo3::prelude::*;
 ///
 /// Notes
 /// -----
-/// Double one-touch pays when either barrier is touched; double no-touch
-/// pays only if neither barrier is touched during monitoring.
-/// The cash_double_touch and cash_double_no_touch functions are conveniences. Prior at-hit
-/// payments have no remaining value.
+/// Double one-touch pays when either barrier is touched; double no-touch pays
+/// only if neither barrier is touched during monitoring. The cash_double_touch
+/// and cash_double_no_touch functions are conveniences. Prior at-hit payments
+/// have no remaining value.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
@@ -96,17 +96,13 @@ monitoring_properties!(
             .map(Self)
         })
     },
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
-    /// effective_time : datetime.datetime, optional
+    /// effective_time, expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// lower_barrier : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// upper_barrier : float, optional
+    /// lower_barrier, upper_barrier : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// barrier_type : {'knock_in', 'knock_out'}, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -115,31 +111,32 @@ monitoring_properties!(
     /// observation_mode : {'continuous', 'scheduled'}, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observation_times : Iterable[datetime.datetime], optional
-    ///     Omission retains times; switching to continuous requires an explicitly empty iterable.
+    ///     Omission retains times; switching to continuous requires an explicitly
+    ///     empty iterable.
     /// touch_state : {'untouched', 'touched'} or None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// payout : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned observation calendar; defaults to weekdays on construction and is
     ///     retained on replacement.
-    /// payout : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-    ///     payload and timestamp together.
+    ///     Required with history; refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
     /// object
-    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///     Independent contract of the same class, preserving omitted history and
+    ///     terms.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If the resulting contract fails core validation; the original is unchanged.
+    ///     If the resulting contract fails core validation.
     /// TypeError
     ///     If a representation or field name is invalid.
+    ///
     #[pyo3(signature = (*, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, settlement_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
@@ -303,7 +300,11 @@ touch_state : {'untouched', 'touched'} or None, optional
     Strictly prior history. None means unknown; untouched means known no
     hit.
 calendar : TradingCalendar, optional
-    Owned observation calendar; defaults to weekdays, independently of PricingContext.
+    Owned observation calendar; defaults to weekdays, independently of
+    PricingContext.
+
+history_time : datetime.datetime or None, optional
+    Timestamp of supplied history; required when history is known.
 
 Returns
 -------
@@ -317,10 +318,11 @@ InvalidInputError
 
 Notes
 -----
-Barrier equality counts as a touch. Trading-calendar compatibility is checked
-on construction; strictly prior history is checked during pricing. Prior at-hit
-payments have no remaining value. No-touch payments occur only at
-expiry."
+Barrier equality counts as a touch. Trading-calendar compatibility is
+checked on construction; strictly prior history is checked during pricing.
+Prior at-hit payments have no remaining value. No-touch payments occur only
+at expiry.
+"
 );
 double_touch_factory!(
     cash_double_no_touch,
@@ -348,7 +350,11 @@ touch_state : {'untouched', 'touched'} or None, optional
     Strictly prior history. None means unknown; untouched means known no
     hit.
 calendar : TradingCalendar, optional
-    Owned observation calendar; defaults to weekdays, independently of PricingContext.
+    Owned observation calendar; defaults to weekdays, independently of
+    PricingContext.
+
+history_time : datetime.datetime or None, optional
+    Timestamp of supplied history; required when history is known.
 
 Returns
 -------
@@ -362,8 +368,9 @@ InvalidInputError
 
 Notes
 -----
-Barrier equality counts as a touch. Trading-calendar compatibility is checked
-on construction; strictly prior history is checked during pricing. Prior at-hit
-payments have no remaining value. No-touch payments occur only at
-expiry."
+Barrier equality counts as a touch. Trading-calendar compatibility is
+checked on construction; strictly prior history is checked during pricing.
+Prior at-hit payments have no remaining value. No-touch payments occur only
+at expiry.
+"
 );

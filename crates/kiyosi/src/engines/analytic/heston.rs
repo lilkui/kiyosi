@@ -44,7 +44,7 @@ impl HestonIntegrationSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for non-finite or negative tolerances,
-    /// two zero tolerances, or a zero evaluation budget. Inputs remain unchanged.
+    /// two zero tolerances, or a zero evaluation budget.
     pub fn validate(&self) -> Result<()> {
         for (name, value) in [
             ("absolute_tolerance", self.absolute_tolerance),

@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 /// --------
 /// BinaryBarrierOption : Supported contract.
 /// TouchOption : Supported contract.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct AnalyticBinaryBarrierEngine;
@@ -20,6 +21,7 @@ numerical_greeks_methods!(
         /// -----
         /// Before expiry requested Greeks use scalar numerical differences and the
         /// engine defaults. Use numerical_greeks for configurable scalar differences.
+        ///
     ],
     engine_methods!(
         AnalyticBinaryBarrierEngine,
@@ -27,7 +29,7 @@ numerical_greeks_methods!(
         fn new() -> Self {
             Self
         },
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -45,6 +47,7 @@ numerical_greeks_methods!(
         /// ------
         /// KiyosiError
         ///     If domain validation, engine applicability or numerical pricing fails.
+        ///
         fn price(
             &self,
             py: Python<'_>,

@@ -89,7 +89,7 @@ impl MonteCarloAutocallableEngine {
     /// # Errors
     ///
     /// Propagates [`Self::price_with_statistics`] sampling and pricing errors,
-    /// without computing or validating uncertainty. Inputs remain unchanged.
+    /// without computing or validating uncertainty.
     ///
     /// # Panics
     ///
@@ -126,7 +126,7 @@ impl MonteCarloAutocallableEngine {
     /// return [`crate::Error::InvalidInput`]. Non-finite paths,
     /// payments or uncertainty return [`crate::Error::ComputationFailure`].
     /// Entropy and thread failures preserve native I/O details through
-    /// [`crate::Error::Io`]. Inputs remain unchanged.
+    /// [`crate::Error::Io`].
     ///
     /// # Panics
     ///
@@ -284,7 +284,6 @@ impl MonteCarloAutocallableEngine {
     ///
     /// Checks flat rates before shift validation, then propagates
     /// [`crate::numerical_greeks`] and [`Self::price`] errors.
-    /// Inputs and engine settings remain unchanged on every outcome.
     ///
     /// # Panics
     ///

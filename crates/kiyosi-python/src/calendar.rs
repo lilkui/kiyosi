@@ -8,9 +8,10 @@ use pyo3::types::PyDate;
 ///
 /// Notes
 /// -----
-/// Use the calendar factory functions to construct instances.
-/// Calendars with equal bases, normalized overrides and annualization bases compare
-/// equal. Empty overrides retain the base calendar's kind.
+/// Use the calendar factory functions to construct instances. Calendars with
+/// equal bases, normalized overrides and annualization bases compare equal.
+/// Empty overrides retain the base calendar's kind.
+///
 #[pyclass(frozen, eq, from_py_object, module = "kiyosi._native")]
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct TradingCalendar(pub(crate) kiyosi::TradingCalendar);
@@ -34,6 +35,7 @@ impl TradingCalendar {
     /// -------
     /// bool
     ///     Whether the date is a trading day, including explicit overrides.
+    ///
     fn is_trading_day(&self, value: &Bound<'_, PyAny>) -> PyResult<bool> {
         Ok(self.0.is_trading_day(date(value)?))
     }
@@ -57,9 +59,10 @@ impl TradingCalendar {
     /// InvalidInputError
     ///     If the Rust core's supported date range is exhausted.
     /// ValueError
-    ///     If the resulting date is outside Python's years 1 through 9999.
-    ///     For example, preceding adjustment of a closed datetime.date.min
-    ///     cannot be converted back to a Python date.
+    ///     If the resulting date is outside Python's years 1 through 9999. For
+    ///     example, preceding adjustment of a closed datetime.date.min cannot be
+    ///     converted back to a Python date.
+    ///
     fn adjust<'py>(
         &self,
         py: Python<'py>,
@@ -95,6 +98,7 @@ impl TradingCalendar {
     /// ------
     /// InvalidInputError
     ///     If end precedes start.
+    ///
     fn trading_days_between(
         &self,
         start: &Bound<'_, PyAny>,
@@ -119,6 +123,7 @@ impl TradingCalendar {
     /// ------
     /// InvalidInputError
     ///     If end precedes start.
+    ///
     fn trading_year_fraction(
         &self,
         start: &Bound<'_, PyAny>,
@@ -134,6 +139,7 @@ impl TradingCalendar {
 /// -------
 /// TradingCalendar
 ///     Calendar with the stated annualization basis.
+///
 #[pyfunction]
 pub(crate) fn weekdays_calendar() -> TradingCalendar {
     TradingCalendar::default()
@@ -145,6 +151,7 @@ pub(crate) fn weekdays_calendar() -> TradingCalendar {
 /// -------
 /// TradingCalendar
 ///     Calendar with the stated annualization basis.
+///
 #[pyfunction]
 pub(crate) fn all_days_calendar() -> TradingCalendar {
     TradingCalendar(kiyosi::TradingCalendar::all_days())
@@ -161,6 +168,7 @@ pub(crate) fn all_days_calendar() -> TradingCalendar {
 /// -----
 /// Uses recorded and forecast weekday closures for 1991-2099, and weekdays
 /// outside that range. Forecasts omit ad-hoc closures.
+///
 #[pyfunction]
 pub(crate) fn sse_calendar() -> TradingCalendar {
     TradingCalendar(kiyosi::TradingCalendar::sse())
@@ -171,7 +179,7 @@ pub(crate) fn sse_calendar() -> TradingCalendar {
 /// Parameters
 /// ----------
 /// base : TradingCalendar
-///     Base calendar; the original is unchanged.
+///     Base calendar.
 /// closed_dates : iterable of date, optional
 ///     Dates forced closed; duplicates and unsorted input are accepted.
 /// open_dates : iterable of date, optional
@@ -182,12 +190,14 @@ pub(crate) fn sse_calendar() -> TradingCalendar {
 /// Returns
 /// -------
 /// TradingCalendar
-///     Owned result; no input is mutated.
+///     Observation records.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If a date is both open and closed, or the annualization basis is nonpositive.
+///     If a date is both open and closed, or the annualization basis is
+///     nonpositive.
+///
 #[pyfunction]
 #[pyo3(signature = (*, base, closed_dates=Vec::new(), open_dates=Vec::new(), trading_days_per_year=None))]
 pub(crate) fn custom_calendar(

@@ -9,36 +9,39 @@ use pyo3::prelude::*;
 /// Parameters
 /// ----------
 /// asset_step_count : int, optional
-///     Asset intervals, at least 3; read the property for the Rust-defined default.
+///     Asset intervals, at least 3; read the property for the Rust-defined
+///     default.
 /// variance_step_count : int, optional
 ///     Variance intervals, at least 3; read the property for the default.
 /// time_step_count : int, optional
 ///     Base time intervals, at least 1; rate/dividend knots are added.
 /// asset_upper_boundary : float or None, optional
-///     Finite positive bound, or automatic selection. Must exceed spot and strike
-///     when a numerical grid is needed.
+///     Finite positive bound, or automatic selection. Must exceed spot and
+///     strike when a numerical grid is needed.
 /// variance_upper_boundary : float or None, optional
-///     Finite positive bound, or automatic selection. Must exceed initial variance
-///     when a variance grid is needed.
+///     Finite positive bound, or automatic selection. Must exceed initial
+///     variance when a variance grid is needed.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     For invalid counts or bounds. Context-dependent coverage is checked at pricing.
+///     For invalid counts or bounds. Context-dependent coverage is checked at
+///     pricing.
 ///
 /// Notes
 /// -----
 /// Uses the modified Craig-Sneyd (MCS) alternating direction implicit (ADI)
-/// scheme on nonuniform grids, with Ikonen-Toivanen splitting for American exercise.
-/// Supports HestonParameters and EuropeanOption/AmericanOption, including
-/// violations of the Feller condition, zero parameters, correlation endpoints
-/// and deterministic rate curves.
-/// Fixed-grid completion does not establish accuracy. Check spatial/time
-/// refinement and domain enlargement separately. Non-finite or materially
-/// negative results raise ComputationFailureError. Requested Greeks are None;
-/// requiring an absent Greek or using an implied-parameter solver raises
-/// UnsupportedOperationError. Inputs and settings are immutable; core
-/// pricing releases the GIL and permits concurrent calls with independent state.
+/// scheme on nonuniform grids, with Ikonen-Toivanen splitting for American
+/// exercise. Supports HestonParameters and EuropeanOption/AmericanOption,
+/// including violations of the Feller condition, zero parameters, correlation
+/// endpoints and deterministic rate curves. Fixed-grid completion does not
+/// establish accuracy. Check spatial/time refinement and domain enlargement
+/// separately. Non-finite or materially negative results raise
+/// ComputationFailureError. Requested Greeks are None; requiring an absent
+/// Greek or using an implied-parameter solver raises
+/// UnsupportedOperationError. Inputs and settings are immutable; core pricing
+/// releases the GIL and permits concurrent calls with independent state.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct FiniteDifferenceHestonVanillaEngine(
@@ -51,8 +54,9 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// All requested Greeks are unsupported and are None. Bump controls are
-        /// not accepted; numerical_greeks also rejects Heston.
+        /// All requested Greeks are unsupported and are None. Bump controls are not
+        /// accepted; numerical_greeks also rejects Heston.
+        ///
     ],
     engine_methods!(
         FiniteDifferenceHestonVanillaEngine,
@@ -102,7 +106,7 @@ numerical_greeks_methods!(
         fn variance_upper_boundary(&self) -> Option<f64> {
             self.0.settings().variance_upper_boundary
         },
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -121,9 +125,11 @@ numerical_greeks_methods!(
         /// UnsupportedOperationError
         ///     For other models or instruments, including at expiry.
         /// InvalidInputError
-        ///     Outside contract life/curve coverage or for insufficient explicit bounds.
+        ///     Outside contract life/curve coverage or for insufficient explicit
+        ///     bounds.
         /// ComputationFailureError
         ///     For unrepresentable grids or invalid numerical results.
+        ///
         fn price(
             &self,
             py: Python<'_>,

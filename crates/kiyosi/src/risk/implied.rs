@@ -34,7 +34,7 @@ impl Default for ImpliedVolatilitySettings {
 
 /// Solves implied volatility with safeguarded Brent iteration, retaining the caller's bracket.
 ///
-/// Endpoint pricing validates the contract before expiry identifiability checks. Inputs remain unchanged on failure.
+/// Endpoint pricing validates the contract before expiry identifiability checks.
 /// Pricing errors propagate; non-finite scalar prices or residuals return [`Error::ComputationFailure`].
 /// Digital prices need not be monotone in volatility; the supplied bracket may select
 /// one of several roots or fail to bracket a quote attainable elsewhere.

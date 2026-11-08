@@ -31,16 +31,16 @@ pub(crate) fn greeks_request(greeks: &Bound<'_, PyAny>) -> PyResult<kiyosi::Gree
 /// -----
 /// Unavailable or unrequested Greeks are None. All derivatives are unscaled:
 /// spot uses spot units, volatility and rates use decimal values, and forward
-/// valuation time uses years (Actual/365 Fixed). Other inputs, including expiry,
-/// remain fixed. With price V, spot S, volatility σ and valuation time t:
-/// delta = ∂V/∂S, gamma = ∂²V/∂S², speed = ∂³V/∂S³,
-/// theta = ∂V/∂t, charm = ∂²V/(∂S∂t), color = ∂³V/(∂S²∂t),
-/// vega = ∂V/∂σ, volga = ∂²V/∂σ², vanna = ∂²V/(∂S∂σ),
-/// and zomma = ∂³V/(∂S²∂σ).
-/// Rho shifts the risk-free curve in parallel; dividend rho shifts the dividend-yield
-/// curve in parallel: rho = ∂V/∂r and dividend_rho = ∂V/∂q, with decimal
-/// continuously compounded shifts r and q. Time derivatives hold market curves
-/// fixed. Positive time increments advance valuation.
+/// valuation time uses years (Actual/365 Fixed). Other inputs, including
+/// expiry, remain fixed. With price V, spot S, volatility σ and valuation time
+/// t: delta = ∂V/∂S, gamma = ∂²V/∂S², speed = ∂³V/∂S³, theta = ∂V/∂t, charm =
+/// ∂²V/(∂S∂t), color = ∂³V/(∂S²∂t), vega = ∂V/∂σ, volga = ∂²V/∂σ², vanna =
+/// ∂²V/(∂S∂σ), and zomma = ∂³V/(∂S²∂σ). Rho shifts the risk-free curve in
+/// parallel; dividend rho shifts the dividend-yield curve in parallel: rho =
+/// ∂V/∂r and dividend_rho = ∂V/∂q, with decimal continuously compounded shifts
+/// r and q. Time derivatives hold market curves fixed. Positive time
+/// increments advance valuation.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct PricingResult(pub kiyosi::PricingResult);
@@ -117,11 +117,27 @@ impl PricingResult {
     fn dividend_rho(&self) -> Option<f64> {
         self.0.get(kiyosi::Greek::DividendRho)
     }
-    /// Return available, not_requested, unsupported, undefined or stencil_unavailable.
+    /// Return the availability status of a Greek.
     ///
-    /// Unsupported means the engine/model does not implement the measure; undefined
-    /// means a derivative is undefined at this valuation. An unavailable numerical
-    /// stencil reports stencil_unavailable; changing controls may recover the measure.
+    /// Parameters
+    /// ----------
+    /// measure : str
+    ///     Greek name.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     "available", "not_requested", "unsupported" (engine/model coverage),
+    ///     "undefined" (no derivative at this valuation), or "stencil_unavailable"
+    ///     (try different numerical controls).
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the Greek name is unknown.
+    /// TypeError
+    ///     If the measure is not a string.
+    ///
     fn status(&self, measure: &Bound<'_, PyAny>) -> PyResult<&'static str> {
         Ok(self.0.status(greek(measure)?).name())
     }
@@ -134,7 +150,8 @@ impl PricingResult {
             .map(kiyosi::Greek::name)
             .collect()
     }
-    /// Return engine/model-supported names, independent of valuation and stencil availability.
+    /// Return engine/model-supported names, regardless of availability.
+    ///
     #[getter]
     fn supported(&self) -> Vec<&'static str> {
         kiyosi::Greek::ALL
@@ -158,12 +175,13 @@ impl PricingResult {
     /// Raises
     /// ------
     /// GreekUnavailableError
-    ///     If the measure has no value. Its greek and status attributes identify the
-    ///     measure and reason. Also inherits UnsupportedOperationError.
+    ///     If the measure has no value. Its greek and status attributes identify
+    ///     the measure and reason. Also inherits UnsupportedOperationError.
     /// ValueError
     ///     If the Greek name is unknown.
     /// TypeError
     ///     If the measure is not a string.
+    ///
     fn require(&self, measure: &Bound<'_, PyAny>) -> PyResult<f64> {
         domain(self.0.require(greek(measure)?))
     }
@@ -220,23 +238,24 @@ pub(crate) fn _pricing_result(
 /// context : PricingContext
 ///     BSM market snapshot; local-volatility and Heston models are rejected.
 /// greeks : str or iterable of str
-///     Required measure names or "all". Unsupported instrument/engine pairs are
-///     checked before Greek names.
+///     Required measure names or "all". Unsupported instrument/engine pairs
+///     are checked before Greek names.
 /// spot_shift : float or None, optional
 ///     Positive absolute spot bump, or None for the engine/product default.
 /// volatility_shift, rate_shift : float, optional
 ///     Positive decimal-unit bumps. Defaults come from the Rust core.
 /// time_shift : datetime.timedelta or None, optional
 ///     Positive explicit bump, or None for an automatic bump up to one day
-///     shortened to avoid observations. Use smaller
-///     durations to check convergence for intraday valuations and between observations.
+///     shortened to avoid observations. Use smaller durations to check
+///     convergence for intraday valuations and between observations.
 ///
 /// Returns
 /// -------
 /// PricingResult
-///     Numerical sensitivities with request and availability metadata. An unavailable
-///     numerical stencil has status "stencil_unavailable"; undefined derivatives
-///     retain "undefined". Units match native price_with_greeks.
+///     Numerical sensitivities with request and availability metadata. An
+///     unavailable numerical stencil has status "stencil_unavailable";
+///     undefined derivatives retain "undefined". Units match native
+///     price_with_greeks.
 ///
 /// Raises
 /// ------
@@ -247,8 +266,10 @@ pub(crate) fn _pricing_result(
 /// TypeError
 ///     If greeks is not a string or iterable of strings.
 /// OSError
-///     If system entropy or worker creation fails. Monte Carlo draws are pinned
-///     within the request, matching the Rust numerical_greeks operation.
+///     If system entropy or worker creation fails. Monte Carlo draws are
+///     pinned within the request, matching the Rust numerical_greeks
+///     operation.
+///
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=None))]
 #[expect(

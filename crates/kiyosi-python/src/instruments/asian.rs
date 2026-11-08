@@ -28,18 +28,18 @@ macro_rules! average_option {
         ///     Inclusive expiry time.
         /// realized_average : float or None, optional
         ///     Positive finite prior average; defaults to None (unknown). Must be None
-        ///     at or before averaging starts, and supplied strictly after it;
-        ///     time consistency is checked at pricing.
-        ///
+        ///     at or before averaging starts, and supplied strictly after it; time
+        ///     consistency is checked at pricing.
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
-        ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-        ///     payload and timestamp together.
+        ///     Required with history; refresh payload and timestamp together.
         ///
         /// Raises
         /// ------
         /// InvalidInputError
-        ///     If strike, realized_average, life times or the averaging window are invalid.
+        ///     If strike, realized_average, life times or the averaging window are
+        ///     invalid.
+        ///
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(Clone, PartialEq)]
         pub(crate) struct $name(pub kiyosi::$name);
@@ -52,7 +52,7 @@ macro_rules! average_option {
                 kiyosi::OptionContract::history_time(&self.0).map(|time| crate::conversions::python_timestamp(py, time)).transpose()
             }
 
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -60,31 +60,29 @@ macro_rules! average_option {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// strike : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// averaging_start_time : datetime.datetime, optional
+    /// effective_time, averaging_start_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// realized_average : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-    ///     payload and timestamp together.
+    ///     Required with history; refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
     /// object
-    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///     Independent contract of the same class, preserving omitted history and
+    ///     terms.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If the resulting contract fails core validation; the original is unchanged.
+    ///     If the resulting contract fails core validation.
     /// TypeError
     ///     If a representation or field name is invalid.
+    ///
     #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, averaging_start_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
@@ -123,31 +121,30 @@ macro_rules! average_option {
                 Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
                     timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average, history_time))?))
             }
-            /// Returns a validated replacement.
+            /// Return a validated replacement.
             ///
-            /// Clearing the final history payload clears an omitted history_time.
-            /// An explicitly supplied history_time is validated and retained.
+            /// Clearing the final history payload clears an omitted history_time. An
+            /// explicitly supplied history_time is validated and retained.
             ///
             /// Parameters
             /// ----------
             /// realized_average : float or None, optional
             ///     Prior average; None restores unknown history. Pricing checks time
             ///     consistency.
-            ///
             /// history_time : datetime.datetime or None, optional
             ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-            ///     payload and timestamp together.
+            ///     Required with history; refresh payload and timestamp together.
             ///
             /// Returns
             /// -------
             /// object
-            ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+            ///     Validated copy; omitted fields or Ellipsis retain their values.
             ///
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If replacement terms fail domain validation. The original is unchanged.
+            ///     If replacement terms fail domain validation.
+            ///
             #[pyo3(signature = (*, realized_average=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
             fn replace_history(&self,
                 #[pyo3(from_py_with = supplied)] realized_average: Option<&Bound<'_, PyAny>>,

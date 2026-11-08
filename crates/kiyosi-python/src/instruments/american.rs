@@ -18,7 +18,9 @@ use pyo3::prelude::*;
 /// Raises
 /// ------
 /// InvalidInputError
-///     If strike is nonpositive or non-finite, or expiry precedes effective_time.
+///     If strike is nonpositive or non-finite, or expiry precedes
+///     effective_time.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct AmericanOption(pub(crate) kiyosi::AmericanOption);
@@ -42,7 +44,7 @@ impl AmericanOption {
         ))?))
     }
 
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -58,12 +60,13 @@ impl AmericanOption {
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+    ///     Validated copy; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
+    ///     If replacement terms fail domain validation.
+    ///
     #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED))]
     fn replace(
         &self,

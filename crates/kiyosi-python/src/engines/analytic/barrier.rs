@@ -6,11 +6,13 @@ use pyo3::prelude::*;
 analytic_engine!(
     /// Analytic single-barrier pricing with flat rates.
     ///
-    /// Scheduled monitoring uses the Broadie-Glasserman-Kou (BGK) continuity correction.
+    /// Scheduled monitoring uses the Broadie-Glasserman-Kou (BGK) continuity
+    /// correction.
     ///
     /// See Also
     /// --------
     /// BarrierOption : Supported contract.
+    ///
     AnalyticBarrierEngine,
     BarrierOption
 );

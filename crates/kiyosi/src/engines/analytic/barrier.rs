@@ -33,7 +33,7 @@ impl AnalyticBarrierEngine {
     /// schedules. Returns [`Error::InvalidInput`] outside life, for missing or
     /// impossible history, or outside required curve coverage.
     /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
-    /// Only rounding-sized negative prices are clipped to zero. Inputs remain unchanged.
+    /// Only rounding-sized negative prices are clipped to zero.
     ///
     /// # Examples
     ///

@@ -28,7 +28,7 @@ pub struct DoubleBarrierOptionTerms {
     pub strike: f64,
     /// Inclusive effective time.
     pub effective_time: Timestamp,
-    /// Inclusive the inclusive expiry timestamp.
+    /// Inclusive expiry timestamp.
     pub expiry_time: Timestamp,
     /// Positive finite lower boundary; equality touches.
     pub lower_barrier: f64,

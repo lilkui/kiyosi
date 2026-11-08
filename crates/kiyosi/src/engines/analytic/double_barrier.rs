@@ -27,7 +27,6 @@ impl AnalyticDoubleBarrierEngine {
     /// or outside required curve coverage. Unrepresentable
     /// calculations return [`Error::ComputationFailure`]; series or integration
     /// limits reached without convergence return [`Error::NonConvergence`].
-    /// Inputs remain unchanged.
     ///
     /// # Examples
     ///

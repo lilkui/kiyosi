@@ -20,7 +20,7 @@ macro_rules! digital_option {
                     real(strike)?, $(real($payout)?,)? timestamp(effective_time)?, timestamp(expiry_time)?) )?))
             }
 
-            /// Returns a validated replacement.
+            /// Return a validated replacement.
             ///
             /// Parameters
             /// ----------
@@ -28,6 +28,7 @@ macro_rules! digital_option {
             ///     Call or put payoff direction.
             /// strike : float, optional
             ///     Positive finite strike price.
+            ///
             $(#[doc = concat!(stringify!($payout), " : float, optional\n    Positive finite cash payment.")])?
             /// effective_time : datetime.datetime, optional
             ///     Inclusive contract start.
@@ -37,12 +38,13 @@ macro_rules! digital_option {
             /// Returns
             /// -------
             /// object
-            ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+            ///     Validated copy; omitted fields or Ellipsis retain their values.
             ///
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If replacement terms fail domain validation. The original is unchanged.
+            ///     If replacement terms fail domain validation.
+            ///
             #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, $($payout=crate::conversions::OMITTED,)? effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED))]
             fn replace(
                 &self,
@@ -112,7 +114,9 @@ expiry_time : datetime.datetime
 Raises
 ------
 InvalidInputError
-    If payout or strike is nonpositive or non-finite, or expiry precedes effective_time."
+    If payout or strike is nonpositive or non-finite, or expiry precedes
+    effective_time.
+"
 );
 digital_option!(
     AssetOrNothingOption,
@@ -133,7 +137,9 @@ expiry_time : datetime.datetime
 Raises
 ------
 InvalidInputError
-    If strike is nonpositive or non-finite, or expiry precedes effective_time."
+    If strike is nonpositive or non-finite, or expiry precedes
+    effective_time.
+"
 );
 
 #[derive(FromPyObject)]

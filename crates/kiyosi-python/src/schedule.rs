@@ -19,19 +19,20 @@ use pyo3::types::{PyBool, PyList, PySlice};
 /// Raises
 /// ------
 /// InvalidInputError
-///     If life bounds are reversed, times are unordered or outside life,
-///     or an observation date is closed in the calendar.
+///     If life bounds are reversed, times are unordered or outside life, or an
+///     observation date is closed in the calendar.
 ///
 /// Notes
 /// -----
-/// Construct from explicit times, or use fixed_interval_schedule or monthly_schedule.
-/// Bounds and calendar validate the input; the schedule owns only its times.
-/// Empty schedules are valid. The times property
-/// returns a copy; iteration retains the schedule owner. Integer indexing
-/// accepts negative indices, rejects bool, and raises IndexError outside the sequence.
-/// Slices return owned lists of timestamps, including reversed slices.
-/// Slice bounds and steps accept integers excluding bool; a zero step raises ValueError.
-/// len(schedule) counts observations.
+/// Construct from explicit times, or use fixed_interval_schedule or
+/// monthly_schedule. Bounds and calendar validate the input; the schedule owns
+/// only its times. Empty schedules are valid. The times property returns a
+/// copy; iteration retains the schedule owner. Integer indexing accepts
+/// negative indices, rejects bool, and raises IndexError outside the sequence.
+/// Slices return owned lists of timestamps, including reversed slices. Slice
+/// bounds and steps accept integers excluding bool; a zero step raises
+/// ValueError. len(schedule) counts observations.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct ObservationSchedule(pub(crate) kiyosi::ObservationSchedule);
@@ -124,7 +125,7 @@ impl ObservationSchedule {
     }
 }
 
-/// Creates adjusted observations at positive fixed calendar-day intervals.
+/// Create adjusted observations at positive fixed calendar-day intervals.
 ///
 /// Parameters
 /// ----------
@@ -133,7 +134,8 @@ impl ObservationSchedule {
 /// end_time : datetime.datetime
 ///     Last timestamp of the interval.
 /// interval_days : int
-///     Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
+///     Positive calendar-day spacing of unadjusted observations, up to 2**63 -
+///     1.
 /// observation_clock_time : datetime.time
 ///     Required observation time of day, without timezone information.
 /// calendar : TradingCalendar, optional
@@ -142,7 +144,7 @@ impl ObservationSchedule {
 /// Returns
 /// -------
 /// ObservationSchedule
-///     Owned result; no input is mutated.
+///     Observation records.
 ///
 /// Raises
 /// ------
@@ -155,8 +157,10 @@ impl ObservationSchedule {
 ///
 /// Notes
 /// -----
-/// Exclude start_time and include candidates through end_time. Following adjustment
-/// merges collisions and stops before crossing `end_time`; `end_time` need not appear.
+/// Exclude start_time and include candidates through end_time. Following
+/// adjustment merges collisions and stops before crossing `end_time`;
+/// `end_time` need not appear.
+///
 #[pyfunction]
 #[pyo3(signature = (*, start_time, end_time, interval_days, observation_clock_time, calendar=TradingCalendar::default()))]
 #[expect(
@@ -202,19 +206,21 @@ pub(crate) fn fixed_interval_schedule(
 /// Returns
 /// -------
 /// ObservationSchedule
-///     Owned result; no input is mutated.
+///     Observation records.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If end_time precedes start_time or first_observation_month is nonpositive.
+///     If end_time precedes start_time or first_observation_month is
+///     nonpositive.
 ///
 /// Notes
 /// -----
 /// Clamp each candidate to its month end while retaining the original
-/// starting-day anchor for later months.
-/// Exclude start_time and include candidates through end_time. Following adjustment
-/// merges collisions and stops before crossing `end_time`; `end_time` need not appear.
+/// starting-day anchor for later months. Exclude start_time and include
+/// candidates through end_time. Following adjustment merges collisions and
+/// stops before crossing `end_time`; `end_time` need not appear.
+///
 #[pyfunction]
 #[pyo3(signature = (*, start_time, end_time, first_observation_month, observation_clock_time, calendar=TradingCalendar::default()))]
 #[expect(

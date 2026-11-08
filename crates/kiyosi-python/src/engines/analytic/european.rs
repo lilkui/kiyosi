@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 /// See Also
 /// --------
 /// EuropeanOption : Supported contract.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct AnalyticEuropeanEngine;
@@ -18,9 +19,10 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Uses analytic Greeks at positive volatility before expiry, scalar differences
-        /// at zero volatility, and default terminal stencils at expiry.
+        /// Uses analytic Greeks at positive volatility before expiry, scalar
+        /// differences at zero volatility, and default terminal stencils at expiry.
         /// Use numerical_greeks for configurable scalar differences.
+        ///
     ],
     engine_methods!(
         AnalyticEuropeanEngine,
@@ -28,7 +30,7 @@ numerical_greeks_methods!(
         fn new() -> Self {
             Self
         },
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -46,6 +48,7 @@ numerical_greeks_methods!(
         /// ------
         /// KiyosiError
         ///     If domain validation, engine applicability or numerical pricing fails.
+        ///
         fn price(
             &self,
             py: Python<'_>,

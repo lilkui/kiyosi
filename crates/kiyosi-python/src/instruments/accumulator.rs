@@ -12,7 +12,7 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
     }
 }
 
-/// Accumulates purchases or sales daily, settling at scheduled knock-out or expiry.
+/// Daily purchases or sales settled at scheduled knock-out or expiry.
 ///
 /// Parameters
 /// ----------
@@ -26,52 +26,54 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 ///     Nonnegative multiplier below strike for calls or above strike for puts.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
-/// observation_clock_time : datetime.time
-///     Required daily observation time, without timezone information.
 /// expiry_time : datetime.datetime
 ///     Inclusive expiry time.
+/// observation_clock_time : datetime.time
+///     Required daily observation time, without timezone information.
 /// accumulated_quantity : float or None, optional
-///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
-///     Explicit history is required after any prior accumulation or knock-out observation.
-///     Pricing rejects positive quantity before a strictly prior accumulation unless already settled.
-/// knock_out_settled : bool or None, optional
-///     Prior knock-out settlement history: None (default) is unknown, False means active,
-///     and True means settled. Required after a strictly prior knock-out observation.
-///     True requires a strictly prior knock-out; stored quantity is ignored and
-///     remaining value is zero.
+///     Outstanding quantity strictly before valuation. None means unknown;
+///     zero means no units. Explicit history is required after any prior
+///     accumulation or knock-out observation. Pricing rejects positive
+///     quantity before a strictly prior accumulation unless already settled.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
 /// knock_out_observation_times : iterable of datetime.datetime or None, optional
 ///     Strictly increasing, unique times within the inclusive contract life.
-///     None observes knock-out at the daily accumulation time; an empty sequence disables
-///     early knock-out. Times need not include either contract endpoint.
-///
+///     None observes knock-out at the daily accumulation time; an empty
+///     sequence disables early knock-out. Times need not include either
+///     contract endpoint.
+/// knock_out_settled : bool or None, optional
+///     Prior knock-out settlement history: None (default) is unknown, False
+///     means active, and True means settled. Required after a strictly prior
+///     knock-out observation. True requires a strictly prior knock-out; stored
+///     quantity is ignored and remaining value is zero.
 /// calendar : TradingCalendar, optional
-///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
-///
+///     Owned observation calendar; defaults to weekdays, independently of
+///     PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-///     payload and timestamp together.
+///     Required with history; refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
 ///     If strike or knock-out level is invalid, quantities are negative or
-///     non-finite, expiry precedes effective_time, or explicit times are invalid.
-///     Trading-timestamp compatibility is checked against the calendar on construction.
+///     non-finite, expiry precedes effective_time, or explicit times are
+///     invalid. Trading-timestamp compatibility is checked against the
+///     calendar on construction.
 ///
 /// Notes
 /// -----
-/// Daily accumulations occur at observation_clock_time on trading dates. Explicit
-/// knock-out observations occur independently at their supplied times. On a knock-out observation
-/// timestamp, calls knock out at or above the barrier and puts at or below it.
-/// Knock-out precedes accumulation and adds no units. Other trading times
-/// accumulate even beyond the barrier. At strike, the base quantity applies.
-/// Expiry settles after its event, whether or not it is a knock-out timestamp.
-/// Calls pay quantity * (settlement spot - strike); puts pay its negative.
-/// Intraday history includes that day's earlier accumulation. Record settled
-/// contracts with knock_out_settled=True.
+/// Daily accumulations occur at observation_clock_time on trading dates.
+/// Explicit knock-out observations occur independently at their supplied
+/// times. On a knock-out observation timestamp, calls knock out at or above
+/// the barrier and puts at or below it. Knock-out precedes accumulation and
+/// adds no units. Other trading times accumulate even beyond the barrier. At
+/// strike, the base quantity applies. Expiry settles after its event, whether
+/// or not it is a knock-out timestamp. Calls pay quantity * (settlement spot -
+/// strike); puts pay its negative. Intraday history includes that day's
+/// earlier accumulation. Record settled contracts with knock_out_settled=True.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
@@ -89,49 +91,45 @@ impl Accumulator {
             .transpose()
     }
 
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
     /// option_type : {'call', 'put'}, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// strike : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// knock_out_level : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// daily_quantity : float, optional
+    /// strike, knock_out_level, daily_quantity : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// acceleration_factor : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// accumulated_quantity : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// knock_out_settled : bool or None, optional
-    ///     Records a settled knock-out strictly before valuation.
-    /// effective_time : datetime.datetime, optional
+    /// effective_time, expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observation_clock_time : datetime.time, optional
+    ///     Daily observation clock, without timezone information.
     /// knock_out_observation_times : Iterable[datetime.datetime] | None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_out_settled : bool or None, optional
+    ///     Records a settled knock-out strictly before valuation.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
-    ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-    ///     payload and timestamp together.
+    ///     Required with history; refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
     /// object
-    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///     Independent contract of the same class, preserving omitted history and
+    ///     terms.
     ///
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If the resulting contract fails core validation; the original is unchanged.
+    ///     If the resulting contract fails core validation.
     /// TypeError
     ///     If a representation or field name is invalid.
+    ///
     #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
@@ -255,25 +253,24 @@ impl Accumulator {
             history_time,
         ))?))
     }
-    /// Returns a validated replacement.
+    /// Return a validated replacement.
     ///
-    /// Clearing the final history payload clears an omitted history_time.
-    /// An explicitly supplied history_time is validated and retained.
+    /// Clearing the final history payload clears an omitted history_time. An
+    /// explicitly supplied history_time is validated and retained.
     ///
     /// Parameters
     /// ----------
     /// accumulated_quantity : float or None, optional
-    ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
-    ///     Required after a prior observation unless knock_out_settled is True.
-    ///
+    ///     Outstanding quantity strictly before valuation. None means unknown;
+    ///     zero means no units. Required after a prior observation unless
+    ///     knock_out_settled is True.
     /// knock_out_settled : bool or None, optional
-    ///     None restores unknown history; omission retains the current state. Pricing
-    ///     rejects knock-out settlement before or at the first knock-out observation.
-    ///
+    ///     None restores unknown history; omission retains the current state.
+    ///     Pricing rejects knock-out settlement before or at the first knock-out
+    ///     observation.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
-    ///     payload and timestamp together.
+    ///     Required with history; refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -283,7 +280,8 @@ impl Accumulator {
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
+    ///     If replacement terms fail domain validation.
+    ///
     #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     fn replace_history(
         &self,
@@ -315,36 +313,39 @@ impl Accumulator {
         Ok(Self(domain(self.0.replace(changes))?))
     }
 
-    /// Returns the explicitly specified daily observation clock time.
+    /// Return the explicitly specified daily observation clock time.
     #[getter]
     fn observation_clock_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         crate::conversions::python_clock_time(py, self.0.observation_clock_time())
     }
 
-    /// Returns an owned schedule of daily accumulation opportunities.
+    /// Return an owned schedule of daily accumulation opportunities.
     ///
     /// Includes the effective instant when it matches the contract clock and
-    /// calendar; expiry adds no observation. Coincident knock-out can prevent accumulation.
+    /// calendar; expiry adds no observation. Coincident knock-out can prevent
+    /// accumulation.
+    ///
     #[getter]
     fn accumulation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
         domain(self.0.accumulation_schedule()).map(crate::schedule::ObservationSchedule)
     }
 
-    /// Returns an owned schedule resolving daily or explicit knock-out monitoring.
+    /// Return an owned schedule resolving daily or explicit knock-out monitoring.
     ///
-    /// An empty explicit list disables knock-out. Supplied history does not
-    /// filter this whole-life schedule.
+    /// An empty explicit list disables knock-out. Supplied history does not filter
+    /// this whole-life schedule.
+    ///
     #[getter]
     fn knock_out_observation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
         domain(self.0.knock_out_observation_schedule()).map(crate::schedule::ObservationSchedule)
     }
 
-    /// Returns an owned copy of the contract's observation calendar.
+    /// Return an owned copy of the contract's observation calendar.
     #[getter]
     fn calendar(&self) -> TradingCalendar {
         TradingCalendar(self.0.calendar().clone())
     }
-    /// Returns call for purchases or put for sales.
+    /// Return call for purchases or put for sales.
     #[getter]
     fn option_type(&self) -> &'static str {
         match self.0.option_type() {
@@ -352,7 +353,7 @@ impl Accumulator {
             kiyosi::OptionType::Put => "put",
         }
     }
-    /// Returns owned knock-out times, or None for at the daily accumulation time.
+    /// Return owned knock-out times, or None for at the daily accumulation time.
     #[getter]
     fn knock_out_observation_times<'py>(
         &self,
@@ -368,7 +369,7 @@ impl Accumulator {
             })
             .transpose()
     }
-    /// Returns the purchase or sale strike in underlying price units.
+    /// Return the purchase or sale strike in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()
@@ -378,12 +379,13 @@ impl Accumulator {
     fn knock_out_level(&self) -> f64 {
         self.0.knock_out_level()
     }
-    /// Returns the nonnegative base quantity bought or sold on each trading timestamp.
+    /// Return the nonnegative base quantity per trading timestamp.
+    ///
     #[getter]
     fn daily_quantity(&self) -> f64 {
         self.0.daily_quantity()
     }
-    /// Returns the quantity multiplier below strike for calls or above it for puts.
+    /// Return the quantity multiplier below strike for calls or above it for puts.
     #[getter]
     fn acceleration_factor(&self) -> f64 {
         self.0.acceleration_factor()

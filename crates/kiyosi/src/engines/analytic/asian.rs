@@ -26,7 +26,7 @@ impl AnalyticGeometricAveragePriceEngine {
     /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
     /// [`Error::InvalidInput`] outside life or curve coverage,
     /// for inconsistent history, and
-    /// [`Error::ComputationFailure`] for non-finite calculations. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`] for non-finite calculations.
     ///
     /// # Examples
     ///
@@ -172,7 +172,6 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// [`Error::UnsupportedOperation`] for nonconstant rate curves before expiry,
     /// [`Error::InvalidInput`] for curve coverage, or
     /// [`Error::ComputationFailure`] for invalid moments or non-finite results.
-    /// Inputs remain unchanged.
     ///
     /// # Examples
     ///

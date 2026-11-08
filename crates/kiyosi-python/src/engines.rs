@@ -19,10 +19,23 @@ macro_rules! numerical_greeks_methods {
     ($instrument:ty, [$(#[$extra_doc:meta])*], $methods:ident!($($args:tt)*)) => {
         $methods! {
             $($args)*,
-            /// Return native, numerical, mixed, native_with_spot_control, terminal or unsupported.
+            /// Return the Greek estimation method.
             ///
-            /// Checks model applicability without pricing or sampling. Life and history
-            /// validation remain part of pricing. Use numerical_greeks for scalar bumps.
+            /// Checks model applicability; pricing validates life and history.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Contract supported by this engine.
+            /// context : PricingContext
+            ///     Market snapshot.
+            ///
+            /// Returns
+            /// -------
+            /// str
+            ///     "native", "numerical", "mixed", "native_with_spot_control", "terminal",
+            ///     or "unsupported".
+            ///
             fn greek_method(
                 &self,
                 py: pyo3::Python<'_>,
@@ -31,10 +44,21 @@ macro_rules! numerical_greeks_methods {
             ) -> pyo3::PyResult<&'static str> {
                 Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.name())
             },
-            /// Return shift-control names potentially used by this Greek calculation path.
+            /// Return shift controls used by the Greek estimation method.
             ///
-            /// Individual requests may use fewer controls. Every engine accepts the same
-            /// request-level controls; omitted controls retain the engine's settings.
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Contract supported by this engine.
+            /// context : PricingContext
+            ///     Market snapshot.
+            ///
+            /// Returns
+            /// -------
+            /// list of str
+            ///     Potentially active controls: spot_shift, volatility_shift, rate_shift,
+            ///     and time_shift. Individual requests may use fewer controls.
+            ///
             fn active_greek_controls(
                 &self,
                 py: pyo3::Python<'_>,
@@ -60,21 +84,24 @@ macro_rules! numerical_greeks_methods {
             ///     Positive decimal bumps for numerical fallback Greeks.
             /// time_shift : datetime.timedelta or None, optional
             ///     Positive whole-microsecond bump; None selects an automatic time step.
-            ///     Omitted controls or Ellipsis retain engine settings, whose shared defaults
-            ///     are automatic spot/time bumps and 0.0001 volatility/rate bumps.
-            ///     Controls affect numerical fallbacks, event checks and terminal stencils;
-            ///     native estimators and engine/model Greek coverage are preserved.
+            ///     Omitted controls or Ellipsis retain engine settings, whose shared
+            ///     defaults are automatic spot/time bumps and 0.0001 volatility/rate
+            ///     bumps. Controls affect numerical fallbacks, event checks and terminal
+            ///     stencils; native estimators and engine/model Greek coverage are
+            ///     preserved.
             ///
             /// Returns
             /// -------
             /// PricingResult
             ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-            ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
+            ///     with time Greeks absent at expiry; other terminal Greeks follow the
+            ///     payoff.
             ///
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If controls are invalid, pricing fails or a feasible bumped valuation fails.
+            ///     If controls are invalid, pricing fails or a feasible bumped valuation
+            ///     fails.
             /// ValueError
             ///     If a Greek name is unknown.
             /// TypeError

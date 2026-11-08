@@ -138,7 +138,6 @@ pub(crate) fn expiry_greeks(
 /// Returns [`Error::InvalidInput`](crate::Error::InvalidInput) for invalid bumps,
 /// and [`Error::ComputationFailure`](crate::Error::ComputationFailure)
 /// for non-finite prices or derivatives. Propagates engine and bumped-context errors.
-/// Inputs remain unchanged.
 ///
 /// # Examples
 ///

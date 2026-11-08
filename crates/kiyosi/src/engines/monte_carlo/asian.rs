@@ -139,7 +139,7 @@ impl MonteCarloAsianEngine {
     /// Before expiry geometric contracts require flat curves
     /// ([`Error::UnsupportedOperation`]); both kinds require curve coverage
     /// ([`Error::InvalidInput`]). Non-finite parameters, paying samples
-    /// or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// or results return [`Error::ComputationFailure`].
     ///
     /// # Panics
     ///
@@ -191,7 +191,7 @@ impl MonteCarloAsianEngine {
     /// # Errors
     ///
     /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
-    /// for non-finite uncertainty or confidence bounds. Inputs remain unchanged.
+    /// for non-finite uncertainty or confidence bounds.
     ///
     /// # Panics
     ///
@@ -225,7 +225,6 @@ impl MonteCarloAsianEngine {
     ///
     /// Propagates [`Self::price`] errors.
     /// Non-finite requested Greeks return [`Error::ComputationFailure`].
-    /// Inputs remain unchanged on success and failure.
     ///
     /// # Panics
     ///

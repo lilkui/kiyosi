@@ -78,7 +78,7 @@ impl QuadratureAutocallableEngine {
     /// missing or impossible prior history, and required curve coverage
     /// ([`Error::InvalidInput`]), in that order. Non-finite prices or
     /// unrepresentable transitions return [`Error::ComputationFailure`].
-    /// Inputs remain unchanged on success and failure.
+    ///
     pub fn price<T: AutocallableTerms>(
         &self,
         option: &AutocallableNote<T>,
@@ -96,7 +96,7 @@ impl QuadratureAutocallableEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation, then
-    /// propagates [`crate::numerical_greeks`] errors. Inputs remain unchanged.
+    /// propagates [`crate::numerical_greeks`] errors.
     pub fn price_with_greeks<T: AutocallableTerms>(
         &self,
         option: &AutocallableNote<T>,

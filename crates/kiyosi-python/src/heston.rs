@@ -16,24 +16,28 @@ use pyo3::prelude::*;
 /// mean_reversion_speed : float
 ///     Mean-reversion coefficient kappa, with time measured in years.
 /// vol_of_vol : float
-///     Volatility-of-volatility parameter xi in
-///     dv = kappa * (theta - v) dt + xi * sqrt(v) dW.
+///     Volatility-of-volatility parameter xi in dv = kappa * (theta - v) dt +
+///     xi * sqrt(v) dW.
 /// correlation : float
-///     Correlation between the asset and variance Brownian motions in [-1, 1], including endpoints.
+///     Correlation between the asset and variance Brownian motions in [-1, 1],
+///     including endpoints.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     For non-finite inputs, negative variance parameters or invalid correlation.
+///     For non-finite inputs, negative variance parameters or invalid
+///     correlation.
 ///
 /// Notes
 /// -----
-/// Zero parameters and violations of the Feller condition
-/// (2 * kappa * theta >= xi**2) are accepted. AnalyticHestonEuropeanEngine
-/// prices European options; FiniteDifferenceHestonVanillaEngine prices European
-/// and American options. Requested Greeks are absent; implied-parameter solvers are unsupported.
-/// Numeric conversion rejects booleans. Replacement validates in Rust before
-/// returning a new owned model; the original is unchanged on failure.
+/// Zero parameters and violations of the Feller condition (2 * kappa * theta
+/// >= xi**2) are accepted. AnalyticHestonEuropeanEngine prices European
+/// options; FiniteDifferenceHestonVanillaEngine prices European and American
+/// options. Requested Greeks are absent; implied-parameter solvers are
+/// unsupported. Numeric conversion rejects booleans. Replacement validates in
+/// Rust before returning a new owned model; the original is unchanged on
+/// failure.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct HestonParameters(pub(crate) kiyosi::HestonParameters);
@@ -64,7 +68,7 @@ impl HestonParameters {
         ))?))
     }
 
-    /// Return a validated new model; omitted fields or Ellipsis retain their values.
+    /// Return a validated model, retaining omitted fields or Ellipsis.
     ///
     /// Parameters
     /// ----------
@@ -85,7 +89,9 @@ impl HestonParameters {
     /// InvalidInputError
     ///     If replacement parameters fail model validation.
     /// TypeError
-    ///     If a supplied value is None, bool or another unsupported representation.
+    ///     If a supplied value is None, bool or another unsupported
+    ///     representation.
+    ///
     #[pyo3(signature = (*, risk_free_rate=crate::conversions::OMITTED, dividend_yield=crate::conversions::OMITTED, initial_variance=crate::conversions::OMITTED, long_run_variance=crate::conversions::OMITTED, mean_reversion_speed=crate::conversions::OMITTED, vol_of_vol=crate::conversions::OMITTED, correlation=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
@@ -113,18 +119,21 @@ impl HestonParameters {
             },
         ))?))
     }
-    /// Returns the scalar rate for dated or undated constant curves.
+    /// Return the scalar rate for dated or undated constant curves.
     ///
-    /// Raises UnsupportedOperationError for nonconstant curves; use risk_free_curve
-    /// to preserve coverage when passing rates to constructors or replacements.
+    /// Raises UnsupportedOperationError for nonconstant curves; use
+    /// risk_free_curve to preserve coverage when passing rates to constructors or
+    /// replacements.
+    ///
     #[getter]
     fn flat_risk_free_rate(&self) -> PyResult<f64> {
         domain(self.0.flat_risk_free_rate())
     }
-    /// Returns the scalar yield for dated or undated constant curves.
+    /// Return the scalar yield for dated or undated constant curves.
     ///
     /// Raises UnsupportedOperationError for nonconstant curves; use dividend_curve
     /// to preserve coverage when passing yields to constructors or replacements.
+    ///
     #[getter]
     fn flat_dividend_yield(&self) -> PyResult<f64> {
         domain(self.0.flat_dividend_yield())

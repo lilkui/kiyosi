@@ -708,7 +708,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     ///
     /// See [`crate::MonteCarloVanillaEngine::price_with_statistics`] for an example
     /// and [`crate::MonteCarloEstimate`] for uncertainty conventions. The default
-    /// implementation reports an unsupported operation. Inputs remain unchanged.
+    /// implementation reports an unsupported operation.
     ///
     /// # Errors
     ///

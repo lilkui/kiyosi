@@ -23,10 +23,11 @@ use pyo3::prelude::*;
 /// -----
 /// Local volatility interpolates bilinearly in time and absolute spot price,
 /// using Actual/365 Fixed year fractions. Time extrapolation is rejected;
-/// extrapolation in the spot dimension holds the nearest endpoint volatility constant.
-/// Inputs are copied. Properties return owned copies; spot changes and time
-/// rolls never translate the surface. Native conversion errors reject booleans,
-/// dates, timezone-aware datetimes and invalid iterable elements.
+/// extrapolation in the spot dimension holds the nearest endpoint volatility
+/// constant. Inputs are copied. Properties return owned copies; spot changes
+/// and time rolls never translate the surface. Native conversion errors reject
+/// booleans, dates, timezone-aware datetimes and invalid iterable elements.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct LocalVolatilitySurface(pub(crate) kiyosi::LocalVolatilitySurface);
@@ -91,7 +92,8 @@ impl LocalVolatilitySurface {
     /// time : datetime.datetime
     ///     Covered query instant.
     /// spot : float
-    ///     Positive finite underlying price; extrapolation holds endpoint volatility constant.
+    ///     Positive finite underlying price; extrapolation holds endpoint
+    ///     volatility constant.
     ///
     /// Returns
     /// -------
@@ -102,6 +104,7 @@ impl LocalVolatilitySurface {
     /// ------
     /// InvalidInputError
     ///     If time is outside coverage or spot is nonpositive or non-finite.
+    ///
     fn volatility(&self, time: &Bound<'_, PyAny>, spot: &Bound<'_, PyAny>) -> PyResult<f64> {
         domain(self.0.volatility(timestamp(time)?, real(spot)?))
     }
@@ -125,7 +128,9 @@ impl LocalVolatilitySurface {
 /// -----
 /// Surface and curve coverage are checked by the context and during pricing
 /// over the required remaining horizons. The one-dimensional finite-difference
-/// engines support price, delta and gamma; digital pricing requires constant rates.
+/// engines support price, delta and gamma; digital pricing requires constant
+/// rates.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct LocalVolatilityParameters(pub(crate) kiyosi::LocalVolatilityParameters);
@@ -145,7 +150,7 @@ impl LocalVolatilityParameters {
             surface.0.clone(),
         ))?))
     }
-    /// Return a validated new model; omitted fields or Ellipsis retain their values.
+    /// Return a validated model, retaining omitted fields or Ellipsis.
     ///
     /// Parameters
     /// ----------
@@ -163,6 +168,7 @@ impl LocalVolatilityParameters {
     /// ------
     /// InvalidInputError
     ///     If a replacement scalar rate is non-finite.
+    ///
     #[pyo3(signature = (*, risk_free_rate=crate::conversions::OMITTED, dividend_yield=crate::conversions::OMITTED, surface=crate::conversions::OMITTED))]
     fn replace(
         &self,
@@ -197,18 +203,21 @@ impl LocalVolatilityParameters {
     fn dividend_curve(&self) -> RateTermStructure {
         RateTermStructure(self.0.dividend_curve().clone())
     }
-    /// Returns the scalar rate for dated or undated constant curves.
+    /// Return the scalar rate for dated or undated constant curves.
     ///
-    /// Raises UnsupportedOperationError for nonconstant curves; use risk_free_curve
-    /// to preserve coverage when passing rates to constructors or replacements.
+    /// Raises UnsupportedOperationError for nonconstant curves; use
+    /// risk_free_curve to preserve coverage when passing rates to constructors or
+    /// replacements.
+    ///
     #[getter]
     fn flat_risk_free_rate(&self) -> PyResult<f64> {
         domain(self.0.flat_risk_free_rate())
     }
-    /// Returns the scalar yield for dated or undated constant curves.
+    /// Return the scalar yield for dated or undated constant curves.
     ///
     /// Raises UnsupportedOperationError for nonconstant curves; use dividend_curve
     /// to preserve coverage when passing yields to constructors or replacements.
+    ///
     #[getter]
     fn flat_dividend_yield(&self) -> PyResult<f64> {
         domain(self.0.flat_dividend_yield())

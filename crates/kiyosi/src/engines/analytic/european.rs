@@ -39,7 +39,7 @@ impl AnalyticEuropeanEngine {
     /// # Errors
     ///
     /// Propagates [`Self::price`] errors. Non-finite requested derivatives
-    /// return [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// return [`Error::ComputationFailure`].
     pub fn price_with_greeks(
         &self,
         option: &EuropeanOption,
@@ -209,7 +209,7 @@ impl AnalyticEuropeanEngine {
     /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
     /// [`Error::InvalidInput`] after expiry or outside required curve
     /// coverage, and [`Error::ComputationFailure`] for non-finite results.
-    /// Inputs remain unchanged.
+    ///
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         if crate::engines::deterministic::enabled(context) {

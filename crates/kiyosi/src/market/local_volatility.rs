@@ -113,7 +113,7 @@ impl LocalVolatilitySurface {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] outside time coverage or for a
-    /// nonpositive or non-finite spot. Inputs remain unchanged.
+    /// nonpositive or non-finite spot.
     pub fn volatility(&self, time: Timestamp, spot: f64) -> Result<f64> {
         self.validate_time(time)?;
         finite(spot, true, "spot")?;

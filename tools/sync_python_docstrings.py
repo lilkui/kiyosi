@@ -11,6 +11,8 @@ Signatures are maintained in the stub; docstrings come from the Rust bindings.
 
 import ast
 import inspect
+import io
+import tokenize
 from pathlib import Path
 
 from kiyosi import _native
@@ -44,4 +46,12 @@ def sync_docstrings(declarations, owner):
 if __name__ == "__main__":
     stub = ast.parse(STUB.read_text(encoding="utf-8"))
     sync_docstrings(stub.body, _native)
-    STUB.write_text(ast.unparse(stub) + "\n", encoding="utf-8")
+    source = ast.unparse(stub) + "\n"
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type == tokenize.STRING and "\n" in token.string:
+            source = source.replace(
+                token.string,
+                token.string[:-3] + "\n" + " " * token.start[1] + token.string[-3:],
+                1,
+            )
+    STUB.write_text(source, encoding="utf-8")

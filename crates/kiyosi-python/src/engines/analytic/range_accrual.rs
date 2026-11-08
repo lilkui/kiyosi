@@ -9,6 +9,7 @@ analytic_engine!(
     /// See Also
     /// --------
     /// RangeAccrualOption : Supported contract.
+    ///
     AnalyticRangeAccrualEngine,
     RangeAccrualOption
 );

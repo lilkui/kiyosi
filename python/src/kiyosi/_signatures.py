@@ -1,7 +1,7 @@
 """Expose Rust-derived defaults through Python signature introspection."""
 
 from functools import wraps
-from inspect import Parameter, Signature, isbuiltin, isclass, signature
+from inspect import Parameter, Signature, getdoc, isbuiltin, isclass, signature
 from types import ModuleType
 from typing import Any
 
@@ -36,10 +36,10 @@ def _engine_replacement(factory: Any) -> Any:
     constructor = signature(factory)
 
     def replace(self: Any, **changes: Any) -> Any:
-        """Return a validated engine; omitted controls or Ellipsis retain their values.
+        """Return a validated copy with replacement controls.
 
-        Explicit None clears nullable controls. Constructor validation applies to
-        supplied controls, and the original engine is preserved on success and failure.
+        Omission or Ellipsis retains a control; None clears nullable controls.
+        Parameter defaults below describe construction, not replacement.
         """
         constructor.bind_partial(**changes)
         controls = {name: getattr(self, name) for name in constructor.parameters}
@@ -57,6 +57,14 @@ def _engine_replacement(factory: Any) -> Any:
             ),
         ],
         return_annotation=factory,
+    )
+    parameters = (getdoc(factory) or "").partition("\nParameters\n----------\n")[2]
+    parameters = parameters.partition("\nRaises\n------")[0].strip()
+    replace.__doc__ = (
+        f"{getdoc(replace)}\n\n"
+        + (f"Parameters\n----------\n{parameters}\n\n" if parameters else "")
+        + f"Returns\n-------\n{factory.__name__}\n    Validated engine.\n\n"
+        "Raises\n------\nInvalidInputError\n    If controls fail constructor validation.\n"
     )
     return replace
 

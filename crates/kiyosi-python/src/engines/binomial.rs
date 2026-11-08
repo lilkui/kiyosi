@@ -45,6 +45,7 @@ pub(crate) use with_vanilla;
 /// Notes
 /// -----
 /// Accepts EuropeanOption and AmericanOption.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct CoxRossRubinsteinVanillaEngine(pub(crate) kiyosi::CoxRossRubinsteinVanillaEngine);
@@ -55,10 +56,12 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// At positive volatility before expiry delta and gamma use tree nodes; one-step gamma and
-        /// other Greeks use numerical differences with engine defaults. At expiry
-        /// spot Greeks use default terminal-payoff stencils. Use numerical_greeks
-        /// for configurable scalar differences. Zero volatility uses scalar differences.
+        /// At positive volatility before expiry delta and gamma use tree nodes;
+        /// one-step gamma and other Greeks use numerical differences with engine
+        /// defaults. At expiry spot Greeks use default terminal-payoff stencils. Use
+        /// numerical_greeks for configurable scalar differences. Zero volatility uses
+        /// scalar differences.
+        ///
     ],
     engine_methods!(
         CoxRossRubinsteinVanillaEngine,
@@ -80,7 +83,7 @@ numerical_greeks_methods!(
                 self.step_count()
             )
         },
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -98,6 +101,7 @@ numerical_greeks_methods!(
         /// ------
         /// KiyosiError
         ///     If domain validation, engine applicability or numerical pricing fails.
+        ///
         fn price(
             &self,
             py: Python<'_>,
@@ -124,11 +128,11 @@ macro_rules! binomial_engine {
         /// ------
         /// InvalidInputError
         ///     If step_count is outside 1 through 1,000,000.
-        ///
+        $(#[$doc])*
         /// Notes
         /// -----
         /// Provides node delta/gamma for its product family; other Greeks are absent.
-        $(#[$doc])*
+        ///
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
@@ -139,10 +143,11 @@ macro_rules! binomial_engine {
                 ///
                 /// Notes
                 /// -----
-                /// At positive volatility before expiry delta and gamma use tree nodes.
-                /// Zero volatility uses scalar differences. Other Greeks are
-                /// unsupported. At expiry spot Greeks use default terminal-payoff
-                /// stencils. Use numerical_greeks for configurable scalar differences.
+                /// At positive volatility before expiry delta and gamma use tree nodes. Zero
+                /// volatility uses scalar differences. Other Greeks are unsupported. At expiry
+                /// spot Greeks use default terminal-payoff stencils. Use numerical_greeks for
+                /// configurable scalar differences.
+                ///
             ],
             engine_methods!(
                 $name,
@@ -164,7 +169,7 @@ macro_rules! binomial_engine {
                     format!("{}(step_count={})", stringify!($name), self.step_count())
                 },
 
-                /// Returns the price.
+                /// Return the price.
                 ///
                 /// Parameters
                 /// ----------
@@ -182,6 +187,7 @@ macro_rules! binomial_engine {
                 /// ------
                 /// KiyosiError
                 ///     If domain validation, engine applicability or numerical pricing fails.
+                ///
                 fn price(
                     &self,
                     py: Python<'_>,
@@ -216,6 +222,7 @@ binomial_engine!(
     /// --------
     /// CashOrNothingOption : Supported contract.
     /// AssetOrNothingOption : Supported contract.
+    ///
     CoxRossRubinsteinDigitalEngine,
     digital::DigitalInstrument<'_>,
     |instrument| instrument.contract()
@@ -225,6 +232,7 @@ binomial_engine!(
     /// See Also
     /// --------
     /// BarrierOption : Supported contract.
+    ///
     CoxRossRubinsteinBarrierEngine,
     PyRef<'_, BarrierOption>,
     |instrument| &instrument.0

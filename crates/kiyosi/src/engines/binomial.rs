@@ -110,7 +110,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] and [`crate::numerical_greeks`] errors. Inputs remain unchanged.
+    /// [`Self::price`] and [`crate::numerical_greeks`] errors.
     ///
     /// # Examples
     ///
@@ -587,7 +587,7 @@ impl CoxRossRubinsteinDigitalEngine {
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
     /// [`Self::price`] errors. Empty requests return
-    /// [`Error::InvalidInput`]. Inputs remain unchanged.
+    /// [`Error::InvalidInput`].
     ///
     /// # Examples
     ///

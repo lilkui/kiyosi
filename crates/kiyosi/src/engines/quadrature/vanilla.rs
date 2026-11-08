@@ -42,7 +42,7 @@ impl QuadratureVanillaSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for fewer than four spatial steps, a nonpositive
-    /// or non-finite extent, or fewer than one time interval. Inputs remain unchanged.
+    /// or non-finite extent, or fewer than one time interval.
     pub fn validate(&self) -> Result<()> {
         QuadratureSettings {
             asset_step_count: self.asset_step_count,
@@ -124,7 +124,7 @@ impl QuadratureVanillaEngine {
     /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
     /// before life validation. Returns [`Error::InvalidInput`] outside permitted
     /// valuation bounds or curve coverage, and [`Error::ComputationFailure`] for unrepresentable grids,
-    /// transitions, tails or prices. Inputs and engine settings remain unchanged.
+    /// transitions, tails or prices.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
@@ -140,7 +140,7 @@ impl QuadratureVanillaEngine {
     /// # Errors
     ///
     /// Checks flat-rate BSM applicability before shift validation, then
-    /// propagates [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
+    /// propagates [`crate::numerical_greeks`] and [`Self::price`] errors.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
         option: &I,

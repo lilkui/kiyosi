@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 /// --------
 /// CashOrNothingOption : Supported contract.
 /// AssetOrNothingOption : Supported contract.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct AnalyticDigitalEngine;
@@ -19,10 +20,12 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Delta and gamma are analytic at positive volatility before expiry.
-        /// At zero volatility they use scalar differences. Other Greeks use numerical
-        /// differences with the supplied shifts. At expiry spot Greeks use the supplied
-        /// terminal-payoff stencils. Use numerical_greeks for scalar-only differences.
+        /// Delta and gamma are analytic at positive volatility before expiry. At zero
+        /// volatility they use scalar differences. Other Greeks use numerical
+        /// differences with the supplied shifts. At expiry spot Greeks use the
+        /// supplied terminal-payoff stencils. Use numerical_greeks for scalar-only
+        /// differences.
+        ///
     ],
     engine_methods!(
         AnalyticDigitalEngine,
@@ -30,7 +33,7 @@ numerical_greeks_methods!(
         fn new() -> Self {
             Self
         },
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -48,6 +51,7 @@ numerical_greeks_methods!(
         /// ------
         /// KiyosiError
         ///     If domain validation, engine applicability or numerical pricing fails.
+        ///
         fn price(
             &self,
             py: Python<'_>,

@@ -18,7 +18,7 @@ impl AnalyticRangeAccrualEngine {
     /// # Errors
     ///
     /// Propagates [`crate::numerical_greeks`] validation and pricing errors.
-    /// Inputs remain unchanged on success and failure.
+    ///
     pub fn price_with_greeks(
         &self,
         option: &RangeAccrualOption,
@@ -41,7 +41,6 @@ impl AnalyticRangeAccrualEngine {
     /// prior hits, and required curve coverage, in that order
     /// ([`Error::InvalidInput`]). Unresolvable curve knots or non-finite
     /// transitions or prices return [`Error::ComputationFailure`].
-    /// Inputs remain unchanged on every outcome.
     ///
     /// # Examples
     ///

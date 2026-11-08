@@ -27,7 +27,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
     /// for missing or impossible history, invalid grids,
     /// or unstable explicit steps. Returns [`Error::ComputationFailure`][crate::Error::ComputationFailure] for
-    /// numerical failures. Inputs remain unchanged.
+    /// numerical failures.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
@@ -45,7 +45,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     /// # Errors
     ///
     /// Validates shifts before pricing, then propagates [`Self::price`] and
-    /// [`crate::numerical_greeks`] errors. Inputs and engine settings remain unchanged.
+    /// [`crate::numerical_greeks`] errors.
     ///
     /// # Examples
     ///
@@ -193,7 +193,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
     /// for unknown or impossible history, invalid grids,
     /// or unstable explicit steps. Numerical failures return
-    /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
         <Self as PricingEngine<DoubleTouchOption>>::price(self, option, context)
     }
@@ -208,7 +208,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// # Errors
     ///
     /// Validates shifts before pricing, then propagates [`Self::price`] and
-    /// [`crate::numerical_greeks`] errors. Inputs remain unchanged.
+    /// [`crate::numerical_greeks`] errors.
     ///
     /// # Examples
     ///

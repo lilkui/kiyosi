@@ -163,7 +163,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// # Errors
     ///
     /// Checks Heston applicability and propagates
-    /// [`Self::price`] errors. Inputs remain unchanged.
+    /// [`Self::price`] errors.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
         option: &I,

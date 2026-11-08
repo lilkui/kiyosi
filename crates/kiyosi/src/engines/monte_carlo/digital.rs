@@ -62,7 +62,7 @@ impl MonteCarloDigitalEngine {
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves before life
     /// validation, [`crate::Error::InvalidInput`] after expiry or outside curve coverage,
     /// and [`crate::Error::ComputationFailure`] for non-finite parameters, samples or
-    /// results. Inputs remain unchanged on success and failure.
+    /// results.
     ///
     /// # Panics
     ///
@@ -87,7 +87,7 @@ impl MonteCarloDigitalEngine {
     /// # Errors
     ///
     /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
-    /// for non-finite uncertainty or confidence bounds. Inputs remain unchanged.
+    /// for non-finite uncertainty or confidence bounds.
     ///
     /// # Panics
     ///
@@ -122,7 +122,7 @@ impl MonteCarloDigitalEngine {
     ///
     /// Checks flat-rate applicability before shifts, then propagates
     /// [`Self::price`] errors. Non-finite requested Greek samples return
-    /// [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
+    /// [`crate::Error::ComputationFailure`].
     ///
     /// # Panics
     ///

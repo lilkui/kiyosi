@@ -18,7 +18,8 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 /// relative_tolerance : float, optional
 ///     Finite nonnegative relative tolerance; defaults to 1e-8.
 /// max_evaluations : int, optional
-///     Positive request-wide characteristic-function budget; defaults to 10000.
+///     Positive request-wide characteristic-function budget; defaults to
+///     10000.
 ///
 /// Raises
 /// ------
@@ -29,12 +30,14 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 /// -----
 /// Supports HestonParameters and EuropeanOption only, including zero variance
 /// parameters and correlation endpoints. Deterministic rates may be curves.
-/// The target price error is absolute_tolerance + relative_tolerance * abs(price).
-/// Error estimates are not a universal accuracy guarantee. The budget covers
-/// Heston and control-variate characteristic functions across all integrals and
-/// tail checks. Expiry and deterministic-variance branches need no evaluations.
-/// Requested Greeks are None; implied-parameter solvers raise UnsupportedOperationError. Pricing releases
-/// the GIL for core computation, with independent state for concurrent calls.
+/// The target price error is absolute_tolerance + relative_tolerance *
+/// abs(price). Error estimates are not a universal accuracy guarantee. The
+/// budget covers Heston and control-variate characteristic functions across
+/// all integrals and tail checks. Expiry and deterministic-variance branches
+/// need no evaluations. Requested Greeks are None; implied-parameter solvers
+/// raise UnsupportedOperationError. Pricing releases the GIL for core
+/// computation, with independent state for concurrent calls.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHestonEuropeanEngine);
@@ -45,8 +48,9 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// All requested Greeks are unsupported and are None. Bump controls are
-        /// not accepted; numerical_greeks also rejects Heston.
+        /// All requested Greeks are unsupported and are None. Bump controls are not
+        /// accepted; numerical_greeks also rejects Heston.
+        ///
     ],
     engine_methods!(
         AnalyticHestonEuropeanEngine,
@@ -80,7 +84,7 @@ numerical_greeks_methods!(
         fn max_evaluations(&self) -> usize {
             self.0.settings().max_evaluations
         },
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -104,6 +108,7 @@ numerical_greeks_methods!(
         ///     If the budget or numerical resolution cannot meet the estimated target.
         /// ComputationFailureError
         ///     For invalid numerical intermediates or prices.
+        ///
         fn price(
             &self,
             py: Python<'_>,

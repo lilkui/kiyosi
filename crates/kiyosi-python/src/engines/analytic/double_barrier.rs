@@ -6,11 +6,13 @@ use pyo3::prelude::*;
 analytic_engine!(
     /// Flat-rate continuous double-barrier analytics.
     ///
-    /// Zero-volatility BSM paths are evaluated exactly, including scheduled monitoring.
+    /// Zero-volatility BSM paths are evaluated exactly, including scheduled
+    /// monitoring.
     ///
     /// See Also
     /// --------
     /// DoubleBarrierOption : Supported contract.
+    ///
     AnalyticDoubleBarrierEngine,
     DoubleBarrierOption
 );

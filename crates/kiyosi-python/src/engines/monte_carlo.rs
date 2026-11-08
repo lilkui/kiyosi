@@ -42,17 +42,17 @@ macro_rules! sampling_settings {
                 ///
                 /// Notes
                 /// -----
-                /// Barrier engines use spot_shift for event-availability
-                /// checks and continuous at-hit rebate derivatives. Autocallable and
-                /// accumulator engines use numerical differences with engine defaults.
-                /// At expiry spot Greeks use default terminal-payoff stencils.
-                /// Use numerical_greeks for
-                /// explicit scalar bump calculations on supported BSM pairs.
+                /// Barrier engines use spot_shift for event-availability checks and continuous
+                /// at-hit rebate derivatives. Autocallable and accumulator engines use
+                /// numerical differences with engine defaults. At expiry spot Greeks use
+                /// default terminal-payoff stencils. Use numerical_greeks for explicit scalar
+                /// bump calculations on supported BSM pairs.
+                ///
             ],
             sampling_settings!(
                 $engine,
                 [],
-                /// Returns the price.
+                /// Return the price.
                 ///
                 /// Parameters
                 /// ----------
@@ -72,6 +72,7 @@ macro_rules! sampling_settings {
                 ///     If domain validation, engine applicability or numerical pricing fails.
                 /// OSError
                 ///     If system entropy or worker creation fails.
+                ///
                 fn price(
                     &self,
                     py: Python<'_>,
@@ -114,8 +115,8 @@ macro_rules! sampling_settings {
             /// -------
             /// tuple[float, int or None]
             ///     Price and actual sampling seed; None when no sampling is needed.
-            ///     Reprice with replace(seed=seed) and the same inputs and controls
-            ///     to replay the result within the same build. The engine is unchanged.
+            ///     Reprice with replace(seed=seed) and the same inputs and controls to
+            ///     replay the result within the same build. The engine is unchanged.
             ///
             /// Raises
             /// ------
@@ -126,8 +127,9 @@ macro_rules! sampling_settings {
             ///
             /// Notes
             /// -----
-            /// Does not compute sampling uncertainty. Signal exceptions cancel the
-            /// request and propagate without a partial result, as for price().
+            /// Does not compute sampling uncertainty. Signal exceptions cancel the request
+            /// and propagate without a partial result, as for price().
+            ///
             fn price_with_seed(
                 &self,
                 py: Python<'_>,
@@ -138,13 +140,13 @@ macro_rules! sampling_settings {
                     crate::engines::SeededPriceRequest)
             }
 
-            /// Returns a price with sampling uncertainty.
+            /// Return a price with sampling uncertainty.
             ///
             /// Parameters
             /// ----------
             /// instrument : object
-            ///     A supported contract. Vanilla statistics require EuropeanOption;
-            ///     other engines accept the same contracts as price().
+            ///     A supported contract. Vanilla statistics require EuropeanOption; other
+            ///     engines accept the same contracts as price().
             /// context : PricingContext
             ///     Market snapshot and valuation instant.
             ///
@@ -152,16 +154,18 @@ macro_rules! sampling_settings {
             /// -------
             /// MonteCarloEstimate
             ///     Mean, optional standard error and asymptotic 95% confidence interval.
-            ///     Sobol, insufficient independent samples and odd antithetic counts
-            ///     omit uncertainty. Known pseudorandom analytic values have zero error.
+            ///     Sobol, insufficient independent samples and odd antithetic counts omit
+            ///     uncertainty. Known pseudorandom analytic values have zero error.
             ///     Sampling uncertainty does not measure numerical integration bias.
             ///
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If pricing or uncertainty validation fails, or the contract is unsupported.
+            ///     If pricing or uncertainty validation fails, or the contract is
+            ///     unsupported.
             /// OSError
             ///     If system entropy or worker creation fails.
+            ///
             fn price_with_statistics(
                 &self,
                 py: Python<'_>,
@@ -197,8 +201,9 @@ macro_rules! sampling_settings {
             /// Return an engine with a concrete seed, preserving all other controls.
             ///
             /// An existing seed is retained. Save or pickle the returned engine before
-            /// pricing to replay its draws within the same build. The original is unchanged.
-            /// Entropy failures raise OSError.
+            /// pricing to replay its draws within the same build. The original is
+            /// unchanged. Entropy failures raise OSError.
+            ///
             fn with_resolved_seed(&self) -> PyResult<Self> {
                 Ok(Self(domain(self.0.with_resolved_seed())?))
             }
@@ -222,7 +227,9 @@ macro_rules! sampling_settings {
             }
             /// Return the per-call active worker cap; zero selects automatic sizing.
             ///
-            /// Parallel calls share a CPU-sized pool; this cap does not bound thread creation.
+            /// Parallel calls share a CPU-sized pool; this cap does not bound thread
+            /// creation.
+            ///
             #[getter]
             fn max_active_workers(&self) -> i32 {
                 self.0.sampling_settings().max_active_workers
@@ -245,33 +252,34 @@ macro_rules! sampling_settings {
     };
 }
 
-/// Flat-rate CPU Monte Carlo pricing for European and American vanilla
-/// options.
+/// Flat-rate Monte Carlo pricing for European and American vanilla options.
 ///
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072.
-///     Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
+///     sampling requires a power of two.
 /// step_count : int, optional
-///     Exercise intervals, 1 through 10,000; defaults to 50. Validated even when
-///     unused; see Notes for product-specific use.
+///     Exercise intervals, 1 through 10,000; defaults to 50. Validated even
+///     when unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
-///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
+///     Nonnegative active worker cap per call: zero (default) is automatic,
+///     one is serial. Does not bound thread creation; parallel calls share a
+///     CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count
-///     leaves one unpaired path.
+///     Pair opposite normal draws; defaults to False. An odd path count leaves
+///     one unpaired path.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
 ///     If paths are outside 1 through 10,000,000, steps outside 1 through
-///     10,000, max_active_workers is negative, or Sobol paths are not a power of two.
+///     10,000, max_active_workers is negative, or Sobol paths are not a power
+///     of two.
 ///
 /// See Also
 /// --------
@@ -280,27 +288,28 @@ macro_rules! sampling_settings {
 ///
 /// Notes
 /// -----
-/// Fixed seeds reproduce results across thread counts in the same build.
-/// Calls own their samples and share a library-owned Rayon pool. A worker cap
-/// does not reserve workers. Greeks pin a seed per request. Solves require
-/// an explicit seed; call with_resolved_seed() first. Solver tolerances
-/// do not measure sampling error.
-/// European pricing samples the exact terminal distribution and ignores
-/// step_count. Near-strike payoffs preserve small movements even when the
-/// terminal spot rounds to the strike. American pricing uses least-squares
-/// Monte Carlo (Longstaff-Schwartz) with
-/// step_count exercise intervals and requires at least two before expiry.
+/// Fixed seeds reproduce results across thread counts in the same build. Calls
+/// own their samples and share a library-owned Rayon pool. A worker cap does
+/// not reserve workers. Greeks pin a seed per request. Solves require an
+/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
+/// measure sampling error. European pricing samples the exact terminal
+/// distribution and ignores step_count. Near-strike payoffs preserve small
+/// movements even when the terminal spot rounds to the strike. American
+/// pricing uses least-squares Monte Carlo (Longstaff-Schwartz) with step_count
+/// exercise intervals and requires at least two before expiry.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloVanillaEngine(pub(crate) kiyosi::MonteCarloVanillaEngine);
 
 numerical_greeks_methods!(
     binomial::VanillaInstrument<'_>,
-    [],
+    [///
+    ],
     sampling_settings!(
         MonteCarloVanillaEngine,
         [step_count],
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -322,6 +331,7 @@ numerical_greeks_methods!(
         /// Notes
         /// -----
         /// System entropy and worker-creation failures raise OSError.
+        ///
         fn price(
             &self,
             py: Python<'_>,
@@ -339,12 +349,13 @@ numerical_greeks_methods!(
 /// Notes
 /// -----
 /// Standard error uses independent pseudorandom observations or even
-/// antithetic pair means. The interval is an asymptotic 95% normal confidence interval.
-/// Uncertainty is absent for Sobol, insufficient independent samples and odd
-/// antithetic counts; known pseudorandom settlements have zero uncertainty.
-/// The seed property identifies the actual draws, including for unseeded engines;
-/// None means no sampling occurred. Replay requires the same inputs, engine
-/// controls and build.
+/// antithetic pair means. The interval is an asymptotic 95% normal confidence
+/// interval. Uncertainty is absent for Sobol, insufficient independent samples
+/// and odd antithetic counts; known pseudorandom settlements have zero
+/// uncertainty. The seed property identifies the actual draws, including for
+/// unseeded engines; None means no sampling occurred. Replay requires the same
+/// inputs, engine controls and build.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloEstimate(kiyosi::MonteCarloEstimate);
@@ -383,24 +394,25 @@ impl MonteCarloEstimate {
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072.
-///     Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
+///     sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
-///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
+///     Nonnegative active worker cap per call: zero (default) is automatic,
+///     one is serial. Does not bound thread creation; parallel calls share a
+///     CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count
-///     leaves one unpaired path.
+///     Pair opposite normal draws; defaults to False. An odd path count leaves
+///     one unpaired path.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
-///     or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, max_active_workers is
+///     negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -409,12 +421,13 @@ impl MonteCarloEstimate {
 ///
 /// Notes
 /// -----
-/// Fixed seeds reproduce results across thread counts in the same build.
-/// Calls own their samples and share a library-owned Rayon pool. A worker cap
-/// does not reserve workers. Greeks pin a seed per request. Solves require
-/// an explicit seed; call with_resolved_seed() first. Solver tolerances
-/// do not measure sampling error.
-/// Only likelihood-ratio delta and gamma are returned; other requested Greeks are absent.
+/// Fixed seeds reproduce results across thread counts in the same build. Calls
+/// own their samples and share a library-owned Rayon pool. A worker cap does
+/// not reserve workers. Greeks pin a seed per request. Solves require an
+/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
+/// measure sampling error. Only likelihood-ratio delta and gamma are returned;
+/// other requested Greeks are absent.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEngine);
@@ -428,14 +441,15 @@ numerical_greeks_methods!(
         /// Notes
         /// -----
         /// At positive volatility before expiry delta and gamma use native
-        /// likelihood-ratio estimators. Zero volatility uses scalar differences.
-        /// At expiry they use default terminal-payoff stencils.
-        /// Use numerical_greeks for configurable scalar differences.
+        /// likelihood-ratio estimators. Zero volatility uses scalar differences. At
+        /// expiry they use default terminal-payoff stencils. Use numerical_greeks for
+        /// configurable scalar differences.
+        ///
     ],
     sampling_settings!(
         MonteCarloDigitalEngine,
         [],
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -457,6 +471,7 @@ numerical_greeks_methods!(
         /// Notes
         /// -----
         /// System entropy and worker-creation failures raise OSError.
+        ///
         fn price(
             &self,
             py: Python<'_>,
@@ -474,27 +489,29 @@ numerical_greeks_methods!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072.
-///     Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
+///     sampling requires a power of two.
 /// step_count : int, optional
 ///     Grid size, 2 through 10,000; defaults to 50. Validated even when
 ///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
-///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
+///     Nonnegative active worker cap per call: zero (default) is automatic,
+///     one is serial. Does not bound thread creation; parallel calls share a
+///     CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count
-///     leaves one unpaired path.
+///     Pair opposite normal draws; defaults to False. An odd path count leaves
+///     one unpaired path.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
 ///     If paths are outside 1 through 10,000,000, steps outside 2 through
-///     10,000, max_active_workers is negative, or Sobol paths are not a power of two.
+///     10,000, max_active_workers is negative, or Sobol paths are not a power
+///     of two.
 ///
 /// See Also
 /// --------
@@ -503,14 +520,14 @@ numerical_greeks_methods!(
 ///
 /// Notes
 /// -----
-/// Fixed seeds reproduce results across thread counts in the same build.
-/// Calls own their samples and share a library-owned Rayon pool. A worker cap
-/// does not reserve workers. Greeks pin a seed per request. Solves require
-/// an explicit seed; call with_resolved_seed() first. Solver tolerances
-/// do not measure sampling error.
-/// Geometric averages and single fixings sample exact distributions.
-/// Arithmetic averages use step_count trapezoidal intervals with the first
-/// interval integrated conditionally.
+/// Fixed seeds reproduce results across thread counts in the same build. Calls
+/// own their samples and share a library-owned Rayon pool. A worker cap does
+/// not reserve workers. Greeks pin a seed per request. Solves require an
+/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
+/// measure sampling error. Geometric averages and single fixings sample exact
+/// distributions. Arithmetic averages use step_count trapezoidal intervals
+/// with the first interval integrated conditionally.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloAsianEngine(pub(crate) kiyosi::MonteCarloAsianEngine);
@@ -524,14 +541,15 @@ numerical_greeks_methods!(
         /// Notes
         /// -----
         /// At positive volatility before expiry delta and gamma use native estimators.
-        /// Zero volatility uses scalar differences. At expiry delta and gamma
-        /// use default terminal-payoff stencils. Use numerical_greeks for
-        /// configurable scalar differences.
+        /// Zero volatility uses scalar differences. At expiry delta and gamma use
+        /// default terminal-payoff stencils. Use numerical_greeks for configurable
+        /// scalar differences.
+        ///
     ],
     sampling_settings!(
         MonteCarloAsianEngine,
         [step_count],
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -553,6 +571,7 @@ numerical_greeks_methods!(
         /// Notes
         /// -----
         /// System entropy and worker-creation failures raise OSError.
+        ///
         fn price(
             &self,
             py: Python<'_>,
@@ -570,24 +589,25 @@ numerical_greeks_methods!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072.
-///     Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
+///     sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
-///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
+///     Nonnegative active worker cap per call: zero (default) is automatic,
+///     one is serial. Does not bound thread creation; parallel calls share a
+///     CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count
-///     leaves one unpaired path.
+///     Pair opposite normal draws; defaults to False. An odd path count leaves
+///     one unpaired path.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
-///     or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, max_active_workers is
+///     negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -595,14 +615,14 @@ numerical_greeks_methods!(
 ///
 /// Notes
 /// -----
-/// Fixed seeds reproduce results across thread counts in the same build.
-/// Calls own their samples and share a library-owned Rayon pool. A worker cap
-/// does not reserve workers. Greeks pin a seed per request. Solves require
-/// an explicit seed; call with_resolved_seed() first. Solver tolerances
-/// do not measure sampling error.
-/// Monitoring uses continuous survival or the original fixing dates.
-/// Near-strike payoffs retain movements even when terminal spot rounds to strike.
-/// Only delta and gamma are returned.
+/// Fixed seeds reproduce results across thread counts in the same build. Calls
+/// own their samples and share a library-owned Rayon pool. A worker cap does
+/// not reserve workers. Greeks pin a seed per request. Solves require an
+/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
+/// measure sampling error. Monitoring uses continuous survival or the original
+/// fixing dates. Near-strike payoffs retain movements even when terminal spot
+/// rounds to strike. Only delta and gamma are returned.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloBarrierEngine(pub(crate) kiyosi::MonteCarloBarrierEngine);
@@ -614,24 +634,25 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072.
-///     Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
+///     sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
-///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
+///     Nonnegative active worker cap per call: zero (default) is automatic,
+///     one is serial. Does not bound thread creation; parallel calls share a
+///     CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count
-///     leaves one unpaired path.
+///     Pair opposite normal draws; defaults to False. An odd path count leaves
+///     one unpaired path.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
-///     or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, max_active_workers is
+///     negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -639,14 +660,14 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 ///
 /// Notes
 /// -----
-/// Fixed seeds reproduce results across thread counts in the same build.
-/// Calls own their samples and share a library-owned Rayon pool. A worker cap
-/// does not reserve workers. Greeks pin a seed per request. Solves require
-/// an explicit seed; call with_resolved_seed() first. Solver tolerances
-/// do not measure sampling error.
-/// Monitoring uses continuous survival or the original fixing dates.
-/// Near-strike payoffs retain movements even when terminal spot rounds to strike.
-/// Only delta and gamma are returned.
+/// Fixed seeds reproduce results across thread counts in the same build. Calls
+/// own their samples and share a library-owned Rayon pool. A worker cap does
+/// not reserve workers. Greeks pin a seed per request. Solves require an
+/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
+/// measure sampling error. Monitoring uses continuous survival or the original
+/// fixing dates. Near-strike payoffs retain movements even when terminal spot
+/// rounds to strike. Only delta and gamma are returned.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) kiyosi::MonteCarloDoubleBarrierEngine);
@@ -658,24 +679,25 @@ sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barr
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072.
-///     Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
+///     sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
-///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
+///     Nonnegative active worker cap per call: zero (default) is automatic,
+///     one is serial. Does not bound thread creation; parallel calls share a
+///     CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count
-///     leaves one unpaired path.
+///     Pair opposite normal draws; defaults to False. An odd path count leaves
+///     one unpaired path.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
-///     or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, max_active_workers is
+///     negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -686,13 +708,13 @@ sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barr
 ///
 /// Notes
 /// -----
-/// Fixed seeds reproduce results across thread counts in the same build.
-/// Calls own their samples and share a library-owned Rayon pool. A worker cap
-/// does not reserve workers. Greeks pin a seed per request. Solves require
-/// an explicit seed; call with_resolved_seed() first. Solver tolerances
-/// do not measure sampling error.
-/// Simulation uses trading days when knock-in matters, or observation
-/// dates and expiry otherwise.
+/// Fixed seeds reproduce results across thread counts in the same build. Calls
+/// own their samples and share a library-owned Rayon pool. A worker cap does
+/// not reserve workers. Greeks pin a seed per request. Solves require an
+/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
+/// measure sampling error. Simulation uses trading days when knock-in matters,
+/// or observation dates and expiry otherwise.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloAutocallableEngine(pub(crate) kiyosi::MonteCarloAutocallableEngine);
@@ -708,24 +730,25 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072.
-///     Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
+///     sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
-///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
+///     Nonnegative active worker cap per call: zero (default) is automatic,
+///     one is serial. Does not bound thread creation; parallel calls share a
+///     CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count
-///     leaves one unpaired path.
+///     Pair opposite normal draws; defaults to False. An odd path count leaves
+///     one unpaired path.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
-///     or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, max_active_workers is
+///     negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -733,13 +756,13 @@ sampling_settings!(
 ///
 /// Notes
 /// -----
-/// Fixed seeds reproduce results across thread counts in the same build.
-/// Calls own their samples and share a library-owned Rayon pool. A worker cap
-/// does not reserve workers. Greeks pin a seed per request. Solves require
-/// an explicit seed; call with_resolved_seed() first. Solver tolerances
-/// do not measure sampling error.
-/// Simulation uses the future trading dates. A current knock-out settles
-/// before any purchase.
+/// Fixed seeds reproduce results across thread counts in the same build. Calls
+/// own their samples and share a library-owned Rayon pool. A worker cap does
+/// not reserve workers. Greeks pin a seed per request. Solves require an
+/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
+/// measure sampling error. Simulation uses the future trading dates. A current
+/// knock-out settles before any purchase.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloAccumulatorEngine(pub(crate) kiyosi::MonteCarloAccumulatorEngine);

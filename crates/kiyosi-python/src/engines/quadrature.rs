@@ -21,19 +21,21 @@ macro_rules! quadrature_engine {
         /// Parameters
         /// ----------
         /// asset_step_count : int, optional
-        ///     Base number of spatial intervals, at least 4; defaults to 512.
-        ///     Event boundaries may add intervals; Simpson panels round up to even.
+        ///     Base number of spatial intervals, at least 4; defaults to 512. Event
+        ///     boundaries may add intervals; Simpson panels round up to even.
+        ///
         $(#[doc = concat!(stringify!($time), " : int, optional\n    American exercise intervals, at least 1; defaults to 200. Ignored for European pricing.")])?
         /// integration_standard_deviations : float, optional
-        ///     Positive finite integration extent in standard deviations; defaults to 8.
+        ///     Positive finite integration extent in standard deviations; defaults to
+        ///     8.
         ///
         /// Raises
         /// ------
         /// InvalidInputError
-        ///     If asset_step_count is below 4 or integration_standard_deviations
-        ///     is nonpositive or non-finite.
-        $(#[doc = concat!("    Also raised if ", stringify!($time), " is below 1.")])?
+        ///     If asset_step_count is below 4 or integration_standard_deviations is
+        ///     nonpositive or non-finite.
         ///
+        $(#[doc = concat!("    Also raised if ", stringify!($time), " is below 1.")])?
         $(#[$doc])*
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
@@ -47,6 +49,7 @@ macro_rules! quadrature_engine {
                 /// -----
                 /// Before expiry requested Greeks use scalar numerical differences and the
                 /// engine defaults. Use numerical_greeks for configurable scalar differences.
+                ///
             ],
             engine_methods!(
                 $name,
@@ -65,19 +68,19 @@ macro_rules! quadrature_engine {
                         },
                     ))?))
                 },
-                /// Returns the configured number of spatial intervals.
+                /// Return the configured number of spatial intervals.
                 #[getter]
                 fn asset_step_count(&self) -> i32 {
                     self.0.settings().asset_step_count
                 },
                 $(
-                    /// Returns the configured American exercise interval count.
+                    /// Return the configured American exercise interval count.
                     #[getter]
                     fn $time(&self) -> i32 {
                         self.0.settings().$time
                     },
                 )?
-                /// Returns the integration extent in standard deviations.
+                /// Return the integration extent in standard deviations.
                 #[getter]
                 fn integration_standard_deviations(&self) -> f64 {
                     self.0.settings().integration_standard_deviations
@@ -95,7 +98,7 @@ macro_rules! quadrature_engine {
                         self.integration_standard_deviations()
                     )
                 },
-                /// Returns the price.
+                /// Return the price.
                 ///
                 /// Parameters
                 /// ----------
@@ -113,6 +116,7 @@ macro_rules! quadrature_engine {
                 /// ------
                 /// KiyosiError
                 ///     If domain validation, engine applicability or numerical pricing fails.
+                ///
                 fn price(
                     &self,
                     py: Python<'_>,
@@ -151,10 +155,11 @@ quadrature_engine!(
     /// -----
     /// Uses Simpson integration for European options and Gaussian backward
     /// induction with piecewise cubic continuation interpolation for American
-    /// options. Requires flat-rate BSM parameters.
-    /// Check spatial, time and integration-extent convergence separately;
-    /// fixed-grid completion does not estimate error. Higher Greeks near exercise
-    /// boundaries also require bump convergence checks.
+    /// options. Requires flat-rate BSM parameters. Check spatial, time and
+    /// integration-extent convergence separately; fixed-grid completion does not
+    /// estimate error. Higher Greeks near exercise boundaries also require bump
+    /// convergence checks.
+    ///
     QuadratureVanillaEngine,
     VanillaInstrument<'_>,
     with_vanilla,
@@ -171,10 +176,11 @@ quadrature_engine!(
     /// Notes
     /// -----
     /// Uses Simpson integration on the paying side of the strike under flat-rate
-    /// BSM. The extent is centered on the payment-weighted normal density;
-    /// omitted tails are zero. Equality at expiry pays zero.
-    /// Check step-count and extent convergence separately; completion provides
-    /// no error estimate. Numerical Greeks also require bump convergence checks.
+    /// BSM. The extent is centered on the payment-weighted normal density; omitted
+    /// tails are zero. Equality at expiry pays zero. Check step-count and extent
+    /// convergence separately; completion provides no error estimate. Numerical
+    /// Greeks also require bump convergence checks.
+    ///
     QuadratureDigitalEngine,
     digital::DigitalInstrument<'_>,
     digital::with_digital,
@@ -184,6 +190,7 @@ quadrature_engine!(
     /// See Also
     /// --------
     /// BarrierOption : Supported contract.
+    ///
     QuadratureBarrierEngine,
     PyRef<'_, BarrierOption>,
 );
@@ -192,6 +199,7 @@ quadrature_engine!(
     /// See Also
     /// --------
     /// Accumulator : Supported contract.
+    ///
     QuadratureAccumulatorEngine,
     PyRef<'_, Accumulator>,
 );
@@ -208,6 +216,7 @@ quadrature_engine!(
     /// -----
     /// Preserves cash and asset payments below the spatial grid, including
     /// zero-lower-strike losses after large spot declines.
+    ///
     QuadratureAutocallableEngine,
     autocallable::AutocallableInstrument<'_>,
     autocallable::with_note,

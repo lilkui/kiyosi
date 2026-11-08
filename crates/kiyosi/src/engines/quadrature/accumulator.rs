@@ -61,7 +61,7 @@ impl QuadratureAccumulatorEngine {
     /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
     /// and missing or impossible history ([`Error::InvalidInput`]), then required
     /// curve coverage ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
-    /// and transitions return [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// and transitions return [`Error::ComputationFailure`].
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         price(option, context, self.settings, None)
@@ -76,7 +76,7 @@ impl QuadratureAccumulatorEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation, then propagates
-    /// [`crate::numerical_greeks`] errors. Inputs remain unchanged on every outcome.
+    /// [`crate::numerical_greeks`] errors.
     pub fn price_with_greeks(
         &self,
         option: &Accumulator,

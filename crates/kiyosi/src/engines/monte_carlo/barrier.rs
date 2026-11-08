@@ -79,7 +79,7 @@ impl MonteCarloBarrierEngine {
     /// above 21,201, [`crate::Error::InvalidInput`] for impossible history,
     /// or [`crate::Error::ComputationFailure`] for unrepresentable paths or results.
     /// Operational failures retain their native [`std::io::Error`] through
-    /// [`crate::Error::Io`]. Inputs remain unchanged.
+    /// [`crate::Error::Io`].
     ///
     /// # Panics
     ///
@@ -111,7 +111,7 @@ impl MonteCarloBarrierEngine {
     /// # Errors
     ///
     /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
-    /// for non-finite uncertainty or confidence bounds. Inputs remain unchanged.
+    /// for non-finite uncertainty or confidence bounds.
     ///
     /// # Panics
     ///
@@ -150,7 +150,7 @@ impl MonteCarloBarrierEngine {
     /// Checks flat rates and requests before estimating with default controls,
     /// then propagates [`Self::price`] errors. Empty requests return
     /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
-    /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
+    /// return [`crate::Error::ComputationFailure`].
     ///
     /// # Panics
     ///

@@ -779,7 +779,7 @@ impl FiniteDifferenceVanillaEngine {
     /// for clipped/degenerate grids or unstable explicit steps,
     /// and [`Error::ComputationFailure`] for numerical failures, including materially
     /// negative prices. Only rounding-sized negative prices are clipped to zero.
-    /// Inputs remain unchanged.
+    ///
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
@@ -991,7 +991,7 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves, then reuses
     /// [`FiniteDifferenceVanillaEngine::price`] errors. Payoff-bound violations return
-    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`].
     ///
     /// # Examples
     ///
@@ -1030,7 +1030,7 @@ impl FiniteDifferenceDigitalEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] and [`crate::numerical_greeks`] errors. Inputs remain unchanged.
+    /// [`Self::price`] and [`crate::numerical_greeks`] errors.
     pub fn price_with_greeks(
         &self,
         option: &DigitalOption,

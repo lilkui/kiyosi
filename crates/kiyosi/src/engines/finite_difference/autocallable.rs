@@ -24,7 +24,7 @@ impl FiniteDifferenceAutocallableEngine {
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or curve coverage, for
     /// missing or impossible history, clipped
     /// grids, or unstable explicit steps. Numerical failures return
-    /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
     pub fn price<T: AutocallableTerms>(
         &self,
         option: &AutocallableNote<T>,

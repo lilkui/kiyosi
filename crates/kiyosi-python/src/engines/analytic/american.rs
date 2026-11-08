@@ -12,9 +12,11 @@ use pyo3::prelude::*;
 /// Notes
 /// -----
 /// Requires BSM with constant rates. At positive volatility before expiry,
-/// negative transformed interest rates (risk-free rate for calls, dividend yield
-/// for puts) and exercise boundaries at or below strike raise UnsupportedOperationError.
-/// Zero volatility uses exact deterministic exercise; expiry returns intrinsic value.
+/// negative transformed interest rates (risk-free rate for calls, dividend
+/// yield for puts) and exercise boundaries at or below strike raise
+/// UnsupportedOperationError. Zero volatility uses exact deterministic
+/// exercise; expiry returns intrinsic value.
+///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct BjerksundStenslandVanillaEngine;
@@ -27,6 +29,7 @@ numerical_greeks_methods!(
         /// -----
         /// Before expiry requested Greeks use scalar numerical differences and the
         /// engine defaults. Use numerical_greeks for configurable scalar differences.
+        ///
     ],
     engine_methods!(
         BjerksundStenslandVanillaEngine,
@@ -34,7 +37,7 @@ numerical_greeks_methods!(
         fn new() -> Self {
             Self
         },
-        /// Returns the price.
+        /// Return the price.
         ///
         /// Parameters
         /// ----------
@@ -52,6 +55,7 @@ numerical_greeks_methods!(
         /// ------
         /// KiyosiError
         ///     If domain validation, engine applicability or numerical pricing fails.
+        ///
         fn price(
             &self,
             py: Python<'_>,

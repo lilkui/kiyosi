@@ -298,7 +298,7 @@ impl BjerksundStenslandVanillaEngine {
     /// interest rates (call: rate; put: dividend) or exercise boundaries at/below strike. Returns
     /// [`Error::InvalidInput`] outside the inclusive exercise window and
     /// [`Error::ComputationFailure`] for unstable exponents or non-finite results.
-    /// European continuation pricing errors propagate. Inputs remain unchanged.
+    /// European continuation pricing errors propagate.
     ///
     /// # Examples
     ///
@@ -381,7 +381,7 @@ impl BjerksundStenslandVanillaEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] and [`numerical_greeks`] errors. Inputs remain unchanged.
+    /// [`Self::price`] and [`numerical_greeks`] errors.
     ///
     /// # Examples
     ///
