@@ -201,7 +201,6 @@ struct PreparedCurve<T: AutocallableTerms> {
     valuation: Timestamp,
     knocked_in: bool,
     nodes: Vec<f64>,
-    dates: Vec<Timestamp>,
     curve: Curve,
     drift: f64,
     deviation: f64,
@@ -357,13 +356,11 @@ fn price<T: AutocallableTerms>(
         ))?;
         checked(state.coupon + value)
     };
-    let dates = future_event_times(note, context, layers)?;
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
             && context.bsm_parameters().is_ok_and(|m| c.model == *m)
             && c.valuation == context.valuation_time()
             && c.knocked_in == state.knocked_in
-            && c.dates == dates
     }) {
         return evaluate(
             &curve.nodes,
@@ -373,6 +370,7 @@ fn price<T: AutocallableTerms>(
             curve.discount,
         );
     }
+    let dates = future_event_times(note, context, layers)?;
     let mut breaks = Vec::new();
     if let Some(ki) = t.knock_in {
         breaks.push(log_ratio(ki.level, anchor));
@@ -481,7 +479,6 @@ fn price<T: AutocallableTerms>(
                     valuation: context.valuation_time(),
                     knocked_in: state.knocked_in,
                     nodes,
-                    dates,
                     curve: alive,
                     drift,
                     deviation,

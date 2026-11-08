@@ -140,7 +140,6 @@ struct PreparedCurve {
     option: Accumulator,
     model: BlackScholesMertonParameters,
     valuation: Timestamp,
-    dates: Vec<Timestamp>,
     nodes: Vec<f64>,
     layers: [Layer; 2],
     drift: f64,
@@ -176,12 +175,10 @@ fn price(
             |layer: &Layer| layer.evaluate(nodes, current, strike, drift, deviation, discount);
         checked(quantity * value(&layers[0]) + value(&layers[1]))
     };
-    let dates = option.future_observation_times(context)?;
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *option
             && context.bsm_parameters().is_ok_and(|m| c.model == *m)
             && c.valuation == context.valuation_time()
-            && c.dates == dates
     }) {
         return evaluate(
             &curve.nodes,
@@ -191,6 +188,7 @@ fn price(
             curve.discount,
         );
     }
+    let dates = option.future_observation_times(context)?;
     let knock_out = log_ratio(option.knock_out_level(), strike);
     let sign = match option.option_type() {
         OptionType::Call => 1.0,
@@ -371,7 +369,6 @@ fn price(
                     option: option.clone(),
                     model: context.bsm_parameters()?.clone(),
                     valuation: context.valuation_time(),
-                    dates,
                     nodes,
                     layers,
                     drift,
