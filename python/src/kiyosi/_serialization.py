@@ -182,35 +182,20 @@ def _repr(value: Any) -> str:
     previews = _native._repr_previews(value)
     if "__repr__" in previews:
         return previews["__repr__"]
-    factory, args = _reduce(value, previews)
+    _, (_, fields) = _reduce(value, previews)
     name = type(value).__name__
-    if factory is _calendar:
-        kind, base, closed, opened, basis = args
-        fields = {"kind": kind, "trading_days_per_year": basis}
-        if base is not None:
-            fields.update(base=base, closed_dates=closed, open_dates=opened)
-        suffix = ""
-    elif factory is _curve:
-        reference, times, factors, shift = args
-        fields = {"reference_time": reference, "times": times, "factors": factors}
-        suffix = f".shifted({shift!r})"
-    else:
-        factory, fields = args
-        fields = fields.copy()
-        if isinstance(value, _native.PhoenixOption):
-            for coupon_name in ("coupon_rate", "coupon_per_period"):
-                if fields[coupon_name] is None:
-                    del fields[coupon_name]
-        if fields.get("calendar") == _native.weekdays_calendar():
-            fields.pop("calendar")
-        suffix = ""
-        if isinstance(value, _native.RateTermStructure):
-            name += ".flat"
+    fields = fields.copy()
+    if isinstance(value, _native.PhoenixOption):
+        for coupon_name in ("coupon_rate", "coupon_per_period"):
+            if fields[coupon_name] is None:
+                del fields[coupon_name]
+    if fields.get("calendar") == _native.weekdays_calendar():
+        fields.pop("calendar")
     terms = ", ".join(
         f"{key}={field.text if isinstance(field, _Preview) else _repr_formatter.repr(field)}"
         for key, field in fields.items()
     )
-    return f"{name}({terms}){suffix}"
+    return f"{name}({terms})"
 
 
 def install(native: ModuleType) -> None:
