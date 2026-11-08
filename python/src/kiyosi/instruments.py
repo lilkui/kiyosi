@@ -118,7 +118,7 @@ with ``AccumulatorHistoryChanges`` to replace quantity, knock-out settlement or 
 omitted fields retain their values.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
 monitoring to ``"every_trading_day"``, matching Rust terms. Daily monitoring requires
-the ``observation_clock_time`` keyword; supply None for expiry-only monitoring.
+the ``observation_clock_time`` keyword; expiry-only monitoring defaults to None.
 Replacing daily monitoring with ``"at_expiry"`` clears its clock; switching to daily
 monitoring requires the clock in the same replacement.
 
