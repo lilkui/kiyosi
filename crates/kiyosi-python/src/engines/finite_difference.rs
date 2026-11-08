@@ -79,7 +79,8 @@ macro_rules! fd_engine {
         /// Digital pricing requires constant rates; other families accept
         /// deterministic rate curves. All FD product families support local-volatility
         /// price, delta and gamma, including American exercise. Other requested Greeks
-        /// are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+        /// are None. Autocallable coupon solvers support local volatility; implied
+        /// volatility raises UnsupportedOperationError. Sigma
         /// uses fixed absolute surface coordinates; expiry Greeks follow terminal
         /// payoffs and are absent where their stencils cross product events. Vanilla
         /// expiry Greeks use exact supported payoff derivatives, undefined at the

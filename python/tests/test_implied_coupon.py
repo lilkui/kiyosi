@@ -19,7 +19,11 @@ from kiyosi import (
     instruments,
 )
 from kiyosi.instruments import BinarySnowballOption, PhoenixOption
-from kiyosi.market import RateTermStructure
+from kiyosi.market import (
+    LocalVolatilityParameters,
+    LocalVolatilitySurface,
+    RateTermStructure,
+)
 from kiyosi.pricing import (
     CouponQuoteConvention,
     FiniteDifferenceAutocallableEngine,
@@ -49,6 +53,71 @@ def binary(coupon=0.08, maturity=0.06, **changes):
 
 
 class ImpliedCouponTests(unittest.TestCase):
+    def test_coupon_solvers_reprice_local_volatility_quotes(self):
+        context = market().replace(
+            model_parameters=LocalVolatilityParameters(
+                risk_free_rate=0.04,
+                dividend_yield=0.01,
+                surface=LocalVolatilitySurface(
+                    times=[START, END],
+                    spots=[60, 100, 160],
+                    values=[[0.32, 0.24, 0.16], [0.28, 0.22, 0.18]],
+                ),
+            )
+        )
+        engine = FiniteDifferenceAutocallableEngine(
+            asset_step_count=200, time_step_count=100
+        )
+        note = binary()
+        for convention in get_args(CouponQuoteConvention):
+            target = engine.price(
+                note.with_quoted_coupon(0.12, quote_convention=convention), context
+            )
+            solved = implied_snowball_coupon(
+                engine, note, context, target, quote_convention=convention
+            )
+            self.assertAlmostEqual(solved["first_observation_coupon"], 0.12, delta=1e-7)
+            self.assertEqual(solved["quote_convention"], convention)
+            self.assertAlmostEqual(
+                engine.price(note.with_quoted_coupon(**solved), context),
+                target,
+                delta=1e-8,
+            )
+            with self.assertRaises(UnsupportedOperationError):
+                implied_snowball_coupon(
+                    QuadratureAutocallableEngine(),
+                    note,
+                    context,
+                    target,
+                    quote_convention=convention,
+                )
+        for field, coupon in (("coupon_rate", 0.12), ("coupon_per_period", 0.03)):
+            note = PhoenixOption(
+                **{field: coupon},
+                initial_spot=100,
+                knock_in_level=80,
+                upper_strike=100,
+                lower_strike=60,
+                effective_time=START,
+                expiry_time=END,
+                knock_in_observation_mode="at_expiry",
+                observation_clock_time=None,
+                observations=[
+                    instruments.AutocallableObservation.phoenix(
+                        END, 110, coupon_barrier_level=90
+                    )
+                ],
+            )
+            target = engine.price(note, context)
+            solved = implied_phoenix_coupon(engine, note, context, target)
+            self.assertEqual(set(solved), {field})
+            self.assertAlmostEqual(solved[field], coupon, delta=1e-7)
+            self.assertAlmostEqual(
+                engine.price(note.with_quoted_coupon(**solved), context),
+                target,
+                delta=1e-8,
+            )
+
     def test_monte_carlo_coupon_solvers_require_a_replayable_seed(self):
         unseeded = MonteCarloAutocallableEngine(path_count=1024, max_active_workers=1)
         engine = unseeded.with_resolved_seed()

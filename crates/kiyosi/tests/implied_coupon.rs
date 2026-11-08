@@ -4,6 +4,94 @@ use support::dated;
 use kiyosi::*;
 
 #[test]
+fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
+    let start = date(1, 1);
+    let end = date(4, 1);
+    let context = PricingContext::new(
+        LocalVolatilityParameters::new(
+            0.04,
+            0.01,
+            LocalVolatilitySurface::new(
+                vec![start, end],
+                vec![60.0, 100.0, 160.0],
+                vec![vec![0.32, 0.24, 0.16], vec![0.28, 0.22, 0.18]],
+            )?,
+        )?,
+        100.0,
+        start,
+    )?;
+    let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 200,
+        time_step_count: 100,
+        ..Default::default()
+    })?;
+    let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.06,
+        start,
+        end,
+        autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?,
+    ))?;
+    for convention in [
+        CouponQuoteConvention::ShiftMaturityCoupon,
+        CouponQuoteConvention::PreserveMaturityCoupon,
+    ] {
+        let target = engine.price(&note.with_quoted_coupon(0.12, convention)?, &context)?;
+        let solved = implied_snowball_coupon(
+            &engine,
+            &note,
+            &context,
+            target,
+            convention,
+            Default::default(),
+        )?;
+        assert!((solved - 0.12).abs() < 1e-7);
+        assert!(
+            (engine.price(&note.with_quoted_coupon(solved, convention)?, &context)? - target).abs()
+                <= 1e-8
+        );
+        assert!(matches!(
+            implied_snowball_coupon(
+                &QuadratureAutocallableEngine::default(),
+                &note,
+                &context,
+                target,
+                convention,
+                Default::default()
+            ),
+            Err(Error::UnsupportedOperation(_))
+        ));
+    }
+    for coupon in [PhoenixCoupon::Annual(0.12), PhoenixCoupon::PerPeriod(0.03)] {
+        let mut terms = PhoenixTerms::new(
+            PhoenixCoupon::Annual(0.08),
+            100.0,
+            80.0,
+            100.0,
+            60.0,
+            start,
+            end,
+            autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?,
+            None,
+        );
+        terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+        let note = PhoenixOption::new(terms)?.with_quoted_coupon(coupon)?;
+        let target = engine.price(&note, &context)?;
+        let solved = implied_phoenix_coupon(&engine, &note, &context, target, Default::default())?;
+        match (coupon, solved) {
+            (PhoenixCoupon::Annual(expected), PhoenixCoupon::Annual(actual))
+            | (PhoenixCoupon::PerPeriod(expected), PhoenixCoupon::PerPeriod(actual)) => {
+                assert!((actual - expected).abs() < 1e-7);
+            }
+            _ => panic!("coupon convention was lost"),
+        }
+        assert!(
+            (engine.price(&note.with_quoted_coupon(solved)?, &context)? - target).abs() <= 1e-8
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
     let unseeded = MonteCarloAutocallableEngine::new(MonteCarloSettings {
         path_count: 1024,

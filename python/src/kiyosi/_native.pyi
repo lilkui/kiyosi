@@ -145,6 +145,7 @@ def implied_snowball_coupon(
     convention controls the final coupon; the ternary minimum remains fixed.
     The quoted rate, bounds and parameter tolerance use annual decimal units.
     Trials use affine interpolation, then bisection.
+    Model support follows the engine, including local volatility with finite differences.
     """
 
 def implied_phoenix_coupon(
@@ -213,6 +214,7 @@ def implied_phoenix_coupon(
     require an explicit seed; call with_resolved_seed() first; tolerances
     constrain the sampled curve, not sampling error. Pricing failures
     propagate. Trials use affine interpolation, then bisection.
+    Model support follows the engine, including local volatility with finite differences.
     """
 
 class EuropeanOption:
@@ -3341,7 +3343,8 @@ class FiniteDifferenceAccumulatorEngine:
     Digital pricing requires constant rates; other families accept
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
-    are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+    are None. Autocallable coupon solvers support local volatility; implied
+    volatility raises UnsupportedOperationError. Sigma
     uses fixed absolute surface coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
@@ -3625,7 +3628,8 @@ class FiniteDifferenceBarrierEngine:
     Digital pricing requires constant rates; other families accept
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
-    are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+    are None. Autocallable coupon solvers support local volatility; implied
+    volatility raises UnsupportedOperationError. Sigma
     uses fixed absolute surface coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
@@ -3909,7 +3913,8 @@ class FiniteDifferenceDoubleBarrierEngine:
     Digital pricing requires constant rates; other families accept
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
-    are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+    are None. Autocallable coupon solvers support local volatility; implied
+    volatility raises UnsupportedOperationError. Sigma
     uses fixed absolute surface coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
@@ -4193,7 +4198,8 @@ class FiniteDifferenceAutocallableEngine:
     Digital pricing requires constant rates; other families accept
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
-    are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+    are None. Autocallable coupon solvers support local volatility; implied
+    volatility raises UnsupportedOperationError. Sigma
     uses fixed absolute surface coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
@@ -4497,7 +4503,8 @@ class FiniteDifferenceDoubleTouchEngine:
     Digital pricing requires constant rates; other families accept
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
-    are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+    are None. Autocallable coupon solvers support local volatility; implied
+    volatility raises UnsupportedOperationError. Sigma
     uses fixed absolute surface coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
@@ -4781,7 +4788,8 @@ class FiniteDifferenceBinaryBarrierEngine:
     Digital pricing requires constant rates; other families accept
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
-    are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+    are None. Autocallable coupon solvers support local volatility; implied
+    volatility raises UnsupportedOperationError. Sigma
     uses fixed absolute surface coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
@@ -5303,7 +5311,8 @@ class FiniteDifferenceVanillaEngine:
     Digital pricing requires constant rates; other families accept
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
-    are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+    are None. Autocallable coupon solvers support local volatility; implied
+    volatility raises UnsupportedOperationError. Sigma
     uses fixed absolute surface coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
@@ -5589,7 +5598,8 @@ class FiniteDifferenceDigitalEngine:
     Digital pricing requires constant rates; other families accept
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
-    are None; implied-parameter solvers raise UnsupportedOperationError. Sigma
+    are None. Autocallable coupon solvers support local volatility; implied
+    volatility raises UnsupportedOperationError. Sigma
     uses fixed absolute surface coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the

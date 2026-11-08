@@ -73,6 +73,7 @@ use pyo3::types::PyDict;
 /// convention controls the final coupon; the ternary minimum remains fixed.
 /// The quoted rate, bounds and parameter tolerance use annual decimal units.
 /// Trials use affine interpolation, then bisection.
+/// Model support follows the engine, including local volatility with finite differences.
 ///
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, observed_price, *, quote_convention, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
@@ -160,6 +161,7 @@ pub(crate) fn implied_snowball_coupon(
 /// require an explicit seed; call with_resolved_seed() first; tolerances
 /// constrain the sampled curve, not sampling error. Pricing failures
 /// propagate. Trials use affine interpolation, then bisection.
+/// Model support follows the engine, including local volatility with finite differences.
 ///
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
