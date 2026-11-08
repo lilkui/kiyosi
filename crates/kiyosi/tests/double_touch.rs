@@ -320,7 +320,9 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
         let mut t = terms(kind);
         t.settlement_timing = timing;
         let option = DoubleTouchOption::cash(t, 3.0).unwrap();
-        let known = option.replace_history(Some(BarrierTouchState::Untouched));
+        let known = option
+            .replace_history(Some(BarrierTouchState::Untouched), None)
+            .unwrap();
         for spot in [79.0, 80.0, 120.0, 121.0] {
             let expected = if kind == DoubleBarrierType::KnockOut {
                 0.0
@@ -358,7 +360,9 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
                 }
             );
         }
-        let paid = option.replace_history(Some(BarrierTouchState::Touched));
+        let paid = option
+            .replace_history(Some(BarrierTouchState::Touched), None)
+            .unwrap();
         assert!(matches!(
             engine.price(&dated(&paid, &market(100.0)), &market(100.0)),
             Err(Error::InvalidInput(_))
@@ -433,7 +437,9 @@ fn analytic_schedules_validate_then_resolve_or_reject() {
         engine.price(&dated(&option, &after), &after),
         Err(Error::InvalidInput(_))
     ));
-    let no_history = option.replace_history(Some(BarrierTouchState::Untouched));
+    let no_history = option
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     assert!(
         (engine
             .price(
@@ -452,7 +458,8 @@ fn analytic_schedules_validate_then_resolve_or_reject() {
     t.barrier_type = DoubleBarrierType::KnockOut;
     let no = DoubleTouchOption::cash(t.clone(), 2.0)
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Untouched));
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     assert!(
         (engine.price(&dated(&no, &after), &after).unwrap()
             - 2.0 * (-0.03_f64 * 184.0 / 365.0).exp())
@@ -738,10 +745,12 @@ fn cash_terms_defaults_validation_and_owning_history() {
         assert_eq!(option.observation_mode(), ObservationMode::Continuous);
         assert_eq!(option.touch_state(), None);
         assert_eq!(option.observation_times(), []);
-        let known = option.replace_history(Some(BarrierTouchState::Untouched));
+        let known = option
+            .replace_history(Some(BarrierTouchState::Untouched), None)
+            .unwrap();
         assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
         assert_eq!(option.touch_state(), None);
-        assert_eq!(known.replace_history(None), option);
+        assert_eq!(known.replace_history(None, None).unwrap(), option);
         for invalid in [0.0, -1.0, f64::INFINITY, f64::NAN] {
             assert!(matches!(
                 DoubleTouchOption::cash(t.clone(), invalid).unwrap_err(),
@@ -829,7 +838,9 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
         let mut t = terms(DoubleBarrierType::KnockIn);
         t.settlement_timing = timing;
         let option = DoubleTouchOption::cash(t, 3.0).unwrap();
-        let paid = option.replace_history(Some(BarrierTouchState::Touched));
+        let paid = option
+            .replace_history(Some(BarrierTouchState::Touched), None)
+            .unwrap();
         assert!(matches!(
             engine
                 .price(&dated(&paid, &market(100.0)), &market(100.0))
@@ -891,7 +902,8 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
     for kind in [DoubleBarrierType::KnockIn, DoubleBarrierType::KnockOut] {
         let option = DoubleTouchOption::cash(terms(kind), 3.0)
             .unwrap()
-            .replace_history(Some(BarrierTouchState::Untouched));
+            .replace_history(Some(BarrierTouchState::Untouched), None)
+            .unwrap();
         for spot in [80.0, 100.0, 120.0] {
             let at = context(spot, option.expiry_time());
             let result = engine
@@ -1009,7 +1021,9 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let known = option.replace_history(Some(BarrierTouchState::Untouched));
+    let known = option
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     let ctx = context(130.0, after);
     let remaining = (185.0_f64 - 1e-6 / 86400.0) / 365.0;
     let expected = 2.0 * (-0.03 * remaining).exp();
@@ -1039,7 +1053,9 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
     let at = engine
         .price_with_greeks(
             &dated(
-                &option.replace_history(Some(BarrierTouchState::Untouched)),
+                &option
+                    .replace_history(Some(BarrierTouchState::Untouched), None)
+                    .unwrap(),
                 &context(100.0, first),
             ),
             &context(100.0, first),

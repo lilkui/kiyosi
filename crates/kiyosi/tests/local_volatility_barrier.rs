@@ -386,7 +386,8 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
     terms.rebate_timing = RebateTiming::AtHit;
     let paid = BarrierOption::new(terms)
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Touched));
+        .replace_history(Some(BarrierTouchState::Touched), None)
+        .unwrap();
     let later = short
         .replace(PricingContextChanges {
             valuation_time: Some(short_end),

@@ -187,15 +187,23 @@ impl BinaryBarrierOption {
     /// See [`crate::BarrierOption::replace_history`] for an example and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
-    /// Use [`Self::replace`] with [`BinaryBarrierOptionChanges::history_time`] to refresh the snapshot.
+    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
     ///
-    /// Clearing the final history payload also clears its timestamp.
-    #[must_use]
-    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
-        Self {
-            monitoring: self.monitoring.replace_history(touch_state),
-            digital: self.digital.clone(),
-        }
+    /// The supplied timestamp is validated and retained, including with unknown history.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a timestamp outside the contract life.
+    pub fn replace_history(
+        &self,
+        touch_state: Option<BarrierTouchState>,
+        history_time: Option<Timestamp>,
+    ) -> Result<Self> {
+        self.replace(BinaryBarrierOptionChanges {
+            touch_state: Some(touch_state),
+            history_time: Some(history_time),
+            ..Default::default()
+        })
     }
 }
 
@@ -354,16 +362,23 @@ impl TouchOption {
     /// See [`crate::BarrierOption::replace_history`] for examples and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
-    /// Use [`Self::replace`] with [`TouchOptionChanges::history_time`] to refresh the snapshot.
+    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
     ///
-    /// Clearing the final history payload also clears its timestamp.
-    #[must_use]
-    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
-        Self {
-            monitoring: self.monitoring.replace_history(touch_state),
-            payout: self.payout,
-            settlement_timing: self.settlement_timing,
-        }
+    /// The supplied timestamp is validated and retained, including with unknown history.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a timestamp outside the contract life.
+    pub fn replace_history(
+        &self,
+        touch_state: Option<BarrierTouchState>,
+        history_time: Option<Timestamp>,
+    ) -> Result<Self> {
+        self.replace(TouchOptionChanges {
+            touch_state: Some(touch_state),
+            history_time: Some(history_time),
+            ..Default::default()
+        })
     }
 }
 

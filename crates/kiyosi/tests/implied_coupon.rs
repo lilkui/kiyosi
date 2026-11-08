@@ -464,7 +464,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
         Error::RootNotBracketed(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::NoEvent))
+        .replace_history(Some(AutocallableBarrierState::NoEvent), None)
         .unwrap();
     let terminal = market(100.0, date(4, 1));
     let quote = engine.price(&dated(&known, &terminal), &terminal).unwrap();
@@ -491,7 +491,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     .unwrap();
     assert!((shifted - 0.08).abs() < 1e-8);
     let knocked_out = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
         .unwrap();
     assert!(matches!(
         implied_snowball_coupon(

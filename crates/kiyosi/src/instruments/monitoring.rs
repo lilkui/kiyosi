@@ -65,13 +65,6 @@ impl Monitoring {
         })
     }
 
-    pub(crate) fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
-        Self {
-            touch_state,
-            history_time: touch_state.and(self.history_time),
-            ..self.clone()
-        }
-    }
     pub(crate) fn replacement_times(
         &self,
         mode: Option<ObservationMode>,

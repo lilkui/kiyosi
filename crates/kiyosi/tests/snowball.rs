@@ -95,7 +95,7 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::NoEvent))
+        .replace_history(Some(AutocallableBarrierState::NoEvent), None)
         .unwrap();
     assert!(
         engine
@@ -107,7 +107,7 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
             .is_finite()
     );
     let impossible = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
         .unwrap();
     assert!(matches!(
         engine

@@ -565,7 +565,9 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                     engine.price(&dated(&option, &later), &later).unwrap_err(),
                     Error::InvalidInput(_)
                 ));
-                let touched = option.replace_history(Some(BarrierTouchState::Touched));
+                let touched = option
+                    .replace_history(Some(BarrierTouchState::Touched), None)
+                    .unwrap();
                 assert!(matches!(
                     engine
                         .price(&dated(&touched, &context), &context)
@@ -579,7 +581,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                         .unwrap()
                 );
                 for history in [BarrierTouchState::Touched, BarrierTouchState::Untouched] {
-                    let known = option.replace_history(Some(history));
+                    let known = option.replace_history(Some(history), None).unwrap();
                     let expired = context
                         .replace(PricingContextChanges {
                             valuation_time: Some(option.expiry_time()),
@@ -627,7 +629,9 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                     ..Default::default()
                 })
                 .unwrap();
-            let untouched = scheduled.replace_history(Some(BarrierTouchState::Untouched));
+            let untouched = scheduled
+                .replace_history(Some(BarrierTouchState::Untouched), None)
+                .unwrap();
             assert_eq!(
                 engine.price(&dated(&untouched, &after), &after).unwrap(),
                 AnalyticDoubleBarrierEngine

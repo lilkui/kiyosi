@@ -146,7 +146,7 @@ impl Accumulator {
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 2, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
     /// let seasoned = option.replace_history(AccumulatorHistoryChanges {
     ///     accumulated_quantity: Some(Some(3.0)), knock_out_settled: Some(Some(false)),
-    /// })?.with_history_time(Some(option.effective_time().add_days(1)?))?;
+    /// }, Some(option.effective_time().add_days(1)?))?;
     /// assert_eq!(seasoned.accumulated_quantity(), Some(3.0));
     /// assert_eq!(option.accumulated_quantity(), None);
     /// let settled = option.replace(kiyosi::AccumulatorChanges {
@@ -247,12 +247,13 @@ impl Accumulator {
     /// Omitted fields retain their values. A quantity alone (`f64` or `Option<f64>`)
     /// replaces only quantity; `None` restores unknown quantity. Time consistency
     /// is checked at pricing. The original is unchanged on success and failure.
-    /// Retains the timestamp while history is known; refresh it with [`Self::replace`] and
-    /// [`AccumulatorChanges::history_time`] alongside the history fields.
+    /// Replaces the snapshot timestamp together with the selected history fields.
+    /// Pass the current timestamp explicitly to retain it.
     ///
     /// # Errors
     ///
-    /// Reuses [`Self::new`] numeric and contract validation.
+    /// Reuses [`Self::new`] numeric and contract validation and rejects timestamps
+    /// outside the contract life.
     ///
     /// # Examples
     ///
@@ -264,22 +265,26 @@ impl Accumulator {
     /// let option = Accumulator::new(AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, start.add_days(9)?, kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
     /// let settled = option.replace_history(AccumulatorHistoryChanges {
     ///     knock_out_settled: Some(Some(true)), ..Default::default()
-    /// })?.with_history_time(Some(start.add_days(1)?))?;
+    /// }, Some(start.add_days(1)?))?;
     /// assert_eq!(settled.knock_out_settled(), Some(true));
     /// assert_eq!(option.knock_out_settled(), None);
-    /// assert_eq!(settled.replace_history(3.0)?.knock_out_settled(), Some(true));
+    /// assert_eq!(settled.replace_history(3.0, None)?.knock_out_settled(), Some(true));
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
     ///     100.0, start.add_days(1)?)?;
     /// assert_eq!(QuadratureAccumulatorEngine::default().price(&settled, &context)?, 0.0);
     /// # Ok(()) }
     /// ```
     ///
-    /// Clearing the final history payload also clears its timestamp.
-    pub fn replace_history(&self, changes: impl Into<AccumulatorHistoryChanges>) -> Result<Self> {
+    pub fn replace_history(
+        &self,
+        changes: impl Into<AccumulatorHistoryChanges>,
+        history_time: Option<Timestamp>,
+    ) -> Result<Self> {
         let changes = changes.into();
         self.replace(AccumulatorChanges {
             accumulated_quantity: changes.accumulated_quantity,
             knock_out_settled: changes.knock_out_settled,
+            history_time: Some(history_time),
             ..Default::default()
         })
     }

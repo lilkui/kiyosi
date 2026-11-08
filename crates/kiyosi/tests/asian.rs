@@ -131,7 +131,7 @@ macro_rules! contract_tests {
                     DEFAULT_REALIZED_AVERAGE,
                 )
                 .unwrap();
-                let updated = original.replace_history(110.0).unwrap();
+                let updated = original.replace_history(110.0, None).unwrap();
                 assert_eq!(updated.option_type(), OptionType::Put);
                 assert_eq!(updated.strike(), 100.0);
                 assert_eq!(updated.effective_time(), start);
@@ -139,7 +139,7 @@ macro_rules! contract_tests {
                 assert_eq!(updated.expiry_time(), end);
                 assert_eq!(updated.realized_average(), Some(110.0));
                 assert!(matches!(
-                    original.replace_history(-1.0).unwrap_err(),
+                    original.replace_history(-1.0, None).unwrap_err(),
                     Error::InvalidInput(_)
                 ));
                 assert_eq!(original.realized_average(), DEFAULT_REALIZED_AVERAGE);
@@ -150,7 +150,7 @@ macro_rules! contract_tests {
                 let averaging = Date::new(2025, 2, 1).unwrap().start_of_day();
                 let original =
                     $option::new(OptionType::Call, 100.0, start, averaging, end, None).unwrap();
-                let seasoned = original.replace_history(110.0).unwrap();
+                let seasoned = original.replace_history(110.0, None).unwrap();
                 for at in [start, averaging] {
                     assert!(
                         $engine
@@ -244,7 +244,7 @@ macro_rules! contract_tests {
                     assert!(matches!(
                         $engine
                             .price(
-                                &dated(&single.replace_history(110.0).unwrap(), &market(end)),
+                                &dated(&single.replace_history(110.0, None).unwrap(), &market(end)),
                                 &market(end)
                             )
                             .unwrap_err(),
@@ -339,7 +339,7 @@ macro_rules! contract_tests {
                     .unwrap_err(),
                     Error::RootNotBracketed(_)
                 ));
-                let seasoned = option.replace_history(100.0).unwrap();
+                let seasoned = option.replace_history(100.0, None).unwrap();
                 let middle = market(Date::new(2025, 7, 1).unwrap().start_of_day());
                 let result = $engine
                     .price_with_greeks(&dated(&seasoned, &middle), &middle, GreeksRequest::all())
@@ -521,7 +521,7 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
     assert_eq!(
         TurnbullWakemanArithmeticAveragePriceEngine
             .price(
-                &dated(&arithmetic.replace_history(110.0).unwrap(), &expired),
+                &dated(&arithmetic.replace_history(110.0, None).unwrap(), &expired),
                 &expired
             )
             .unwrap(),

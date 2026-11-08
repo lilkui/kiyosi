@@ -293,12 +293,13 @@ macro_rules! average_option {
             }
             /// Returns a copy with a replaced average and matching history timestamp.
             ///
-            /// Use [`Self::replace`] with [`AveragePriceOptionChanges::history_time`] and
-            /// [`AveragePriceOptionChanges::realized_average`] to refresh a dated snapshot.
+            /// Replaces the average and its snapshot timestamp together. Pass `None`
+            /// for the timestamp to clear it; supplied times must lie within the contract life.
             ///
             /// # Errors
             ///
-            /// Reuses [`Self::new`] validation; failures leave this contract unchanged.
+            /// Reuses [`Self::new`] validation and rejects timestamps outside the contract life.
+            /// Failures leave this contract unchanged.
             /// `None` restores unknown history; time consistency is checked at pricing.
             ///
             /// # Examples
@@ -311,7 +312,7 @@ macro_rules! average_option {
             /// let original = GeometricAveragePriceOption::new(OptionType::Call,
             ///     100.0, start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
             /// let at = start.add_days(30)?;
-            /// let seasoned = original.replace_history(105.0)?.with_history_time(Some(at))?;
+            /// let seasoned = original.replace_history(105.0, Some(at))?;
             /// assert_eq!(seasoned.realized_average(), Some(105.0));
             /// assert_eq!(original.realized_average(), None);
             /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?, 105.0, at)?;
@@ -319,13 +320,14 @@ macro_rules! average_option {
             /// # Ok(()) }
             /// ```
             ///
-            /// Clearing the final history payload also clears its timestamp.
             pub fn replace_history(
                 &self,
                 realized_average: impl Into<Option<f64>>,
+                history_time: Option<Timestamp>,
             ) -> Result<Self> {
                 self.replace(AveragePriceOptionChanges {
                     realized_average: Some(realized_average.into()),
+                    history_time: Some(history_time),
                     ..Default::default()
                 })
             }

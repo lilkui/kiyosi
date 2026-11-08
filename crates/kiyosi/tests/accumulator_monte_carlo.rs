@@ -78,7 +78,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
         .unwrap()
         .price()
         * quantity;
-    let scaled = option.replace_history(quantity).unwrap();
+    let scaled = option.replace_history(quantity, None).unwrap();
     assert!(expected.is_finite() && expected > 0.0);
     assert!(
         (engine.price(&dated(&scaled, &context), &context).unwrap() / expected - 1.0).abs() < 1e-12
@@ -347,7 +347,7 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
             expected
         );
     }
-    let empty = option.replace_history(0.0).unwrap();
+    let empty = option.replace_history(0.0, None).unwrap();
     assert_eq!(
         engine
             .price(
@@ -430,7 +430,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
-            option.replace_history(f64::MAX).unwrap(),
+            option.replace_history(f64::MAX, None).unwrap(),
             market(111.0, day(1, 2)),
             (|error| matches!(error, Error::ComputationFailure(_))) as fn(Error) -> bool,
         ),
@@ -592,7 +592,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         (option.clone(), expired, -50.0),
         (fixed.clone(), zero_rates, -30.0),
         (
-            fixed.replace_history(0.0).unwrap(),
+            fixed.replace_history(0.0, None).unwrap(),
             market(100.25, day(1, 2)),
             0.0,
         ),
@@ -695,10 +695,13 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
         (end).time_of_day(),
     ))
     .unwrap()
-    .replace_history(AccumulatorHistoryChanges {
-        accumulated_quantity: Some(Some(0.0)),
-        knock_out_settled: Some(Some(false)),
-    })
+    .replace_history(
+        AccumulatorHistoryChanges {
+            accumulated_quantity: Some(Some(0.0)),
+            knock_out_settled: Some(Some(false)),
+        },
+        None,
+    )
     .unwrap();
     assert_eq!(
         engine.price(&dated(&zero, &context), &context).unwrap(),

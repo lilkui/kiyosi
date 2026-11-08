@@ -238,7 +238,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         );
     }
     let settled = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
         .unwrap();
     let later = market(100.0, date(3, 3));
     assert_eq!(engine.price(&dated(&settled, &later), &later).unwrap(), 0.0);
@@ -317,10 +317,10 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::NoEvent))
+        .replace_history(Some(AutocallableBarrierState::NoEvent), None)
         .unwrap();
     let impossible = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
         .unwrap();
     assert!(matches!(
         engine

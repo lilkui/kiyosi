@@ -104,7 +104,8 @@ fn trading_midnight_is_observed_once_and_intraday_uses_caller_history() {
     .unwrap();
     for (spot, quantity) in [(90.0, 5.0), (100.0, 4.0), (109.0, 4.0)] {
         let context = market(spot, day(1, 3));
-        let expected = terminal_reference(&option.replace_history(quantity).unwrap(), &context);
+        let expected =
+            terminal_reference(&option.replace_history(quantity, None).unwrap(), &context);
         assert!(
             (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 0.001
         );
@@ -186,14 +187,14 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
     );
     for value in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            option.replace_history(value).unwrap_err(),
+            option.replace_history(value, None).unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
     assert_eq!(option.accumulated_quantity().unwrap(), 3.0);
     assert_eq!(
         option
-            .replace_history(0.25)
+            .replace_history(0.25, None)
             .unwrap()
             .accumulated_quantity()
             .unwrap(),
@@ -278,7 +279,7 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
         engine
             .price(
                 &dated(
-                    &option.replace_history(f64::MAX).unwrap(),
+                    &option.replace_history(f64::MAX, None).unwrap(),
                     &market(111.0, day(1, 6))
                 ),
                 &market(111.0, day(1, 6))
@@ -328,7 +329,7 @@ fn daily_layers_converge_to_quadrature_and_quantity_is_affine() {
     let prices = [0.0, 3.0, 6.0].map(|q| {
         engine
             .price(
-                &dated(&option.replace_history(q).unwrap(), &context),
+                &dated(&option.replace_history(q, None).unwrap(), &context),
                 &context,
             )
             .unwrap()

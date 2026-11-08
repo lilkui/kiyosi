@@ -397,7 +397,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
                 context.valuation_time(),
             )
             .unwrap();
-            let holding = option.replace_history(3.0).unwrap();
+            let holding = option.replace_history(3.0, None).unwrap();
             assert_eq!(
                 clipped
                     .price(&dated(&holding, &holding_context), &holding_context)
@@ -546,7 +546,7 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     let mut dates = vec![day(2), day(6)];
     let option = Accumulator::new(terms(OptionType::Put, Some(dates.clone()))).unwrap();
     dates.clear();
-    let updated = option.replace_history(0.25).unwrap();
+    let updated = option.replace_history(0.25, None).unwrap();
     assert_eq!(updated.option_type(), OptionType::Put);
     assert_eq!(
         updated.knock_out_observation_times(),
@@ -556,7 +556,7 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     assert_eq!(option.accumulated_quantity().unwrap(), 3.0);
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            updated.replace_history(invalid),
+            updated.replace_history(invalid, None),
             Err(Error::InvalidInput(_))
         ));
         assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
@@ -610,7 +610,7 @@ fn midnight_purchases_use_strict_strike_comparisons_and_intraday_history_once() 
             Timestamp::new(day(3).date(), 0, 0, 0, 1).unwrap(),
             0.4,
         );
-        let history = option.replace_history(quantity).unwrap();
+        let history = option.replace_history(quantity, None).unwrap();
         for engine in engines() {
             let at_price = engine.price(&dated(&option, &at_event), &at_event).unwrap();
             let after_price = engine

@@ -206,7 +206,9 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                     .unwrap_err(),
                 Error::InvalidInput(_)
             ));
-            let past = option.replace_history(Some(BarrierTouchState::Touched));
+            let past = option
+                .replace_history(Some(BarrierTouchState::Touched), None)
+                .unwrap();
             assert!(matches!(
                 engine
                     .price(
@@ -232,7 +234,7 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                     .abs()
                     < 1e-12
             );
-            assert_eq!(past.replace_history(None), option);
+            assert_eq!(past.replace_history(None, None).unwrap(), option);
             let result = engine
                 .price_with_greeks(
                     &dated(&option, &market(spot, start, 0.2, 0.04, 0.01)),
@@ -251,7 +253,8 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
         t.rebate = 2.0;
         let option = DoubleBarrierOption::new(t)
             .unwrap()
-            .replace_history(Some(BarrierTouchState::Untouched));
+            .replace_history(Some(BarrierTouchState::Untouched), None)
+            .unwrap();
         for spot in [80.0, 110.0, 120.0] {
             let context = market(spot, end, 0.2, 0.04, 0.01);
             let touched = spot != 110.0;
@@ -273,7 +276,9 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                 assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
             }
         }
-        let touched = option.replace_history(Some(BarrierTouchState::Touched));
+        let touched = option
+            .replace_history(Some(BarrierTouchState::Touched), None)
+            .unwrap();
         let context = market(100.0, later, 0.2, 0.04, 0.01);
         if kind == DoubleBarrierType::KnockIn {
             assert_eq!(
@@ -316,7 +321,9 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    let impossible = option.replace_history(Some(BarrierTouchState::Touched));
+    let impossible = option
+        .replace_history(Some(BarrierTouchState::Touched), None)
+        .unwrap();
     assert!(matches!(
         engine
             .price(&dated(&impossible, &context), &context)
@@ -345,7 +352,9 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let known = option.replace_history(Some(BarrierTouchState::Untouched));
+    let known = option
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     assert_eq!(
         engine.price(&dated(&known, &intraday), &intraday).unwrap(),
         AnalyticEuropeanEngine
@@ -362,7 +371,8 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
     t.barrier_type = DoubleBarrierType::KnockIn;
     let inside = DoubleBarrierOption::new(t.clone())
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Untouched));
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     assert!(
         (engine.price(&dated(&inside, &intraday), &intraday).unwrap()
             - 3.0 * (-0.04_f64 * 184.5 / 365.0).exp())
@@ -603,7 +613,9 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     )
     .unwrap();
     assert!((solved - 0.2).abs() < 1e-7);
-    let known = option.replace_history(Some(BarrierTouchState::Untouched));
+    let known = option
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     let later = market(100.0, day(2025, 1, 2), 0.2, 0.04, 0.01);
     let result = engine
         .price_with_greeks(&dated(&known, &later), &later, GreeksRequest::all())
@@ -634,7 +646,8 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     t.rebate = 3.0;
     let fixed = DoubleBarrierOption::new(t)
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Touched));
+        .replace_history(Some(BarrierTouchState::Touched), None)
+        .unwrap();
     assert!(matches!(
         implied_volatility(
             &engine,

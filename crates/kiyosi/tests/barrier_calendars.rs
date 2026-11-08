@@ -51,7 +51,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         );
     }
     assert_eq!(owned.replace(Default::default())?, owned);
-    assert_eq!(owned.replace_history(None), owned);
+    assert_eq!(owned.replace_history(None, None).unwrap(), owned);
     assert_eq!(option.calendar(), &TradingCalendar::all_days());
 
     macro_rules! check {
@@ -68,7 +68,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
             let owned = option.replace($changes)?;
             assert_eq!(owned.calendar(), &TradingCalendar::all_days());
             assert_eq!(owned.replace(Default::default())?, owned);
-            assert_eq!(owned.replace_history(None), owned);
+            assert_eq!(owned.replace_history(None, None).unwrap(), owned);
             assert_eq!(option.calendar(), &TradingCalendar::all_days());
             let mut invalid = $changes;
             invalid.calendar = Some(TradingCalendar::weekdays());

@@ -1,5 +1,31 @@
 use kiyosi::*;
 
+#[test]
+fn history_refresh_updates_payload_and_timestamp_before_pricing() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let at = start.add_days(1)?;
+    let later = at.add_days(1)?;
+    let original = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start.add_days(8)?,
+        120.0,
+        BarrierType::UpAndOut,
+    ))?
+    .replace_history(Some(BarrierTouchState::Untouched), Some(at))?;
+    let refreshed = original.replace_history(Some(BarrierTouchState::Touched), Some(later))?;
+    assert_eq!(refreshed.touch_state(), Some(BarrierTouchState::Touched));
+    assert_eq!(refreshed.history_time(), Some(later));
+    assert_eq!(
+        AnalyticBarrierEngine.price(&refreshed, &context(later)?)?,
+        0.0
+    );
+    assert_eq!(original.touch_state(), Some(BarrierTouchState::Untouched));
+    assert_eq!(original.history_time(), Some(at));
+    Ok(())
+}
+
 fn context(at: Timestamp) -> Result<PricingContext> {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
@@ -12,7 +38,7 @@ fn check<I: OptionContract + Clone>(
     engine: &impl PricingEngine<I>,
     option: I,
     market: &PricingContext,
-    clear: impl Fn(&I) -> Result<I>,
+    clear: impl Fn(&I, Option<Timestamp>) -> Result<I>,
 ) -> Result<()> {
     assert!(matches!(
         engine.price(&option, market),
@@ -22,8 +48,12 @@ fn check<I: OptionContract + Clone>(
     let dated = option.with_history_time(Some(market.valuation_time()))?;
     assert_eq!(original.history_time(), None);
     assert_eq!(dated.history_time(), Some(market.valuation_time()));
-    assert_eq!(clear(&dated)?.history_time(), None);
+    assert_eq!(clear(&dated, None)?.history_time(), None);
     assert_eq!(dated.history_time(), Some(market.valuation_time()));
+    assert_eq!(
+        clear(&dated, Some(market.valuation_time()))?.history_time(),
+        Some(market.valuation_time())
+    );
     assert!(engine.price(&dated, market)?.is_finite());
     let future = dated
         .clone()
@@ -37,7 +67,7 @@ fn check<I: OptionContract + Clone>(
         dated.expiry_time().add_days(1)?,
     ] {
         assert!(matches!(
-            dated.clone().with_history_time(Some(invalid)),
+            clear(&dated, Some(invalid)),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -66,7 +96,7 @@ fn cleared_average_can_shorten_expiry_before_its_old_snapshot() -> Result<()> {
     let original =
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 100.0)?
             .with_history_time(Some(at))?;
-    let cleared = original.replace_history(None)?;
+    let cleared = original.replace_history(None, None)?;
     assert_eq!(cleared.history_time(), None);
     assert_eq!(cleared.realized_average(), None);
     assert_eq!(
@@ -110,10 +140,13 @@ fn partial_accumulator_history_clears_retain_the_shared_timestamp() -> Result<()
         end,
         TimeOfDay::new(15, 0, 0, 0)?,
     ))?
-    .replace_history(AccumulatorHistoryChanges {
-        accumulated_quantity: Some(Some(0.0)),
-        knock_out_settled: Some(Some(false)),
-    })?
+    .replace_history(
+        AccumulatorHistoryChanges {
+            accumulated_quantity: Some(Some(0.0)),
+            knock_out_settled: Some(Some(false)),
+        },
+        None,
+    )?
     .with_history_time(Some(at))?;
     let quantity = AccumulatorHistoryChanges {
         accumulated_quantity: Some(None),
@@ -124,9 +157,9 @@ fn partial_accumulator_history_clears_retain_the_shared_timestamp() -> Result<()
         ..Default::default()
     };
     for (first, last) in [(quantity, settlement), (settlement, quantity)] {
-        let partial = original.replace_history(first)?;
+        let partial = original.replace_history(first, Some(at))?;
         assert_eq!(partial.history_time(), Some(at));
-        assert_eq!(partial.replace_history(last)?.history_time(), None);
+        assert_eq!(partial.replace_history(last, None)?.history_time(), None);
     }
     let explicit = original.replace(AccumulatorChanges {
         accumulated_quantity: Some(None),
@@ -136,7 +169,7 @@ fn partial_accumulator_history_clears_retain_the_shared_timestamp() -> Result<()
     })?;
     assert_eq!(explicit.history_time(), Some(at));
     assert_eq!(
-        explicit.replace_history(AccumulatorHistoryChanges::default())?,
+        explicit.replace_history(AccumulatorHistoryChanges::default(), Some(at))?,
         explicit
     );
     assert!(matches!(
@@ -303,7 +336,8 @@ fn history_time_and_contract_life_are_replaced_together() -> Result<()> {
         120.0,
         BarrierType::UpAndOut,
     ))?
-    .replace_history(Some(BarrierTouchState::Untouched))
+    .replace_history(Some(BarrierTouchState::Untouched), None)
+    .unwrap()
     .with_history_time(Some(at))?;
     let expiry = start.add_days(1)?;
     let changes = BarrierOptionChanges {
@@ -346,7 +380,7 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
         &AnalyticBarrierEngine,
         BarrierOption::new(barrier)?,
         &market,
-        |option| Ok(option.replace_history(None)),
+        |option, at| option.replace_history(None, at),
     )?;
     let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
         OptionType::Call,
@@ -357,10 +391,14 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
         120.0,
         DoubleBarrierType::KnockOut,
     ))?
-    .replace_history(Some(BarrierTouchState::Untouched));
-    check(&AnalyticDoubleBarrierEngine, double, &market, |option| {
-        Ok(option.replace_history(None))
-    })?;
+    .replace_history(Some(BarrierTouchState::Untouched), None)
+    .unwrap();
+    check(
+        &AnalyticDoubleBarrierEngine,
+        double,
+        &market,
+        |option, at| option.replace_history(None, at),
+    )?;
     let binary = BinaryBarrierTerms::new(
         OptionType::Call,
         100.0,
@@ -372,35 +410,40 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
     check(
         &AnalyticBinaryBarrierEngine,
         BinaryBarrierOption::cash(binary, 10.0)?
-            .replace_history(Some(BarrierTouchState::Untouched)),
+            .replace_history(Some(BarrierTouchState::Untouched), None)
+            .unwrap(),
         &market,
-        |option| Ok(option.replace_history(None)),
+        |option, at| option.replace_history(None, at),
     )?;
     let touch = TouchOptionTerms::new(start, end, 120.0, BarrierType::UpAndIn);
     check(
         &AnalyticBinaryBarrierEngine,
-        TouchOption::cash(touch, 10.0)?.replace_history(Some(BarrierTouchState::Untouched)),
+        TouchOption::cash(touch, 10.0)?
+            .replace_history(Some(BarrierTouchState::Untouched), None)
+            .unwrap(),
         &market,
-        |option| Ok(option.replace_history(None)),
+        |option, at| option.replace_history(None, at),
     )?;
     let touch = DoubleTouchOptionTerms::new(start, end, 80.0, 120.0, DoubleBarrierType::KnockIn);
     check(
         &AnalyticDoubleTouchEngine,
-        DoubleTouchOption::cash(touch, 10.0)?.replace_history(Some(BarrierTouchState::Untouched)),
+        DoubleTouchOption::cash(touch, 10.0)?
+            .replace_history(Some(BarrierTouchState::Untouched), None)
+            .unwrap(),
         &market,
-        |option| Ok(option.replace_history(None)),
+        |option, at| option.replace_history(None, at),
     )?;
     check(
         &AnalyticGeometricAveragePriceEngine,
         GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, Some(100.0))?,
         &market,
-        |option| option.replace_history(None),
+        |option, at| option.replace_history(None, at),
     )?;
     check(
         &TurnbullWakemanArithmeticAveragePriceEngine,
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, Some(100.0))?,
         &market,
-        |option| option.replace_history(None),
+        |option, at| option.replace_history(None, at),
     )?;
     let mut range = RangeAccrualTerms::new(1000.0, 0.12, 90.0, 110.0, start, end, clock);
     range.realized_hit_count = Some(1);
@@ -408,7 +451,7 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
         &AnalyticRangeAccrualEngine,
         RangeAccrualOption::new(range)?,
         &market,
-        |option| option.replace_history(None),
+        |option, at| option.replace_history(None, at),
     )?;
     let mut accumulator = AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, end, clock);
     accumulator.accumulated_quantity = Some(3.0);
@@ -417,11 +460,14 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
         &QuadratureAccumulatorEngine::default(),
         Accumulator::new(accumulator)?,
         &market,
-        |option| {
-            option.replace_history(AccumulatorHistoryChanges {
-                accumulated_quantity: Some(None),
-                knock_out_settled: Some(None),
-            })
+        |option, at| {
+            option.replace_history(
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(None),
+                    knock_out_settled: Some(None),
+                },
+                at,
+            )
         },
     )?;
     let records = vec![AutocallableObservation::snowball(end, 110.0, 0.0)?];
@@ -439,9 +485,9 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
             records.clone(),
             Some(clock),
         ))?
-        .replace_history(state)?,
+        .replace_history(state, None)?,
         &market,
-        |option| option.replace_history(None),
+        |option, at| option.replace_history(None, at),
     )?;
     check(
         &QuadratureAutocallableEngine::default(),
@@ -456,16 +502,16 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
             vec![AutocallableObservation::phoenix(end, 110.0, 0.0)?],
             Some(clock),
         ))?
-        .replace_history(state)?,
+        .replace_history(state, None)?,
         &market,
-        |option| option.replace_history(None),
+        |option, at| option.replace_history(None, at),
     )?;
     check(
         &QuadratureAutocallableEngine::default(),
         BinarySnowballOption::new(BinarySnowballTerms::new(0.1, start, end, records.clone()))?
-            .replace_history(state)?,
+            .replace_history(state, None)?,
         &market,
-        |option| option.replace_history(None),
+        |option, at| option.replace_history(None, at),
     )?;
     check(
         &QuadratureAutocallableEngine::default(),
@@ -478,9 +524,9 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
             records,
             Some(clock),
         ))?
-        .replace_history(state)?,
+        .replace_history(state, None)?,
         &market,
-        |option| option.replace_history(None),
+        |option, at| option.replace_history(None, at),
     )?;
     Ok(())
 }
@@ -518,7 +564,7 @@ fn discrete_history_reuses_between_events_and_requires_refresh_after_them() -> R
         Err(Error::InvalidInput(_))
     ));
     let refreshed = option
-        .replace_history(Some(2))?
+        .replace_history(Some(2), None)?
         .with_history_time(Some(rolled.valuation_time()))?;
     assert_eq!(engine.price(&refreshed, &rolled)?, price);
     assert_eq!(option.history_time(), Some(at));
@@ -610,7 +656,7 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
             0.0,
         )?],
     ))?
-    .replace_history(Some(AutocallableBarrierState::KnockedOut))?
+    .replace_history(Some(AutocallableBarrierState::KnockedOut), None)?
     .with_history_time(Some(start))?;
     let engine = QuadratureAutocallableEngine::default();
     assert!(matches!(

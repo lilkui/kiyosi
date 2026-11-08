@@ -52,7 +52,11 @@ macro_rules! autocallable_properties {
                     .transpose()?;
 
                 let updated = match barrier_state {
-                    Some(value) => domain(self.0.replace_history(state(value)?))?,
+                    Some(value) => {
+                        let state = state(value)?;
+                        let at = state.and(kiyosi::OptionContract::history_time(&self.0));
+                        domain(self.0.replace_history(state, at))?
+                    },
                     None => self.0.clone(),
                 };
                 let history_time = history_time.unwrap_or(kiyosi::OptionContract::history_time(&updated));

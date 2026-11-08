@@ -324,7 +324,9 @@ fn scheduled_barriers_use_exact_current_observations_and_strict_history() {
         ),
         Err(Error::InvalidInput(_))
     ));
-    let touched = option.replace_history(Some(BarrierTouchState::Touched));
+    let touched = option
+        .replace_history(Some(BarrierTouchState::Touched), None)
+        .unwrap();
     assert!(matches!(
         AnalyticBarrierEngine.price(
             &dated(&touched, &market(time(6, 9, 0), 110.0)),
@@ -388,7 +390,7 @@ fn range_accrual_observes_same_day_and_excludes_only_the_effective_instant() {
     assert!(matches!(
         AnalyticRangeAccrualEngine.price(
             &dated(
-                &option.replace_history(Some(1)).unwrap(),
+                &option.replace_history(Some(1), None).unwrap(),
                 &market(time(6, 15, 1), 100.0)
             ),
             &market(time(6, 15, 1), 100.0)
@@ -567,10 +569,13 @@ fn daily_clock_controls_current_history_and_does_not_add_expiry_units() -> Resul
             ),
             Err(Error::InvalidInput(_))
         ));
-        let seasoned = option.replace_history(AccumulatorHistoryChanges {
-            accumulated_quantity: Some(Some(1.0)),
-            knock_out_settled: Some(Some(false)),
-        })?;
+        let seasoned = option.replace_history(
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(1.0)),
+                knock_out_settled: Some(Some(false)),
+            },
+            None,
+        )?;
         assert_eq!(
             engine.price(
                 &dated(&seasoned, &market(time(6, 18, 0), 105.0)),
@@ -651,7 +656,7 @@ fn range_accrual_discounts_known_coupon_between_final_observation_and_payment() 
             time(6, hour, 0),
         )?;
         let expected = coupon * (-0.5 * f64::from(18 - hour) / (365.0 * 24.0)).exp();
-        let seasoned = option.replace_history(hits)?;
+        let seasoned = option.replace_history(hits, None)?;
         let actual = AnalyticRangeAccrualEngine.price(&dated(&seasoned, &context), &context)?;
         assert!(
             (actual - expected).abs() < 1e-14,

@@ -48,7 +48,9 @@ fn history_is_strictly_prior_and_boundary_hit_rebates_are_not_paid_twice() {
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let touched = option.replace_history(Some(BarrierTouchState::Touched));
+    let touched = option
+        .replace_history(Some(BarrierTouchState::Touched), None)
+        .unwrap();
     assert!(matches!(
         AnalyticBarrierEngine
             .price(
@@ -110,7 +112,8 @@ fn live_barriers_preserve_in_out_parity_and_analytics() {
     }
     let option = BarrierOption::new(terms(BarrierType::UpAndOut))
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Untouched));
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     let context = market(100.0, option.effective_time());
     let result = engine
         .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
@@ -336,7 +339,9 @@ fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_f
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let untouched = option.replace_history(Some(BarrierTouchState::Untouched));
+    let untouched = option
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     let vanilla =
         EuropeanOption::new(t.option_type, t.strike, t.effective_time, t.expiry_time).unwrap();
     assert_eq!(
@@ -350,7 +355,9 @@ fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_f
             .price(&dated(&vanilla, &market(150.0, noon)), &market(150.0, noon))
             .unwrap()
     );
-    let touched = option.replace_history(Some(BarrierTouchState::Touched));
+    let touched = option
+        .replace_history(Some(BarrierTouchState::Touched), None)
+        .unwrap();
     assert!(matches!(
         AnalyticBarrierEngine
             .price(
@@ -593,7 +600,8 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
     let t = terms(BarrierType::UpAndOut);
     let option = BarrierOption::new(t.clone())
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Untouched));
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     let context = market(100.0, t.effective_time);
     let curve = RateTermStructure::new(
         t.effective_time,
@@ -665,7 +673,9 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
         Error::RootNotBracketed(_)
     ));
     assert_eq!(option.touch_state(), Some(BarrierTouchState::Untouched));
-    let resolved = option.replace_history(Some(BarrierTouchState::Touched));
+    let resolved = option
+        .replace_history(Some(BarrierTouchState::Touched), None)
+        .unwrap();
     let later = market(100.0, Date::new(2025, 1, 2).unwrap().start_of_day());
     assert!(matches!(
         implied_volatility(

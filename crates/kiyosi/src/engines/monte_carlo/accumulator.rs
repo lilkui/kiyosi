@@ -59,7 +59,7 @@ impl MonteCarloAccumulatorEngine {
     ///     start, Date::new(2025, 2, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?
     ///     .replace_history(AccumulatorHistoryChanges {
     ///         accumulated_quantity: Some(Some(3.0)), knock_out_settled: Some(Some(false)),
-    ///     })?;
+    ///     }, None)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 110.0, start.add_days(1)?)?;
     /// let option = option.with_history_time(Some(context.valuation_time()))?;

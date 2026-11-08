@@ -212,10 +212,9 @@ impl BarrierOption {
     /// Returns an owning copy with replaced history, leaving the original unchanged.
     ///
     /// Time consistency is checked during pricing. `None` restores unknown history.
-    /// Retains the timestamp while history is known. Use [`Self::replace`] with
-    /// [`BarrierOptionChanges::history_time`] to refresh the payload and timestamp together.
+    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
     ///
-    /// Preserves the validated terms; typed history cannot invalidate construction.
+    /// Preserves the validated contract terms.
     ///
     /// # Examples
     ///
@@ -226,7 +225,7 @@ impl BarrierOption {
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
     /// let at = option.effective_time().add_days(1)?;
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched)).with_history_time(Some(at))?;
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched), Some(at))?;
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 120.0, at)?;
@@ -234,15 +233,21 @@ impl BarrierOption {
     /// # Ok(()) }
     /// ```
     ///
-    /// Clearing the final history payload also clears its timestamp.
-    #[must_use]
-    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
-        Self {
-            vanilla: self.vanilla.clone(),
-            monitoring: self.monitoring.replace_history(touch_state),
-            rebate: self.rebate,
-            rebate_timing: self.rebate_timing,
-        }
+    /// The supplied timestamp is validated and retained, including with unknown history.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a timestamp outside the contract life.
+    pub fn replace_history(
+        &self,
+        touch_state: Option<BarrierTouchState>,
+        history_time: Option<Timestamp>,
+    ) -> Result<Self> {
+        self.replace(BarrierOptionChanges {
+            touch_state: Some(touch_state),
+            history_time: Some(history_time),
+            ..Default::default()
+        })
     }
     /// Returns the call-or-put direction; see [`Self::new`].
     pub fn option_type(&self) -> OptionType {
@@ -410,7 +415,7 @@ impl BarrierOption {
     /// # fn main() -> Result<()> {
     /// let original = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call,
     ///     100.0, Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(),
-    ///     120.0, BarrierType::UpAndOut))?.replace_history(Some(BarrierTouchState::Untouched));
+    ///     120.0, BarrierType::UpAndOut))?.replace_history(Some(BarrierTouchState::Untouched), None)?;
     /// let changed = original.replace(BarrierOptionChanges {
     ///     strike: Some(105.0), ..Default::default()
     /// })?;

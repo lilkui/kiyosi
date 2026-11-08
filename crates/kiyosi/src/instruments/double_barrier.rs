@@ -161,8 +161,7 @@ impl DoubleBarrierOption {
     /// Time consistency is checked during pricing. The original is preserved on every outcome.
     ///
     /// Preserves validated monitoring terms through [`BarrierOption::replace_history`].
-    /// Retains the timestamp while history is known. Use [`Self::replace`] with
-    /// [`DoubleBarrierOptionChanges::history_time`] to refresh the snapshot.
+    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
     ///
     /// # Examples
     ///
@@ -172,20 +171,28 @@ impl DoubleBarrierOption {
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
     ///     100.0, Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0,
     ///     DoubleBarrierType::KnockOut))?;
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched))
-    ///     .with_history_time(Some(option.effective_time().add_days(1)?))?;
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched),
+    ///     Some(option.effective_time().add_days(1)?))?;
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
     /// ```
     ///
-    /// Clearing the final history payload also clears its timestamp.
-    #[must_use]
-    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
-        Self {
-            lower: self.lower.replace_history(touch_state),
-            upper: self.upper,
-        }
+    /// The supplied timestamp is validated and retained, including with unknown history.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
+    pub fn replace_history(
+        &self,
+        touch_state: Option<BarrierTouchState>,
+        history_time: Option<Timestamp>,
+    ) -> Result<Self> {
+        self.replace(DoubleBarrierOptionChanges {
+            touch_state: Some(touch_state),
+            history_time: Some(history_time),
+            ..Default::default()
+        })
     }
     /// Returns the payoff direction; see [`Self::new`].
     pub fn option_type(&self) -> OptionType {

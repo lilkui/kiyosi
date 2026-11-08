@@ -115,7 +115,7 @@ impl DoubleTouchOption {
     ///     120.0, start.into())?;
     /// let engine = FiniteDifferenceDoubleTouchEngine::default();
     /// assert!((engine.price(&option, &context)? - 10.0 * (-0.03_f64).exp()).abs() < 1e-12);
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched))
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched), None)?
     ///     .with_history_time(Some(start.add_days(1)?))?;
     /// assert_eq!(option.touch_state(), None);
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
@@ -212,18 +212,23 @@ impl DoubleTouchOption {
     ///
     /// Preserves validated monitoring terms without reconstructing the contract.
     /// The original value remains unchanged.
-    /// Retains the timestamp while history is known. Use [`Self::replace`] with
-    /// [`DoubleTouchOptionChanges::history_time`] to refresh the snapshot.
+    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
     ///
-    /// Clearing the final history payload also clears its timestamp.
-    #[must_use]
-    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
-        Self {
-            monitoring: self.monitoring.replace_history(touch_state),
-            upper_barrier: self.upper_barrier,
-            payout: self.payout,
-            settlement_timing: self.settlement_timing,
-        }
+    /// The supplied timestamp is validated and retained, including with unknown history.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a timestamp outside the contract life.
+    pub fn replace_history(
+        &self,
+        touch_state: Option<BarrierTouchState>,
+        history_time: Option<Timestamp>,
+    ) -> Result<Self> {
+        self.replace(DoubleTouchOptionChanges {
+            touch_state: Some(touch_state),
+            history_time: Some(history_time),
+            ..Default::default()
+        })
     }
     pub(crate) fn contract(&self) -> crate::instruments::binary_barrier::Contract<'_> {
         crate::instruments::binary_barrier::Contract {

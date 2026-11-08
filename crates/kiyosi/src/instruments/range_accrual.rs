@@ -78,10 +78,10 @@ impl RangeAccrualOption {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
     /// let option = RangeAccrualOption::new(terms)?;
-    /// let seasoned = option.replace_history(Some(3))?
+    /// let seasoned = option.replace_history(Some(3), None)?
     ///     .with_history_time(Some(option.effective_time().add_days(6)?))?;
     /// assert_eq!(seasoned.realized_hit_count(), Some(3));
-    /// assert_eq!(seasoned.replace_history(None)?.with_history_time(None)?, option);
+    /// assert_eq!(seasoned.replace_history(None, None)?, option);
     /// # Ok(()) }
     /// ```
     pub fn new(terms: RangeAccrualTerms) -> Result<Self> {
@@ -178,17 +178,22 @@ impl RangeAccrualOption {
 
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::new`].
     ///
-    /// Retains the timestamp while history is known. Refresh both fields with [`Self::replace`]
-    /// and [`RangeAccrualOptionChanges::history_time`]; supplied history requires a timestamp at pricing.
+    /// Replaces the payload and its snapshot timestamp together. Supplied history
+    /// requires a timestamp at pricing; `None` clears the timestamp.
     ///
     /// # Errors
     ///
-    /// Reuses [`Self::new`] validation. The original is unchanged on success and failure.
+    /// Reuses [`Self::new`] validation and rejects timestamps outside the contract life.
+    /// The original is unchanged on success and failure.
     ///
-    /// Clearing the final history payload also clears its timestamp.
-    pub fn replace_history(&self, realized_hit_count: Option<i32>) -> Result<Self> {
+    pub fn replace_history(
+        &self,
+        realized_hit_count: Option<i32>,
+        history_time: Option<Timestamp>,
+    ) -> Result<Self> {
         self.replace(RangeAccrualOptionChanges {
             realized_hit_count: Some(realized_hit_count),
+            history_time: Some(history_time),
             ..Default::default()
         })
     }

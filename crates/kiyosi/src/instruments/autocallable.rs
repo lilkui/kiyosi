@@ -820,8 +820,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let terms = PhoenixTerms::new(PhoenixCoupon::Annual(0.08), 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = PhoenixOption::new(terms)?;
-    /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent))?
-    ///     .with_history_time(Some(start.add_days(1)?))?;
+    /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent), Some(start.add_days(1)?))?;
     /// assert_eq!(known.observations(), note.observations());
     /// assert_eq!(note.barrier_state(), None);
     /// let records = autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?;
@@ -910,20 +909,24 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// `None` clears history; `Some(AutocallableBarrierState::NoEvent)` records no prior event.
     /// See [`Self::new`] for an example. Time consistency is checked during pricing.
-    /// Retains the timestamp while history is known. Use the product's `replace` method and change
-    /// struct to refresh history and its required timestamp together; see the [history example](crate).
+    /// Replaces the snapshot timestamp together with the payload; `None` clears it.
+    /// Supplied times must lie within the contract life; see the [history example](crate).
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for a knock-in state on a binary snowball.
+    /// Returns [`Error::InvalidInput`] for a knock-in state on a binary snowball or a
+    /// snapshot timestamp outside the contract life.
     /// Other terms retain their validated values; this note remains unchanged.
     ///
-    /// Clearing the final history payload also clears its timestamp.
-    pub fn replace_history(&self, barrier_state: Option<AutocallableBarrierState>) -> Result<Self> {
+    pub fn replace_history(
+        &self,
+        barrier_state: Option<AutocallableBarrierState>,
+        history_time: Option<Timestamp>,
+    ) -> Result<Self> {
         self.view().validate_history(barrier_state)?;
         let mut terms = self.0.clone();
         terms.set_history(barrier_state);
-        Ok(Self(terms, barrier_state.and(self.1)))
+        Self(terms, None).with_history_time(history_time)
     }
     /// Borrows validated payoff terms, including the contractual calendar. See [`Self::new`].
     pub fn terms(&self) -> &T {

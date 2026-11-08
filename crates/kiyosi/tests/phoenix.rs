@@ -246,7 +246,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::NoEvent))
+        .replace_history(Some(AutocallableBarrierState::NoEvent), None)
         .unwrap();
     assert_eq!(known.observations(), note.observations());
     assert_eq!(note.barrier_state(), None);
@@ -257,7 +257,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
             .is_finite()
     );
     let impossible = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
         .unwrap();
     assert!(matches!(
         engine
@@ -320,7 +320,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     assert!(result.has(Greek::Vega));
     assert!(result.has(Greek::Rho));
     let settled = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
         .unwrap();
     assert_eq!(
         engine

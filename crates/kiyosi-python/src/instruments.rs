@@ -57,7 +57,11 @@ macro_rules! monitoring_properties {
                     .transpose()?;
 
                 let updated = match touch_state {
-                    Some(value) => self.0.replace_history($crate::instruments::barrier::history(value)?),
+                    Some(value) => {
+                        let state = $crate::instruments::barrier::history(value)?;
+                        let at = state.and(kiyosi::OptionContract::history_time(&self.0));
+                        $crate::error::domain(self.0.replace_history(state, at))?
+                    },
                     None => self.0.clone(),
                 };
                 let history_time = history_time.unwrap_or(kiyosi::OptionContract::history_time(&updated));

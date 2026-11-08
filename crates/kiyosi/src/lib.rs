@@ -104,7 +104,8 @@
 //! between observations; unaccounted observations require a fresh snapshot. Continuous
 //! barrier and Asian history require the same instant, except resolved barrier monitoring.
 //! Refresh history and its timestamp together with the contract's `replace` method and
-//! change struct. `replace_history` replaces only the payload and preserves its timestamp.
+//! change struct, or use `replace_history` to supply the payload and timestamp together.
+//! Its explicit timestamp argument uses `None` to clear the timestamp.
 //! Numerical time sensitivities freeze observed history
 //! internally while moving hypothetical valuation; caller inputs remain unchanged.
 //!

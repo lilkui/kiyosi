@@ -504,7 +504,9 @@ fn solver_replays_request_samples_and_rejects_fixed_cashflows() {
             ..Default::default()
         })
         .unwrap();
-    let fixed = option.replace_history(Some(BarrierTouchState::Touched));
+    let fixed = option
+        .replace_history(Some(BarrierTouchState::Touched), None)
+        .unwrap();
     assert!(matches!(
         implied_volatility(
             &engine,
@@ -566,7 +568,9 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 engine.price(&dated(&option, &later), &later).unwrap_err(),
                 Error::InvalidInput(_)
             ));
-            let touched = option.replace_history(Some(BarrierTouchState::Touched));
+            let touched = option
+                .replace_history(Some(BarrierTouchState::Touched), None)
+                .unwrap();
             assert!(matches!(
                 engine
                     .price(&dated(&touched, &context), &context)
@@ -586,7 +590,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 })
                 .unwrap();
             for history in [BarrierTouchState::Touched, BarrierTouchState::Untouched] {
-                let known = option.replace_history(Some(history));
+                let known = option.replace_history(Some(history), None).unwrap();
                 let result = engine
                     .price_with_greeks(&dated(&known, &expired), &expired, GreeksRequest::all())
                     .unwrap();
@@ -633,7 +637,9 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                     ..Default::default()
                 })
                 .unwrap();
-            let untouched = scheduled.replace_history(Some(BarrierTouchState::Untouched));
+            let untouched = scheduled
+                .replace_history(Some(BarrierTouchState::Untouched), None)
+                .unwrap();
             assert_eq!(
                 engine.price(&dated(&untouched, &after), &after).unwrap(),
                 AnalyticBarrierEngine

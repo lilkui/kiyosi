@@ -268,7 +268,8 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
         engine
             .price(
                 &dated(
-                    &hit.replace_history(Some(BarrierTouchState::Touched)),
+                    &hit.replace_history(Some(BarrierTouchState::Touched), None)
+                        .unwrap(),
                     &settled_context
                 ),
                 &settled_context
@@ -279,7 +280,9 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     let cash = engine
         .price(
             &dated(
-                &expiry.replace_history(Some(BarrierTouchState::Touched)),
+                &expiry
+                    .replace_history(Some(BarrierTouchState::Touched), None)
+                    .unwrap(),
                 &settled_context,
             ),
             &settled_context,
@@ -291,7 +294,8 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
         engine
             .price_with_greeks(
                 &dated(
-                    &hit.replace_history(Some(BarrierTouchState::Touched)),
+                    &hit.replace_history(Some(BarrierTouchState::Touched), None)
+                        .unwrap(),
                     &settled_context
                 ),
                 &settled_context,
@@ -354,7 +358,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         .unwrap();
     let result = engine
         .price_with_greeks(
-            &dated(&option.replace_history(None), &boundary),
+            &dated(&option.replace_history(None, None).unwrap(), &boundary),
             &boundary,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
         )
@@ -367,7 +371,9 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
             ..Default::default()
         })
         .unwrap();
-    let option = option.replace_history(Some(BarrierTouchState::Untouched));
+    let option = option
+        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .unwrap();
     let result = engine
         .price_with_greeks(
             &dated(&option, &expiry),

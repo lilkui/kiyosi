@@ -50,7 +50,7 @@ impl AnalyticRangeAccrualEngine {
     /// # use kiyosi::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
-    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace_history(Some(1))?;
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace_history(Some(1), None)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     95.0, option.expiry_time().into())?;
     /// let option = option.with_history_time(Some(context.valuation_time()))?;

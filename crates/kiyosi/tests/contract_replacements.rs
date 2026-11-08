@@ -32,7 +32,8 @@ macro_rules! check_monitoring_switch {
         assert!(cleared.observation_times().is_empty());
         assert_eq!(
             $scheduled
-                .replace_history(None)
+                .replace_history(None, None)
+                .unwrap()
                 .replace($changes {
                     observation_mode: Some(ObservationMode::Continuous),
                     ..Default::default()
@@ -1386,7 +1387,7 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
     let original =
         GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let saved = original.clone();
-    let known = original.replace_history(Some(100.0)).unwrap();
+    let known = original.replace_history(Some(100.0), None).unwrap();
     assert!(matches!(
         known.replace(AveragePriceOptionChanges {
             averaging_start_time: Some(start.add_days(1).unwrap()),
@@ -1455,7 +1456,7 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
             .unwrap();
     let saved = original.clone();
-    let known = original.replace_history(Some(100.0)).unwrap();
+    let known = original.replace_history(Some(100.0), None).unwrap();
     assert!(matches!(
         known.replace(AveragePriceOptionChanges {
             averaging_start_time: Some(start.add_days(1).unwrap()),

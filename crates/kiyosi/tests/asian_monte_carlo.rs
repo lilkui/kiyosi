@@ -614,7 +614,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
         start,
     )
     .unwrap();
-    let a = affine.replace_history(None).unwrap();
+    let a = affine.replace_history(None, None).unwrap();
     assert!(matches!(
         engine
             .price(&dated(&a, &short_context), &short_context)

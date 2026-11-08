@@ -45,8 +45,10 @@ fn settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage() -> Re
         0.0
     );
     for value in [
-        AnalyticBinaryBarrierEngine
-            .price(&dated(&binary.replace_history(None), &context), &context),
+        AnalyticBinaryBarrierEngine.price(
+            &dated(&binary.replace_history(None, None).unwrap(), &context),
+            &context,
+        ),
         AnalyticBinaryBarrierEngine.price(
             &dated(
                 &touch.replace(TouchOptionChanges {
