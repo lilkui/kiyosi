@@ -119,7 +119,8 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 ///
 /// Notes
 /// -----
-/// The cash_touch_option and asset_touch_option functions are conveniences.
+/// The cash_touch_option and asset_touch_option factories create one-touch
+/// contracts; cash_no_touch_option and asset_no_touch_option create no-touch contracts.
 /// Prior at-hit payments are settled.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
@@ -633,10 +634,8 @@ pub(crate) fn settlement(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Settlemen
 }
 
 macro_rules! touch_factory {
-    (@payout) => { None };
-    (@payout $payout:ident) => { Some($payout) };
-    ($name:ident, $constructor:ident $(, $payout:ident)?) => {
-        /// Create a cash or asset one-touch or no-touch contract.
+    ($name:ident, $constructor:ident, $kind:literal, $barriers:literal $(, $payout:ident)?) => {
+        #[doc = concat!("Create a cash or asset ", $kind, " contract.")]
         ///
         /// Parameters
         /// ----------
@@ -646,8 +645,8 @@ macro_rules! touch_factory {
         ///     Inclusive expiry time.
         /// barrier_level : float
         ///     Positive finite trigger level; equality counts as a touch.
-        /// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
-        ///     In selects one-touch; out selects no-touch. Up/down selects direction.
+        #[doc = concat!("barrier_type : ", $barriers)]
+        #[doc = concat!("    Select the direction of the ", $kind, " barrier.")]
         ///
         $(
             #[doc = concat!(stringify!($payout), " : float")]
@@ -674,8 +673,8 @@ macro_rules! touch_factory {
         /// Raises
         /// ------
         /// InvalidInputError
-        ///     If amounts, life times or observation terms are invalid, or at-hit
-        ///     settlement is requested for a no-touch contract.
+        ///     If the barrier's payment condition disagrees with the factory, amounts,
+        ///     life times or observations are invalid, or no-touch settlement is at-hit.
         ///
         /// Notes
         /// -----
@@ -699,14 +698,45 @@ macro_rules! touch_factory {
 
             #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
         ) -> PyResult<TouchOption> {
-            TouchOption::new(effective_time, expiry_time, barrier_level, barrier_type, stringify!($constructor),
-                touch_factory!(@payout $($payout)?), settlement_timing,
-                observation_times, touch_state, calendar, history_time)
+            let mut terms = kiyosi::TouchOptionTerms::new(
+                timestamp(effective_time)?, timestamp(expiry_time)?, real(barrier_level)?,
+                barrier::kind(barrier_type)?,
+            );
+            terms.settlement_timing = settlement_timing;
+            terms.observation_times = observation_times;
+            terms.touch_state = touch_state;
+            terms.calendar = calendar.0;
+            terms.history_time = history_time;
+            Ok(TouchOption(domain(kiyosi::TouchOption::$constructor(terms $(, real($payout)?)?))?))
         }
     };
 }
-touch_factory!(cash_touch_option, cash, payout);
-touch_factory!(asset_touch_option, asset);
+touch_factory!(
+    cash_touch_option,
+    cash_one_touch,
+    "one-touch",
+    "{'up_and_in', 'down_and_in'}",
+    payout
+);
+touch_factory!(
+    asset_touch_option,
+    asset_one_touch,
+    "one-touch",
+    "{'up_and_in', 'down_and_in'}"
+);
+touch_factory!(
+    cash_no_touch_option,
+    cash_no_touch,
+    "no-touch",
+    "{'up_and_out', 'down_and_out'}",
+    payout
+);
+touch_factory!(
+    asset_no_touch_option,
+    asset_no_touch,
+    "no-touch",
+    "{'up_and_out', 'down_and_out'}"
+);
 
 #[derive(FromPyObject)]
 pub(crate) enum BinaryInstrument<'py> {

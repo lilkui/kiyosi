@@ -35,6 +35,11 @@ annual ``coupon_rate`` or fixed ``coupon_per_period``. Principal redemption is
 per unit of original notional; scale the complete price and Greeks for position
 size.
 
+`cash_touch_option` and `asset_touch_option` pay on a touch and require an
+``up_and_in`` or ``down_and_in`` barrier. `cash_no_touch_option` and
+`asset_no_touch_option` pay when the barrier is never reached and require
+``up_and_out`` or ``down_and_out``. `TouchOption` accepts either payment condition.
+
 Examples
 --------
 Refresh a continuous average and its snapshot timestamp together, then price it:
@@ -79,6 +84,7 @@ from ._native import (
     TernarySnowballOption,
     TouchOption,
     asset_binary_barrier_option,
+    asset_no_touch_option,
     asset_touch_option,
     autocallable_observations,
     both_down_snowball,
@@ -86,6 +92,7 @@ from ._native import (
     cash_binary_barrier_option,
     cash_double_no_touch,
     cash_double_touch,
+    cash_no_touch_option,
     cash_touch_option,
     digital_coupon_note,
     dual_coupon_snowball,
@@ -122,6 +129,7 @@ __all__ = [
     "TernarySnowballOption",
     "TouchOption",
     "asset_binary_barrier_option",
+    "asset_no_touch_option",
     "asset_touch_option",
     "autocallable_observations",
     "both_down_snowball",
@@ -129,6 +137,7 @@ __all__ = [
     "cash_binary_barrier_option",
     "cash_double_no_touch",
     "cash_double_touch",
+    "cash_no_touch_option",
     "cash_touch_option",
     "digital_coupon_note",
     "dual_coupon_snowball",

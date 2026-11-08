@@ -13,7 +13,11 @@ from kiyosi.instruments import (
     SnowballOption,
     TernarySnowballOption,
     TouchOption,
+    asset_no_touch_option,
+    asset_touch_option,
     autocallable_observations,
+    cash_no_touch_option,
+    cash_touch_option,
 )
 from kiyosi.market import PricingContext
 from kiyosi.pricing import (
@@ -26,6 +30,60 @@ from kiyosi.pricing import (
 BinaryBarrierOption()  # ty: ignore[no-matching-overload]
 TouchOption()  # ty: ignore[no-matching-overload]
 DoubleTouchOption()  # ty: ignore[missing-argument]
+
+
+def touch_payment_conditions(start: datetime, end: datetime) -> None:
+    assert_type(
+        cash_touch_option(
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=120,
+            barrier_type="up_and_in",
+            payout=10,
+        ),
+        TouchOption,
+    )
+    assert_type(
+        cash_no_touch_option(
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=120,
+            barrier_type="up_and_out",
+            payout=10,
+        ),
+        TouchOption,
+    )
+    assert_type(
+        asset_touch_option(
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=80,
+            barrier_type="down_and_in",
+        ),
+        TouchOption,
+    )
+    assert_type(
+        asset_no_touch_option(
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=80,
+            barrier_type="down_and_out",
+        ),
+        TouchOption,
+    )
+    cash_touch_option(
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_out",  # ty: ignore[invalid-argument-type]
+        payout=10,
+    )
+    asset_no_touch_option(
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=80,
+        barrier_type="down_and_in",  # ty: ignore[invalid-argument-type]
+    )
 
 
 def snowball_quote_application(note: SnowballOption, context: PricingContext) -> None:

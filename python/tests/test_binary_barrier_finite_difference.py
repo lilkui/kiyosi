@@ -51,7 +51,14 @@ def touch(factory=ins.cash_touch_option, **changes):
     terms["barrier_type"] = "up_and_in"
     if factory is ins.cash_touch_option:
         terms["payout"] = 10
-    return factory(**history_fields(**(terms | changes)))
+    terms |= changes
+    if terms["barrier_type"] in ("up_and_out", "down_and_out"):
+        factory = (
+            ins.cash_no_touch_option
+            if factory is ins.cash_touch_option
+            else ins.asset_no_touch_option
+        )
+    return factory(**history_fields(**terms))
 
 
 class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
@@ -485,7 +492,17 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 if not asset:
                     fields["payout"] = inputs["payout"]
                 if inputs["option"] == "none":
-                    factory = ins.asset_touch_option if asset else ins.cash_touch_option
+                    factory = (
+                        (
+                            ins.asset_no_touch_option
+                            if asset
+                            else ins.cash_no_touch_option
+                        )
+                        if kind.endswith("_out")
+                        else (
+                            ins.asset_touch_option if asset else ins.cash_touch_option
+                        )
+                    )
                     option = factory(
                         **history_fields(
                             **fields,

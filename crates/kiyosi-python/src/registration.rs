@@ -171,6 +171,14 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
+        instruments::binary_barrier::cash_no_touch_option,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        instruments::binary_barrier::asset_no_touch_option,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
         instruments::double_touch::cash_double_touch,
         module
     )?)?;

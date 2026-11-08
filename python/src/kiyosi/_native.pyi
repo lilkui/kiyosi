@@ -11970,7 +11970,8 @@ class TouchOption:
 
     Notes
     -----
-    The cash_touch_option and asset_touch_option functions are conveniences.
+    The cash_touch_option and asset_touch_option factories create one-touch
+    contracts; cash_no_touch_option and asset_no_touch_option create no-touch contracts.
     Prior at-hit payments are settled.
     """
 
@@ -12291,7 +12292,7 @@ def cash_touch_option(
     effective_time: datetime,
     expiry_time: datetime,
     barrier_level: _Real,
-    barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+    barrier_type: Literal["up_and_in", "down_and_in"],
     payout: _Real,
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_times: Iterable[datetime] | None = None,
@@ -12299,7 +12300,7 @@ def cash_touch_option(
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> TouchOption:
-    """Create a cash or asset one-touch or no-touch contract.
+    """Create a cash or asset one-touch contract.
 
     Parameters
     ----------
@@ -12309,8 +12310,8 @@ def cash_touch_option(
         Inclusive expiry time.
     barrier_level : float
         Positive finite trigger level; equality counts as a touch.
-    barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
-        In selects one-touch; out selects no-touch. Up/down selects direction.
+    barrier_type : {'up_and_in', 'down_and_in'}
+        Select the direction of the one-touch barrier.
 
     payout : float
         Positive finite cash payment.
@@ -12335,8 +12336,69 @@ def cash_touch_option(
     Raises
     ------
     InvalidInputError
-        If amounts, life times or observation terms are invalid, or at-hit
-        settlement is requested for a no-touch contract.
+        If the barrier's payment condition disagrees with the factory, amounts,
+        life times or observations are invalid, or no-touch settlement is at-hit.
+
+    Notes
+    -----
+    Trading-calendar consistency is checked on construction; history is checked
+    during pricing. Prior at-hit payments have no remaining value. A current
+    asset hit transfers spot; a future continuous asset hit transfers the
+    barrier amount. See the kiyosi.instruments module examples for
+    construction.
+    """
+
+def cash_no_touch_option(
+    *,
+    effective_time: datetime,
+    expiry_time: datetime,
+    barrier_level: _Real,
+    barrier_type: Literal["up_and_out", "down_and_out"],
+    payout: _Real,
+    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+    observation_times: Iterable[datetime] | None = None,
+    touch_state: Literal["untouched", "touched"] | None = None,
+    calendar: TradingCalendar = ...,
+    history_time: datetime | None = None,
+) -> TouchOption:
+    """Create a cash or asset no-touch contract.
+
+    Parameters
+    ----------
+    effective_time : datetime.datetime
+        Inclusive contract start.
+    expiry_time : datetime.datetime
+        Inclusive expiry time.
+    barrier_level : float
+        Positive finite trigger level; equality counts as a touch.
+    barrier_type : {'up_and_out', 'down_and_out'}
+        Select the direction of the no-touch barrier.
+
+    payout : float
+        Positive finite cash payment.
+    settlement_timing : {'at_hit', 'at_expiry'}, optional
+        Defaults to expiry. At-hit settlement requires a one-touch contract.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
+    touch_state : {'untouched', 'touched'} or None, optional
+        Strictly prior history. None is unknown; untouched means known no hit.
+    calendar : TradingCalendar, optional
+        Owned observation calendar; defaults to weekdays on construction and is
+        retained on replacement.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history; required when history is known.
+
+    Returns
+    -------
+    TouchOption
+        Validated owned contract. Asset settlement has no cash payout.
+
+    Raises
+    ------
+    InvalidInputError
+        If the barrier's payment condition disagrees with the factory, amounts,
+        life times or observations are invalid, or no-touch settlement is at-hit.
 
     Notes
     -----
@@ -12352,14 +12414,14 @@ def asset_touch_option(
     effective_time: datetime,
     expiry_time: datetime,
     barrier_level: _Real,
-    barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+    barrier_type: Literal["up_and_in", "down_and_in"],
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> TouchOption:
-    """Create a cash or asset one-touch or no-touch contract.
+    """Create a cash or asset one-touch contract.
 
     Parameters
     ----------
@@ -12369,8 +12431,8 @@ def asset_touch_option(
         Inclusive expiry time.
     barrier_level : float
         Positive finite trigger level; equality counts as a touch.
-    barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
-        In selects one-touch; out selects no-touch. Up/down selects direction.
+    barrier_type : {'up_and_in', 'down_and_in'}
+        Select the direction of the one-touch barrier.
 
     settlement_timing : {'at_hit', 'at_expiry'}, optional
         Defaults to expiry. At-hit settlement requires a one-touch contract.
@@ -12393,8 +12455,66 @@ def asset_touch_option(
     Raises
     ------
     InvalidInputError
-        If amounts, life times or observation terms are invalid, or at-hit
-        settlement is requested for a no-touch contract.
+        If the barrier's payment condition disagrees with the factory, amounts,
+        life times or observations are invalid, or no-touch settlement is at-hit.
+
+    Notes
+    -----
+    Trading-calendar consistency is checked on construction; history is checked
+    during pricing. Prior at-hit payments have no remaining value. A current
+    asset hit transfers spot; a future continuous asset hit transfers the
+    barrier amount. See the kiyosi.instruments module examples for
+    construction.
+    """
+
+def asset_no_touch_option(
+    *,
+    effective_time: datetime,
+    expiry_time: datetime,
+    barrier_level: _Real,
+    barrier_type: Literal["up_and_out", "down_and_out"],
+    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+    observation_times: Iterable[datetime] | None = None,
+    touch_state: Literal["untouched", "touched"] | None = None,
+    calendar: TradingCalendar = ...,
+    history_time: datetime | None = None,
+) -> TouchOption:
+    """Create a cash or asset no-touch contract.
+
+    Parameters
+    ----------
+    effective_time : datetime.datetime
+        Inclusive contract start.
+    expiry_time : datetime.datetime
+        Inclusive expiry time.
+    barrier_level : float
+        Positive finite trigger level; equality counts as a touch.
+    barrier_type : {'up_and_out', 'down_and_out'}
+        Select the direction of the no-touch barrier.
+
+    settlement_timing : {'at_hit', 'at_expiry'}, optional
+        Defaults to expiry. At-hit settlement requires a one-touch contract.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
+    touch_state : {'untouched', 'touched'} or None, optional
+        Strictly prior history. None is unknown; untouched means known no hit.
+    calendar : TradingCalendar, optional
+        Owned observation calendar; defaults to weekdays on construction and is
+        retained on replacement.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history; required when history is known.
+
+    Returns
+    -------
+    TouchOption
+        Validated owned contract. Asset settlement has no cash payout.
+
+    Raises
+    ------
+    InvalidInputError
+        If the barrier's payment condition disagrees with the factory, amounts,
+        life times or observations are invalid, or no-touch settlement is at-hit.
 
     Notes
     -----

@@ -618,8 +618,8 @@ class ApiConsistencyTests(unittest.TestCase):
                 ins.asset_binary_barrier_option,
                 dict(life, **vanilla, **single, **monitoring),
             ),
-            (ins.cash_touch_option, dict(life, **single, payout=10, **monitoring)),
-            (ins.asset_touch_option, dict(life, **single, **monitoring)),
+            (ins.cash_no_touch_option, dict(life, **single, payout=10, **monitoring)),
+            (ins.asset_no_touch_option, dict(life, **single, **monitoring)),
             (
                 ins.cash_double_touch,
                 dict(

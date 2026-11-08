@@ -168,11 +168,15 @@ def terminal_cases():
     ]
     for factory, kind, amount in (
         (ins.cash_touch_option, "up_and_in", 0),
-        (ins.cash_touch_option, "up_and_out", 10),
+        (ins.cash_no_touch_option, "up_and_out", 10),
         (ins.asset_touch_option, "up_and_in", 0),
-        (ins.asset_touch_option, "up_and_out", 105),
+        (ins.asset_no_touch_option, "up_and_out", 105),
     ):
-        payout = {"payout": 10} if factory is ins.cash_touch_option else {}
+        payout = (
+            {"payout": 10}
+            if factory in (ins.cash_touch_option, ins.cash_no_touch_option)
+            else {}
+        )
         cases.append(
             (
                 factory(

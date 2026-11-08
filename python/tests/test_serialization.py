@@ -209,8 +209,12 @@ def values():
                 **({"payout": 10} if cash else {}),
             )
         )
-    for factory, cash in ((i.cash_touch_option, True), (i.asset_touch_option, False)):
+    for cash in (True, False):
         for kind in ("up_and_in", "down_and_out"):
+            if kind.endswith("_in"):
+                factory = i.cash_touch_option if cash else i.asset_touch_option
+            else:
+                factory = i.cash_no_touch_option if cash else i.asset_no_touch_option
             yield factory(
                 **history_fields(
                     barrier_level=120,

@@ -12,6 +12,37 @@ from support.history import history_fields
 
 
 class BinaryTouchConstructionTests(unittest.TestCase):
+    def test_named_touch_factories_enforce_the_payment_condition(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for direction, level in (("up", 120), ("down", 80)):
+            for factory, condition, payout, expected in (
+                (ins.cash_touch_option, "in", {"payout": 10}, 0),
+                (ins.cash_no_touch_option, "out", {"payout": 10}, 10),
+                (ins.asset_touch_option, "in", {}, 0),
+                (ins.asset_no_touch_option, "out", {}, 100),
+            ):
+                terms = {
+                    "effective_time": start,
+                    "expiry_time": end,
+                    "barrier_level": level,
+                    **payout,
+                }
+                option = factory(**terms, barrier_type=f"{direction}_and_{condition}")
+                self.assertEqual(
+                    pricing.AnalyticBinaryBarrierEngine().price(option, context),
+                    expected,
+                )
+                opposite = "out" if condition == "in" else "in"
+                with self.assertRaises(InvalidInputError):
+                    factory(**terms, barrier_type=f"{direction}_and_{opposite}")
+
     def test_payoff_kind_is_explicit_and_null_amount_cannot_change_cash_settlement(
         self,
     ):
@@ -81,13 +112,13 @@ class BinaryTouchConstructionTests(unittest.TestCase):
             (ins.TouchOption, ins.asset_touch_option, dict(single, payout=None), 125),
             (
                 ins.TouchOption,
-                ins.cash_touch_option,
+                ins.cash_no_touch_option,
                 dict(single, barrier_type="up_and_out", payout=10),
                 0,
             ),
             (
                 ins.TouchOption,
-                ins.asset_touch_option,
+                ins.asset_no_touch_option,
                 dict(single, barrier_type="up_and_out", payout=None),
                 0,
             ),

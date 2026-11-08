@@ -86,6 +86,44 @@ fn binary_branches_preserve_in_out_parity() {
 fn touch(kind: BarrierType) -> TouchOptionTerms {
     TouchOptionTerms::new(day(2025, 1, 1), day(2026, 1, 1), 120.0, kind)
 }
+
+#[test]
+fn named_touch_constructors_enforce_the_payment_condition() -> Result<()> {
+    let start = day(2025, 1, 1);
+    let end = start.add_days(365)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    for (inside, outside, level) in [
+        (BarrierType::UpAndIn, BarrierType::UpAndOut, 120.0),
+        (BarrierType::DownAndIn, BarrierType::DownAndOut, 80.0),
+    ] {
+        let terms = |kind| TouchOptionTerms::new(start, end, level, kind);
+        for (option, expected) in [
+            (TouchOption::cash_one_touch(terms(inside), 10.0)?, 0.0),
+            (TouchOption::cash_no_touch(terms(outside), 10.0)?, 10.0),
+            (TouchOption::asset_one_touch(terms(inside))?, 0.0),
+            (TouchOption::asset_no_touch(terms(outside))?, 100.0),
+        ] {
+            assert_eq!(
+                AnalyticBinaryBarrierEngine.price(&option, &context)?,
+                expected
+            );
+        }
+        for result in [
+            TouchOption::cash_one_touch(terms(outside), 10.0),
+            TouchOption::cash_no_touch(terms(inside), 10.0),
+            TouchOption::asset_one_touch(terms(outside)),
+            TouchOption::asset_no_touch(terms(inside)),
+        ] {
+            assert!(matches!(result, Err(Error::InvalidInput(_))));
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn strict_prior_history_and_current_settlement_are_distinct() {
     let engine = AnalyticBinaryBarrierEngine;
