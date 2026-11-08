@@ -1,5 +1,8 @@
 macro_rules! analytic_engine {
     ($(#[$doc:meta])* $engine:ident, $option:ident) => {
+        analytic_engine!($(#[$doc])* $engine, $option, |_option, _context| false);
+    };
+    ($(#[$doc:meta])* $engine:ident, $option:ident, |$contract:ident, $market:ident| $short:expr) => {
         $(#[$doc])*
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
@@ -60,9 +63,14 @@ macro_rules! analytic_engine {
                 context: &PricingContext,
                 request: impl crate::engines::PricingRequest<R>,
             ) -> PyResult<R> {
-                let option = &instrument.0;
-                let context = &context.0;
-                domain(request.run(py, || request.evaluate(&kiyosi::$engine, option, context))?)
+                let $contract = &instrument.0;
+                let $market = &context.0;
+                let calculate = || request.evaluate(&kiyosi::$engine, $contract, $market);
+                domain(if request.is_short() && $short {
+                    calculate()
+                } else {
+                    request.run(py, calculate)?
+                })
             }
         }
     };

@@ -14,5 +14,9 @@ analytic_engine!(
     /// BarrierOption : Supported contract.
     ///
     AnalyticBarrierEngine,
-    BarrierOption
+    BarrierOption,
+    |option, context| option.rebate() == 0.0
+        && option.observation_times().is_none()
+        && matches!(context.model_parameters(), kiyosi::ModelParameters::BlackScholesMerton(model)
+            if model.volatility() > 0.0)
 );

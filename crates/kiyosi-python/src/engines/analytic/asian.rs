@@ -13,7 +13,8 @@ analytic_engine!(
     /// GeometricAveragePriceOption : Supported contract.
     ///
     AnalyticGeometricAveragePriceEngine,
-    GeometricAveragePriceOption
+    GeometricAveragePriceOption,
+    |_option, _context| true
 );
 analytic_engine!(
     /// Continuous arithmetic average-price Asian approximation.
@@ -26,5 +27,6 @@ analytic_engine!(
     /// ArithmeticAveragePriceOption : Supported contract.
     ///
     TurnbullWakemanArithmeticAveragePriceEngine,
-    ArithmeticAveragePriceOption
+    ArithmeticAveragePriceOption,
+    |_option, _context| true
 );
