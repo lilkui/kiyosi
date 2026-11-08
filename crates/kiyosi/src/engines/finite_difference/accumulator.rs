@@ -106,6 +106,23 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
+    fn greek_settings(&self, _option: &Accumulator) -> crate::NumericalShiftSettings {
+        self.settings.greek_shifts()
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &Accumulator,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        <Self as PricingEngine<Accumulator>>::validate_applicability(self, context)?;
+        shifts.validate()?;
+        let engine = Self {
+            settings: self.settings.with_greek_shifts(shifts),
+        };
+        <Self as PricingEngine<Accumulator>>::price_with_greeks(&engine, option, context, request)
+    }
     fn price_with_greeks(
         &self,
         option: &Accumulator,

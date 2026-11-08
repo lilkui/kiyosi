@@ -483,7 +483,22 @@ macro_rules! vanilla_pricing {
                 context: &PricingContext,
                 request: GreeksRequest,
             ) -> Result<PricingResult> {
-                let settings = crate::NumericalShiftSettings::default();
+                <Self as PricingEngine<$option>>::price_with_greeks_with_settings(
+                    self,
+                    option,
+                    context,
+                    request,
+                    Default::default(),
+                )
+            }
+
+            fn price_with_greeks_with_settings(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                request: GreeksRequest,
+                settings: crate::NumericalShiftSettings,
+            ) -> Result<PricingResult> {
                 context.bsm_parameters()?;
                 flat_rates(context)?;
                 request.validate()?;
@@ -598,13 +613,22 @@ impl CoxRossRubinsteinDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
+        self.greeks_with_settings(option, context, request, Default::default())
+    }
+
+    fn greeks_with_settings(
+        self,
+        option: &DigitalOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
         settings.validate()?;
         if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, settings).map(
+            return crate::numerical_greeks(&self, option, context, request, settings).map(
                 |result| {
                     result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
                 },
@@ -668,6 +692,16 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
+        self.greeks_with_settings(option, context, request, settings)
     }
     fn prepare_implied_volatility(
         &self,

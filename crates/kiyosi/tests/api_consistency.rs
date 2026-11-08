@@ -2485,6 +2485,17 @@ fn fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates() -> Result<(
     let engine = FiniteDifferenceVanillaEngine::new(configured)?;
     assert_eq!(engine.settings(), configured);
     let tuned = engine.price_with_greeks(&option, &context, request)?;
+    let original = FiniteDifferenceVanillaEngine::new(settings)?;
+    assert_eq!(
+        original.price_with_greeks_with_settings(
+            &option,
+            &context,
+            request,
+            engine.greek_settings(&option)
+        )?,
+        tuned
+    );
+    assert_eq!(original.settings(), settings);
     assert_eq!(tuned.price(), base.price());
     assert_eq!(tuned.require(Greek::Delta)?, base.require(Greek::Delta)?);
     assert_eq!(tuned.require(Greek::Gamma)?, base.require(Greek::Gamma)?);

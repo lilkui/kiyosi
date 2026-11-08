@@ -445,7 +445,7 @@ class PackageTests(unittest.TestCase):
                     spot_shift=invalid,
                 )
 
-    def test_native_greek_methods_reject_numerical_controls(self):
+    def test_native_greek_methods_accept_uniform_controls(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -490,14 +490,6 @@ class PackageTests(unittest.TestCase):
             with self.subTest(
                 engine=type(engine).__name__, instrument=type(option).__name__
             ):
-                self.assertEqual(
-                    tuple(inspect.signature(engine.price_with_greeks).parameters),
-                    (
-                        "instrument",
-                        "context",
-                        "greeks",
-                    ),
-                )
                 result = numerical_greeks(
                     engine,
                     dated_history(option, context),
@@ -511,6 +503,16 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(
                     result.price, engine.price(dated_history(option, context), context)
                 )
+                native = engine.price_with_greeks(
+                    dated_history(option, context),
+                    context,
+                    "delta",
+                    spot_shift=0.2,
+                    volatility_shift=0.001,
+                    rate_shift=0.001,
+                    time_shift=timedelta(days=2),
+                )
+                self.assertEqual(native.price, result.price)
                 for control in (
                     "spot_shift",
                     "volatility_shift",
@@ -522,7 +524,23 @@ class PackageTests(unittest.TestCase):
                             dated_history(option, context),
                             context,
                             "delta",
-                            **{control: 1},
+                            **{control: True},
+                        )
+                for control, value in (
+                    ("spot_shift", 0),
+                    ("volatility_shift", float("nan")),
+                    ("rate_shift", 0),
+                    ("time_shift", timedelta()),
+                ):
+                    with (
+                        self.subTest(control=control),
+                        self.assertRaises(kiyosi.InvalidInputError),
+                    ):
+                        engine.price_with_greeks(
+                            dated_history(option, context),
+                            context,
+                            "delta",
+                            **{control: value},
                         )
                 for invalid in (1, None, True):
                     with self.assertRaises(TypeError):
@@ -534,7 +552,7 @@ class PackageTests(unittest.TestCase):
                         dated_history(option, context), context, "delta", unknown=True
                     )
 
-    def test_native_greek_signatures_expose_only_applicable_controls(self):
+    def test_native_greek_signatures_share_keyword_controls(self):
         for name in pricing.__all__:
             if not name.endswith("Engine"):
                 continue
@@ -552,22 +570,10 @@ class PackageTests(unittest.TestCase):
                         "instrument",
                         "context",
                         "greeks",
-                        *(
-                            ("spot_shift",)
-                            if name
-                            in (
-                                "MonteCarloBarrierEngine",
-                                "MonteCarloDoubleBarrierEngine",
-                            )
-                            else (
-                                "spot_shift",
-                                "volatility_shift",
-                                "rate_shift",
-                                "time_shift",
-                            )
-                            if name == "AnalyticDigitalEngine"
-                            else ()
-                        ),
+                        "spot_shift",
+                        "volatility_shift",
+                        "rate_shift",
+                        "time_shift",
                     ),
                 )
 

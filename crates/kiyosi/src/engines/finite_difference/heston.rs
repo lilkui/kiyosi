@@ -219,6 +219,17 @@ macro_rules! pricing {
             ) -> Result<PricingResult> {
                 Self::price_with_greeks(self, option, context, request)
             }
+            fn price_with_greeks_with_settings(
+                &self,
+                option: &$instrument,
+                context: &PricingContext,
+                request: GreeksRequest,
+                settings: crate::NumericalShiftSettings,
+            ) -> Result<PricingResult> {
+                <Self as PricingEngine<$instrument>>::validate_applicability(self, context)?;
+                settings.validate()?;
+                Self::price_with_greeks(self, option, context, request)
+            }
         }
     };
 }

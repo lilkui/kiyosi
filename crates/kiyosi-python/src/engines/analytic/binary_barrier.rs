@@ -2,7 +2,6 @@ use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::binary_barrier::{self, BinaryInstrument};
 use crate::market::PricingContext;
-use crate::risk;
 use pyo3::prelude::*;
 /// Flat-rate binary-barrier and single-touch analytics.
 ///
@@ -15,18 +14,6 @@ use pyo3::prelude::*;
 pub(crate) struct AnalyticBinaryBarrierEngine;
 numerical_greeks_methods!(
     BinaryInstrument<'_>,
-    |_binding, py, instrument, context, request| {
-        let context = &context.0;
-        let result = binary_barrier::with_binary!(
-            instrument,
-            option,
-            crate::cancellation::run(py, || {
-                kiyosi::AnalyticBinaryBarrierEngine
-                    .price_with_greeks(option, context, request)
-            })?
-        );
-        Ok(risk::PricingResult(domain(result)?))
-    },
     [
         ///
         /// Notes

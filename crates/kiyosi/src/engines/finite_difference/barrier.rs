@@ -112,6 +112,23 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
+    fn greek_settings(&self, _option: &BarrierOption) -> crate::NumericalShiftSettings {
+        self.settings.greek_shifts()
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &BarrierOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        <Self as PricingEngine<BarrierOption>>::validate_applicability(self, context)?;
+        shifts.validate()?;
+        let engine = Self {
+            settings: self.settings.with_greek_shifts(shifts),
+        };
+        <Self as PricingEngine<BarrierOption>>::price_with_greeks(&engine, option, context, request)
+    }
     fn price_with_greeks(
         &self,
         option: &BarrierOption,
@@ -291,6 +308,25 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
     }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
+    }
+    fn greek_settings(&self, _option: &DoubleBarrierOption) -> crate::NumericalShiftSettings {
+        self.settings.greek_shifts()
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        <Self as PricingEngine<DoubleBarrierOption>>::validate_applicability(self, context)?;
+        shifts.validate()?;
+        let engine = Self {
+            settings: self.settings.with_greek_shifts(shifts),
+        };
+        <Self as PricingEngine<DoubleBarrierOption>>::price_with_greeks(
+            &engine, option, context, request,
+        )
     }
     fn price_with_greeks(
         &self,

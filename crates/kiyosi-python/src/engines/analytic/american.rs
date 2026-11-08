@@ -2,7 +2,6 @@ use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::american::AmericanOption;
 use crate::market::PricingContext;
-use crate::risk;
 use pyo3::prelude::*;
 /// Bjerksund-Stensland 2002 American approximation with flat rates.
 ///
@@ -22,14 +21,6 @@ pub(crate) struct BjerksundStenslandVanillaEngine;
 
 numerical_greeks_methods!(
     PyRef<'_, AmericanOption>,
-    |_binding, _py, instrument, context, request| {
-        Ok(risk::PricingResult(domain(
-            kiyosi::BjerksundStenslandVanillaEngine.price_with_greeks(
-                &instrument.0,
-                &context.0,
-                request),
-        )?))
-    },
     [
         ///
         /// Notes
@@ -96,7 +87,7 @@ impl BjerksundStenslandVanillaEngine {
         let calculate =
             || request.evaluate(&kiyosi::BjerksundStenslandVanillaEngine, option, context);
         // Keep the GIL for short scalar formulas, but release it for iterative solves.
-        domain(if request.is_price() {
+        domain(if request.is_short() {
             calculate()
         } else {
             request.run(py, calculate)?

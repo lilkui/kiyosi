@@ -8,11 +8,11 @@
 //! Construct a contract and a [`PricingContext`], then choose an engine for that
 //! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
 //! parameter solvers. Engine `price_with_greeks` methods use their native estimators
-//! and configured controls. Finite-difference settings expose all four Greek shifts,
-//! retaining their native spatial estimators. Configure scalar differences explicitly through
+//! and configured controls. [`PricingEngine::price_with_greeks_with_settings`] accepts
+//! request-level shifts while retaining native estimators and engine/model coverage.
+//! [`PricingEngine::greek_settings`] returns each engine's defaults.
+//! Configure scalar differences explicitly through
 //! [`numerical_greeks`] and [`NumericalShiftSettings`].
-//! Native Monte Carlo barrier spot controls are available through
-//! [`MonteCarloBarrierEngine::price_with_greeks_with_spot_shift`] and its double-barrier counterpart.
 //! [`AnalyticEuropeanEngine`] and [`FiniteDifferenceVanillaEngine`] compute exact
 //! supported expiry payoff derivatives away from the strike, without numerical spot bumps.
 //! Monte Carlo engines expose `price_with_statistics` for sampling uncertainty;

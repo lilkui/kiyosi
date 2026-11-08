@@ -254,4 +254,15 @@ impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
         context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
     }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
+        settings.validate()?;
+        Self::price_with_greeks_with_settings(self, option, context, request, settings)
+    }
 }

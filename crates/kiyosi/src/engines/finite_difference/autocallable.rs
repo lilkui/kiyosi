@@ -118,6 +118,25 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
+    fn greek_settings(&self, _option: &AutocallableNote<T>) -> crate::NumericalShiftSettings {
+        self.settings.greek_shifts()
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &AutocallableNote<T>,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        <Self as PricingEngine<AutocallableNote<T>>>::validate_applicability(self, context)?;
+        shifts.validate()?;
+        let engine = Self {
+            settings: self.settings.with_greek_shifts(shifts),
+        };
+        <Self as PricingEngine<AutocallableNote<T>>>::price_with_greeks(
+            &engine, option, context, request,
+        )
+    }
     fn price_with_greeks(
         &self,
         option: &AutocallableNote<T>,

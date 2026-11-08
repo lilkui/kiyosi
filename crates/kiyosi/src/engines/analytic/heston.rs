@@ -267,6 +267,17 @@ impl PricingEngine for AnalyticHestonEuropeanEngine {
     ) -> Result<PricingResult> {
         Self::price_with_greeks(self, option, context, request)
     }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        <Self as PricingEngine<EuropeanOption>>::validate_applicability(self, context)?;
+        settings.validate()?;
+        Self::price_with_greeks(self, option, context, request)
+    }
 }
 
 fn computation() -> Error {

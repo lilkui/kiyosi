@@ -4,20 +4,16 @@ European vanilla and digital contracts support valuation before effective_time, 
 Greeks and implied volatility, when the model data covers valuation through expiry.
 Other contracts require valuation within their inclusive life and validate prior history.
 
-Engine ``price_with_greeks(instrument, context, greeks)`` methods use the engine's
-estimator and configured controls. Finite-difference engines accept a positive
-``spot_shift`` at construction to configure native Greek availability checks
-and terminal stencils, including under local volatility. Their ``volatility_shift``,
-``rate_shift`` and ``time_shift`` constructor controls tune numerical BSM Greeks
-while retaining native spatial delta and gamma. AnalyticDigitalEngine accepts all four
-shift controls on price_with_greeks, preserving analytic delta and gamma at positive
-volatility before expiry while tuning numerical fallback Greeks.
-Monte Carlo single- and double-barrier engines accept
-an optional keyword-only ``spot_shift`` for event checks, at-hit rebate derivatives
-and expiry stencils, retaining their native estimator. Other engines accept no bump arguments. Configure scalar
-finite differences explicitly through ``numerical_greeks(engine, instrument,
-context, greeks, spot_shift=..., volatility_shift=..., rate_shift=...,
-time_shift=...)``. All numerical controls are validated there.
+Engine ``price_with_greeks(instrument, context, greeks, *, spot_shift=...,
+volatility_shift=..., rate_shift=..., time_shift=...)`` methods share the same
+keyword-only controls. Omission or Ellipsis uses engine settings; finite-difference
+engines retain their configured shifts. Explicit None selects automatic spot or
+time bumps. Explicit controls override the request without changing the engine.
+The defaults are defined in Rust: automatic spot/time bumps and 0.0001 decimal
+volatility/rate bumps. Every supplied control is validated, including controls
+unused by the requested measures. Native estimators and engine/model coverage
+are preserved; controls tune numerical fallback Greeks, event checks and terminal
+stencils. Use ``numerical_greeks`` to select scalar price differences explicitly.
 
 BSM ``volatility=0`` uses exact deterministic valuation in each supported engine,
 including American exercise, continuous or scheduled touches, and structured-product
@@ -163,8 +159,8 @@ uses spot controls for numerical derivatives or availability checks. ``"terminal
 uses expiry payoff stencils; ``"unsupported"`` supplies no Greeks.
 ``engine.active_greek_controls(instrument, context)`` lists shift controls
 potentially used across supported requests. Monte Carlo barrier methods expose
-``spot_shift``; finite-difference constructors expose all four shift controls.
-Other engines use internal defaults. Queries check model
+``spot_shift``; all engines accept the same four request-level shift controls.
+Omitted controls use engine settings. Queries check model
 applicability without pricing or sampling; pricing validates life and history.
 Use ``numerical_greeks`` for configurable scalar differences. This can provide
 measures beyond native engine coverage; Heston and local volatility are

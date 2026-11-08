@@ -211,10 +211,24 @@ impl MonteCarloDoubleBarrierEngine {
         request: GreeksRequest,
         spot_shift: Option<f64>,
     ) -> Result<PricingResult> {
-        let shifts = crate::NumericalShiftSettings {
-            spot_shift,
-            ..Default::default()
-        };
+        self.greeks_with_settings(
+            option,
+            context,
+            request,
+            crate::NumericalShiftSettings {
+                spot_shift,
+                ..Default::default()
+            },
+        )
+    }
+
+    fn greeks_with_settings(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, shifts).map(|result| {
                 result.with_request(
@@ -306,6 +320,15 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        self.greeks_with_settings(option, context, request, settings)
     }
     fn volatility_affects_price(
         &self,

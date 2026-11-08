@@ -1423,9 +1423,8 @@ class AnalyticEuropeanEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1452,8 +1451,13 @@ class AnalyticEuropeanEngine:
         instrument: EuropeanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -1463,6 +1467,16 @@ class AnalyticEuropeanEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -1473,22 +1487,17 @@ class AnalyticEuropeanEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Uses analytic Greeks at positive volatility before expiry, scalar differences
         at zero volatility, and default terminal stencils at expiry.
-        Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        Use numerical_greeks for configurable scalar differences."""
 
 class AnalyticHestonEuropeanEngine:
     """Price European calls and puts under Heston by adaptive Fourier integration.
@@ -1563,9 +1572,8 @@ class AnalyticHestonEuropeanEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1598,8 +1606,13 @@ class AnalyticHestonEuropeanEngine:
         instrument: EuropeanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -1609,6 +1622,16 @@ class AnalyticHestonEuropeanEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -1619,21 +1642,16 @@ class AnalyticHestonEuropeanEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         All requested Greeks are unsupported and are None. Bump controls are
-        not accepted; numerical_greeks also rejects Heston.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        not accepted; numerical_greeks also rejects Heston."""
 
 class BjerksundStenslandVanillaEngine:
     """Bjerksund-Stensland 2002 American approximation with flat rates.
@@ -1670,9 +1688,8 @@ class BjerksundStenslandVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: AmericanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1699,8 +1716,13 @@ class BjerksundStenslandVanillaEngine:
         instrument: AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -1710,6 +1732,16 @@ class BjerksundStenslandVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -1720,21 +1752,16 @@ class BjerksundStenslandVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class AnalyticDigitalEngine:
     """Analytic European digital pricing with deterministic rate curves.
@@ -1769,9 +1796,8 @@ class AnalyticDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self,
@@ -1803,12 +1829,12 @@ class AnalyticDigitalEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -1819,12 +1845,15 @@ class AnalyticDigitalEngine:
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
         spot_shift : float or None, optional
-            Positive absolute spot bump, or None for automatic selection.
+            Positive absolute spot bump; None selects the product's automatic bump.
         volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks; defaults to 0.0001.
+            Positive decimal bumps for numerical fallback Greeks.
         time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
-            Positive-volatility analytic delta and gamma retain their estimator before expiry.
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -1835,23 +1864,18 @@ class AnalyticDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Delta and gamma are analytic at positive volatility before expiry.
         At zero volatility they use scalar differences. Other Greeks use numerical
         differences with the supplied shifts. At expiry spot Greeks use the supplied
-        terminal-payoff stencils. Use numerical_greeks for scalar-only differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        terminal-payoff stencils. Use numerical_greeks for scalar-only differences."""
 
 class CoxRossRubinsteinBarrierEngine:
     """Flat-rate Cox-Ross-Rubinstein tree pricing.
@@ -1899,9 +1923,8 @@ class CoxRossRubinsteinBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1928,8 +1951,13 @@ class CoxRossRubinsteinBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -1939,6 +1967,16 @@ class CoxRossRubinsteinBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -1949,23 +1987,18 @@ class CoxRossRubinsteinBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         At positive volatility before expiry delta and gamma use tree nodes.
         Zero volatility uses scalar differences. Other Greeks are
         unsupported. At expiry spot Greeks use default terminal-payoff
-        stencils. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        stencils. Use numerical_greeks for configurable scalar differences."""
 
 class QuadratureBarrierEngine:
     """Flat-rate quadrature pricing with immutable integration settings.
@@ -2027,9 +2060,8 @@ class QuadratureBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -2056,8 +2088,13 @@ class QuadratureBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -2067,6 +2104,16 @@ class QuadratureBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -2077,21 +2124,16 @@ class QuadratureBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class QuadratureDigitalEngine:
     """Flat-rate quadrature pricing with immutable integration settings.
@@ -2166,9 +2208,8 @@ class QuadratureDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self,
@@ -2199,8 +2240,13 @@ class QuadratureDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -2210,6 +2256,16 @@ class QuadratureDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -2220,21 +2276,16 @@ class QuadratureDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class QuadratureVanillaEngine:
     """Flat-rate quadrature pricing with immutable integration settings.
@@ -2315,9 +2366,8 @@ class QuadratureVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -2346,8 +2396,13 @@ class QuadratureVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -2357,6 +2412,16 @@ class QuadratureVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -2367,21 +2432,16 @@ class QuadratureVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class CoxRossRubinsteinVanillaEngine:
     """Flat-rate Cox-Ross-Rubinstein tree pricing.
@@ -2425,9 +2485,8 @@ class CoxRossRubinsteinVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -2456,8 +2515,13 @@ class CoxRossRubinsteinVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -2467,6 +2531,16 @@ class CoxRossRubinsteinVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -2477,23 +2551,18 @@ class CoxRossRubinsteinVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         At positive volatility before expiry delta and gamma use tree nodes; one-step gamma and
         other Greeks use numerical differences with engine defaults. At expiry
         spot Greeks use default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences. Zero volatility uses scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences. Zero volatility uses scalar differences."""
 
 class CoxRossRubinsteinDigitalEngine:
     """Flat-rate Cox-Ross-Rubinstein tree pricing.
@@ -2546,9 +2615,8 @@ class CoxRossRubinsteinDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self,
@@ -2579,8 +2647,13 @@ class CoxRossRubinsteinDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -2590,6 +2663,16 @@ class CoxRossRubinsteinDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -2600,23 +2683,18 @@ class CoxRossRubinsteinDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         At positive volatility before expiry delta and gamma use tree nodes.
         Zero volatility uses scalar differences. Other Greeks are
         unsupported. At expiry spot Greeks use default terminal-payoff
-        stencils. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        stencils. Use numerical_greeks for configurable scalar differences."""
 
 class FiniteDifferenceAccumulatorEngine:
     """Finite-difference pricing with immutable grid settings.
@@ -2742,9 +2820,8 @@ class FiniteDifferenceAccumulatorEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -2775,8 +2852,13 @@ class FiniteDifferenceAccumulatorEngine:
         instrument: Accumulator,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -2786,6 +2868,16 @@ class FiniteDifferenceAccumulatorEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -2796,11 +2888,11 @@ class FiniteDifferenceAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
@@ -2810,12 +2902,7 @@ class FiniteDifferenceAccumulatorEngine:
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences under BSM.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences under BSM."""
 
 class FiniteDifferenceBarrierEngine:
     """Finite-difference pricing with immutable grid settings.
@@ -2941,9 +3028,8 @@ class FiniteDifferenceBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -2974,8 +3060,13 @@ class FiniteDifferenceBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -2985,6 +3076,16 @@ class FiniteDifferenceBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -2995,11 +3096,11 @@ class FiniteDifferenceBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
@@ -3009,12 +3110,7 @@ class FiniteDifferenceBarrierEngine:
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences under BSM.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences under BSM."""
 
 class FiniteDifferenceDoubleBarrierEngine:
     """Finite-difference pricing with immutable grid settings.
@@ -3140,9 +3236,8 @@ class FiniteDifferenceDoubleBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3173,8 +3268,13 @@ class FiniteDifferenceDoubleBarrierEngine:
         instrument: DoubleBarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -3184,6 +3284,16 @@ class FiniteDifferenceDoubleBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -3194,11 +3304,11 @@ class FiniteDifferenceDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
@@ -3208,12 +3318,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences under BSM.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences under BSM."""
 
 class FiniteDifferenceAutocallableEngine:
     """Finite-difference pricing with immutable grid settings.
@@ -3349,9 +3454,8 @@ class FiniteDifferenceAutocallableEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3392,8 +3496,13 @@ class FiniteDifferenceAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -3403,6 +3512,16 @@ class FiniteDifferenceAutocallableEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -3413,11 +3532,11 @@ class FiniteDifferenceAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
@@ -3427,12 +3546,7 @@ class FiniteDifferenceAutocallableEngine:
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences under BSM.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences under BSM."""
 
 class FiniteDifferenceDoubleTouchEngine:
     """Finite-difference pricing with immutable grid settings.
@@ -3558,9 +3672,8 @@ class FiniteDifferenceDoubleTouchEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3591,8 +3704,13 @@ class FiniteDifferenceDoubleTouchEngine:
         instrument: DoubleTouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -3602,6 +3720,16 @@ class FiniteDifferenceDoubleTouchEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -3612,11 +3740,11 @@ class FiniteDifferenceDoubleTouchEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
@@ -3626,12 +3754,7 @@ class FiniteDifferenceDoubleTouchEngine:
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences under BSM.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences under BSM."""
 
 class FiniteDifferenceBinaryBarrierEngine:
     """Finite-difference pricing with immutable grid settings.
@@ -3757,9 +3880,8 @@ class FiniteDifferenceBinaryBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3792,8 +3914,13 @@ class FiniteDifferenceBinaryBarrierEngine:
         instrument: BinaryBarrierOption | TouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -3803,6 +3930,16 @@ class FiniteDifferenceBinaryBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -3813,11 +3950,11 @@ class FiniteDifferenceBinaryBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
@@ -3827,12 +3964,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences under BSM.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences under BSM."""
 
 class FiniteDifferenceHestonVanillaEngine:
     """Finite-difference prices for European and American options under Heston.
@@ -3928,9 +4060,8 @@ class FiniteDifferenceHestonVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -3963,8 +4094,13 @@ class FiniteDifferenceHestonVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -3974,6 +4110,16 @@ class FiniteDifferenceHestonVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -3984,21 +4130,16 @@ class FiniteDifferenceHestonVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         All requested Greeks are unsupported and are None. Bump controls are
-        not accepted; numerical_greeks also rejects Heston.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        not accepted; numerical_greeks also rejects Heston."""
 
 class FiniteDifferenceVanillaEngine:
     """Finite-difference pricing with immutable grid settings.
@@ -4124,9 +4265,8 @@ class FiniteDifferenceVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -4159,8 +4299,13 @@ class FiniteDifferenceVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -4170,6 +4315,16 @@ class FiniteDifferenceVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -4180,11 +4335,11 @@ class FiniteDifferenceVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
@@ -4194,12 +4349,7 @@ class FiniteDifferenceVanillaEngine:
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences under BSM.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences under BSM."""
 
 class FiniteDifferenceDigitalEngine:
     """Finite-difference pricing with immutable grid settings.
@@ -4329,9 +4479,8 @@ class FiniteDifferenceDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -4366,8 +4515,13 @@ class FiniteDifferenceDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -4377,6 +4531,16 @@ class FiniteDifferenceDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -4387,11 +4551,11 @@ class FiniteDifferenceDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
@@ -4401,12 +4565,7 @@ class FiniteDifferenceDigitalEngine:
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
-        for configurable scalar differences under BSM.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        for configurable scalar differences under BSM."""
 
 class MonteCarloVanillaEngine:
     """Flat-rate CPU Monte Carlo pricing for European and American vanilla
@@ -4527,8 +4686,8 @@ class MonteCarloVanillaEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer internal default controls. Use
-        numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -4589,8 +4748,13 @@ class MonteCarloVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -4600,6 +4764,16 @@ class MonteCarloVanillaEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -4610,21 +4784,11 @@ class MonteCarloVanillaEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
-
-        Notes
-        -----
-        System entropy and worker-creation failures raise OSError.
-        Uses the product's default estimation controls. Custom bumps belong to numerical_greeks.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+            If representations, Greek names or keyword arguments are invalid."""
 
 class MonteCarloEstimate:
     """Monte Carlo price with optional sampling uncertainty.
@@ -4770,9 +4934,8 @@ class MonteCarloDigitalEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self,
@@ -4837,8 +5000,13 @@ class MonteCarloDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -4848,6 +5016,16 @@ class MonteCarloDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -4858,11 +5036,11 @@ class MonteCarloDigitalEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
         OSError
             If system entropy or worker creation fails.
 
@@ -4871,12 +5049,7 @@ class MonteCarloDigitalEngine:
         At positive volatility before expiry delta and gamma use native
         likelihood-ratio estimators. Zero volatility uses scalar differences.
         At expiry they use default terminal-payoff stencils.
-        Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        Use numerical_greeks for configurable scalar differences."""
 
 class MonteCarloBarrierEngine:
     """Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.
@@ -4984,9 +5157,8 @@ class MonteCarloBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -5044,9 +5216,12 @@ class MonteCarloBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: _Real | None = None,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -5057,9 +5232,15 @@ class MonteCarloBarrierEngine:
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
         spot_shift : float or None, optional
-            Positive absolute spot bump for event availability, at-hit rebates
-            and expiry stencils; None selects the automatic bump.
-            Retains the native Monte Carlo estimator before expiry.
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -5070,11 +5251,11 @@ class MonteCarloBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
         OSError
             If system entropy or worker creation fails.
 
@@ -5085,12 +5266,7 @@ class MonteCarloBarrierEngine:
         accumulator engines use numerical differences with engine defaults.
         At expiry spot Greeks use default terminal-payoff stencils.
         Use numerical_greeks for
-        explicit scalar bump calculations on supported BSM pairs.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        explicit scalar bump calculations on supported BSM pairs."""
 
 class MonteCarloDoubleBarrierEngine:
     """Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
@@ -5198,9 +5374,8 @@ class MonteCarloDoubleBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -5258,9 +5433,12 @@ class MonteCarloDoubleBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: _Real | None = None,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -5271,9 +5449,15 @@ class MonteCarloDoubleBarrierEngine:
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
         spot_shift : float or None, optional
-            Positive absolute spot bump for event availability, at-hit rebates
-            and expiry stencils; None selects the automatic bump.
-            Retains the native Monte Carlo estimator before expiry.
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -5284,11 +5468,11 @@ class MonteCarloDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
         OSError
             If system entropy or worker creation fails.
 
@@ -5299,12 +5483,7 @@ class MonteCarloDoubleBarrierEngine:
         accumulator engines use numerical differences with engine defaults.
         At expiry spot Greeks use default terminal-payoff stencils.
         Use numerical_greeks for
-        explicit scalar bump calculations on supported BSM pairs.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        explicit scalar bump calculations on supported BSM pairs."""
 
 class MonteCarloAutocallableEngine:
     """Flat-rate CPU Monte Carlo pricing for snowball and Phoenix notes.
@@ -5424,9 +5603,8 @@ class MonteCarloAutocallableEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self,
@@ -5498,8 +5676,13 @@ class MonteCarloAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -5509,6 +5692,16 @@ class MonteCarloAutocallableEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -5519,11 +5712,11 @@ class MonteCarloAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
         OSError
             If system entropy or worker creation fails.
 
@@ -5534,12 +5727,7 @@ class MonteCarloAutocallableEngine:
         accumulator engines use numerical differences with engine defaults.
         At expiry spot Greeks use default terminal-payoff stencils.
         Use numerical_greeks for
-        explicit scalar bump calculations on supported BSM pairs.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        explicit scalar bump calculations on supported BSM pairs."""
 
 class MonteCarloAccumulatorEngine:
     """Flat-rate CPU Monte Carlo pricing for accumulators.
@@ -5646,9 +5834,8 @@ class MonteCarloAccumulatorEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -5705,8 +5892,13 @@ class MonteCarloAccumulatorEngine:
         instrument: Accumulator,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -5716,6 +5908,16 @@ class MonteCarloAccumulatorEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -5726,11 +5928,11 @@ class MonteCarloAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
         OSError
             If system entropy or worker creation fails.
 
@@ -5741,12 +5943,7 @@ class MonteCarloAccumulatorEngine:
         accumulator engines use numerical differences with engine defaults.
         At expiry spot Greeks use default terminal-payoff stencils.
         Use numerical_greeks for
-        explicit scalar bump calculations on supported BSM pairs.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        explicit scalar bump calculations on supported BSM pairs."""
 
 class MonteCarloAsianEngine:
     """Flat-rate CPU Monte Carlo pricing for continuous average-price options.
@@ -5868,9 +6065,8 @@ class MonteCarloAsianEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self,
@@ -5935,8 +6131,13 @@ class MonteCarloAsianEngine:
         instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -5946,6 +6147,16 @@ class MonteCarloAsianEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -5956,11 +6167,11 @@ class MonteCarloAsianEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
         OSError
             If system entropy or worker creation fails.
 
@@ -5969,12 +6180,7 @@ class MonteCarloAsianEngine:
         At positive volatility before expiry delta and gamma use native estimators.
         Zero volatility uses scalar differences. At expiry delta and gamma
         use default terminal-payoff stencils. Use numerical_greeks for
-        configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        configurable scalar differences."""
 
 type Greek = Literal[
     "delta",
@@ -7792,9 +7998,8 @@ class AnalyticGeometricAveragePriceEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self, instrument: GeometricAveragePriceOption, context: PricingContext
@@ -7823,8 +8028,13 @@ class AnalyticGeometricAveragePriceEngine:
         instrument: GeometricAveragePriceOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -7834,6 +8044,16 @@ class AnalyticGeometricAveragePriceEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -7844,21 +8064,16 @@ class AnalyticGeometricAveragePriceEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class ArithmeticAveragePriceOption:
     """Continuously monitored average-price Asian option with explicit history.
@@ -8037,9 +8252,8 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self, instrument: ArithmeticAveragePriceOption, context: PricingContext
@@ -8068,8 +8282,13 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         instrument: ArithmeticAveragePriceOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -8079,6 +8298,16 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -8089,21 +8318,16 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class BarrierOption:
     """Single-barrier vanilla option with inclusive barrier touches.
@@ -8358,9 +8582,8 @@ class AnalyticBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8387,8 +8610,13 @@ class AnalyticBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -8398,6 +8626,16 @@ class AnalyticBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -8408,21 +8646,16 @@ class AnalyticBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class DoubleBarrierOption:
     """Vanilla option activated or terminated by either inclusive boundary.
@@ -8868,9 +9101,8 @@ class AnalyticRangeAccrualEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: RangeAccrualOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8897,8 +9129,13 @@ class AnalyticRangeAccrualEngine:
         instrument: RangeAccrualOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -8908,6 +9145,16 @@ class AnalyticRangeAccrualEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -8918,21 +9165,16 @@ class AnalyticRangeAccrualEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class AnalyticDoubleBarrierEngine:
     """Flat-rate continuous double-barrier analytics.
@@ -8964,9 +9206,8 @@ class AnalyticDoubleBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8993,8 +9234,13 @@ class AnalyticDoubleBarrierEngine:
         instrument: DoubleBarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -9004,6 +9250,16 @@ class AnalyticDoubleBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -9014,21 +9270,16 @@ class AnalyticDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class AnalyticDoubleTouchEngine:
     """Prices continuous cash double-touch and double-no-touch contracts with flat rates.
@@ -9070,9 +9321,8 @@ class AnalyticDoubleTouchEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -9099,8 +9349,13 @@ class AnalyticDoubleTouchEngine:
         instrument: DoubleTouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -9110,6 +9365,16 @@ class AnalyticDoubleTouchEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -9120,21 +9385,16 @@ class AnalyticDoubleTouchEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class BinaryBarrierOption:
     """Cash-or-nothing or asset-or-nothing option with barrier monitoring.
@@ -9877,9 +10137,8 @@ class AnalyticBinaryBarrierEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
@@ -9908,8 +10167,13 @@ class AnalyticBinaryBarrierEngine:
         instrument: BinaryBarrierOption | TouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -9919,6 +10183,16 @@ class AnalyticBinaryBarrierEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -9929,21 +10203,16 @@ class AnalyticBinaryBarrierEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class DoubleTouchOption:
     """Cash double one-touch or double no-touch option with inclusive barriers.
@@ -10345,9 +10614,8 @@ class QuadratureAutocallableEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(
         self,
@@ -10384,8 +10652,13 @@ class QuadratureAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -10395,6 +10668,16 @@ class QuadratureAutocallableEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -10405,21 +10688,16 @@ class QuadratureAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class AutocallableObservation:
     """Observation with validated numeric terms for an autocallable note.
@@ -12616,9 +12894,8 @@ class QuadratureAccumulatorEngine:
     ) -> list[_pricing.GreekControl]:
         """Return shift-control names potentially used by this Greek calculation path.
 
-        Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; finite-difference constructors expose all four shifts.
-        Use numerical_greeks for configurable scalar differences."""
+        Individual requests may use fewer controls. Every engine accepts the same
+        request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -12645,8 +12922,13 @@ class QuadratureAccumulatorEngine:
         instrument: Accumulator,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Returns the price and selected sensitivities.
+        """Return the price and selected sensitivities with native estimators.
 
         Parameters
         ----------
@@ -12656,6 +12938,16 @@ class QuadratureAccumulatorEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            Controls affect numerical fallbacks, event checks and terminal stencils;
+            native estimators and engine/model Greek coverage are preserved.
 
         Returns
         -------
@@ -12666,21 +12958,16 @@ class QuadratureAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
         ValueError
             If a Greek name is unknown.
         TypeError
-            If greeks is not a string or iterable of strings.
+            If representations, Greek names or keyword arguments are invalid.
 
         Notes
         -----
         Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
-
-        See Also
-        --------
-        numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            Heston and local-volatility models are unsupported by this helper."""
+        engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 def fixed_coupon_note(
     *,

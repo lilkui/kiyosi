@@ -51,6 +51,18 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
         MonteCarloVanillaEngine(),
     ):
         assert_type(engine.price_with_greeks(option, context, "delta"), PricingResult)
+        assert_type(
+            engine.price_with_greeks(
+                option,
+                context,
+                "delta",
+                spot_shift=0.1,
+                volatility_shift=0.001,
+                rate_shift=0.001,
+                time_shift=timedelta(seconds=60),
+            ),
+            PricingResult,
+        )
     for engine in (
         AnalyticEuropeanEngine(),
         CoxRossRubinsteinVanillaEngine(),

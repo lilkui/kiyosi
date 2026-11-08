@@ -3,7 +3,6 @@ use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
-use crate::risk;
 use pyo3::prelude::*;
 
 fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
@@ -42,14 +41,6 @@ pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHeston
 
 numerical_greeks_methods!(
     PyRef<'_, EuropeanOption>,
-    |binding, py, instrument, context, request| {
-        let engine = binding.0;
-        let option = &instrument.0;
-        let context = &context.0;
-        Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
-            engine.price_with_greeks(option, context, request)
-        })?)?))
-    },
     [
         ///
         /// Notes

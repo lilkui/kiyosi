@@ -47,7 +47,16 @@ impl AnalyticEuropeanEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
+        self.greeks_with_settings(option, context, request, Default::default())
+    }
+
+    fn greeks_with_settings(
+        self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;
@@ -65,7 +74,7 @@ impl AnalyticEuropeanEngine {
             );
         }
         if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, settings);
+            return crate::numerical_greeks(&self, option, context, request, settings);
         }
         let model = context.bsm_parameters()?;
         let spot = context.spot_price();
@@ -274,6 +283,16 @@ impl PricingEngine for AnalyticEuropeanEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
+        self.greeks_with_settings(option, context, request, settings)
     }
 }
 

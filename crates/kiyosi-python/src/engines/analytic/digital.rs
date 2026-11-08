@@ -2,7 +2,6 @@ use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::digital::DigitalInstrument;
 use crate::market::PricingContext;
-use crate::risk;
 use pyo3::prelude::*;
 /// Analytic European digital pricing with deterministic rate curves.
 ///
@@ -16,14 +15,6 @@ pub(crate) struct AnalyticDigitalEngine;
 
 numerical_greeks_methods!(
     DigitalInstrument<'_>,
-    |_binding, _py, instrument, context, request| {
-        Ok(risk::PricingResult(domain(
-            kiyosi::AnalyticDigitalEngine.price_with_greeks_with_settings(
-                instrument.contract(),
-                &context.0,
-                request, settings),
-        )?))
-    },
     [
         ///
         /// Notes
@@ -33,7 +24,6 @@ numerical_greeks_methods!(
         /// differences with the supplied shifts. At expiry spot Greeks use the supplied
         /// terminal-payoff stencils. Use numerical_greeks for scalar-only differences.
     ],
-    @shifts settings [spot_shift, volatility_shift, rate_shift, time_shift],
     engine_methods!(
         AnalyticDigitalEngine,
         #[new]
@@ -91,7 +81,7 @@ impl AnalyticDigitalEngine {
         let context = &context.0;
         let calculate = || request.evaluate(&kiyosi::AnalyticDigitalEngine, option, context);
         // Keep the GIL for short scalar formulas, but release it for iterative solves.
-        domain(if request.is_price() {
+        domain(if request.is_short() {
             calculate()
         } else {
             request.run(py, calculate)?

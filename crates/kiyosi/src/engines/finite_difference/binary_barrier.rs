@@ -121,6 +121,25 @@ macro_rules! binary_pricing {
                 )?
                 .price())
             }
+            fn greek_settings(&self, _option: &$option) -> crate::NumericalShiftSettings {
+                self.settings.greek_shifts()
+            }
+            fn price_with_greeks_with_settings(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                request: GreeksRequest,
+                shifts: crate::NumericalShiftSettings,
+            ) -> Result<PricingResult> {
+                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                shifts.validate()?;
+                let engine = Self {
+                    settings: self.settings.with_greek_shifts(shifts),
+                };
+                <Self as PricingEngine<$option>>::price_with_greeks(
+                    &engine, option, context, request,
+                )
+            }
             fn price_with_greeks(
                 &self,
                 option: &$option,

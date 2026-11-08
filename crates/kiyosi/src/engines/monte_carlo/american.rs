@@ -280,7 +280,22 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
+        <Self as PricingEngine<AmericanOption>>::price_with_greeks_with_settings(
+            self,
+            option,
+            context,
+            request,
+            Default::default(),
+        )
+    }
+
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
         request.validate()?;

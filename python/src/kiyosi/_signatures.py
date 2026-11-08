@@ -89,7 +89,5 @@ def install(native: ModuleType) -> None:
                 value.__signature__ = resolved
             if name.endswith("Engine"):
                 value.replace = _engine_replacement(value)
-            if name == "AnalyticDigitalEngine":
-                value.price_with_greeks = _wrap(value.price_with_greeks, defaults)
         elif isbuiltin(value):
             setattr(native, name, _wrap(value, solvers.get(name, defaults)))

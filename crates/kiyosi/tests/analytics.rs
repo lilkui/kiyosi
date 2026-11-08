@@ -490,6 +490,17 @@ fn native_greeks_use_defaults_in_shared_trait_adapters() {
                 .unwrap(),
             *expected,
         );
+        assert_eq!(
+            engine
+                .price_with_greeks_with_settings(
+                    option,
+                    context,
+                    GreeksRequest::all(),
+                    engine.greek_settings(option)
+                )
+                .unwrap(),
+            *expected,
+        );
     }
     let (option, context) = market();
     let request = GreeksRequest::all();

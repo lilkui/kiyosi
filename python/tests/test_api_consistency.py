@@ -1407,6 +1407,20 @@ class ApiConsistencyTests(unittest.TestCase):
         }
         engine = pricing.FiniteDifferenceVanillaEngine(**grid, **shifts)
         tuned = engine.price_with_greeks(option, context, ["delta", "gamma", "vega"])
+        original = pricing.FiniteDifferenceVanillaEngine(**grid)
+        self.assertEqual(
+            original.price_with_greeks(
+                option, context, ["delta", "gamma", "vega"], **shifts
+            ),
+            tuned,
+        )
+        self.assertEqual(original.volatility_shift, 0.0001)
+        self.assertEqual(
+            engine.price_with_greeks(
+                option, context, ["delta", "gamma", "vega"], volatility_shift=...
+            ),
+            tuned,
+        )
         self.assertEqual(tuned.price, base.price)
         self.assertEqual(tuned.require("delta"), base.require("delta"))
         self.assertEqual(tuned.require("gamma"), base.require("gamma"))

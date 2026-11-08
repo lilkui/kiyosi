@@ -4,7 +4,6 @@ use crate::engines::binomial::{VanillaInstrument, with_vanilla};
 use crate::error::domain;
 use crate::instruments::{accumulator::Accumulator, autocallable, barrier::BarrierOption, digital};
 use crate::market::PricingContext;
-use crate::risk;
 use pyo3::prelude::*;
 
 macro_rules! quadrature_engine {
@@ -42,13 +41,6 @@ macro_rules! quadrature_engine {
 
         numerical_greeks_methods!(
             $instrument,
-            |binding, py, instrument, context, request| {
-                let engine = binding.0;
-                let context = &context.0;
-                $with!(&instrument, option, Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
-                    engine.price_with_greeks(option, context, request)
-                })?)?)))
-            },
             [
                 ///
                 /// Notes

@@ -586,7 +586,22 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
+        <Self as PricingEngine<GeometricAveragePriceOption>>::price_with_greeks_with_settings(
+            self,
+            option,
+            context,
+            request,
+            Default::default(),
+        )
+    }
+
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &GeometricAveragePriceOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;
@@ -680,7 +695,22 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
+        <Self as PricingEngine<ArithmeticAveragePriceOption>>::price_with_greeks_with_settings(
+            self,
+            option,
+            context,
+            request,
+            Default::default(),
+        )
+    }
+
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &ArithmeticAveragePriceOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;

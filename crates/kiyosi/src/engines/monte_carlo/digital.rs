@@ -157,7 +157,16 @@ impl MonteCarloDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
+        self.greeks_with_settings(option, context, request, Default::default())
+    }
+
+    fn greeks_with_settings(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, settings).map(
                 |result| {
@@ -352,5 +361,15 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
+        self.greeks_with_settings(option, context, request, settings)
     }
 }

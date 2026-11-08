@@ -2,7 +2,6 @@ use crate::conversions::{integer, real};
 use crate::engines::{ScalarRequest, binomial};
 use crate::error::domain;
 use crate::market::PricingContext;
-use crate::risk;
 use pyo3::prelude::*;
 
 /// Finite-difference prices for European and American options under Heston.
@@ -48,17 +47,6 @@ pub(crate) struct FiniteDifferenceHestonVanillaEngine(
 
 numerical_greeks_methods!(
     binomial::VanillaInstrument<'_>,
-    |binding, py, instrument, context, request| {
-        let engine = binding.0;
-        let context = &context.0;
-        binomial::with_vanilla!(
-            instrument,
-            option,
-            Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
-                engine.price_with_greeks(option, context, request)
-            })?)?))
-        )
-    },
     [
         ///
         /// Notes

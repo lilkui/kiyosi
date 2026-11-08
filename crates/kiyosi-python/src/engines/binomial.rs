@@ -6,7 +6,6 @@ use crate::instruments::barrier::BarrierOption;
 use crate::instruments::digital;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
-use crate::risk;
 use pyo3::prelude::*;
 
 #[derive(FromPyObject)]
@@ -52,17 +51,6 @@ pub(crate) struct CoxRossRubinsteinVanillaEngine(pub(crate) kiyosi::CoxRossRubin
 
 numerical_greeks_methods!(
     VanillaInstrument<'_>,
-    |binding, py, instrument, context, request| {
-        let engine = binding.0;
-        let context = &context.0;
-        with_vanilla!(
-            instrument,
-            option,
-            Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
-                engine.price_with_greeks(option, context, request)
-            })?)?))
-        )
-    },
     [
         ///
         /// Notes
@@ -147,15 +135,6 @@ macro_rules! binomial_engine {
 
         numerical_greeks_methods!(
             $instrument,
-            |binding, py, instrument, context, request| {
-                let $value = instrument;
-                let option = $contract;
-                let engine = binding.0;
-                let context = &context.0;
-                Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
-                    engine.price_with_greeks(option, context, request)
-                })?)?))
-            },
             [
                 ///
                 /// Notes

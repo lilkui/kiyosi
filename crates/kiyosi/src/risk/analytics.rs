@@ -386,9 +386,8 @@ pub(crate) fn vanilla_expiry_greeks(
 ///
 /// Scalar numerical requests validate all bump settings before calculation.
 /// Finite-difference engines use their configured shifts for `price_with_greeks`;
-/// [`crate::AnalyticDigitalEngine::price_with_greeks_with_settings`] accepts explicit
-/// shifts while retaining analytic delta and gamma. Other engines use defaults. Monte Carlo barrier engines also
-/// expose `price_with_greeks_with_spot_shift` for native spot control.
+/// [`PricingEngine::price_with_greeks_with_settings`] accepts explicit shifts while
+/// retaining native estimators. [`PricingEngine::greek_settings`] supplies engine defaults.
 /// See [`crate::numerical_greeks`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct NumericalShiftSettings {
@@ -515,8 +514,8 @@ impl GreekMethod {
 
     /// Returns names of shift controls potentially used by this calculation path.
     ///
-    /// Names correspond to [`NumericalShiftSettings`] fields. Finite-difference settings
-    /// expose all shifts; Monte Carlo barrier calls expose spot control. Other engines use defaults.
+    /// Names correspond to [`NumericalShiftSettings`] fields. Every built-in engine accepts
+    /// request-level controls through [`PricingEngine::price_with_greeks_with_settings`].
     /// See [`PricingEngine::greek_method`] for an example.
     pub const fn active_controls(self) -> &'static [&'static str] {
         match self {
@@ -548,6 +547,53 @@ impl GreekMethod {
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 pub trait PricingEngine<I = EuropeanOption> {
+    /// Returns default Greek controls for this engine; see [`NumericalShiftSettings`].
+    ///
+    /// Finite-difference engines return their configured shifts. Other built-in
+    /// engines use the shared defaults, including automatic product-specific spot bumps.
+    fn greek_settings(&self, _option: &I) -> NumericalShiftSettings {
+        NumericalShiftSettings::default()
+    }
+
+    /// Returns native sensitivities with explicit request-level numerical controls.
+    ///
+    /// Built-in overrides retain native estimators and apply shifts to numerical
+    /// fallbacks, event checks and terminal stencils. Purely analytic measures ignore
+    /// the validated controls. The default uses scalar differences, like
+    /// [`Self::price_with_greeks`]. Inputs and engine configuration remain unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Checks engine applicability before request and shift validation, then propagates
+    /// pricing failures. See [`crate::numerical_greeks`] for scalar difference errors.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// let start = Date::new(2025, 1, 2)?.start_of_day();
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(365)?)?;
+    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start)?;
+    /// let shifts = NumericalShiftSettings { spot_shift: Some(0.1), ..Default::default() };
+    /// let result = AnalyticEuropeanEngine.price_with_greeks_with_settings(
+    ///     &option, &context, GreeksRequest::new([Greek::Delta]), shifts)?;
+    /// assert!(result.require(Greek::Delta)? > 0.0);
+    /// # Ok(()) }
+    /// ```
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &I,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: NumericalShiftSettings,
+    ) -> Result<PricingResult>
+    where
+        I: crate::OptionContract,
+    {
+        crate::numerical_greeks(self, option, context, request, settings)
+    }
+
     /// Reports the native Greek calculation path without pricing or drawing samples.
     ///
     /// Controls are potentially active across supported requests; individual requests,

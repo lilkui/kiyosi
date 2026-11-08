@@ -149,6 +149,16 @@ impl FiniteDifferenceSettings {
             time_shift: self.time_shift,
         }
     }
+
+    fn with_greek_shifts(self, shifts: NumericalShiftSettings) -> Self {
+        Self {
+            spot_shift: shifts.spot_shift,
+            volatility_shift: shifts.volatility_shift,
+            rate_shift: shifts.rate_shift,
+            time_shift: shifts.time_shift,
+            ..self
+        }
+    }
 }
 
 fn invalid_grid(message: &'static str) -> Error {
@@ -883,6 +893,25 @@ macro_rules! vanilla_pricing {
                 .0
                 .price())
             }
+            fn greek_settings(&self, _option: &$option) -> crate::NumericalShiftSettings {
+                self.settings.greek_shifts()
+            }
+            fn price_with_greeks_with_settings(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                request: GreeksRequest,
+                shifts: crate::NumericalShiftSettings,
+            ) -> Result<PricingResult> {
+                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                shifts.validate()?;
+                let engine = Self {
+                    settings: self.settings.with_greek_shifts(shifts),
+                };
+                <Self as PricingEngine<$option>>::price_with_greeks(
+                    &engine, option, context, request,
+                )
+            }
             fn price_with_greeks(
                 &self,
                 option: &$option,
@@ -1069,6 +1098,23 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
     }
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)
+    }
+    fn greek_settings(&self, _option: &DigitalOption) -> crate::NumericalShiftSettings {
+        self.settings.greek_shifts()
+    }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
+        shifts.validate()?;
+        let engine = Self {
+            settings: self.settings.with_greek_shifts(shifts),
+        };
+        <Self as PricingEngine<DigitalOption>>::price_with_greeks(&engine, option, context, request)
     }
     fn price_with_greeks(
         &self,

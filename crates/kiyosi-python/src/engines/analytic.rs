@@ -6,13 +6,6 @@ macro_rules! analytic_engine {
         pub(crate) struct $engine;
         numerical_greeks_methods!(
             PyRef<'_, $option>,
-            |_binding, py, instrument, context, request| {
-                let option = &instrument.0;
-                let context = &context.0;
-                Ok(risk::PricingResult(domain(crate::cancellation::run(py, || {
-                    kiyosi::$engine.price_with_greeks(option, context, request)
-                })?)?))
-            },
             [
                 ///
                 /// Notes

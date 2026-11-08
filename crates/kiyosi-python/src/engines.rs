@@ -16,12 +16,7 @@ macro_rules! with_contract {
 
 // Expand methods before PyO3 parses the impl, including Monte Carlo's settings methods.
 macro_rules! numerical_greeks_methods {
-    ($instrument:ty,
-     |$engine:ident, $py:ident, $option:ident, $context:ident, $request:ident| $body:block,
-     [$(#[$extra_doc:meta])*],
-     $(@spot_shift $spot_shift:ident,)?
-     $(@shifts $settings:ident [$spot:ident, $volatility:ident, $rate:ident, $time:ident],)?
-     $methods:ident!($($args:tt)*)) => {
+    ($instrument:ty, [$(#[$extra_doc:meta])*], $methods:ident!($($args:tt)*)) => {
         $methods! {
             $($args)*,
             /// Return native, numerical, mixed, native_with_spot_control, terminal or unsupported.
@@ -38,9 +33,8 @@ macro_rules! numerical_greeks_methods {
             },
             /// Return shift-control names potentially used by this Greek calculation path.
             ///
-            /// Individual requests may use fewer controls. Monte Carlo barrier calls
-            /// accept spot_shift; finite-difference constructors expose all four shifts.
-            /// Use numerical_greeks for configurable scalar differences.
+            /// Individual requests may use fewer controls. Every engine accepts the same
+            /// request-level controls; omitted controls retain the engine's settings.
             fn active_greek_controls(
                 &self,
                 py: pyo3::Python<'_>,
@@ -49,7 +43,7 @@ macro_rules! numerical_greeks_methods {
             ) -> pyo3::PyResult<Vec<&'static str>> {
                 Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.active_controls().to_vec())
             },
-            /// Returns the price and selected sensitivities.
+            /// Return the price and selected sensitivities with native estimators.
             ///
             /// Parameters
             /// ----------
@@ -59,22 +53,16 @@ macro_rules! numerical_greeks_methods {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str
             ///     Greek names or "all" to request every measure; duplicates are ignored.
-            $(
-                #[doc = concat!(stringify!($spot_shift), " : float or None, optional")]
-                ///     Positive absolute spot bump for event availability, at-hit rebates
-                ///     and expiry stencils; None selects the automatic bump.
-                ///     Retains the native Monte Carlo estimator before expiry.
-            )?
-            $(
-                #[doc = concat!(stringify!($spot), " : float or None, optional")]
-                ///     Positive absolute spot bump, or None for automatic selection.
-                /// volatility_shift, rate_shift : float, optional
-                ///     Positive decimal bumps for numerical fallback Greeks; defaults to 0.0001.
-                /// time_shift : datetime.timedelta or None, optional
-                ///     Positive whole-microsecond time bump, or None for automatic selection.
-                ///     Positive-volatility analytic delta and gamma retain their estimator before expiry.
-                #[expect(clippy::too_many_arguments, reason = "explicit Python numerical fallback controls")]
-            )?
+            /// spot_shift : float or None, optional
+            ///     Positive absolute spot bump; None selects the product's automatic bump.
+            /// volatility_shift, rate_shift : float, optional
+            ///     Positive decimal bumps for numerical fallback Greeks.
+            /// time_shift : datetime.timedelta or None, optional
+            ///     Positive whole-microsecond bump; None selects an automatic time step.
+            ///     Omitted controls or Ellipsis retain engine settings, whose shared defaults
+            ///     are automatic spot/time bumps and 0.0001 volatility/rate bumps.
+            ///     Controls affect numerical fallbacks, event checks and terminal stencils;
+            ///     native estimators and engine/model Greek coverage are preserved.
             ///
             /// Returns
             /// -------
@@ -85,47 +73,35 @@ macro_rules! numerical_greeks_methods {
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            ///     If the request is empty, controls are invalid, pricing fails or a feasible bumped valuation fails.
             /// ValueError
             ///     If a Greek name is unknown.
             /// TypeError
-            ///     If greeks is not a string or iterable of strings.
+            ///     If representations, Greek names or keyword arguments are invalid.
             $(#[$extra_doc])*
-            #[pyo3(signature = (instrument, context, greeks $(, *, $spot_shift=None)?
-                $(, *, $spot=None, $volatility=kiyosi::NumericalShiftSettings::default().volatility_shift,
-                    $rate=kiyosi::NumericalShiftSettings::default().rate_shift, $time=None)?))]
-            ///
-            /// See Also
-            /// --------
-            /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            ///     Heston and local-volatility models are unsupported by this helper.
+            #[pyo3(signature = (instrument, context, greeks, *, spot_shift=crate::conversions::OMITTED,
+                volatility_shift=crate::conversions::OMITTED, rate_shift=crate::conversions::OMITTED,
+                time_shift=crate::conversions::OMITTED))]
+            #[expect(clippy::too_many_arguments, reason = "uniform keyword-only Python Greek controls")]
             fn price_with_greeks(
                 &self,
                 py: pyo3::Python<'_>,
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &$crate::market::PricingContext,
                 greeks: &pyo3::Bound<'_, pyo3::PyAny>,
-                $($spot_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,)?
-                $(
-                    $spot: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
-                    #[pyo3(from_py_with = crate::conversions::real)] $volatility: f64,
-                    #[pyo3(from_py_with = crate::conversions::real)] $rate: f64,
-                    $time: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
-                )?
+                #[pyo3(from_py_with = crate::conversions::supplied)] spot_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
+                #[pyo3(from_py_with = crate::conversions::supplied)] volatility_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
+                #[pyo3(from_py_with = crate::conversions::supplied)] rate_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
+                #[pyo3(from_py_with = crate::conversions::supplied)] time_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
             ) -> pyo3::PyResult<$crate::risk::PricingResult> {
-                let $request = $crate::risk::greeks_request(greeks)?;
-                $(let $spot_shift = $spot_shift.map(crate::conversions::real).transpose()?;)?
-                $(let $settings = kiyosi::NumericalShiftSettings {
-                    spot_shift: $spot.map(crate::conversions::real).transpose()?,
-                    volatility_shift: $volatility,
-                    rate_shift: $rate,
-                    time_shift: $time.map(crate::conversions::duration).transpose()?,
-                };)?
-                let $engine = self;
-                let $py = py;
-                let $option = instrument;
-                let $context = context;
-                $body
+                let request = $crate::engines::NativeGreeksRequest {
+                    request: $crate::risk::greeks_request(greeks)?,
+                    spot_shift: spot_shift.map(|v| if v.is_none() { Ok(None) } else { crate::conversions::real(v).map(Some) }).transpose()?,
+                    volatility_shift: volatility_shift.map(crate::conversions::real).transpose()?,
+                    rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
+                    time_shift: time_shift.map(|v| if v.is_none() { Ok(None) } else { crate::conversions::duration(v).map(Some) }).transpose()?,
+                };
+                Ok($crate::risk::PricingResult(self.evaluate(py, instrument, context, request)?))
             }
         }
     };
@@ -147,7 +123,7 @@ pub(crate) enum ScalarRequest {
 }
 
 pub(crate) trait PricingRequest<R>: Copy + Sync {
-    fn is_price(self) -> bool {
+    fn is_short(self) -> bool {
         false
     }
     fn run(
@@ -169,7 +145,7 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
 }
 
 impl PricingRequest<f64> for ScalarRequest {
-    fn is_price(self) -> bool {
+    fn is_short(self) -> bool {
         matches!(self, Self::Price)
     }
 
@@ -193,6 +169,45 @@ impl PricingRequest<f64> for ScalarRequest {
 pub(crate) struct NumericalGreeksRequest {
     pub request: kiyosi::GreeksRequest,
     pub settings: kiyosi::NumericalShiftSettings,
+}
+
+#[derive(Clone, Copy)]
+#[expect(
+    clippy::option_option,
+    reason = "omission retains settings; None selects automatic bumps"
+)]
+pub(crate) struct NativeGreeksRequest {
+    pub request: kiyosi::GreeksRequest,
+    pub spot_shift: Option<Option<f64>>,
+    pub volatility_shift: Option<f64>,
+    pub rate_shift: Option<f64>,
+    pub time_shift: Option<Option<std::time::Duration>>,
+}
+
+impl PricingRequest<kiyosi::PricingResult> for NativeGreeksRequest {
+    fn is_short(self) -> bool {
+        true
+    }
+
+    fn evaluate<I: kiyosi::OptionContract>(
+        self,
+        engine: &impl kiyosi::PricingEngine<I>,
+        instrument: &I,
+        context: &kiyosi::PricingContext,
+    ) -> kiyosi::Result<kiyosi::PricingResult> {
+        let defaults = engine.greek_settings(instrument);
+        engine.price_with_greeks_with_settings(
+            instrument,
+            context,
+            self.request,
+            kiyosi::NumericalShiftSettings {
+                spot_shift: self.spot_shift.unwrap_or(defaults.spot_shift),
+                volatility_shift: self.volatility_shift.unwrap_or(defaults.volatility_shift),
+                rate_shift: self.rate_shift.unwrap_or(defaults.rate_shift),
+                time_shift: self.time_shift.unwrap_or(defaults.time_shift),
+            },
+        )
+    }
 }
 
 #[derive(Clone, Copy)]
