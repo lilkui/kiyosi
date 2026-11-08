@@ -288,7 +288,7 @@ impl AutocallableObservation {
     ///
     /// Omitted fields or Ellipsis retain their values. Invalid numeric terms raise
     /// InvalidInputError; representation failures use native Python exceptions.
-    /// None coupon fields retain their values, matching omitted Rust changes.
+    /// None is accepted only for the inactive coupon field; omit active fields to retain them.
     /// Numeric fields of the other observation kind are rejected, including zero.
     /// Note construction checks schedule and product-specific constraints.
     #[pyo3(signature = (*, time=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, coupon_rate=crate::conversions::OMITTED, coupon_barrier_level=crate::conversions::OMITTED))]
@@ -299,6 +299,15 @@ impl AutocallableObservation {
         #[pyo3(from_py_with = supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] coupon_barrier_level: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
+        let active_coupon = match self.0.kind() {
+            kiyosi::AutocallableObservationKind::Snowball => coupon_rate,
+            kiyosi::AutocallableObservationKind::Phoenix => coupon_barrier_level,
+        };
+        if active_coupon.is_some_and(Bound::is_none) {
+            return Err(PyTypeError::new_err(
+                "the active coupon field cannot be None",
+            ));
+        }
         Ok(Self(domain(
             self.0.replace(kiyosi::AutocallableObservationChanges {
                 time: time.map(timestamp).transpose()?,

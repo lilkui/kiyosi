@@ -9817,7 +9817,7 @@ class AutocallableObservation:
 
         Omitted fields or Ellipsis retain their values. Invalid numeric terms raise
         InvalidInputError; representation failures use native Python exceptions.
-        None coupon fields retain their values, matching omitted Rust changes.
+        None is accepted only for the inactive coupon field; omit active fields to retain them.
         Numeric fields of the other observation kind are rejected, including zero.
         Note construction checks schedule and product-specific constraints."""
 

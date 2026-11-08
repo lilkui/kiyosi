@@ -1871,10 +1871,16 @@ class ObservationReplacementTests(unittest.TestCase):
                         ),
                         record,
                     )
+                    for updates in (
+                        {active: None},
+                        {"coupon_rate": None, "coupon_barrier_level": None},
+                    ):
+                        with self.assertRaises(TypeError):
+                            record.replace(**updates)
                     self.assertEqual(
-                        record.replace(coupon_rate=None, coupon_barrier_level=None),
-                        record,
+                        record.replace(**{active: ..., absent: None}), record
                     )
+                    self.assertEqual(getattr(record, active), value)
                     self.assertEqual(pickle.loads(pickle.dumps(record)), record)
 
     def test_zero_coupon_observations_preserve_product_identity(self):

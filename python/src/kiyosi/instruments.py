@@ -8,7 +8,8 @@ unconditional Phoenix coupons require explicit zero values.
 Observations retain their ``kind`` (``"snowball"`` or ``"phoenix"``), even at zero.
 Replacements preserve it, and notes reject observations of the other kind.
 Inapplicable observation coupon properties return None; zero values remain numeric.
-Forward both coupon properties to ``replace()``; None coupon fields retain their values.
+Forward both coupon properties to ``replace()``; only the inactive field accepts None.
+Omit the active field or pass Ellipsis to retain it.
 ``autocallable_observations`` requires exactly one of ``knock_out_coupon_rates``
 and ``coupon_barrier_levels``. Mixed nonzero coupon fields are rejected immediately.
 Observation constructors and ``autocallable_observations`` validate positive
