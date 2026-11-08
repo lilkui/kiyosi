@@ -572,6 +572,7 @@ fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
         time_step_count: 10,
         scheme: FiniteDifferenceScheme::ExplicitEuler,
         asset_upper_boundary: Some(400.0),
+        ..Default::default()
     })
     .unwrap();
     assert!(matches!(

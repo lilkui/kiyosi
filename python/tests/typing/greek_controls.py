@@ -11,6 +11,7 @@ from kiyosi.pricing import (
     AnalyticHestonEuropeanEngine,
     CoxRossRubinsteinVanillaEngine,
     FiniteDifferenceHestonVanillaEngine,
+    FiniteDifferenceVanillaEngine,
     MonteCarloBarrierEngine,
     MonteCarloDoubleBarrierEngine,
     MonteCarloVanillaEngine,
@@ -60,3 +61,15 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
             ),
             PricingResult,
         )
+
+
+def fd_configured_shifts(option: EuropeanOption, context: PricingContext) -> None:
+    engine = FiniteDifferenceVanillaEngine(
+        volatility_shift=0.00001, rate_shift=0.0002, time_shift=timedelta(seconds=60)
+    )
+    assert_type(engine.volatility_shift, float)
+    assert_type(engine.rate_shift, float)
+    assert_type(engine.time_shift, timedelta | None)
+    assert_type(
+        engine.price_with_greeks(option, context, ["delta", "vega"]), PricingResult
+    )

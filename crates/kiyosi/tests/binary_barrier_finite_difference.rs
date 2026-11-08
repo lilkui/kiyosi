@@ -612,6 +612,7 @@ fn explicit_implicit_and_damped_schemes_preserve_supported_payoffs() {
                 time_step_count: 2000,
                 scheme,
                 asset_upper_boundary: Some(400.0),
+                ..Default::default()
             })
             .unwrap();
             assert!(
@@ -636,6 +637,7 @@ fn continuous_binary_domains_retain_configured_nodes_and_explicit_stability() {
             time_step_count: 2000,
             scheme,
             asset_upper_boundary: Some(upper),
+            ..Default::default()
         })
         .unwrap()
     };

@@ -34,7 +34,9 @@ class PackageTests(unittest.TestCase):
                     hash(engine)
                 for name in inspect.signature(factory).parameters:
                     value = getattr(engine, name)
-                    if value is None:
+                    if name == "time_shift":
+                        alternate = timedelta(seconds=1)
+                    elif value is None:
                         alternate = 42 if name == "seed" else 1000.0
                     elif isinstance(value, bool):
                         alternate = not value

@@ -238,6 +238,7 @@ fn standard_crank_nicolson_matches_one_unsmoothed_step() {
         time_step_count: 1,
         scheme: FiniteDifferenceScheme::CrankNicolson,
         asset_upper_boundary: Some(300.0),
+        ..Default::default()
     };
     let actual = FiniteDifferenceVanillaEngine::new(settings)
         .unwrap()

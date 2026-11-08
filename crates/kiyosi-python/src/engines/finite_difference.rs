@@ -53,12 +53,17 @@ macro_rules! fd_engine {
         /// spot_shift : float or None, optional
         ///     Positive absolute spot bump for native Greek availability and terminal
         ///     stencils. None selects the automatic bump; prices and grids are unchanged.
+        /// volatility_shift, rate_shift : float, optional
+        ///     Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        ///     Native spatial delta and gamma retain their estimator.
+        /// time_shift : datetime.timedelta or None, optional
+        ///     Positive whole-microsecond time bump, or None for automatic selection.
         ///
         /// Raises
         /// ------
         /// InvalidInputError
         ///     If asset_step_count is below 3, time_step_count is below 1, or an
-        ///     explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        ///     explicit upper boundary or Greek bump is invalid. Boundary coverage
         ///     and explicit-Euler stability are checked during pricing.
         ///
         /// Notes
@@ -96,7 +101,7 @@ macro_rules! fd_engine {
                 /// -----
                 /// Before expiry delta and gamma come from the spatial solution,
                 /// except zero BSM volatility uses scalar differences.
-                /// Other BSM Greeks use numerical differences with engine defaults.
+                /// Other BSM Greeks use numerical differences with the configured shifts.
                 /// Local volatility provides only delta and gamma. At expiry vanilla
                 /// Greeks use exact supported payoff derivatives; other products use
                 /// default terminal-payoff stencils. Use numerical_greeks
@@ -105,13 +110,17 @@ macro_rules! fd_engine {
             engine_methods!(
                 $name,
                 #[new]
-                #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None, spot_shift=None))]
+                #[expect(clippy::too_many_arguments, reason = "explicit Python grid and Greek controls")]
+                #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=None))]
                 fn new(
                     #[pyo3(from_py_with = integer)] asset_step_count: i32,
                     #[pyo3(from_py_with = integer)] time_step_count: i32,
                     #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
                     asset_upper_boundary: Option<&Bound<'_, PyAny>>,
                     spot_shift: Option<&Bound<'_, PyAny>>,
+                    #[pyo3(from_py_with = real)] volatility_shift: f64,
+                    #[pyo3(from_py_with = real)] rate_shift: f64,
+                    time_shift: Option<&Bound<'_, PyAny>>,
                 ) -> PyResult<Self> {
                     Ok(Self(domain(kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
                         asset_step_count,
@@ -119,6 +128,9 @@ macro_rules! fd_engine {
                         scheme,
                         asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
                         spot_shift: spot_shift.map(real).transpose()?,
+                        volatility_shift,
+                        rate_shift,
+                        time_shift: time_shift.map(crate::conversions::duration).transpose()?,
                     }))?))
                 },
                 /// Return the configured number of spatial intervals.
@@ -150,6 +162,21 @@ macro_rules! fd_engine {
                 #[getter]
                 fn spot_shift(&self) -> Option<f64> {
                     self.0.settings().spot_shift
+                },
+                /// Return the numerical volatility bump in decimal units.
+                #[getter]
+                fn volatility_shift(&self) -> f64 {
+                    self.0.settings().volatility_shift
+                },
+                /// Return the numerical parallel rate bump in decimal units.
+                #[getter]
+                fn rate_shift(&self) -> f64 {
+                    self.0.settings().rate_shift
+                },
+                /// Return the explicit time bump, or None for automatic selection.
+                #[getter]
+                fn time_shift<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, pyo3::types::PyDelta>>> {
+                    self.0.settings().time_shift.map(|value| crate::conversions::python_duration(py, value)).transpose()
                 },
                 /// Return the price without changing the instrument or context.
                 ///

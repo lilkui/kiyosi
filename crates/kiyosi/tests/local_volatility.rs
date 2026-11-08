@@ -600,6 +600,7 @@ fn every_fd_engine_keeps_schemes_coverage_and_explicit_stability_contracts() {
                     time_step_count: 16000,
                     scheme,
                     asset_upper_boundary: Some(400.0),
+                    ..Default::default()
                 })
                 .unwrap();
                 close(
@@ -820,6 +821,7 @@ fn all_existing_schemes_support_local_volatility() {
             time_step_count: 4000,
             scheme,
             asset_upper_boundary: Some(400.0),
+            ..Default::default()
         })
         .unwrap();
         close(e.price(&option, &c).unwrap(), 9.227_005_508_154_036, 0.015);

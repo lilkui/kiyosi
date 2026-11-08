@@ -1412,7 +1412,8 @@ class AnalyticEuropeanEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1539,7 +1540,8 @@ class AnalyticHestonEuropeanEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1639,7 +1641,8 @@ class BjerksundStenslandVanillaEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: AmericanOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1731,7 +1734,8 @@ class AnalyticDigitalEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -1842,7 +1846,8 @@ class CoxRossRubinsteinBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -1958,7 +1963,8 @@ class QuadratureBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -2085,7 +2091,8 @@ class QuadratureDigitalEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -2221,7 +2228,8 @@ class QuadratureVanillaEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -2324,7 +2332,8 @@ class CoxRossRubinsteinVanillaEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -2438,7 +2447,8 @@ class CoxRossRubinsteinDigitalEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -2531,12 +2541,17 @@ class FiniteDifferenceAccumulatorEngine:
     spot_shift : float or None, optional
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are unchanged.
+    volatility_shift, rate_shift : float, optional
+        Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        Native spatial delta and gamma retain their estimator.
+    time_shift : datetime.timedelta or None, optional
+        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or Greek bump is invalid. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2565,6 +2580,9 @@ class FiniteDifferenceAccumulatorEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -2582,6 +2600,18 @@ class FiniteDifferenceAccumulatorEngine:
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
+    @property
+    def volatility_shift(self) -> float:
+        """Return the numerical volatility bump in decimal units."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
+
     def greek_method(
         self, instrument: Accumulator, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -2596,7 +2626,8 @@ class FiniteDifferenceAccumulatorEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -2658,7 +2689,7 @@ class FiniteDifferenceAccumulatorEngine:
         -----
         Before expiry delta and gamma come from the spatial solution,
         except zero BSM volatility uses scalar differences.
-        Other BSM Greeks use numerical differences with engine defaults.
+        Other BSM Greeks use numerical differences with the configured shifts.
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
@@ -2692,12 +2723,17 @@ class FiniteDifferenceBarrierEngine:
     spot_shift : float or None, optional
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are unchanged.
+    volatility_shift, rate_shift : float, optional
+        Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        Native spatial delta and gamma retain their estimator.
+    time_shift : datetime.timedelta or None, optional
+        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or Greek bump is invalid. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2726,6 +2762,9 @@ class FiniteDifferenceBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -2743,6 +2782,18 @@ class FiniteDifferenceBarrierEngine:
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
+    @property
+    def volatility_shift(self) -> float:
+        """Return the numerical volatility bump in decimal units."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
+
     def greek_method(
         self, instrument: BarrierOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -2757,7 +2808,8 @@ class FiniteDifferenceBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -2819,7 +2871,7 @@ class FiniteDifferenceBarrierEngine:
         -----
         Before expiry delta and gamma come from the spatial solution,
         except zero BSM volatility uses scalar differences.
-        Other BSM Greeks use numerical differences with engine defaults.
+        Other BSM Greeks use numerical differences with the configured shifts.
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
@@ -2853,12 +2905,17 @@ class FiniteDifferenceDoubleBarrierEngine:
     spot_shift : float or None, optional
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are unchanged.
+    volatility_shift, rate_shift : float, optional
+        Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        Native spatial delta and gamma retain their estimator.
+    time_shift : datetime.timedelta or None, optional
+        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or Greek bump is invalid. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2887,6 +2944,9 @@ class FiniteDifferenceDoubleBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -2904,6 +2964,18 @@ class FiniteDifferenceDoubleBarrierEngine:
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
+    @property
+    def volatility_shift(self) -> float:
+        """Return the numerical volatility bump in decimal units."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
+
     def greek_method(
         self, instrument: DoubleBarrierOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -2918,7 +2990,8 @@ class FiniteDifferenceDoubleBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -2980,7 +3053,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         -----
         Before expiry delta and gamma come from the spatial solution,
         except zero BSM volatility uses scalar differences.
-        Other BSM Greeks use numerical differences with engine defaults.
+        Other BSM Greeks use numerical differences with the configured shifts.
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
@@ -3014,12 +3087,17 @@ class FiniteDifferenceAutocallableEngine:
     spot_shift : float or None, optional
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are unchanged.
+    volatility_shift, rate_shift : float, optional
+        Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        Native spatial delta and gamma retain their estimator.
+    time_shift : datetime.timedelta or None, optional
+        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or Greek bump is invalid. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3048,6 +3126,9 @@ class FiniteDifferenceAutocallableEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3064,6 +3145,18 @@ class FiniteDifferenceAutocallableEngine:
     @property
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
+
+    @property
+    def volatility_shift(self) -> float:
+        """Return the numerical volatility bump in decimal units."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
 
     def greek_method(
         self,
@@ -3089,7 +3182,8 @@ class FiniteDifferenceAutocallableEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3161,7 +3255,7 @@ class FiniteDifferenceAutocallableEngine:
         -----
         Before expiry delta and gamma come from the spatial solution,
         except zero BSM volatility uses scalar differences.
-        Other BSM Greeks use numerical differences with engine defaults.
+        Other BSM Greeks use numerical differences with the configured shifts.
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
@@ -3195,12 +3289,17 @@ class FiniteDifferenceDoubleTouchEngine:
     spot_shift : float or None, optional
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are unchanged.
+    volatility_shift, rate_shift : float, optional
+        Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        Native spatial delta and gamma retain their estimator.
+    time_shift : datetime.timedelta or None, optional
+        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or Greek bump is invalid. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3229,6 +3328,9 @@ class FiniteDifferenceDoubleTouchEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3246,6 +3348,18 @@ class FiniteDifferenceDoubleTouchEngine:
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
+    @property
+    def volatility_shift(self) -> float:
+        """Return the numerical volatility bump in decimal units."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
+
     def greek_method(
         self, instrument: DoubleTouchOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -3260,7 +3374,8 @@ class FiniteDifferenceDoubleTouchEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3322,7 +3437,7 @@ class FiniteDifferenceDoubleTouchEngine:
         -----
         Before expiry delta and gamma come from the spatial solution,
         except zero BSM volatility uses scalar differences.
-        Other BSM Greeks use numerical differences with engine defaults.
+        Other BSM Greeks use numerical differences with the configured shifts.
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
@@ -3356,12 +3471,17 @@ class FiniteDifferenceBinaryBarrierEngine:
     spot_shift : float or None, optional
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are unchanged.
+    volatility_shift, rate_shift : float, optional
+        Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        Native spatial delta and gamma retain their estimator.
+    time_shift : datetime.timedelta or None, optional
+        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or Greek bump is invalid. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3390,6 +3510,9 @@ class FiniteDifferenceBinaryBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3407,6 +3530,18 @@ class FiniteDifferenceBinaryBarrierEngine:
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
+    @property
+    def volatility_shift(self) -> float:
+        """Return the numerical volatility bump in decimal units."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
+
     def greek_method(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -3421,7 +3556,8 @@ class FiniteDifferenceBinaryBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3485,7 +3621,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         -----
         Before expiry delta and gamma come from the spatial solution,
         except zero BSM volatility uses scalar differences.
-        Other BSM Greeks use numerical differences with engine defaults.
+        Other BSM Greeks use numerical differences with the configured shifts.
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
@@ -3577,7 +3713,8 @@ class FiniteDifferenceHestonVanillaEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -3670,12 +3807,17 @@ class FiniteDifferenceVanillaEngine:
     spot_shift : float or None, optional
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are unchanged.
+    volatility_shift, rate_shift : float, optional
+        Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        Native spatial delta and gamma retain their estimator.
+    time_shift : datetime.timedelta or None, optional
+        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or Greek bump is invalid. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3704,6 +3846,9 @@ class FiniteDifferenceVanillaEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3721,6 +3866,18 @@ class FiniteDifferenceVanillaEngine:
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
+    @property
+    def volatility_shift(self) -> float:
+        """Return the numerical volatility bump in decimal units."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
+
     def greek_method(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -3735,7 +3892,8 @@ class FiniteDifferenceVanillaEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3799,7 +3957,7 @@ class FiniteDifferenceVanillaEngine:
         -----
         Before expiry delta and gamma come from the spatial solution,
         except zero BSM volatility uses scalar differences.
-        Other BSM Greeks use numerical differences with engine defaults.
+        Other BSM Greeks use numerical differences with the configured shifts.
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
@@ -3833,12 +3991,17 @@ class FiniteDifferenceDigitalEngine:
     spot_shift : float or None, optional
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are unchanged.
+    volatility_shift, rate_shift : float, optional
+        Positive decimal bumps for numerical Greeks; defaults to 0.0001.
+        Native spatial delta and gamma retain their estimator.
+    time_shift : datetime.timedelta or None, optional
+        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or Greek bump is invalid. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3867,6 +4030,9 @@ class FiniteDifferenceDigitalEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3883,6 +4049,18 @@ class FiniteDifferenceDigitalEngine:
     @property
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
+
+    @property
+    def volatility_shift(self) -> float:
+        """Return the numerical volatility bump in decimal units."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
 
     def greek_method(
         self,
@@ -3902,7 +4080,8 @@ class FiniteDifferenceDigitalEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     @property
     def spot_shift(self) -> float | None:
@@ -3968,7 +4147,7 @@ class FiniteDifferenceDigitalEngine:
         -----
         Before expiry delta and gamma come from the spatial solution,
         except zero BSM volatility uses scalar differences.
-        Other BSM Greeks use numerical differences with engine defaults.
+        Other BSM Greeks use numerical differences with the configured shifts.
         Local volatility provides only delta and gamma. At expiry vanilla
         Greeks use exact supported payoff derivatives; other products use
         default terminal-payoff stencils. Use numerical_greeks
@@ -4305,7 +4484,8 @@ class MonteCarloDigitalEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -4500,7 +4680,8 @@ class MonteCarloBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -4695,7 +4876,8 @@ class MonteCarloDoubleBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -4902,7 +5084,8 @@ class MonteCarloAutocallableEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -5105,7 +5288,8 @@ class MonteCarloAccumulatorEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -5307,7 +5491,8 @@ class MonteCarloAsianEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -7219,7 +7404,8 @@ class AnalyticGeometricAveragePriceEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: GeometricAveragePriceOption, context: PricingContext
@@ -7457,7 +7643,8 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: ArithmeticAveragePriceOption, context: PricingContext
@@ -7771,7 +7958,8 @@ class AnalyticBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8274,7 +8462,8 @@ class AnalyticRangeAccrualEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: RangeAccrualOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8363,7 +8552,8 @@ class AnalyticDoubleBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -8462,7 +8652,8 @@ class AnalyticDoubleTouchEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.
@@ -9262,7 +9453,8 @@ class AnalyticBinaryBarrierEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
@@ -9718,7 +9910,8 @@ class QuadratureAutocallableEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(
         self,
@@ -11977,7 +12170,8 @@ class QuadratureAccumulatorEngine:
         """Return shift-control names potentially used by this Greek calculation path.
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
-        accept spot_shift; use numerical_greeks for configurable scalar differences."""
+        accept spot_shift; finite-difference constructors expose all four shifts.
+        Use numerical_greeks for configurable scalar differences."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Returns the price without changing the instrument or context.

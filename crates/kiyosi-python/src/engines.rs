@@ -38,7 +38,8 @@ macro_rules! numerical_greeks_methods {
             /// Return shift-control names potentially used by this Greek calculation path.
             ///
             /// Individual requests may use fewer controls. Monte Carlo barrier calls
-            /// accept spot_shift; use numerical_greeks for configurable scalar differences.
+            /// accept spot_shift; finite-difference constructors expose all four shifts.
+            /// Use numerical_greeks for configurable scalar differences.
             fn active_greek_controls(
                 &self,
                 py: pyo3::Python<'_>,

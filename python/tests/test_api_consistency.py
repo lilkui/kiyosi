@@ -1305,6 +1305,78 @@ class ApiConsistencyTests(unittest.TestCase):
             "undefined",
         )
 
+    def test_fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        option = ins.EuropeanOption(
+            option_type="call", strike=100, effective_time=start, expiry_time=end
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.00005
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        grid = {"asset_step_count": 200, "time_step_count": 100}
+        base = pricing.FiniteDifferenceVanillaEngine(**grid).price_with_greeks(
+            option, context, ["delta", "gamma", "vega"]
+        )
+        self.assertEqual(base.status("vega"), "stencil_unavailable")
+        shifts = {
+            "volatility_shift": 0.00001,
+            "rate_shift": 0.0002,
+            "time_shift": timedelta(seconds=60),
+        }
+        engine = pricing.FiniteDifferenceVanillaEngine(**grid, **shifts)
+        tuned = engine.price_with_greeks(option, context, ["delta", "gamma", "vega"])
+        self.assertEqual(tuned.price, base.price)
+        self.assertEqual(tuned.require("delta"), base.require("delta"))
+        self.assertEqual(tuned.require("gamma"), base.require("gamma"))
+        exact = pricing.AnalyticEuropeanEngine().price_with_greeks(
+            option, context, "vega"
+        )
+        self.assertAlmostEqual(tuned.require("vega"), exact.require("vega"), delta=0.1)
+        regular = context.replace(
+            model_parameters=context.model_parameters.replace(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            )
+        )
+        measures = ["rho", "dividend_rho", "theta"]
+        configured_result = engine.price_with_greeks(option, regular, measures)
+        scalar = numerical_greeks(engine, option, regular, measures, **shifts)
+        for greek in measures:
+            self.assertAlmostEqual(
+                configured_result.require(greek), scalar.require(greek), delta=1e-10
+            )
+        for name in pricing.__all__:
+            if (
+                not (name.startswith("FiniteDifference") and name.endswith("Engine"))
+                or "Heston" in name
+            ):
+                continue
+            factory = getattr(pricing, name)
+            with self.subTest(engine=name):
+                configured = factory(**shifts)
+                restored = pickle.loads(pickle.dumps(configured))
+                self.assertEqual(restored, configured)
+                for field, expected in shifts.items():
+                    self.assertEqual(getattr(restored, field), expected)
+                for field, bad in (
+                    ("volatility_shift", 0),
+                    ("rate_shift", float("nan")),
+                    ("time_shift", timedelta()),
+                    ("time_shift", timedelta(seconds=-1)),
+                ):
+                    with self.assertRaises(InvalidInputError):
+                        factory(**{field: bad})
+                for field, bad in (
+                    ("volatility_shift", True),
+                    ("rate_shift", True),
+                    ("time_shift", 1),
+                ):
+                    with self.assertRaises(TypeError):
+                        factory(**{field: bad})
+
     def test_greek_status_distinguishes_requests_support_and_stencils(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = ins.EuropeanOption(

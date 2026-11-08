@@ -2410,3 +2410,84 @@ fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.000_05)?,
+        100.0,
+        start,
+    )?;
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 200,
+        time_step_count: 100,
+        ..Default::default()
+    };
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]);
+    let base = FiniteDifferenceVanillaEngine::new(settings)?
+        .price_with_greeks(&option, &context, request)?;
+    assert_eq!(base.status(Greek::Vega), GreekStatus::StencilUnavailable);
+    let configured = FiniteDifferenceSettings {
+        volatility_shift: 0.000_01,
+        rate_shift: 0.000_2,
+        time_shift: Some(std::time::Duration::from_secs(60)),
+        ..settings
+    };
+    let engine = FiniteDifferenceVanillaEngine::new(configured)?;
+    assert_eq!(engine.settings(), configured);
+    let tuned = engine.price_with_greeks(&option, &context, request)?;
+    assert_eq!(tuned.price(), base.price());
+    assert_eq!(tuned.require(Greek::Delta)?, base.require(Greek::Delta)?);
+    assert_eq!(tuned.require(Greek::Gamma)?, base.require(Greek::Gamma)?);
+    let exact = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
+    assert!((tuned.require(Greek::Vega)? - exact.require(Greek::Vega)?).abs() < 0.1);
+    let regular = context.replace(PricingContextChanges {
+        model_parameters: Some(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?.into()),
+        ..Default::default()
+    })?;
+    let measures = [Greek::Rho, Greek::DividendRho, Greek::Theta];
+    let request = GreeksRequest::new(measures);
+    let configured_result = engine.price_with_greeks(&option, &regular, request)?;
+    let scalar = numerical_greeks(
+        &engine,
+        &option,
+        &regular,
+        request,
+        NumericalShiftSettings {
+            volatility_shift: configured.volatility_shift,
+            rate_shift: configured.rate_shift,
+            time_shift: configured.time_shift,
+            ..Default::default()
+        },
+    )?;
+    for greek in measures {
+        assert!((configured_result.require(greek)? - scalar.require(greek)?).abs() < 1e-10);
+    }
+    for invalid in [
+        FiniteDifferenceSettings {
+            volatility_shift: 0.0,
+            ..settings
+        },
+        FiniteDifferenceSettings {
+            rate_shift: f64::NAN,
+            ..settings
+        },
+        FiniteDifferenceSettings {
+            time_shift: Some(std::time::Duration::ZERO),
+            ..settings
+        },
+        FiniteDifferenceSettings {
+            time_shift: Some(std::time::Duration::from_nanos(1)),
+            ..settings
+        },
+    ] {
+        assert!(matches!(
+            FiniteDifferenceVanillaEngine::new(invalid),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}

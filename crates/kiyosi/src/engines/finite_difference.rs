@@ -78,16 +78,32 @@ pub struct FiniteDifferenceSettings {
     /// `None` uses the shared automatic bump. Prices and spatial grids are unchanged.
     /// See [`FiniteDifferenceBarrierEngine::price_with_greeks`] for usage.
     pub spot_shift: Option<f64>,
+    /// Sets the positive absolute volatility bump for numerical Greeks; defaults to 0.0001.
+    ///
+    /// Native spot Greeks retain their spatial estimator. See [`Self::validate`] for configuration.
+    pub volatility_shift: f64,
+    /// Sets the positive parallel risk-free and dividend-rate bump; defaults to 0.0001.
+    ///
+    /// See [`Self::validate`] for configuration.
+    pub rate_shift: f64,
+    /// Sets a positive whole-microsecond time bump, or `None` for automatic selection.
+    ///
+    /// See [`NumericalShiftSettings::time_shift`] for automatic bounds and [`Self::validate`] for configuration.
+    pub time_shift: Option<std::time::Duration>,
 }
 
 impl Default for FiniteDifferenceSettings {
     fn default() -> Self {
+        let shifts = NumericalShiftSettings::default();
         Self {
             asset_step_count: 800,
             time_step_count: 400,
             scheme: Default::default(),
             asset_upper_boundary: None,
-            spot_shift: None,
+            spot_shift: shifts.spot_shift,
+            volatility_shift: shifts.volatility_shift,
+            rate_shift: shifts.rate_shift,
+            time_shift: shifts.time_shift,
         }
     }
 }
@@ -98,7 +114,8 @@ impl FiniteDifferenceSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
-    /// fewer than one time interval, or a nonpositive or non-finite explicit upper bound or spot bump.
+    /// fewer than one time interval, a nonpositive or non-finite boundary or Greek bump,
+    /// or a time bump that is zero or not a whole number of microseconds.
     /// Leaves the settings unchanged. Domain coverage and scheme stability are checked at pricing.
     ///
     /// # Examples
@@ -127,7 +144,9 @@ impl FiniteDifferenceSettings {
     fn greek_shifts(self) -> NumericalShiftSettings {
         NumericalShiftSettings {
             spot_shift: self.spot_shift,
-            ..Default::default()
+            volatility_shift: self.volatility_shift,
+            rate_shift: self.rate_shift,
+            time_shift: self.time_shift,
         }
     }
 }
