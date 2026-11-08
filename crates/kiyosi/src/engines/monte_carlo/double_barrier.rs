@@ -133,9 +133,10 @@ impl MonteCarloDoubleBarrierEngine {
     /// Returns requested delta/gamma using the price's normal samples.
     ///
     /// Other Greeks are absent. Expiry spot Greeks follow terminal payoffs; stencils crossing either
-    /// current monitored boundary suppress delta/gamma. The optional spot shift in
-    /// [`Self::price_with_greeks_with_spot_shift`] controls that availability and numerical derivatives of
-    /// continuous at-hit rebates. Custom scalar differences use [`crate::numerical_greeks`].
+    /// current monitored boundary suppress delta/gamma. The optional [`crate::NumericalShiftSettings::spot_shift`]
+    /// controls that availability and numerical derivatives of continuous at-hit rebates.
+    /// Configure it with [`PricingEngine::price_with_greeks_with_settings`].
+    /// Custom scalar differences use [`crate::numerical_greeks`].
     /// Unavailable rebate stencils leave the contract's delta/gamma absent; see
     /// [`crate::numerical_greeks`] for stencil requirements.
     /// Near-expiry likelihood estimates can have substantial sampling error.
@@ -177,8 +178,10 @@ impl MonteCarloDoubleBarrierEngine {
     /// assert_eq!(engine.sampling_settings().path_count, 32768);
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
-    /// let tuned = engine.price_with_greeks_with_spot_shift(&option, &context,
-    ///     GreeksRequest::new([crate::Greek::Delta]), Some(0.005))?;
+    /// let tuned = engine.price_with_greeks_with_settings(&option, &context,
+    ///     GreeksRequest::new([Greek::Delta]), NumericalShiftSettings {
+    ///         spot_shift: Some(0.005), ..Default::default()
+    ///     })?;
     /// assert_eq!(tuned.price(), result.price());
     /// # Ok(()) }
     /// ```
@@ -188,40 +191,7 @@ impl MonteCarloDoubleBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        self.price_with_greeks_with_spot_shift(option, context, request, None)
-    }
-
-    /// Returns native delta/gamma with an optional absolute spot bump.
-    ///
-    /// `None` selects the capped automatic bump from [`NumericalShiftSettings`](crate::NumericalShiftSettings).
-    /// The bump controls event availability, continuous at-hit rebate derivatives and
-    /// terminal-payoff stencils, while retaining the native estimator before expiry.
-    /// See [`Self::price_with_greeks`] for sampling, availability and concurrency rules.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] for a nonpositive or non-finite explicit bump.
-    /// Propagates [`Self::price_with_greeks`] errors; inputs remain unchanged.
-    ///
-    /// # Examples
-    ///
-    /// See [`Self::price_with_greeks`] for constructing an engine and contract.
-    pub fn price_with_greeks_with_spot_shift(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        spot_shift: Option<f64>,
-    ) -> Result<PricingResult> {
-        self.greeks_with_settings(
-            option,
-            context,
-            request,
-            crate::NumericalShiftSettings {
-                spot_shift,
-                ..Default::default()
-            },
-        )
+        self.greeks_with_settings(option, context, request, Default::default())
     }
 
     fn greeks_with_settings(

@@ -67,33 +67,31 @@ fn native_barrier_spot_controls_recover_near_boundary_greeks() -> Result<()> {
     for result in defaults {
         assert_eq!(result.status(Greek::Delta), GreekStatus::StencilUnavailable);
     }
+    let shifts = NumericalShiftSettings {
+        spot_shift: Some(0.0001),
+        ..Default::default()
+    };
+    let tighter_shifts = NumericalShiftSettings {
+        spot_shift: Some(0.00005),
+        ..shifts
+    };
     for (result, tighter) in [
         (
-            single_engine.price_with_greeks_with_spot_shift(
+            single_engine.price_with_greeks_with_settings(&single, &context, request, shifts)?,
+            single_engine.price_with_greeks_with_settings(
                 &single,
                 &context,
                 request,
-                Some(0.0001),
-            )?,
-            single_engine.price_with_greeks_with_spot_shift(
-                &single,
-                &context,
-                request,
-                Some(0.00005),
+                tighter_shifts,
             )?,
         ),
         (
-            double_engine.price_with_greeks_with_spot_shift(
+            double_engine.price_with_greeks_with_settings(&double, &context, request, shifts)?,
+            double_engine.price_with_greeks_with_settings(
                 &double,
                 &context,
                 request,
-                Some(0.0001),
-            )?,
-            double_engine.price_with_greeks_with_spot_shift(
-                &double,
-                &context,
-                request,
-                Some(0.00005),
+                tighter_shifts,
             )?,
         ),
     ] {
@@ -101,19 +99,13 @@ fn native_barrier_spot_controls_recover_near_boundary_greeks() -> Result<()> {
         assert_eq!(result, tighter);
     }
     for invalid in [0.0, -1.0, f64::INFINITY, f64::NAN] {
+        let shifts = NumericalShiftSettings {
+            spot_shift: Some(invalid),
+            ..Default::default()
+        };
         for result in [
-            single_engine.price_with_greeks_with_spot_shift(
-                &single,
-                &context,
-                request,
-                Some(invalid),
-            ),
-            double_engine.price_with_greeks_with_spot_shift(
-                &double,
-                &context,
-                request,
-                Some(invalid),
-            ),
+            single_engine.price_with_greeks_with_settings(&single, &context, request, shifts),
+            double_engine.price_with_greeks_with_settings(&double, &context, request, shifts),
         ] {
             assert!(matches!(result, Err(Error::InvalidInput(_))));
         }
