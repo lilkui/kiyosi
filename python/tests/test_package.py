@@ -711,14 +711,14 @@ class PackageTests(unittest.TestCase):
                         end, 110, coupon_rate=0
                     )
                 ]
-                self.assertIs(
+                self.assertIsNone(
                     inspect.signature(cls).parameters["observation_clock_time"].default,
-                    inspect.Parameter.empty,
                 )
-                with self.assertRaises(TypeError):
+                with self.assertRaises(kiyosi.InvalidInputError):
                     cls(**history_fields(**common, **extra))
-                with self.assertRaises(TypeError):
-                    inspect.signature(cls).bind(**common, **extra)
+                arguments = inspect.signature(cls).bind(**common, **extra)
+                arguments.apply_defaults()
+                self.assertIsNone(arguments.arguments["observation_clock_time"])
                 with self.assertRaises(kiyosi.InvalidInputError):
                     cls(
                         **history_fields(observation_clock_time=None, **common, **extra)
@@ -756,12 +756,15 @@ class PackageTests(unittest.TestCase):
                 )
                 self.assertNotEqual(note, expiry_only)
                 self.assertIsNone(expiry_only.observation_clock_time)
-                with self.assertRaises(TypeError):
+                self.assertEqual(
+                    expiry_only,
                     cls(
                         **history_fields(
                             **common, **extra, knock_in_observation_mode="at_expiry"
                         )
-                    )
+                    ),
+                )
+                self.assertEqual(list(expiry_only.knock_in_observation_schedule), [end])
                 self.assertEqual(pickle.loads(pickle.dumps(expiry_only)), expiry_only)
                 with self.assertRaises(kiyosi.InvalidInputError):
                     cls(
