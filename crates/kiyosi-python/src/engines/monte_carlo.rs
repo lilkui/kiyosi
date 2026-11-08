@@ -101,6 +101,43 @@ macro_rules! sampling_settings {
     ($engine:ident, [$($step:ident)?], $($methods:item),* $(,)?) => {
         #[pymethods]
         impl $engine {
+            /// Return the scalar price and the seed used by this request.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Any contract supported by price(), including American vanilla options.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            ///
+            /// Returns
+            /// -------
+            /// tuple[float, int or None]
+            ///     Price and actual sampling seed; None when no sampling is needed.
+            ///     Reprice with replace(seed=seed) and the same inputs and controls
+            ///     to replay the result within the same build. The engine is unchanged.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If domain validation, engine applicability or scalar pricing fails.
+            /// OSError
+            ///     If system entropy or worker creation fails.
+            ///
+            /// Notes
+            /// -----
+            /// Does not compute sampling uncertainty. Signal exceptions cancel the
+            /// request and propagate without a partial result, as for price().
+            fn price_with_seed(
+                &self,
+                py: Python<'_>,
+                instrument: &Bound<'_, PyAny>,
+                context: &PricingContext,
+            ) -> PyResult<(f64, Option<u64>)> {
+                self.evaluate(py, crate::conversions::instrument(instrument)?, context,
+                    crate::engines::SeededPriceRequest)
+            }
+
             /// Returns a price with sampling uncertainty.
             ///
             /// Parameters

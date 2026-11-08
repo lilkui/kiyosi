@@ -4708,6 +4708,37 @@ class MonteCarloVanillaEngine:
         Individual requests may use fewer controls. Every engine accepts the same
         request-level controls; omitted controls retain the engine's settings."""
 
+    def price_with_seed(
+        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
+    ) -> tuple[float, int | None]:
+        """Return the scalar price and the seed used by this request.
+
+        Parameters
+        ----------
+        instrument : object
+            Any contract supported by price(), including American vanilla options.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple[float, int or None]
+            Price and actual sampling seed; None when no sampling is needed.
+            Reprice with replace(seed=seed) and the same inputs and controls
+            to replay the result within the same build. The engine is unchanged.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or scalar pricing fails.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Does not compute sampling uncertainty. Signal exceptions cancel the
+        request and propagate without a partial result, as for price()."""
+
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
     ) -> float:
@@ -4957,6 +4988,39 @@ class MonteCarloDigitalEngine:
         Individual requests may use fewer controls. Every engine accepts the same
         request-level controls; omitted controls retain the engine's settings."""
 
+    def price_with_seed(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+    ) -> tuple[float, int | None]:
+        """Return the scalar price and the seed used by this request.
+
+        Parameters
+        ----------
+        instrument : object
+            Any contract supported by price(), including American vanilla options.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple[float, int or None]
+            Price and actual sampling seed; None when no sampling is needed.
+            Reprice with replace(seed=seed) and the same inputs and controls
+            to replay the result within the same build. The engine is unchanged.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or scalar pricing fails.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Does not compute sampling uncertainty. Signal exceptions cancel the
+        request and propagate without a partial result, as for price()."""
+
     def price(
         self,
         instrument: CashOrNothingOption | AssetOrNothingOption,
@@ -5181,6 +5245,37 @@ class MonteCarloBarrierEngine:
         Individual requests may use fewer controls. Every engine accepts the same
         request-level controls; omitted controls retain the engine's settings."""
 
+    def price_with_seed(
+        self, instrument: BarrierOption, context: PricingContext
+    ) -> tuple[float, int | None]:
+        """Return the scalar price and the seed used by this request.
+
+        Parameters
+        ----------
+        instrument : object
+            Any contract supported by price(), including American vanilla options.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple[float, int or None]
+            Price and actual sampling seed; None when no sampling is needed.
+            Reprice with replace(seed=seed) and the same inputs and controls
+            to replay the result within the same build. The engine is unchanged.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or scalar pricing fails.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Does not compute sampling uncertainty. Signal exceptions cancel the
+        request and propagate without a partial result, as for price()."""
+
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
 
@@ -5398,6 +5493,37 @@ class MonteCarloDoubleBarrierEngine:
 
         Individual requests may use fewer controls. Every engine accepts the same
         request-level controls; omitted controls retain the engine's settings."""
+
+    def price_with_seed(
+        self, instrument: DoubleBarrierOption, context: PricingContext
+    ) -> tuple[float, int | None]:
+        """Return the scalar price and the seed used by this request.
+
+        Parameters
+        ----------
+        instrument : object
+            Any contract supported by price(), including American vanilla options.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple[float, int or None]
+            Price and actual sampling seed; None when no sampling is needed.
+            Reprice with replace(seed=seed) and the same inputs and controls
+            to replay the result within the same build. The engine is unchanged.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or scalar pricing fails.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Does not compute sampling uncertainty. Signal exceptions cancel the
+        request and propagate without a partial result, as for price()."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -5628,6 +5754,42 @@ class MonteCarloAutocallableEngine:
 
         Individual requests may use fewer controls. Every engine accepts the same
         request-level controls; omitted controls retain the engine's settings."""
+
+    def price_with_seed(
+        self,
+        instrument: SnowballOption
+        | BinarySnowballOption
+        | TernarySnowballOption
+        | PhoenixOption,
+        context: PricingContext,
+    ) -> tuple[float, int | None]:
+        """Return the scalar price and the seed used by this request.
+
+        Parameters
+        ----------
+        instrument : object
+            Any contract supported by price(), including American vanilla options.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple[float, int or None]
+            Price and actual sampling seed; None when no sampling is needed.
+            Reprice with replace(seed=seed) and the same inputs and controls
+            to replay the result within the same build. The engine is unchanged.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or scalar pricing fails.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Does not compute sampling uncertainty. Signal exceptions cancel the
+        request and propagate without a partial result, as for price()."""
 
     def price(
         self,
@@ -5861,6 +6023,37 @@ class MonteCarloAccumulatorEngine:
         Individual requests may use fewer controls. Every engine accepts the same
         request-level controls; omitted controls retain the engine's settings."""
 
+    def price_with_seed(
+        self, instrument: Accumulator, context: PricingContext
+    ) -> tuple[float, int | None]:
+        """Return the scalar price and the seed used by this request.
+
+        Parameters
+        ----------
+        instrument : object
+            Any contract supported by price(), including American vanilla options.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple[float, int or None]
+            Price and actual sampling seed; None when no sampling is needed.
+            Reprice with replace(seed=seed) and the same inputs and controls
+            to replay the result within the same build. The engine is unchanged.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or scalar pricing fails.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Does not compute sampling uncertainty. Signal exceptions cancel the
+        request and propagate without a partial result, as for price()."""
+
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
 
@@ -6092,6 +6285,39 @@ class MonteCarloAsianEngine:
 
         Individual requests may use fewer controls. Every engine accepts the same
         request-level controls; omitted controls retain the engine's settings."""
+
+    def price_with_seed(
+        self,
+        instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
+        context: PricingContext,
+    ) -> tuple[float, int | None]:
+        """Return the scalar price and the seed used by this request.
+
+        Parameters
+        ----------
+        instrument : object
+            Any contract supported by price(), including American vanilla options.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple[float, int or None]
+            Price and actual sampling seed; None when no sampling is needed.
+            Reprice with replace(seed=seed) and the same inputs and controls
+            to replay the result within the same build. The engine is unchanged.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or scalar pricing fails.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Does not compute sampling uncertainty. Signal exceptions cancel the
+        request and propagate without a partial result, as for price()."""
 
     def price(
         self,

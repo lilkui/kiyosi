@@ -214,6 +214,20 @@ impl PricingRequest<kiyosi::PricingResult> for NativeGreeksRequest {
 #[derive(Clone, Copy)]
 pub(crate) struct StatisticsRequest;
 
+#[derive(Clone, Copy)]
+pub(crate) struct SeededPriceRequest;
+
+impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
+    fn evaluate<I: kiyosi::OptionContract>(
+        self,
+        engine: &impl kiyosi::PricingEngine<I>,
+        instrument: &I,
+        context: &kiyosi::PricingContext,
+    ) -> kiyosi::Result<(f64, Option<u64>)> {
+        engine.price_with_seed(instrument, context)
+    }
+}
+
 impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
     fn evaluate<I: kiyosi::OptionContract>(
         self,

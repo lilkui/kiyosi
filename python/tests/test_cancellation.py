@@ -11,6 +11,7 @@ class CancellationTests(unittest.TestCase):
         for case in (
             "serial_mc",
             "parallel_mc",
+            "seeded_mc",
             "tree",
             "fd",
             "quadrature",
@@ -39,7 +40,7 @@ class CancellationTests(unittest.TestCase):
                         vanilla = option
                         replay = p.MonteCarloVanillaEngine(path_count=128, seed=42, max_active_workers=2)
                         baseline = replay.price(vanilla, context)
-                        if case in ("serial_mc", "parallel_mc", "custom_handler"):
+                        if case in ("serial_mc", "parallel_mc", "seeded_mc", "custom_handler"):
                             option = i.ArithmeticAveragePriceOption(option_type="call", strike=100,
                                 effective_time=start, averaging_start_time=start, expiry_time=end)
                             engine = p.MonteCarloAsianEngine(path_count=10_000_000, step_count=256,
@@ -69,7 +70,10 @@ class CancellationTests(unittest.TestCase):
                         timer = threading.Timer(0.05, lambda: signal.raise_signal(signal.SIGINT))
                         timer.start()
                         try:
-                            engine.price(option, context)
+                            if case == "seeded_mc":
+                                engine.price_with_seed(option, context)
+                            else:
+                                engine.price(option, context)
                         except expected:
                             pass
                         else:

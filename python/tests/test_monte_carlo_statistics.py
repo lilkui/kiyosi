@@ -103,6 +103,48 @@ def seed_cases():
 
 
 class MonteCarloStatisticsTests(unittest.TestCase):
+    def test_scalar_seeds_replay_all_products_without_mutating_engines(self):
+        snapshot = context()
+        cases = (
+            *seed_cases(),
+            (
+                "american",
+                p.MonteCarloVanillaEngine,
+                i.AmericanOption(option_type="put", strike=100, **LIFE),
+            ),
+        )
+        deterministic = snapshot.replace(
+            model_parameters=snapshot.model_parameters.replace(volatility=0)
+        )
+        for name, factory, option in cases:
+            for sampling in ("pseudo_random", "sobol"):
+                for configured in (None, 2**64 - 1):
+                    with self.subTest(product=name, sampling=sampling, seed=configured):
+                        sampler = engine(
+                            factory, path_count=32, seed=configured, sampling=sampling
+                        )
+                        value, seed = sampler.price_with_seed(option, snapshot)
+                        self.assertIsNotNone(seed)
+                        if configured is not None:
+                            self.assertEqual(seed, configured)
+                        self.assertEqual(sampler.seed, configured)
+                        replay = sampler.replace(seed=seed, max_active_workers=4)
+                        self.assertEqual(replay.price(option, snapshot), value)
+                        self.assertEqual(
+                            replay.price_with_seed(option, snapshot), (value, seed)
+                        )
+                        self.assertEqual(
+                            sampler.price_with_seed(option, deterministic),
+                            (sampler.price(option, deterministic), None),
+                        )
+                        with self.assertRaises(InvalidInputError):
+                            sampler.price_with_seed(
+                                option,
+                                snapshot.replace(
+                                    valuation_time=END + timedelta(days=1)
+                                ),
+                            )
+
     def test_greek_seeds_replay_native_numerical_and_pickled_results(self):
         snapshot = context()
         cases = (
@@ -420,6 +462,7 @@ class MonteCarloStatisticsTests(unittest.TestCase):
         self.assertEqual(
             sampler.price(dated_history(option, context()), context()), price
         )
+        self.assertEqual(sampler.price_with_seed(option, context()), (price, 0))
 
     def test_arithmetic_statistics_support_curves_and_known_history(self):
         option = contracts()[3][2]

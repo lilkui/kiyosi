@@ -72,6 +72,11 @@ and retain that engine to reprice the returned quote.
 Engine ``replace()`` methods return validated independent engines and preserve
 omitted controls. Explicit None clears nullable controls; Ellipsis retains them.
 
+Every Monte Carlo engine exposes ``price_with_seed(instrument, context)``, returning
+``(price, seed)`` without computing uncertainty, including for American vanilla
+options. The seed is None when pricing needs no samples. Retain the returned seed
+and use ``engine.replace(seed=seed)`` to replay sampled prices within the same build.
+
 Every Monte Carlo engine exposes ``price_with_statistics`` for its supported
 contracts; vanilla statistics require European options. It returns the same
 seeded price as ``price`` and also computes and validates sampling uncertainty.
