@@ -22,6 +22,103 @@ from support.history import history_fields
 
 
 class CalendarTests(unittest.TestCase):
+    def test_schedules_retain_calendars_for_contract_composition(self):
+        from kiyosi import instruments as i
+        from test_contract_replacements import contract_inputs
+
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        saturday = datetime(2025, 1, 4, 15)
+        calendar = custom_calendar(
+            base=weekdays_calendar(), open_dates=[saturday.date()]
+        )
+        schedule = ObservationSchedule(
+            times=[saturday], start_time=start, end_time=end, calendar=calendar
+        )
+        self.assertEqual(schedule.calendar, calendar)
+        self.assertEqual(pickle.loads(pickle.dumps(schedule)).calendar, calendar)
+        empty = ObservationSchedule(
+            times=[], start_time=start, end_time=end, calendar=calendar
+        )
+        self.assertEqual(pickle.loads(pickle.dumps(empty)).calendar, calendar)
+        copied = ObservationSchedule(times=schedule, start_time=start, end_time=end)
+        self.assertEqual(copied, schedule)
+        for factory, fields in contract_inputs():
+            key = (
+                "knock_out_observation_times"
+                if "knock_out_observation_times" in fields
+                else "observation_times"
+            )
+            if key not in fields:
+                continue
+            fields = fields | {
+                name: None
+                for name in ("touch_state", "accumulated_quantity", "knock_out_settled")
+                if name in fields
+            }
+            with self.subTest(factory=factory.__name__):
+                original = factory(**(fields | {key: None}))
+                inherited = factory(**(fields | {key: schedule}))
+                self.assertEqual(inherited.calendar, calendar)
+                self.assertEqual(
+                    factory(**(fields | {key: schedule, "calendar": ...})).calendar,
+                    calendar,
+                )
+                self.assertEqual(original.replace(**{key: schedule}).calendar, calendar)
+                with self.assertRaises(InvalidInputError):
+                    original.replace(**{key: schedule, "calendar": weekdays_calendar()})
+                self.assertEqual(
+                    original.replace(
+                        **{key: schedule, "calendar": all_days_calendar()}
+                    ).calendar,
+                    all_days_calendar(),
+                )
+                with self.assertRaises(InvalidInputError):
+                    factory(
+                        **(fields | {key: schedule, "calendar": weekdays_calendar()})
+                    )
+                override = factory(
+                    **(fields | {key: schedule, "calendar": all_days_calendar()})
+                )
+                self.assertEqual(override.calendar, all_days_calendar())
+        note = i.standard_snowball(
+            coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=80,
+            knock_out_level=110,
+            effective_time=start,
+            expiry_time=end,
+            observation_times=schedule,
+            observation_clock_time=clock_time(15),
+        )
+        self.assertEqual(note.calendar, calendar)
+        phoenix = i.fixed_coupon_note(
+            coupon_per_period=0.01,
+            initial_spot=100,
+            knock_in_level=80,
+            knock_out_level=110,
+            effective_time=start,
+            expiry_time=end,
+            observation_times=schedule,
+        )
+        self.assertEqual(phoenix.calendar, calendar)
+        for generated in (
+            fixed_interval_schedule(
+                start_time=start,
+                end_time=end,
+                interval_days=30,
+                observation_clock_time=clock_time(15),
+                calendar=calendar,
+            ),
+            monthly_schedule(
+                start_time=start,
+                end_time=end,
+                first_observation_month=1,
+                observation_clock_time=clock_time(15),
+                calendar=calendar,
+            ),
+        ):
+            self.assertEqual(generated.calendar, calendar)
+
     def test_explicit_schedules_preserve_times_and_roundtrip(self):
         start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
         times = [start, datetime(2025, 1, 6, 14, 30, 0, 123456), end]

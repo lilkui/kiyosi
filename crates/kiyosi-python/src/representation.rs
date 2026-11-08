@@ -150,8 +150,9 @@ pub(crate) fn _repr_previews<'py>(
     direct!(
         crate::schedule::ObservationSchedule,
         |v: &kiyosi::ObservationSchedule| Ok::<_, PyErr>(format!(
-            "ObservationSchedule(times={})",
-            times(py, v.times())?
+            "ObservationSchedule(times={}, calendar={})",
+            times(py, v.times())?,
+            calendar(py, v.calendar())?
         ))
     );
     // Borrow model storage; constructing temporary model wrappers would clone entire surfaces.

@@ -1,12 +1,13 @@
 use crate::{Error, Result, TimeOfDay, Timestamp, TradingCalendar};
 
-/// Owns strictly ordered observation times.
+/// Owns strictly ordered observation times and their validation calendar.
 ///
 /// Accessors borrow storage for the lifetime of the borrow; shared reads are safe.
 /// See [`Self::fixed_interval`] for construction.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ObservationSchedule {
     times: Vec<Timestamp>,
+    calendar: TradingCalendar,
 }
 
 impl ObservationSchedule {
@@ -40,7 +41,10 @@ impl ObservationSchedule {
                 "observation time is not a trading day".into(),
             ));
         }
-        Ok(Self { times })
+        Ok(Self {
+            times,
+            calendar: calendar.clone(),
+        })
     }
 
     pub(crate) fn daily(
@@ -66,7 +70,10 @@ impl ObservationSchedule {
             }
             date = date.add_days(1)?;
         }
-        Ok(Self { times })
+        Ok(Self {
+            times,
+            calendar: calendar.clone(),
+        })
     }
 
     /// Creates candidates every `interval_days` after the start date at the supplied clock time.
@@ -88,6 +95,7 @@ impl ObservationSchedule {
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 10)?.start_of_day(), 3,
     ///     &TradingCalendar::all_days(), TimeOfDay::new(0, 0, 0, 0)?)?;
     /// assert_eq!(schedule.len(), 3);
+    /// assert_eq!(schedule.calendar(), &TradingCalendar::all_days());
     /// # Ok(()) }
     /// ```
     pub fn fixed_interval(
@@ -109,7 +117,10 @@ impl ObservationSchedule {
                 break;
             }
         }
-        Ok(Self { times })
+        Ok(Self {
+            times,
+            calendar: calendar.clone(),
+        })
     }
 
     /// Creates monthly candidates anchored to `start_time`'s day, clamped at month end.
@@ -158,7 +169,18 @@ impl ObservationSchedule {
                 break;
             }
         }
-        Ok(Self { times })
+        Ok(Self {
+            times,
+            calendar: calendar.clone(),
+        })
+    }
+
+    /// Borrows the calendar used to validate and generate these observations.
+    ///
+    /// The calendar remains valid for this schedule's lifetime. Pass it with
+    /// [`Self::times`] when constructing a contract; see [`Self::fixed_interval`].
+    pub fn calendar(&self) -> &TradingCalendar {
+        &self.calendar
     }
 
     /// Borrows the strictly ordered time storage for this schedule's lifetime.

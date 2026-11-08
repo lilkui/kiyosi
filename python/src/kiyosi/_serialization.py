@@ -100,7 +100,7 @@ def _reduce(
                 "times": times,
                 "start_time": times[0] if times else datetime.min,
                 "end_time": times[-1] if times else datetime.min,
-                "calendar": _native.all_days_calendar(),
+                "calendar": value.calendar,
             },
         )
     if isinstance(value, _native.RateTermStructure):

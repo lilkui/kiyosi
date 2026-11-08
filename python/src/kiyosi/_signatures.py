@@ -8,6 +8,13 @@ from typing import Any
 
 def _signature(callable: Any, defaults: dict[str, Any]) -> Signature:
     original = signature(callable)
+    defaults = defaults.copy()
+    if {
+        "times",
+        "observation_times",
+        "knock_out_observation_times",
+    } & original.parameters.keys():
+        defaults.pop("calendar", None)
     return original.replace(
         parameters=[
             parameter.replace(default=defaults[name])

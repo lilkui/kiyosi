@@ -1305,7 +1305,8 @@ class ObservationSchedule:
     start_time, end_time : datetime.datetime
         Inclusive validation bounds, with start_time at or before end_time.
     calendar : TradingCalendar, optional
-        Calendar used to validate each observation date; defaults to weekdays.
+        Calendar used to validate each observation date. Omission or Ellipsis
+        inherits times.calendar for an ObservationSchedule, otherwise weekdays.
 
     Raises
     ------
@@ -1317,7 +1318,7 @@ class ObservationSchedule:
     -----
     Construct from explicit times, or use fixed_interval_schedule or
     monthly_schedule. Bounds and calendar validate the input; the schedule owns
-    only its times. Empty schedules are valid. The times property returns a
+    its times and calendar. Empty schedules are valid. The times property returns a
     copy; iteration retains the schedule owner. Integer indexing accepts
     negative indices, rejects bool, and raises IndexError outside the sequence.
     Slices return owned lists of timestamps, including reversed slices. Slice
@@ -1331,8 +1332,12 @@ class ObservationSchedule:
         times: Iterable[datetime],
         start_time: datetime,
         end_time: datetime,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
+    @property
+    def calendar(self) -> TradingCalendar:
+        """Return an owned copy of the calendar used to validate the schedule."""
+
     @property
     def times(self) -> tuple[datetime, ...]:
         """Return a copy of the strictly ordered observation times."""
@@ -10536,8 +10541,9 @@ class BarrierOption:
         Strictly prior history. None means unknown; untouched means known no
         hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays on construction and is
-        retained on replacement.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; refresh payload and timestamp together.
@@ -10599,8 +10605,9 @@ class BarrierOption:
         touch_state : {'untouched', 'touched'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
-            Owned observation calendar; defaults to weekdays on construction and is
-            retained on replacement.
+            Explicit override. Omission or Ellipsis inherits a supplied
+            ObservationSchedule calendar; otherwise construction uses weekdays
+            and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
             Required with history; refresh payload and timestamp together.
@@ -10632,7 +10639,7 @@ class BarrierOption:
         rebate_timing: Literal["at_hit", "at_expiry"] = ...,
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None = None,
     ) -> None: ...
     def replace_history(
@@ -10902,8 +10909,9 @@ class DoubleBarrierOption:
         Strictly prior history. None means unknown; untouched means known no
         hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays on construction and is
-        retained on replacement.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; refresh payload and timestamp together.
@@ -10965,8 +10973,9 @@ class DoubleBarrierOption:
         touch_state : {'untouched', 'touched'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
-            Owned observation calendar; defaults to weekdays on construction and is
-            retained on replacement.
+            Explicit override. Omission or Ellipsis inherits a supplied
+            ObservationSchedule calendar; otherwise construction uses weekdays
+            and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
             Required with history; refresh payload and timestamp together.
@@ -10999,7 +11008,7 @@ class DoubleBarrierOption:
         rebate_timing: Literal["at_hit", "at_expiry"] = ...,
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None = None,
     ) -> None: ...
     def replace_history(
@@ -11751,7 +11760,9 @@ class BinaryBarrierOption:
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; refresh payload and timestamp together.
@@ -11786,7 +11797,7 @@ class BinaryBarrierOption:
         payout: _Real,
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None = None,
     ) -> None: ...
     @overload
@@ -11803,7 +11814,7 @@ class BinaryBarrierOption:
         payout: None = None,
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None = None,
     ) -> None: ...
     @property
@@ -11852,8 +11863,9 @@ class BinaryBarrierOption:
             Cash amount; None is invalid for cash and never changes the payoff
             kind.
         calendar : TradingCalendar, optional
-            Owned observation calendar; defaults to weekdays on construction and is
-            retained on replacement.
+            Explicit override. Omission or Ellipsis inherits a supplied
+            ObservationSchedule calendar; otherwise construction uses weekdays
+            and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
             Required with history; refresh payload and timestamp together.
@@ -11985,7 +11997,9 @@ class TouchOption:
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; refresh payload and timestamp together.
@@ -12020,7 +12034,7 @@ class TouchOption:
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None = None,
     ) -> None: ...
     @overload
@@ -12036,7 +12050,7 @@ class TouchOption:
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None = None,
     ) -> None: ...
     @property
@@ -12082,8 +12096,9 @@ class TouchOption:
             Cash amount; None is invalid for cash and never changes the payoff
             kind.
         calendar : TradingCalendar, optional
-            Owned observation calendar; defaults to weekdays on construction and is
-            retained on replacement.
+            Explicit override. Omission or Ellipsis inherits a supplied
+            ObservationSchedule calendar; otherwise construction uses weekdays
+            and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
             Required with history; refresh payload and timestamp together.
@@ -12207,7 +12222,7 @@ def cash_binary_barrier_option(
     payout: _Real,
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> BinaryBarrierOption:
     """Create a barrier cash digital with strict terminal exercise.
@@ -12234,8 +12249,9 @@ def cash_binary_barrier_option(
         Strictly prior history. None means unknown; untouched means known no
         hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history; required when history is known.
@@ -12267,7 +12283,7 @@ def asset_binary_barrier_option(
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> BinaryBarrierOption:
     """Create a barrier asset digital with strict terminal exercise.
@@ -12292,8 +12308,9 @@ def asset_binary_barrier_option(
         Strictly prior history. None means unknown; untouched means known no
         hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history; required when history is known.
@@ -12325,7 +12342,7 @@ def cash_touch_option(
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> TouchOption:
     """Create a cash or asset one-touch contract.
@@ -12350,8 +12367,9 @@ def cash_touch_option(
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None is unknown; untouched means known no hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays on construction and is
-        retained on replacement.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history; required when history is known.
@@ -12386,7 +12404,7 @@ def cash_no_touch_option(
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> TouchOption:
     """Create a cash or asset no-touch contract.
@@ -12411,8 +12429,9 @@ def cash_no_touch_option(
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None is unknown; untouched means known no hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays on construction and is
-        retained on replacement.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history; required when history is known.
@@ -12446,7 +12465,7 @@ def asset_touch_option(
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> TouchOption:
     """Create a cash or asset one-touch contract.
@@ -12469,8 +12488,9 @@ def asset_touch_option(
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None is unknown; untouched means known no hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays on construction and is
-        retained on replacement.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history; required when history is known.
@@ -12504,7 +12524,7 @@ def asset_no_touch_option(
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> TouchOption:
     """Create a cash or asset no-touch contract.
@@ -12527,8 +12547,9 @@ def asset_no_touch_option(
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None is unknown; untouched means known no hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays on construction and is
-        retained on replacement.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history; required when history is known.
@@ -12721,7 +12742,9 @@ class DoubleTouchOption:
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; refresh payload and timestamp together.
@@ -12756,7 +12779,7 @@ class DoubleTouchOption:
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None = None,
     ) -> None: ...
     @property
@@ -12798,8 +12821,9 @@ class DoubleTouchOption:
         payout : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
-            Owned observation calendar; defaults to weekdays on construction and is
-            retained on replacement.
+            Explicit override. Omission or Ellipsis inherits a supplied
+            ObservationSchedule calendar; otherwise construction uses weekdays
+            and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
             Required with history; refresh payload and timestamp together.
@@ -12912,7 +12936,7 @@ def cash_double_touch(
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> DoubleTouchOption:
     """Create a cash payment activated by either inclusive boundary.
@@ -12937,8 +12961,9 @@ def cash_double_touch(
         Strictly prior history. None means unknown; untouched means known no
         hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history; required when history is known.
@@ -12970,7 +12995,7 @@ def cash_double_no_touch(
     payout: _Real,
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> DoubleTouchOption:
     """Create an expiry cash payment requiring neither boundary to be touched.
@@ -12993,8 +13018,9 @@ def cash_double_no_touch(
         Strictly prior history. None means unknown; untouched means known no
         hit.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history; required when history is known.
@@ -14634,7 +14660,7 @@ def standard_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create constant knock-out coupons and levels with daily knock-in monitoring.
@@ -14665,7 +14691,8 @@ def standard_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -14713,7 +14740,7 @@ def european_snowball(
     observation_clock_time: time | None = None,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with knock-in observed only at expiry.
@@ -14744,7 +14771,8 @@ def european_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -14793,7 +14821,7 @@ def step_down_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with decreasing knock-out levels.
@@ -14826,7 +14854,8 @@ def step_down_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -14878,7 +14907,7 @@ def both_down_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with decreasing coupons and knock-out levels.
@@ -14913,7 +14942,8 @@ def both_down_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -14964,7 +14994,7 @@ def dual_coupon_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with separate knock-out and maturity coupons.
@@ -14997,7 +15027,8 @@ def dual_coupon_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -15046,7 +15077,7 @@ def parachute_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with a distinct final knock-out level.
@@ -15079,7 +15110,8 @@ def parachute_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -15128,7 +15160,7 @@ def otm_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with a replaced upper terminal strike.
@@ -15161,7 +15193,8 @@ def otm_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -15210,7 +15243,7 @@ def loss_capped_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball whose lower terminal strike caps downside loss.
@@ -15243,7 +15276,8 @@ def loss_capped_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -15316,8 +15350,9 @@ class Accumulator:
         knock-out observation. True requires a strictly prior knock-out; stored
         quantity is ignored and remaining value is zero.
     calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+        Explicit override. Omission or Ellipsis inherits a supplied
+        ObservationSchedule calendar; otherwise construction uses weekdays
+        and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; refresh payload and timestamp together.
@@ -15406,7 +15441,9 @@ class Accumulator:
         knock_out_settled : bool or None, optional
             Records a settled knock-out strictly before valuation.
         calendar : TradingCalendar, optional
-            Owned contractual observation calendar; omission retains it.
+            Explicit override. Omission or Ellipsis inherits a supplied
+            ObservationSchedule calendar; otherwise construction uses weekdays
+            and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
             Required with history; refresh payload and timestamp together.
@@ -15439,7 +15476,7 @@ class Accumulator:
         option_type: Literal["call", "put"] = ...,
         knock_out_observation_times: Iterable[datetime] | None = None,
         knock_out_settled: bool | None = ...,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None = None,
     ) -> None: ...
     @property
@@ -15724,7 +15761,7 @@ def fixed_coupon_note(
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> PhoenixOption:
     """Create a fixed coupon note with unconditional surviving coupons.
@@ -15753,7 +15790,8 @@ def fixed_coupon_note(
         Nonnegative normalized principal, independent of coupon and loss
         components.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -15792,7 +15830,7 @@ def digital_coupon_note(
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> PhoenixOption:
     """Create a digital coupon note with barrier-conditional fixed coupons.
@@ -15823,7 +15861,8 @@ def digital_coupon_note(
         Nonnegative normalized principal, independent of coupon and loss
         components.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -15864,7 +15903,7 @@ def early_profit_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a two-stage early-profit snowball.
@@ -15899,7 +15938,8 @@ def early_profit_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
@@ -15953,7 +15993,7 @@ def butterfly_snowball(
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a three-stage butterfly snowball.
@@ -15992,7 +16032,8 @@ def butterfly_snowball(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
-        Owned contractual calendar; defaults to weekdays.
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.

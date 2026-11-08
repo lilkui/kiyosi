@@ -4,6 +4,22 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
+pub(crate) fn observation_calendar(
+    calendar: Option<&Bound<'_, PyAny>>,
+    observations: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Option<kiyosi::TradingCalendar>> {
+    if let Some(calendar) = calendar {
+        return Ok(Some(calendar.extract::<TradingCalendar>()?.0));
+    }
+    Ok(observations
+        .and_then(|value| {
+            value
+                .extract::<PyRef<'_, crate::schedule::ObservationSchedule>>()
+                .ok()
+        })
+        .map(|schedule| schedule.0.calendar().clone()))
+}
+
 /// Trading calendar with a fixed annualization basis.
 ///
 /// Notes

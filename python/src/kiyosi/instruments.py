@@ -8,16 +8,19 @@ digital options permit pre-effective valuation with model coverage through
 expiry; other contracts require valuation within their life.
 
 Barrier and touch contracts, range accruals, accumulators, and autocallables own
-their calendars, defaulting to weekdays. Supply the calendar at construction.
+their calendars. Constructors inherit an ``ObservationSchedule`` calendar;
+explicit calendars override it, and plain timestamp iterables default to weekdays.
+Replacement inherits a supplied schedule's calendar, otherwise retaining the
+contract's calendar.
 Explicit observations use exact timestamps; automatic observations require
 ``observation_clock_time``. Daily knock-in and accumulation include the effective
 instant; range accrual observations exclude it. Settlement adds no observation.
 Barrier and touch contracts use ``observation_times=None`` for continuous
 monitoring and a nonempty iterable for scheduled monitoring. Their read-only
 ``observation_mode`` property reports the selected mode. Both ``observation_times``
-and ``observation_schedule`` return ``None`` for continuous monitoring. Scheduled
-values can be passed back as ``observation_times``; forward the contract's calendar
-when constructing another contract from those observations.
+and ``observation_schedule`` return ``None`` for continuous monitoring. A scheduled
+contract's ``observation_schedule`` can be passed as ``observation_times`` with its calendar intact.
+Timestamp tuples contain no calendar; forward the contract's calendar with them.
 
 Supplied history requires ``history_time`` and covers events strictly before it.
 Current observations use the current spot. Discrete history can be reused until

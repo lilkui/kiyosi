@@ -14,7 +14,8 @@ use pyo3::types::{PyBool, PyList, PySlice};
 /// start_time, end_time : datetime.datetime
 ///     Inclusive validation bounds, with start_time at or before end_time.
 /// calendar : TradingCalendar, optional
-///     Calendar used to validate each observation date; defaults to weekdays.
+///     Calendar used to validate each observation date. Omission or Ellipsis
+///     inherits times.calendar for an ObservationSchedule, otherwise weekdays.
 ///
 /// Raises
 /// ------
@@ -26,7 +27,7 @@ use pyo3::types::{PyBool, PyList, PySlice};
 /// -----
 /// Construct from explicit times, or use fixed_interval_schedule or
 /// monthly_schedule. Bounds and calendar validate the input; the schedule owns
-/// only its times. Empty schedules are valid. The times property returns a
+/// its times and calendar. Empty schedules are valid. The times property returns a
 /// copy; iteration retains the schedule owner. Integer indexing accepts
 /// negative indices, rejects bool, and raises IndexError outside the sequence.
 /// Slices return owned lists of timestamps, including reversed slices. Slice
@@ -40,23 +41,25 @@ pub(crate) struct ObservationSchedule(pub(crate) kiyosi::ObservationSchedule);
 #[pymethods]
 impl ObservationSchedule {
     #[new]
-    #[pyo3(signature = (*, times, start_time, end_time, calendar=TradingCalendar::default()))]
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "PyO3 extracts an owned calendar and supplies its default"
-    )]
+    #[pyo3(signature = (*, times, start_time, end_time, calendar=crate::conversions::OMITTED))]
     fn new(
         times: &Bound<'_, PyAny>,
         start_time: &Bound<'_, PyAny>,
         end_time: &Bound<'_, PyAny>,
-        calendar: TradingCalendar,
+        #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         Ok(Self(domain(kiyosi::ObservationSchedule::new(
             crate::conversions::timestamps(times)?,
             timestamp(start_time)?,
             timestamp(end_time)?,
-            &calendar.0,
+            &crate::calendar::observation_calendar(calendar, Some(times))?.unwrap_or_default(),
         ))?))
+    }
+
+    /// Return an owned copy of the calendar used to validate the schedule.
+    #[getter]
+    fn calendar(&self) -> TradingCalendar {
+        TradingCalendar(self.0.calendar().clone())
     }
 
     /// Return a copy of the strictly ordered observation times.

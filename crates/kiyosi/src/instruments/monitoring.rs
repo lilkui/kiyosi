@@ -105,8 +105,13 @@ impl Monitoring {
         )
     }
     pub(crate) fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        validate_schedule(&self.schedule, &calendar)?;
         let mut updated = self.clone();
+        updated.schedule = ObservationSchedule::new(
+            self.schedule.times().to_vec(),
+            self.effective_time,
+            self.expiry_time,
+            &calendar,
+        )?;
         updated.calendar = calendar;
         Ok(updated)
     }
@@ -317,22 +322,6 @@ pub(crate) fn validate_life(
     if option.valuation_start().is_some_and(|start| time < start) || time > option.expiry_time() {
         return Err(Error::InvalidInput(
             "valuation outside contract life".into(),
-        ));
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_schedule(
-    schedule: &ObservationSchedule,
-    calendar: &TradingCalendar,
-) -> Result<()> {
-    if schedule
-        .times()
-        .iter()
-        .any(|&d| !calendar.is_trading_day(d.date()))
-    {
-        return Err(Error::InvalidInput(
-            "observation is not a trading day".into(),
         ));
     }
     Ok(())

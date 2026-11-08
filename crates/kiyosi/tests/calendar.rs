@@ -5,6 +5,53 @@ fn day(year: i32, month: u32, day: u32) -> Date {
 }
 
 #[test]
+fn schedules_retain_calendars_for_contract_composition() -> kiyosi::Result<()> {
+    use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, OptionType, TimeOfDay};
+    let start = day(2025, 1, 2).start_of_day();
+    let end = day(2025, 1, 10).start_of_day();
+    let saturday = day(2025, 1, 4).at_time(TimeOfDay::new(15, 0, 0, 0)?);
+    let calendar = TradingCalendar::custom(
+        TradingCalendar::weekdays(),
+        vec![],
+        vec![saturday.date()],
+        None,
+    )?;
+    let schedule = ObservationSchedule::new(vec![saturday], start, end, &calendar)?;
+    assert_eq!(schedule.calendar(), &calendar);
+    assert_eq!(schedule.clone().calendar(), &calendar);
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        120.0,
+        BarrierType::UpAndOut,
+    );
+    terms.observation_times = Some(schedule.times().to_vec());
+    terms.calendar = schedule.calendar().clone();
+    let option = BarrierOption::new(terms)?;
+    let updated = option.replace_calendar(TradingCalendar::all_days())?;
+    assert_eq!(
+        updated.observation_schedule().calendar(),
+        updated.calendar()
+    );
+    assert_eq!(option.observation_schedule().calendar(), &calendar);
+    for generated in [
+        ObservationSchedule::fixed_interval(
+            start,
+            end,
+            1,
+            &calendar,
+            TimeOfDay::new(15, 0, 0, 0)?,
+        )?,
+        ObservationSchedule::monthly(start, end, 1, &calendar, TimeOfDay::new(15, 0, 0, 0)?)?,
+    ] {
+        assert_eq!(generated.calendar(), &calendar);
+    }
+    Ok(())
+}
+
+#[test]
 fn calendar_equality_preserves_normalized_overrides_and_predicate_identity() {
     let base = TradingCalendar::weekdays();
     let closed = day(2026, 10, 1);

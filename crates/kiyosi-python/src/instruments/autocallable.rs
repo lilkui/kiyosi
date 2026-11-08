@@ -494,7 +494,8 @@ macro_rules! snowball_preset {
         /// principal_redemption_ratio : float, optional
         ///     Nonnegative normalized principal, independent of coupons and losses.
         /// calendar : TradingCalendar, optional
-        ///     Owned contractual calendar; defaults to weekdays.
+        ///     Explicit calendar override; omission or Ellipsis inherits an
+        ///     ObservationSchedule calendar, otherwise weekdays.
         ///
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
@@ -529,7 +530,7 @@ macro_rules! snowball_preset {
         /// maturity_coupon_rate edits only the maturity coupon.
         ///
         #[pyfunction]
-        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_times, effective_time, expiry_time, $clock $(= $clock_default)?, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
+        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_times, effective_time, expiry_time, $clock $(= $clock_default)?, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=crate::conversions::OMITTED, history_time=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             $coupon: &Bound<'_, PyAny>,
@@ -543,7 +544,7 @@ macro_rules! snowball_preset {
             $clock: Option<&Bound<'_, PyAny>>,
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
-            calendar: TradingCalendar,
+            #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
             #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
         ) -> PyResult<SnowballOption> {
@@ -557,7 +558,7 @@ macro_rules! snowball_preset {
                 terms.barrier_state = state(value)?;
             }
             terms.principal_redemption_ratio = principal_redemption_ratio;
-            terms.calendar = calendar.0;
+            terms.calendar = crate::calendar::observation_calendar(calendar, Some(observation_times))?.unwrap_or_default();
             terms.history_time = history_time;
             Ok(SnowballOption(domain(terms.expand($preset))?))
         }
@@ -1595,7 +1596,8 @@ macro_rules! phoenix_preset {
         ///     Nonnegative normalized principal, independent of coupon and loss
         ///     components.
         /// calendar : TradingCalendar, optional
-        ///     Owned contractual calendar; defaults to weekdays.
+        ///     Explicit calendar override; omission or Ellipsis inherits an
+        ///     ObservationSchedule calendar, otherwise weekdays.
         ///
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
@@ -1622,7 +1624,7 @@ macro_rules! phoenix_preset {
         /// Past coupons are settled.
         ///
         #[pyfunction]
-        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, knock_out_level, $($extra,)* observation_times, effective_time, expiry_time, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
+        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, knock_out_level, $($extra,)* observation_times, effective_time, expiry_time, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=crate::conversions::OMITTED, history_time=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             coupon_per_period: &Bound<'_, PyAny>,
@@ -1635,7 +1637,7 @@ macro_rules! phoenix_preset {
             expiry_time: &Bound<'_, PyAny>,
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
-            calendar: TradingCalendar,
+            #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
             #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
         ) -> PyResult<PhoenixOption> {
@@ -1649,7 +1651,7 @@ macro_rules! phoenix_preset {
                 terms.barrier_state = state(value)?;
             }
             terms.principal_redemption_ratio = principal_redemption_ratio;
-            terms.calendar = calendar.0;
+            terms.calendar = crate::calendar::observation_calendar(calendar, Some(observation_times))?.unwrap_or_default();
             terms.history_time = history_time;
             Ok(PhoenixOption(domain(terms.expand($preset))?))
         }

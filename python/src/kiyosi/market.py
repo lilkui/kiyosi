@@ -18,7 +18,10 @@ are required; rounded node factors may imply slightly different forward rates.
 
 Calendars classify dates without moving contract boundaries. Automatic
 schedules require an explicit observation clock. `ObservationSchedule` supports
-integer indexing and slicing; slices return independent lists.
+integer indexing and slicing; slices return independent lists. Its ``calendar``
+property preserves the validation calendar; plain lists and tuples contain no
+calendar. Schedule-taking constructors inherit this calendar unless explicitly
+overridden.
 
 Examples
 --------

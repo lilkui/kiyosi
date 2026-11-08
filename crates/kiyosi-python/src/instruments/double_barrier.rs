@@ -1,5 +1,4 @@
-use crate::calendar::TradingCalendar;
-use crate::conversions::{direction, optional_timestamps, real, timestamp};
+use crate::conversions::{direction, real, timestamp};
 use crate::error::domain;
 use crate::instruments::barrier::{history, timing};
 use pyo3::exceptions::PyValueError;
@@ -41,8 +40,9 @@ pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierTy
 ///     Strictly prior history. None means unknown; untouched means known no
 ///     hit.
 /// calendar : TradingCalendar, optional
-///     Owned observation calendar; defaults to weekdays on construction and is
-///     retained on replacement.
+///     Explicit override. Omission or Ellipsis inherits a supplied
+///     ObservationSchedule calendar; otherwise construction uses weekdays
+///     and replacement retains the current calendar.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
 ///     Required with history; refresh payload and timestamp together.
@@ -84,8 +84,9 @@ monitoring_properties!(
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
-    ///     Owned observation calendar; defaults to weekdays on construction and is
-    ///     retained on replacement.
+    ///     Explicit override. Omission or Ellipsis inherits a supplied
+    ///     ObservationSchedule calendar; otherwise construction uses weekdays
+    ///     and replacement retains the current calendar.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
     ///     Required with history; refresh payload and timestamp together.
@@ -146,9 +147,7 @@ monitoring_properties!(
 
         let changes = kiyosi::DoubleBarrierOptionChanges {
             history_time,
-            calendar: calendar
-                .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
-                .transpose()?,
+            calendar: crate::calendar::observation_calendar(calendar, observation_times)?,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
             effective_time: effective_time
@@ -174,7 +173,7 @@ monitoring_properties!(
         Ok(Self(domain(self.0.replace(changes))?))
     },
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_times=None, touch_state=None, calendar=TradingCalendar::default(), history_time=None))]
+    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         option_type: &Bound<'_, PyAny>,
@@ -187,11 +186,9 @@ monitoring_properties!(
         #[pyo3(from_py_with = real)] rebate: f64,
         #[pyo3(from_py_with = timing)] rebate_timing: kiyosi::RebateTiming,
 
-        #[pyo3(from_py_with = optional_timestamps)] observation_times: Option<
-            Vec<kiyosi::Timestamp>,
-        >,
+        observation_times: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = history)] touch_state: Option<kiyosi::BarrierTouchState>,
-        calendar: TradingCalendar,
+        #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
         #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<
             kiyosi::Timestamp,
@@ -208,9 +205,12 @@ monitoring_properties!(
         );
         terms.rebate = rebate;
         terms.rebate_timing = rebate_timing;
-        terms.observation_times = observation_times;
+        terms.observation_times = observation_times
+            .map(crate::conversions::timestamps)
+            .transpose()?;
         terms.touch_state = touch_state;
-        terms.calendar = calendar.0;
+        terms.calendar =
+            crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
         terms.history_time = history_time;
         Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(kiyosi::DoubleBarrierOption::new(terms))?,

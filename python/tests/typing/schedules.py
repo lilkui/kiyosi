@@ -16,7 +16,7 @@ from kiyosi.instruments import (
     TernarySnowballOption,
     TouchOption,
 )
-from kiyosi.market import ObservationSchedule, all_days_calendar
+from kiyosi.market import ObservationSchedule, TradingCalendar, all_days_calendar
 
 
 def explicit_schedule() -> None:
@@ -27,6 +27,7 @@ def explicit_schedule() -> None:
         end_time=end,
         calendar=all_days_calendar(),
     )
+    assert_type(schedule.calendar, TradingCalendar)
     assert_type(schedule.times, tuple[datetime, ...])
     assert_type(schedule[0], datetime)
     assert_type(schedule[::-1], list[datetime])

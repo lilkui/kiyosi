@@ -48,8 +48,9 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 ///     knock-out observation. True requires a strictly prior knock-out; stored
 ///     quantity is ignored and remaining value is zero.
 /// calendar : TradingCalendar, optional
-///     Owned observation calendar; defaults to weekdays, independently of
-///     PricingContext.
+///     Explicit override. Omission or Ellipsis inherits a supplied
+///     ObservationSchedule calendar; otherwise construction uses weekdays
+///     and replacement retains the current calendar.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
 ///     Required with history; refresh payload and timestamp together.
@@ -112,7 +113,9 @@ impl Accumulator {
     /// knock_out_settled : bool or None, optional
     ///     Records a settled knock-out strictly before valuation.
     /// calendar : TradingCalendar, optional
-    ///     Owned contractual observation calendar; omission retains it.
+    ///     Explicit override. Omission or Ellipsis inherits a supplied
+    ///     ObservationSchedule calendar; otherwise construction uses weekdays
+    ///     and replacement retains the current calendar.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
     ///     Required with history; refresh payload and timestamp together.
@@ -172,9 +175,7 @@ impl Accumulator {
 
         let changes = kiyosi::AccumulatorChanges {
             history_time,
-            calendar: calendar
-                .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
-                .transpose()?,
+            calendar: crate::calendar::observation_calendar(calendar, knock_out_observation_times)?,
             knock_out_settled: knock_out_settled.map(settlement).transpose()?,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
@@ -212,7 +213,7 @@ impl Accumulator {
         Ok(Self(domain(self.0.replace(changes))?))
     }
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=TradingCalendar::default(), history_time=None))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=crate::conversions::OMITTED, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
@@ -226,7 +227,7 @@ impl Accumulator {
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
         knock_out_observation_times: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = settlement)] knock_out_settled: Option<bool>,
-        calendar: TradingCalendar,
+        #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
         #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<
             kiyosi::Timestamp,
@@ -246,7 +247,9 @@ impl Accumulator {
         terms.option_type = option_type;
         terms.knock_out_observation_times =
             knock_out_observation_times.map(timestamps).transpose()?;
-        terms.calendar = calendar.0;
+        terms.calendar =
+            crate::calendar::observation_calendar(calendar, knock_out_observation_times)?
+                .unwrap_or_default();
         terms.history_time = history_time;
         Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(kiyosi::Accumulator::new(terms))?,
