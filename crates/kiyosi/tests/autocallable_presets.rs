@@ -43,7 +43,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
         for coupon in [0.01, -0.01] {
             let mut input = phoenix_terms();
             input.coupon_per_period = coupon;
-            input.principal_ratio = 0.25;
+            input.principal_redemption_ratio = 0.25;
             input.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let note = input.expand(preset).unwrap();
             let mut expected = PhoenixTerms::new(
@@ -66,7 +66,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
             expected.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
             expected.observation_clock_time = None;
             expected.barrier_state = Some(AutocallableBarrierState::NoEvent);
-            expected.principal_ratio = 0.25;
+            expected.principal_redemption_ratio = 0.25;
             assert_eq!(note, PhoenixOption::new(expected).unwrap());
             for (spot, base) in [
                 (70.0, 0.15),
@@ -573,7 +573,7 @@ fn phoenix_presets_reuse_core_validation_and_history_defaults() {
         .expand(PhoenixPreset::FixedCouponNote)
         .unwrap();
     assert_eq!(note.barrier_state(), None);
-    assert_eq!(note.terms().principal_ratio, 1.0);
+    assert_eq!(note.terms().principal_redemption_ratio, 1.0);
     assert!(matches!(
         QuadratureAutocallableEngine::default().price(
             &dated(&note, &market(100.0, date(3, 3))),

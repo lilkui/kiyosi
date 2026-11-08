@@ -10926,7 +10926,7 @@ class SnowballOption:
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no
         event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
 
     calendar : TradingCalendar, optional
@@ -10974,7 +10974,7 @@ class SnowballOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: _Real | EllipsisType = ...,
+        principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -11001,7 +11001,7 @@ class SnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
-        principal_ratio : float, optional
+        principal_redemption_ratio : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         effective_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
@@ -11069,7 +11069,7 @@ class SnowballOption:
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: _Real = ...,
+        principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
     ) -> None: ...
@@ -11144,7 +11144,7 @@ class SnowballOption:
         """Return nonnegative lower terminal strike, at most the upper strike."""
 
     @property
-    def principal_ratio(self) -> float:
+    def principal_redemption_ratio(self) -> float:
         """Returns nonnegative normalized principal, independent of coupons and losses."""
 
     @property
@@ -11199,7 +11199,7 @@ class PhoenixOption:
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no
         event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
 
     calendar : TradingCalendar, optional
@@ -11280,7 +11280,7 @@ class PhoenixOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: _Real | EllipsisType = ...,
+        principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -11311,7 +11311,7 @@ class PhoenixOption:
             Replacement value; omission or Ellipsis retains the current field.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
-        principal_ratio : float, optional
+        principal_redemption_ratio : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         effective_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
@@ -11356,7 +11356,7 @@ class PhoenixOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: _Real | EllipsisType = ...,
+        principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -11387,7 +11387,7 @@ class PhoenixOption:
             Replacement value; omission or Ellipsis retains the current field.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
-        principal_ratio : float, optional
+        principal_redemption_ratio : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         effective_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
@@ -11432,7 +11432,7 @@ class PhoenixOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: _Real | EllipsisType = ...,
+        principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -11463,7 +11463,7 @@ class PhoenixOption:
             Replacement value; omission or Ellipsis retains the current field.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
-        principal_ratio : float, optional
+        principal_redemption_ratio : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         effective_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
@@ -11508,7 +11508,7 @@ class PhoenixOption:
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: _Real = ...,
+        principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
     ) -> None: ...
@@ -11528,7 +11528,7 @@ class PhoenixOption:
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: _Real = ...,
+        principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
     ) -> None: ...
@@ -11607,7 +11607,7 @@ class PhoenixOption:
         """Return nonnegative lower terminal strike, at most the upper strike."""
 
     @property
-    def principal_ratio(self) -> float:
+    def principal_redemption_ratio(self) -> float:
         """Returns nonnegative normalized principal, independent of coupons and losses."""
 
     @property
@@ -11646,7 +11646,7 @@ class BinarySnowballOption:
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no
         event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
 
     calendar : TradingCalendar, optional
@@ -11682,7 +11682,7 @@ class BinarySnowballOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: _Real | EllipsisType = ...,
+        principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -11697,7 +11697,7 @@ class BinarySnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
-        principal_ratio : float, optional
+        principal_redemption_ratio : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         effective_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
@@ -11759,7 +11759,7 @@ class BinarySnowballOption:
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: _Real = ...,
+        principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
     ) -> None: ...
@@ -11818,7 +11818,7 @@ class BinarySnowballOption:
         """Return finite annual maturity coupon rate in decimal units."""
 
     @property
-    def principal_ratio(self) -> float:
+    def principal_redemption_ratio(self) -> float:
         """Returns nonnegative normalized principal, independent of coupons and losses."""
 
     @property
@@ -11861,7 +11861,7 @@ class TernarySnowballOption:
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no
         event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
 
     calendar : TradingCalendar, optional
@@ -11906,7 +11906,7 @@ class TernarySnowballOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: _Real | EllipsisType = ...,
+        principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -11929,7 +11929,7 @@ class TernarySnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
-        principal_ratio : float, optional
+        principal_redemption_ratio : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         effective_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
@@ -11995,7 +11995,7 @@ class TernarySnowballOption:
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: _Real = ...,
+        principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
     ) -> None: ...
@@ -12062,7 +12062,7 @@ class TernarySnowballOption:
         """Return the annual knocked-in maturity coupon."""
 
     @property
-    def principal_ratio(self) -> float:
+    def principal_redemption_ratio(self) -> float:
         """Returns nonnegative normalized principal, independent of coupons and losses."""
 
     @property
@@ -12096,7 +12096,7 @@ def standard_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -12122,7 +12122,7 @@ def standard_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -12160,7 +12160,7 @@ def european_snowball(
     expiry_time: datetime,
     observation_clock_time: time | None = None,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -12186,7 +12186,7 @@ def european_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -12225,7 +12225,7 @@ def step_down_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -12253,7 +12253,7 @@ def step_down_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -12296,7 +12296,7 @@ def both_down_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -12326,7 +12326,7 @@ def both_down_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -12368,7 +12368,7 @@ def dual_coupon_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -12396,7 +12396,7 @@ def dual_coupon_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -12435,7 +12435,7 @@ def parachute_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -12463,7 +12463,7 @@ def parachute_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -12502,7 +12502,7 @@ def otm_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -12530,7 +12530,7 @@ def otm_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -12569,7 +12569,7 @@ def loss_capped_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -12597,7 +12597,7 @@ def loss_capped_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -13014,7 +13014,7 @@ def fixed_coupon_note(
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> PhoenixOption:
@@ -13038,7 +13038,7 @@ def fixed_coupon_note(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events; None means unknown history.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss components.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -13077,7 +13077,7 @@ def digital_coupon_note(
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> PhoenixOption:
@@ -13103,7 +13103,7 @@ def digital_coupon_note(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events; None means unknown history.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss components.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -13144,7 +13144,7 @@ def early_profit_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -13174,7 +13174,7 @@ def early_profit_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.
@@ -13219,7 +13219,7 @@ def butterfly_snowball(
     expiry_time: datetime,
     observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: _Real = ...,
+    principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
 ) -> SnowballOption:
@@ -13253,7 +13253,7 @@ def butterfly_snowball(
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no event.
-    principal_ratio : float, optional
+    principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Owned contractual calendar; defaults to weekdays.

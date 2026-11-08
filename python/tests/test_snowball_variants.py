@@ -129,7 +129,7 @@ class SnowballVariantTests(unittest.TestCase):
     def test_fixed_terminal_regions_and_no_binary_monitoring(self):
         common = {
             "maturity_coupon_rate": 0.06,
-            "principal_ratio": 0.5,
+            "principal_redemption_ratio": 0.5,
             "effective_time": START,
             "expiry_time": END,
             "observations": autocallable_observations(
@@ -217,7 +217,7 @@ class SnowballVariantTests(unittest.TestCase):
                     "effective_time": datetime.fromisoformat(inputs["effective_time"]),
                     "expiry_time": datetime.fromisoformat(inputs["expiry_time"]),
                     "barrier_state": inputs["history"],
-                    "principal_ratio": inputs["principal_ratio"],
+                    "principal_redemption_ratio": inputs["principal_redemption_ratio"],
                     "maturity_coupon_rate": inputs["maturity_coupon_rate"],
                     "observations": autocallable_observations(
                         [datetime.fromisoformat(inputs["expiry_time"])],
@@ -255,7 +255,7 @@ class SnowballVariantTests(unittest.TestCase):
             "observation_times": dates,
             "effective_time": START,
             "expiry_time": END,
-            "principal_ratio": 0.5,
+            "principal_redemption_ratio": 0.5,
             "barrier_state": "no_event",
         }
         cases = [
@@ -379,7 +379,7 @@ class SnowballVariantTests(unittest.TestCase):
                     lower_strike=lower,
                     knock_in_observation_mode=mode,
                     barrier_state="no_event",
-                    principal_ratio=0.5,
+                    principal_redemption_ratio=0.5,
                     effective_time=START,
                     expiry_time=END,
                     observations=autocallable_observations(
@@ -427,14 +427,14 @@ class SnowballVariantTests(unittest.TestCase):
             effective_time=START,
             expiry_time=END,
         )
-        self.assertEqual(defaults.principal_ratio, 1)
+        self.assertEqual(defaults.principal_redemption_ratio, 1)
         self.assertIsNone(defaults.barrier_state)
 
     def test_native_representations_validation_timing_and_ownership(self):
         engine = QuadratureAutocallableEngine()
         for kind in (BinarySnowballOption, TernarySnowballOption):
             note = self.fixed(kind)
-            self.assertEqual(note.principal_ratio, 1)
+            self.assertEqual(note.principal_redemption_ratio, 1)
             self.assertIsNone(note.barrier_state)
             self.assertEqual(
                 eval(
@@ -445,7 +445,7 @@ class SnowballVariantTests(unittest.TestCase):
             records = list(note.observations)
             records.clear()
             self.assertEqual(len(note.observations), 1)
-            for field in ("maturity_coupon_rate", "principal_ratio"):
+            for field in ("maturity_coupon_rate", "principal_redemption_ratio"):
                 for value in (True, "0.1", object()):
                     with self.assertRaises(TypeError):
                         self.fixed(kind, **{field: value})
@@ -564,7 +564,7 @@ class SnowballVariantTests(unittest.TestCase):
             "initial_spot",
             "knock_in_level",
             "knock_out_level",
-            "principal_ratio",
+            "principal_redemption_ratio",
         ):
             for value in (True, "100"):
                 with self.assertRaises(TypeError):

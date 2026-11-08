@@ -5,8 +5,8 @@ pub use presets::{PhoenixPreset, PhoenixPresetTerms, SnowballPreset, SnowballPre
 use crate::error::finite;
 use crate::{Error, OptionContract, PricingContext, Result, TimeOfDay, Timestamp, TradingCalendar};
 
-/// Supplies unit principal for autocallable terms; see [`SnowballTerms::new`].
-pub const DEFAULT_PRINCIPAL_RATIO: f64 = 1.0;
+/// Supplies unit principal redemption for autocallable terms; see [`SnowballTerms::new`].
+pub const DEFAULT_PRINCIPAL_REDEMPTION_RATIO: f64 = 1.0;
 
 /// Selects strict downside monitoring; see [`SnowballTerms::new`] for construction.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -316,7 +316,7 @@ pub struct SnowballTerms {
     /// Records prior events; `None` means unknown history.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
-    pub principal_ratio: f64,
+    pub principal_redemption_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
@@ -353,7 +353,7 @@ impl SnowballTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             observation_clock_time,
             barrier_state: None,
-            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
+            principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
             expiry_time,
             observations,
@@ -401,7 +401,7 @@ pub struct PhoenixTerms {
     /// Records prior events; `None` means unknown history.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
-    pub principal_ratio: f64,
+    pub principal_redemption_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
@@ -438,7 +438,7 @@ impl PhoenixTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             observation_clock_time,
             barrier_state: None,
-            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
+            principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
             expiry_time,
             observations,
@@ -463,7 +463,7 @@ pub struct BinarySnowballTerms {
     /// Records prior events; knock-in is rejected because this product has no knock-in barrier.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons.
-    pub principal_ratio: f64,
+    pub principal_redemption_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive settlement time, which may fall on a closed date.
@@ -485,7 +485,7 @@ impl BinarySnowballTerms {
             calendar: TradingCalendar::default(),
             maturity_coupon_rate,
             barrier_state: None,
-            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
+            principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
             expiry_time,
             observations,
@@ -517,7 +517,7 @@ pub struct TernarySnowballTerms {
     /// Records prior events; `None` means unknown history.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons.
-    pub principal_ratio: f64,
+    pub principal_redemption_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
@@ -546,7 +546,7 @@ impl TernarySnowballTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             observation_clock_time,
             barrier_state: None,
-            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
+            principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
             expiry_time,
             observations,
@@ -701,7 +701,7 @@ mod sealed {
         pub knock_in: Option<KnockIn>,
         pub coupon: Coupon,
         pub barrier_state: Option<AutocallableBarrierState>,
-        pub principal_ratio: f64,
+        pub principal_redemption_ratio: f64,
         pub effective_time: Timestamp,
         pub expiry_time: Timestamp,
         pub observations: &'a [AutocallableObservation],
@@ -734,7 +734,7 @@ macro_rules! terms_view {
                     }),
                     coupon: $coupon(self.$rate),
                     barrier_state: self.barrier_state,
-                    principal_ratio: self.principal_ratio,
+                    principal_redemption_ratio: self.principal_redemption_ratio,
                     effective_time: self.effective_time,
                     expiry_time: self.expiry_time,
                     observations: &self.observations,
@@ -759,7 +759,7 @@ impl sealed::Terms for BinarySnowballTerms {
             knock_in: None,
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
-            principal_ratio: self.principal_ratio,
+            principal_redemption_ratio: self.principal_redemption_ratio,
             effective_time: self.effective_time,
             expiry_time: self.expiry_time,
             observations: &self.observations,
@@ -785,7 +785,7 @@ impl sealed::Terms for TernarySnowballTerms {
             }),
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
-            principal_ratio: self.principal_ratio,
+            principal_redemption_ratio: self.principal_redemption_ratio,
             effective_time: self.effective_time,
             expiry_time: self.expiry_time,
             observations: &self.observations,
@@ -794,6 +794,10 @@ impl sealed::Terms for TernarySnowballTerms {
 }
 
 /// Owns validated terms and immutable observations for a supported autocallable.
+///
+/// `principal_redemption_ratio` sets the principal payment per original unit of
+/// notional independently of coupons and downside losses. Position sizing multiplies
+/// the complete price and sensitivities by position notional; see [`Self::new`].
 ///
 /// Accessors borrow stable storage for this owner's lifetime. Shared reads and
 /// pricing are safe; mutation requires exclusive Rust access. See [`Self::new`].
@@ -828,7 +832,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///     0.06, start, end, records.clone()))?;
     /// let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
     ///     0.06, 0.02, 80.0, start, end, records, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?)))?;
-    /// assert_eq!(binary.terms().principal_ratio, 1.0);
+    /// assert_eq!(binary.terms().principal_redemption_ratio, 1.0);
     /// assert_eq!(ternary.terms().minimum_coupon_rate, 0.02);
     /// // Amend an already validated contract to include weekend monitoring.
     /// let daily = ternary.replace_calendar(kiyosi::TradingCalendar::all_days())?;
@@ -1106,7 +1110,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         let coupon = if knocked_in {
             match t.redemption() {
                 Redemption::Downside(d) => {
-                    return t.principal_ratio
+                    return t.principal_redemption_ratio
                         + (spot.clamp(d.lower_strike, d.upper_strike) - d.upper_strike)
                             / d.initial_spot;
                 }
@@ -1115,11 +1119,11 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         } else {
             t.maturity_coupon_rate()
         };
-        t.principal_ratio + coupon * t.effective_time.years_until(t.expiry_time)
+        t.principal_redemption_ratio + coupon * t.effective_time.years_until(t.expiry_time)
     }
     pub(crate) fn knock_out_payment(&self, record: &AutocallableObservation) -> f64 {
         let t = self.view();
-        t.principal_ratio
+        t.principal_redemption_ratio
             + if matches!(t.coupon, Coupon::Phoenix(_)) {
                 0.0
             } else {
@@ -1407,8 +1411,12 @@ impl sealed::View<'_> {
                 return Err(Error::InvalidInput("invalid lower strike".into()));
             }
         }
-        finite(terms.principal_ratio, false, "principal_ratio")?;
-        if terms.principal_ratio < 0.0 {
+        finite(
+            terms.principal_redemption_ratio,
+            false,
+            "principal_redemption_ratio",
+        )?;
+        if terms.principal_redemption_ratio < 0.0 {
             return Err(Error::InvalidInput(
                 "negative autocallable principal".into(),
             ));
@@ -1501,8 +1509,8 @@ pub struct SnowballOptionChanges {
     pub observation_clock_time: Option<Option<TimeOfDay>>,
     /// Replaces [`barrier_state`](SnowballTerms::barrier_state).
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
-    /// Replaces [`principal_ratio`](SnowballTerms::principal_ratio).
-    pub principal_ratio: Option<f64>,
+    /// Replaces [`principal_redemption_ratio`](SnowballTerms::principal_redemption_ratio).
+    pub principal_redemption_ratio: Option<f64>,
     /// Replaces [`effective_time`](SnowballTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](SnowballTerms::expiry_time).
@@ -1543,7 +1551,9 @@ impl SnowballOption {
                 .knock_in_observation_mode
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
-            principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
+            principal_redemption_ratio: changes
+                .principal_redemption_ratio
+                .unwrap_or(self.0.principal_redemption_ratio),
             effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
             expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             observations: changes
@@ -1585,8 +1595,8 @@ pub struct PhoenixOptionChanges {
     pub observation_clock_time: Option<Option<TimeOfDay>>,
     /// Replaces [`barrier_state`](PhoenixTerms::barrier_state).
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
-    /// Replaces [`principal_ratio`](PhoenixTerms::principal_ratio).
-    pub principal_ratio: Option<f64>,
+    /// Replaces [`principal_redemption_ratio`](PhoenixTerms::principal_redemption_ratio).
+    pub principal_redemption_ratio: Option<f64>,
     /// Replaces [`effective_time`](PhoenixTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](PhoenixTerms::expiry_time).
@@ -1646,7 +1656,9 @@ impl PhoenixOption {
                 .knock_in_observation_mode
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
-            principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
+            principal_redemption_ratio: changes
+                .principal_redemption_ratio
+                .unwrap_or(self.0.principal_redemption_ratio),
             effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
             expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             observations: changes
@@ -1676,8 +1688,8 @@ pub struct BinarySnowballOptionChanges {
     pub maturity_coupon_rate: Option<f64>,
     /// Replaces [`barrier_state`](BinarySnowballTerms::barrier_state).
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
-    /// Replaces [`principal_ratio`](BinarySnowballTerms::principal_ratio).
-    pub principal_ratio: Option<f64>,
+    /// Replaces [`principal_redemption_ratio`](BinarySnowballTerms::principal_redemption_ratio).
+    pub principal_redemption_ratio: Option<f64>,
     /// Replaces [`effective_time`](BinarySnowballTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](BinarySnowballTerms::expiry_time).
@@ -1708,7 +1720,9 @@ impl BinarySnowballOption {
                 .maturity_coupon_rate
                 .unwrap_or(self.0.maturity_coupon_rate),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
-            principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
+            principal_redemption_ratio: changes
+                .principal_redemption_ratio
+                .unwrap_or(self.0.principal_redemption_ratio),
             effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
             expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             observations: changes
@@ -1746,8 +1760,8 @@ pub struct TernarySnowballOptionChanges {
     pub observation_clock_time: Option<Option<TimeOfDay>>,
     /// Replaces [`barrier_state`](TernarySnowballTerms::barrier_state).
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
-    /// Replaces [`principal_ratio`](TernarySnowballTerms::principal_ratio).
-    pub principal_ratio: Option<f64>,
+    /// Replaces [`principal_redemption_ratio`](TernarySnowballTerms::principal_redemption_ratio).
+    pub principal_redemption_ratio: Option<f64>,
     /// Replaces [`effective_time`](TernarySnowballTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](TernarySnowballTerms::expiry_time).
@@ -1788,7 +1802,9 @@ impl TernarySnowballOption {
                 .knock_in_observation_mode
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
-            principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
+            principal_redemption_ratio: changes
+                .principal_redemption_ratio
+                .unwrap_or(self.0.principal_redemption_ratio),
             effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
             expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             observations: changes

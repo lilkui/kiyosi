@@ -108,7 +108,7 @@ fn binary_history_replacement_preserves_terms_and_rejects_knock_in() {
 #[test]
 fn binary_has_no_knock_in_and_pays_signed_flat_maturity_coupon() {
     let mut terms = BinarySnowballTerms::new(-0.02, date(1, 1), date(4, 1), observations());
-    terms.principal_ratio = 0.5;
+    terms.principal_redemption_ratio = 0.5;
     let note = BinarySnowballOption::new(terms).unwrap();
     let engine = QuadratureAutocallableEngine::default();
     // No historical monitoring before the first KO, even after the effective date.
@@ -154,7 +154,7 @@ fn ternary_strict_knock_in_pays_floor_and_rejects_floor_above_coupon() {
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
-    terms.principal_ratio = 0.5;
+    terms.principal_redemption_ratio = 0.5;
     let note = TernarySnowballOption::new(terms.clone()).unwrap();
     let engine = QuadratureAutocallableEngine::default();
     for (spot, coupon) in [(79.999, -0.02), (80.0, 0.06), (109.0, 0.06), (110.0, 0.08)] {
@@ -330,7 +330,7 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
                 autocallable_observations(&[date(4, 1)], &[110.0], Some(&[coupon]), None).unwrap();
             let mut binary =
                 BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), records.clone());
-            binary.principal_ratio = 0.25;
+            binary.principal_redemption_ratio = 0.25;
             let mut ternary = TernarySnowballTerms::new(
                 0.06,
                 -0.02,
@@ -340,7 +340,7 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
                 records,
                 Some((date(4, 1)).time_of_day()),
             );
-            ternary.principal_ratio = 0.25;
+            ternary.principal_redemption_ratio = 0.25;
             ternary.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
             ternary.observation_clock_time = None;
             let context = market(spot, date(1, 1));
@@ -591,9 +591,9 @@ fn preset_validation_uses_expanded_terms_and_preserves_inputs() {
     ));
     let mut configured = base;
     configured.barrier_state = Some(AutocallableBarrierState::KnockedIn);
-    configured.principal_ratio = 0.5;
+    configured.principal_redemption_ratio = 0.5;
     let note = configured.expand(SnowballPreset::Standard).unwrap();
-    assert_eq!(note.terms().principal_ratio, 0.5);
+    assert_eq!(note.terms().principal_redemption_ratio, 0.5);
     assert_eq!(
         note.barrier_state(),
         Some(AutocallableBarrierState::KnockedIn)
@@ -652,7 +652,7 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         ));
     }
     let mut binary = BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), observations());
-    binary.principal_ratio = -1.0;
+    binary.principal_redemption_ratio = -1.0;
     assert!(matches!(
         BinarySnowballOption::new(binary).unwrap_err(),
         Error::InvalidInput(_)

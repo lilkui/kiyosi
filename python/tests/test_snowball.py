@@ -93,7 +93,7 @@ class SnowballTests(unittest.TestCase):
         self.assertEqual(
             (engine.asset_step_count, engine.integration_standard_deviations), (512, 8)
         )
-        self.assertEqual(contract().principal_ratio, 1)
+        self.assertEqual(contract().principal_redemption_ratio, 1)
         self.assertIsNone(contract().barrier_state)
         observations = autocallable_observations(
             iter([END]), iter([110]), knock_out_coupon_rates=[0]
@@ -133,7 +133,7 @@ class SnowballTests(unittest.TestCase):
         for fields in (
             {"initial_spot": True},
             {"initial_spot": "100"},
-            {"principal_ratio": None},
+            {"principal_redemption_ratio": None},
             {"observations": [(END, 110)]},
             {"effective_time": datetime(2025, 1, 1).date()},
             {"knock_in_observation_mode": 1},
@@ -281,7 +281,7 @@ class SnowballTests(unittest.TestCase):
                     effective_time=start,
                     expiry_time=end,
                     maturity_coupon_rate=inputs["maturity_coupon_rate"],
-                    principal_ratio=inputs["principal_ratio"],
+                    principal_redemption_ratio=inputs["principal_redemption_ratio"],
                     barrier_state=inputs["history"],
                     knock_in_level=inputs["knock_in_level"],
                     knock_in_observation_mode=inputs["knock_in_mode"],
@@ -311,7 +311,7 @@ class SnowballTests(unittest.TestCase):
         ).value()
         note = contract(
             expiry_time=end,
-            principal_ratio=0.25,
+            principal_redemption_ratio=0.25,
             lower_strike=0,
             knock_in_level=100,
             maturity_coupon_rate=0,
@@ -339,7 +339,7 @@ class SnowballTests(unittest.TestCase):
                     note = contract(
                         expiry_time=datetime(2025, 1, 7),
                         lower_strike=0,
-                        principal_ratio=principal,
+                        principal_redemption_ratio=principal,
                         maturity_coupon_rate=0,
                         knock_in_observation_mode=mode,
                         barrier_state=history,
@@ -693,7 +693,7 @@ class SnowballTests(unittest.TestCase):
             calendar=all_days_calendar(),
             expiry_time=dates[-1],
             barrier_state="no_event",
-            principal_ratio=0.5,
+            principal_redemption_ratio=0.5,
             observations=autocallable_observations(
                 dates,
                 [125 - 15 * i / 32 for i in range(1, 33)],

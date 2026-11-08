@@ -28,7 +28,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            principal_ratio=0,
+            principal_redemption_ratio=0,
             effective_time=start,
             expiry_time=end,
             observations=autocallable_observations(
@@ -279,7 +279,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=1e308,
-            principal_ratio=1e308,
+            principal_redemption_ratio=1e308,
             effective_time=start,
             expiry_time=end,
             observations=autocallable_observations(
@@ -451,7 +451,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             "upper_strike": 100,
             "lower_strike": 60,
             "barrier_state": "knocked_in",
-            "principal_ratio": 1.25,
+            "principal_redemption_ratio": 1.25,
             "effective_time": START,
             "expiry_time": END,
         }

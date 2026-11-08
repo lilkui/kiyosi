@@ -40,7 +40,7 @@ def contract(row):
         )
     phoenix = row["instrument"] == "PhoenixOption"
     common.update(
-        principal_ratio=number("principal_ratio"),
+        principal_redemption_ratio=number("principal_redemption_ratio"),
         barrier_state=inputs["history"],
         observations=instruments.autocallable_observations(
             [common["expiry_time"]],

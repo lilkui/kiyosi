@@ -62,7 +62,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
         end,
         autocallable_observations(&[end], &[100.0], Some(&[1.5e308]), None).unwrap(),
     );
-    terms.principal_ratio = 0.0;
+    terms.principal_redemption_ratio = 0.0;
     let note = BinarySnowballOption::new(terms).unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
@@ -110,7 +110,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
             end,
             autocallable_observations(&[end], &[100.0], Some(&[0.0]), None).unwrap(),
         );
-        terms.principal_ratio = principal;
+        terms.principal_redemption_ratio = principal;
         let note = BinarySnowballOption::new(terms).unwrap();
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(rate, rate, 0.2).unwrap(),
@@ -136,7 +136,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         autocallable_observations(&[end], &[1.0], None, Some(&[0.0])).unwrap(),
         Some((end).time_of_day()),
     );
-    terms.principal_ratio = 1e308;
+    terms.principal_redemption_ratio = 1e308;
     let note = PhoenixOption::new(terms).unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(-1.0, -1.0, 0.2).unwrap(),

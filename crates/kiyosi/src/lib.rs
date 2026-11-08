@@ -244,7 +244,7 @@ pub use instruments::autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation,
     AutocallableObservationChanges, AutocallableObservationKind, AutocallableTerms,
     BinarySnowballOption, BinarySnowballOptionChanges, BinarySnowballTerms,
-    DEFAULT_PRINCIPAL_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption,
+    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption,
     PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms,
     SnowballOption, SnowballOptionChanges, SnowballPreset, SnowballPresetTerms, SnowballTerms,
     TernarySnowballOption, TernarySnowballOptionChanges, TernarySnowballTerms,

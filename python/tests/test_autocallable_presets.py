@@ -96,7 +96,7 @@ class AutocallablePresetTests(unittest.TestCase):
             self.assertEqual(note.lower_strike, 0)
             self.assertEqual(note.knock_in_observation_mode, "at_expiry")
             self.assertIsNone(note.barrier_state)
-            self.assertEqual(note.principal_ratio, 1)
+            self.assertEqual(note.principal_redemption_ratio, 1)
             dates.clear()
             self.assertEqual(note.observation_times, (MIDDLE, END))
             self.assertEqual(
@@ -184,7 +184,7 @@ class AutocallablePresetTests(unittest.TestCase):
             for coupon in (0.01, -0.01):
                 note = factory(
                     coupon_per_period=coupon,
-                    **terms(principal_ratio=0.25, barrier_state="no_event"),
+                    **terms(principal_redemption_ratio=0.25, barrier_state="no_event"),
                     **extra,
                 )
                 for engine in engines():

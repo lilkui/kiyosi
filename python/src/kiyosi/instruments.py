@@ -18,6 +18,10 @@ on construction. Notes additionally validate ordering, life bounds and their
 product-specific coupon rules. Observation ``replace()`` validates supplied
 fields and preserves omitted values, like contract replacement.
 
+Autocallable ``principal_redemption_ratio`` sets the principal payment per original
+unit of notional, independently of coupons and downside losses. It does not size
+a position. Multiply the complete price and sensitivities by position notional.
+
 ``OptionType`` selects ``"call"`` or ``"put"``. Contract effective and expiry
 boundaries are inclusive ``datetime.datetime`` values. Microseconds participate
 in expiry, observation and elapsed-time calculations. Calendars classify dates

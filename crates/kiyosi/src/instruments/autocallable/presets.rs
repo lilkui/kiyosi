@@ -1,7 +1,7 @@
 use super::{
     AutocallableBarrierState, AutocallableObservation, AutocallableObservationKind,
-    DEFAULT_PRINCIPAL_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption, PhoenixTerms,
-    SnowballOption, SnowballTerms,
+    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption,
+    PhoenixTerms, SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
 use crate::error::finite;
@@ -85,7 +85,7 @@ pub struct SnowballPresetTerms {
     /// Records prior history; defaults to unknown.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets nonnegative normalized principal, independently of coupon and loss components.
-    pub principal_ratio: f64,
+    pub principal_redemption_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive expiry timestamp.
@@ -120,7 +120,7 @@ impl SnowballPresetTerms {
             knock_in_level,
             knock_out_level,
             barrier_state: None,
-            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
+            principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
             expiry_time,
             observation_times,
@@ -194,7 +194,7 @@ impl SnowballPresetTerms {
         );
         terms.barrier_state = self.barrier_state;
         terms.calendar = self.calendar;
-        terms.principal_ratio = self.principal_ratio;
+        terms.principal_redemption_ratio = self.principal_redemption_ratio;
         match preset {
             SnowballPreset::Standard => {}
             SnowballPreset::European => {
@@ -311,7 +311,7 @@ pub struct PhoenixPresetTerms {
     /// Records prior events; defaults to unknown.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets nonnegative normalized principal, independently of coupon and loss components.
-    pub principal_ratio: f64,
+    pub principal_redemption_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive expiry timestamp.
@@ -339,7 +339,7 @@ impl PhoenixPresetTerms {
             knock_in_level,
             knock_out_level,
             barrier_state: None,
-            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
+            principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
             expiry_time,
             observation_times,
@@ -405,7 +405,7 @@ impl PhoenixPresetTerms {
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         terms.barrier_state = self.barrier_state;
         terms.calendar = self.calendar;
-        terms.principal_ratio = self.principal_ratio;
+        terms.principal_redemption_ratio = self.principal_redemption_ratio;
         PhoenixOption::new(terms)
     }
 }

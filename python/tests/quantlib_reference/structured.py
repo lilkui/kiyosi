@@ -46,7 +46,7 @@ def scenarios():
                         "knock_in_level": 100,
                         "knock_out_level": 110,
                         "coupon_barrier_level": 95,
-                        "principal_ratio": principal,
+                        "principal_redemption_ratio": principal,
                         "coupon_rate": coupon,
                         "maturity_coupon_rate": 0.06,
                         "minimum_coupon_rate": 0.02,
@@ -126,7 +126,7 @@ def portfolio(instrument, inputs):
         return -quantity * strike, quantity, legs
 
     time = horizon(inputs, "effective_time")
-    principal = inputs["principal_ratio"]
+    principal = inputs["principal_redemption_ratio"]
     coupon, maturity, minimum = (
         inputs[name] * time
         for name in ("coupon_rate", "maturity_coupon_rate", "minimum_coupon_rate")
@@ -239,7 +239,7 @@ def check_portfolios():
                 expected = quantity * (spot - inputs["strike"])
             else:
                 time = horizon(inputs, "effective_time")
-                expected = inputs["principal_ratio"]
+                expected = inputs["principal_redemption_ratio"]
                 knocked_in = (
                     inputs["history"] == "knocked_in" or spot < inputs["knock_in_level"]
                 )

@@ -148,7 +148,7 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                 t.maturity_coupon_rate = 0.0;
                 t.knock_in_level = 100.0;
                 t.lower_strike = lower;
-                t.principal_ratio = principal;
+                t.principal_redemption_ratio = principal;
                 t.observations =
                     autocallable_observations(&[t.expiry_time], &[100.0], Some(&[coupon]), None)
                         .unwrap();
@@ -215,7 +215,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
             let mut t = terms();
             t.expiry_time = date(1, 7);
             t.lower_strike = 0.0;
-            t.principal_ratio = principal;
+            t.principal_redemption_ratio = principal;
             t.maturity_coupon_rate = 0.0;
             t.knock_in_observation_mode = mode;
             t.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)

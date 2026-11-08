@@ -936,7 +936,7 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
         lower_strike: 0.0,
         knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
-        principal_ratio: 1.0,
+        principal_redemption_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
         observations: vec![AutocallableObservation::snowball(end, 110.0, 0.0).unwrap()],
@@ -1022,9 +1022,9 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         SnowballOptionChanges,
-        principal_ratio,
+        principal_redemption_ratio,
         0.9,
-        terms().principal_ratio
+        terms().principal_redemption_ratio
     );
     check_field!(
         original,
@@ -1071,7 +1071,7 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         lower_strike: 0.0,
         knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
-        principal_ratio: 1.0,
+        principal_redemption_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
         observations: vec![AutocallableObservation::phoenix(end, 110.0, 0.0).unwrap()],
@@ -1157,9 +1157,9 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         PhoenixOptionChanges,
-        principal_ratio,
+        principal_redemption_ratio,
         0.9,
-        terms().principal_ratio
+        terms().principal_redemption_ratio
     );
     check_field!(
         original,
@@ -1200,7 +1200,7 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
         calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
-        principal_ratio: 1.0,
+        principal_redemption_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
         observations: vec![AutocallableObservation::snowball(end, 110.0, 0.0).unwrap()],
@@ -1246,9 +1246,9 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
     check_field!(
         original,
         BinarySnowballOptionChanges,
-        principal_ratio,
+        principal_redemption_ratio,
         0.9,
-        terms().principal_ratio
+        terms().principal_redemption_ratio
     );
     check_field!(
         original,
@@ -1293,7 +1293,7 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
         knock_in_level: 80.0,
         knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
-        principal_ratio: 1.0,
+        principal_redemption_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
         observations: vec![AutocallableObservation::snowball(end, 110.0, 0.0).unwrap()],
@@ -1367,9 +1367,9 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
     check_field!(
         original,
         TernarySnowballOptionChanges,
-        principal_ratio,
+        principal_redemption_ratio,
         0.9,
-        terms().principal_ratio
+        terms().principal_redemption_ratio
     );
     check_field!(
         original,

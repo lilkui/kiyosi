@@ -14,7 +14,10 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             .map(|shift| crate::conversions::python_duration(py, shift))
             .transpose()?,
     )?;
-    defaults.set_item("principal_ratio", kiyosi::DEFAULT_PRINCIPAL_RATIO)?;
+    defaults.set_item(
+        "principal_redemption_ratio",
+        kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+    )?;
     defaults.set_item("realized_average", kiyosi::DEFAULT_REALIZED_AVERAGE)?;
     defaults.set_item(
         "accumulated_quantity",

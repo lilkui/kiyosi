@@ -245,12 +245,12 @@ fn terminal<T: AutocallableTerms>(
             {
                 if let Some(d) = t.downside() {
                     if d.lower_strike > 0.0 && point < log_ratio(d.lower_strike, anchor) {
-                        cash = t.principal_ratio - d.upper_strike / d.initial_spot;
+                        cash = t.principal_redemption_ratio - d.upper_strike / d.initial_spot;
                         cash += d.lower_strike / d.initial_spot;
                     } else if point > log_ratio(d.upper_strike, anchor) {
-                        cash = t.principal_ratio;
+                        cash = t.principal_redemption_ratio;
                     } else {
-                        cash = t.principal_ratio - d.upper_strike / d.initial_spot;
+                        cash = t.principal_redemption_ratio - d.upper_strike / d.initial_spot;
                         asset = 1.0 / d.initial_spot;
                     }
                 } else {

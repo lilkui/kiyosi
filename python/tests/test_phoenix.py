@@ -114,7 +114,7 @@ class PhoenixTests(unittest.TestCase):
     def test_current_conditional_coupon_and_settlement_boundaries(self):
         engine = QuadratureAutocallableEngine()
         for coupon in (0.365, -0.365):
-            note = contract(coupon_rate=coupon, principal_ratio=0.25)
+            note = contract(coupon_rate=coupon, principal_redemption_ratio=0.25)
             for spot, base, paid in (
                 (60, -0.15, False),
                 (70, -0.05, False),
@@ -142,7 +142,7 @@ class PhoenixTests(unittest.TestCase):
 
     def test_owned_defaults_replacement_and_strict_representations(self):
         note = contract(barrier_state=None)
-        self.assertEqual(note.principal_ratio, 1)
+        self.assertEqual(note.principal_redemption_ratio, 1)
         self.assertIsNone(note.barrier_state)
         self.assertEqual(note.coupon_barrier_levels, (90, 90))
         records = list(note.observations)
@@ -158,7 +158,7 @@ class PhoenixTests(unittest.TestCase):
         for fields in (
             {"coupon_rate": True},
             {"coupon_rate": "0.1"},
-            {"principal_ratio": None},
+            {"principal_redemption_ratio": None},
             {"initial_spot": True},
             {"observations": [(END, 110)]},
             {"effective_time": datetime(2025, 1, 1).date()},
@@ -198,7 +198,7 @@ class PhoenixTests(unittest.TestCase):
             ({"coupon_rate": math.nan}, InvalidInputError),
             ({"initial_spot": 0}, InvalidInputError),
             ({"lower_strike": 101}, InvalidInputError),
-            ({"principal_ratio": -1}, InvalidInputError),
+            ({"principal_redemption_ratio": -1}, InvalidInputError),
             ({"observations": []}, InvalidInputError),
             (
                 {
@@ -303,7 +303,7 @@ class PhoenixTests(unittest.TestCase):
                     effective_time=start,
                     expiry_time=end,
                     coupon_rate=inputs["coupon_rate"],
-                    principal_ratio=inputs["principal_ratio"],
+                    principal_redemption_ratio=inputs["principal_redemption_ratio"],
                     barrier_state=inputs["history"],
                     knock_in_level=inputs["knock_in_level"],
                     knock_in_observation_mode=inputs["knock_in_mode"],
@@ -368,7 +368,7 @@ class PhoenixTests(unittest.TestCase):
         note = contract(
             coupon_rate=-0.5,
             lower_strike=100,
-            principal_ratio=0.25,
+            principal_redemption_ratio=0.25,
             expiry_time=end,
             observations=autocallable_observations(
                 [middle, end], [100, 100], coupon_barrier_levels=[0] * 2
@@ -801,7 +801,7 @@ class PhoenixTests(unittest.TestCase):
         note = contract(
             calendar=all_days_calendar(),
             expiry_time=dates[-1],
-            principal_ratio=0.5,
+            principal_redemption_ratio=0.5,
             observations=autocallable_observations(
                 dates,
                 [125 - 15 * i / 32 for i in range(1, 33)],
