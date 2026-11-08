@@ -330,7 +330,8 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
             convention,
             ImpliedCouponSettings::default(),
         )
-        .unwrap();
+        .unwrap()
+        .first_observation_coupon;
         assert!((coupon - 0.12).abs() < 1e-8);
     }
     let unseeded = MonteCarloAutocallableEngine::new(MonteCarloSettings {

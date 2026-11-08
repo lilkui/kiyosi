@@ -277,8 +277,16 @@ where
                 )
             })?)?;
             let quote = PyDict::new(py);
-            quote.set_item("first_observation_coupon", coupon)?;
-            quote.set_item("quote_convention", quote_convention)?;
+            quote.set_item("first_observation_coupon", coupon.first_observation_coupon)?;
+            quote.set_item(
+                "quote_convention",
+                match coupon.quote_convention {
+                    kiyosi::CouponQuoteConvention::ShiftMaturityCoupon => "shift_maturity_coupon",
+                    kiyosi::CouponQuoteConvention::PreserveMaturityCoupon => {
+                        "preserve_maturity_coupon"
+                    }
+                },
+            )?;
             Ok(quote.into_any().unbind())
         }};
     }

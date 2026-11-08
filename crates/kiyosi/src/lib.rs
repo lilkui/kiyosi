@@ -198,7 +198,8 @@ pub use risk::analytics::{
     PricingResult,
 };
 pub use risk::coupon::{
-    CouponQuoteConvention, ImpliedCouponSettings, implied_phoenix_coupon, implied_snowball_coupon,
+    CouponQuoteConvention, ImpliedCouponSettings, SnowballCouponQuote, implied_phoenix_coupon,
+    implied_snowball_coupon,
 };
 pub use risk::implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use risk::numerical::numerical_greeks;

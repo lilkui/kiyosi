@@ -46,7 +46,8 @@ fn quadrature_covers_drift_into_future_knock_out() {
         CouponQuoteConvention::PreserveMaturityCoupon,
         ImpliedCouponSettings::default(),
     )
-    .unwrap();
+    .unwrap()
+    .first_observation_coupon;
     assert!((coupon - 0.2).abs() < 1e-7, "{coupon}");
 }
 

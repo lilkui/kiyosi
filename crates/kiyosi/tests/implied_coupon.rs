@@ -43,7 +43,8 @@ fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
             target,
             convention,
             Default::default(),
-        )?;
+        )?
+        .first_observation_coupon;
         assert!((solved - 0.12).abs() < 1e-7);
         assert!(
             (engine.price(&note.with_quoted_coupon(solved, convention)?, &context)? - target).abs()
@@ -126,7 +127,8 @@ fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
         quote,
         convention,
         Default::default(),
-    )?;
+    )?
+    .first_observation_coupon;
     assert!((coupon - 0.12).abs() < 1e-8);
     assert!(
         (engine.price(&note.with_quoted_coupon(coupon, convention)?, &context)? - quote).abs()
@@ -209,7 +211,8 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                         lower_bound: lower,
                         ..Default::default()
                     },
-                )?;
+                )?
+                .first_observation_coupon;
                 assert!((solved - anchor).abs() < 1e-7);
             }
             assert!(matches!(
@@ -250,7 +253,8 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                 engine.price(&dated(&fixed, &context), &context)?,
                 CouponQuoteConvention::PreserveMaturityCoupon,
                 Default::default(),
-            )?;
+            )?
+            .first_observation_coupon;
             assert_eq!(solved, 0.0);
             assert_eq!(note, original);
         }
@@ -270,7 +274,8 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
             engine.price(&dated(&boundary, &context), &context)?,
             CouponQuoteConvention::ShiftMaturityCoupon,
             Default::default(),
-        )?;
+        )?
+        .first_observation_coupon;
         assert!((solved - 0.05).abs() < 1e-15);
     }
     Ok(())
@@ -342,8 +347,14 @@ fn binary_quote_recovers_schedule_shift_and_maturity_conventions() {
             Default::default(),
         )
         .unwrap();
-        assert!((solved - 0.18).abs() < 1e-7, "{solved}");
-        let replaced = note.with_quoted_coupon(solved, convention).unwrap();
+        assert!(
+            (solved.first_observation_coupon - 0.18).abs() < 1e-7,
+            "{solved:?}"
+        );
+        assert_eq!(solved.quote_convention, convention);
+        let replaced = note
+            .with_quoted_coupon(solved.first_observation_coupon, solved.quote_convention)
+            .unwrap();
         assert!(
             (engine.price(&dated(&replaced, &context), &context).unwrap() - quote).abs() < 1e-8
         );
@@ -380,7 +391,8 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
                     convention,
                     settings,
                 )
-                .unwrap();
+                .unwrap()
+                .first_observation_coupon;
                 assert!((solved - coupon).abs() < 1e-8, "{solved}");
                 assert!(
                     (engine
@@ -562,7 +574,10 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
                 &context,
             )
             .unwrap();
-        assert_eq!(solve(quote, defaults).unwrap(), bound);
+        assert_eq!(
+            solve(quote, defaults).unwrap().first_observation_coupon,
+            bound
+        );
     }
     for settings in [
         ImpliedCouponSettings {
@@ -645,7 +660,8 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
         ShiftMaturityCoupon,
         defaults,
     )
-    .unwrap();
+    .unwrap()
+    .first_observation_coupon;
     assert!((shifted - 0.08).abs() < 1e-8);
     let knocked_out = note
         .replace_history(
@@ -737,7 +753,9 @@ fn custom_engine_failures_and_bisection_use_stable_categories() {
         .unwrap_err(),
         Error::NonConvergence(_)
     ));
-    assert!((solve(&nonlinear, 0.3, s).unwrap() - 0.3_f64.sqrt()).abs() < 1e-7);
+    assert!(
+        (solve(&nonlinear, 0.3, s).unwrap().first_observation_coupon - 0.3_f64.sqrt()).abs() < 1e-7
+    );
     let interval_only = ImpliedCouponSettings {
         parameter_tolerance: 2.0,
         price_tolerance: 1e-30,
@@ -808,7 +826,8 @@ fn named_presets_reuse_the_same_coupon_contract() {
                 convention,
                 Default::default(),
             )
-            .unwrap();
+            .unwrap()
+            .first_observation_coupon;
             assert!((solved - 0.18).abs() < 1e-7, "{preset:?}: {solved}");
             assert!(
                 (engine
@@ -858,7 +877,8 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         PreserveMaturityCoupon,
         Default::default(),
     )
-    .unwrap();
+    .unwrap()
+    .first_observation_coupon;
     assert!((solved - 0.18).abs() < 1e-8);
     let mut terms = note.terms().clone();
     terms.maturity_coupon_rate = f64::MAX;
@@ -897,7 +917,8 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         ShiftMaturityCoupon,
         Default::default(),
     )
-    .unwrap();
+    .unwrap()
+    .first_observation_coupon;
     assert!((coupon - ternary.observations()[0].coupon_rate().unwrap()).abs() < 1e-7);
     assert_eq!(ternary.terms().maturity_coupon_rate, 0.06);
     let curve = RateTermStructure::new(
@@ -1085,7 +1106,8 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .unwrap()
+        .first_observation_coupon;
         assert!((solved - 0.073).abs() < 1e-9, "{solved}");
         assert!(
             (engine

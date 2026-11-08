@@ -14,6 +14,18 @@ pub enum CouponQuoteConvention {
     PreserveMaturityCoupon,
 }
 
+/// Owns an annual snowball coupon quote and its maturity convention.
+///
+/// Apply both fields with [`AutocallableNote::with_quoted_coupon`] to preserve
+/// the solved cash flows. See [`implied_snowball_coupon`] for an example.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SnowballCouponQuote {
+    /// Records the first observation's annual decimal coupon; later spreads are preserved.
+    pub first_observation_coupon: f64,
+    /// Records how the maturity coupon follows the quoted observation coupon.
+    pub quote_convention: CouponQuoteConvention,
+}
+
 /// Sets finite signed coupon bounds and convergence controls in the contract's units.
 ///
 /// Success requires the price tolerance; a collapsed bracket without a price match
@@ -52,6 +64,7 @@ impl Default for ImpliedCouponSettings {
 /// Tries affine interpolation, verifies its residual, then bisects if needed.
 /// Inputs remain unchanged; custom engines retain their own concurrency contract.
 /// Model support follows the engine, including local volatility with finite differences.
+/// The returned [`SnowballCouponQuote`] retains the supplied maturity convention.
 ///
 /// Monte Carlo engines require an explicit seed; retain the engine returned by
 /// `with_resolved_seed` for solving and repricing the quote.
@@ -82,9 +95,11 @@ impl Default for ImpliedCouponSettings {
 /// let convention = CouponQuoteConvention::PreserveMaturityCoupon;
 /// let target = note.with_quoted_coupon(0.12, convention)?;
 /// let price = engine.price(&target, &market)?;
-/// let coupon = implied_snowball_coupon(&engine, &note, &market, price,
+/// let quote = implied_snowball_coupon(&engine, &note, &market, price,
 ///     convention, ImpliedCouponSettings::default())?;
-/// assert!((coupon - 0.12).abs() < 1e-7);
+/// assert!((quote.first_observation_coupon - 0.12).abs() < 1e-7);
+/// let repriced = note.with_quoted_coupon(quote.first_observation_coupon, quote.quote_convention)?;
+/// assert!((engine.price(&repriced, &market)? - price).abs() <= 1e-8);
 /// # Ok(()) }
 /// ```
 pub fn implied_snowball_coupon<
@@ -97,8 +112,8 @@ pub fn implied_snowball_coupon<
     observed_price: f64,
     convention: CouponQuoteConvention,
     settings: ImpliedCouponSettings,
-) -> Result<f64> {
-    solve(
+) -> Result<SnowballCouponQuote> {
+    let first_observation_coupon = solve(
         engine,
         option,
         context,
@@ -106,7 +121,11 @@ pub fn implied_snowball_coupon<
         settings,
         option.minimum_quoted_coupon(convention),
         &|note, coupon| note.with_quoted_coupon(coupon, convention),
-    )
+    )?;
+    Ok(SnowballCouponQuote {
+        first_observation_coupon,
+        quote_convention: convention,
+    })
 }
 
 /// Solves a Phoenix price curve in its conditional coupon, preserving its units.
