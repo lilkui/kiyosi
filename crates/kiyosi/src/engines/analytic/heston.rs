@@ -102,7 +102,11 @@ impl AnalyticHestonEuropeanEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let model = HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?;
+    /// let model = HestonParameters::new(kiyosi::HestonParameterInputs {
+    ///     risk_free_rate: 0.05.into(), dividend_yield: 0.02.into(),
+    ///     initial_variance: 0.04, long_run_variance: 0.04,
+    ///     mean_reversion_speed: 1.5, vol_of_vol: 0.3, correlation: -0.7,
+    /// })?;
     /// let context = PricingContext::new(model, 100.0, start.into())?;
     /// let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings::default())?;
     /// assert_eq!(engine.settings().max_evaluations, 10_000);

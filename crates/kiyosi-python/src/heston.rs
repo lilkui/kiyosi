@@ -52,13 +52,15 @@ impl HestonParameters {
         correlation: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         Ok(Self(domain(kiyosi::HestonParameters::new(
-            rate(risk_free_rate)?,
-            rate(dividend_yield)?,
-            real(initial_variance)?,
-            real(long_run_variance)?,
-            real(mean_reversion_speed)?,
-            real(vol_of_vol)?,
-            real(correlation)?,
+            kiyosi::HestonParameterInputs {
+                risk_free_rate: rate(risk_free_rate)?,
+                dividend_yield: rate(dividend_yield)?,
+                initial_variance: real(initial_variance)?,
+                long_run_variance: real(long_run_variance)?,
+                mean_reversion_speed: real(mean_reversion_speed)?,
+                vol_of_vol: real(vol_of_vol)?,
+                correlation: real(correlation)?,
+            },
         ))?))
     }
 

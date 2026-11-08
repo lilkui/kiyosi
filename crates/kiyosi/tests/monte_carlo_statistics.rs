@@ -615,9 +615,17 @@ fn statistics_preserve_life_history_and_model_rejections() {
     let heston = market()
         .replace(PricingContextChanges {
             model_parameters: Some(
-                HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.0, 0.2, -0.5)
-                    .unwrap()
-                    .into(),
+                HestonParameters::new(kiyosi::HestonParameterInputs {
+                    risk_free_rate: 0.05.into(),
+                    dividend_yield: 0.02.into(),
+                    initial_variance: 0.04,
+                    long_run_variance: 0.04,
+                    mean_reversion_speed: 1.0,
+                    vol_of_vol: 0.2,
+                    correlation: -0.5,
+                })
+                .unwrap()
+                .into(),
             ),
             ..Default::default()
         })

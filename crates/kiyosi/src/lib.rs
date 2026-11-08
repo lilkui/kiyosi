@@ -273,9 +273,9 @@ pub use instruments::vanilla::{
 };
 pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, HestonParameterChanges,
-    HestonParameters, LocalVolatilityParameterChanges, LocalVolatilityParameters,
-    LocalVolatilitySurface, ModelParameters, PricingContext, PricingContextChanges, Rate,
-    RateTermStructure,
+    HestonParameterInputs, HestonParameters, LocalVolatilityParameterChanges,
+    LocalVolatilityParameters, LocalVolatilitySurface, ModelParameters, PricingContext,
+    PricingContextChanges, Rate, RateTermStructure,
 };
 pub use risk::analytics::{
     Greek, GreekMethod, GreekStatus, GreeksRequest, NumericalShiftSettings, PricingEngine,

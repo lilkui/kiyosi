@@ -3,7 +3,7 @@ mod local_volatility;
 mod parameters;
 mod term_structure;
 
-pub use heston::{HestonParameterChanges, HestonParameters};
+pub use heston::{HestonParameterChanges, HestonParameterInputs, HestonParameters};
 pub use local_volatility::{
     LocalVolatilityParameterChanges, LocalVolatilityParameters, LocalVolatilitySurface,
 };

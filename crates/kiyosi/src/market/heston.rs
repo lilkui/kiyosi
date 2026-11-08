@@ -21,6 +21,29 @@ pub struct HestonParameterChanges {
     pub correlation: Option<f64>,
 }
 
+/// Supplies named inputs validated by [`HestonParameters::new`].
+///
+/// No model parameter has an implicit default. Rates use annual decimal units;
+/// variance and mean-reversion inputs retain the units described by [`HestonParameters`].
+/// See [`HestonParameters::new`] for a construction example.
+#[derive(Clone, Debug)]
+pub struct HestonParameterInputs {
+    /// Supplies the risk-free rate or curve.
+    pub risk_free_rate: Rate,
+    /// Supplies the dividend yield or curve.
+    pub dividend_yield: Rate,
+    /// Sets instantaneous variance at valuation.
+    pub initial_variance: f64,
+    /// Sets the long-run variance level.
+    pub long_run_variance: f64,
+    /// Sets the mean-reversion speed per year.
+    pub mean_reversion_speed: f64,
+    /// Sets the volatility of volatility.
+    pub vol_of_vol: f64,
+    /// Sets asset/variance correlation, including endpoints of `[-1, 1]`.
+    pub correlation: f64,
+}
+
 /// Owns constant Heston stochastic-volatility parameters under the risk-neutral measure.
 ///
 /// Risk-free rates and dividend yields may follow deterministic term structures.
@@ -48,29 +71,34 @@ impl HestonParameters {
     ///
     /// Returns [`Error::InvalidInput`] for invalid rates, then for non-finite or
     /// negative variance parameters, then for correlation outside `[-1, 1]` or
-    /// non-finite correlation. Validation follows argument order.
+    /// non-finite correlation. Validation follows the field order in [`HestonParameterInputs`].
     ///
     /// # Examples
     ///
     /// ```rust
     /// use kiyosi::HestonParameters;
     /// # fn main() -> kiyosi::Result<()> {
-    /// let model = HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?;
+    /// let model = HestonParameters::new(kiyosi::HestonParameterInputs {
+    ///     risk_free_rate: 0.05.into(), dividend_yield: 0.02.into(),
+    ///     initial_variance: 0.04, long_run_variance: 0.04,
+    ///     mean_reversion_speed: 1.5, vol_of_vol: 0.3, correlation: -0.7,
+    /// })?;
     /// assert_eq!(model.initial_variance(), 0.04);
     /// assert_eq!(model.flat_risk_free_rate()?, 0.05);
     /// # Ok(()) }
     /// ```
-    pub fn new(
-        risk_free_rate: impl Into<Rate>,
-        dividend_yield: impl Into<Rate>,
-        initial_variance: f64,
-        long_run_variance: f64,
-        mean_reversion_speed: f64,
-        vol_of_vol: f64,
-        correlation: f64,
-    ) -> Result<Self> {
-        let risk_free_curve = risk_free_rate.into().into_curve("risk_free_rate")?;
-        let dividend_curve = dividend_yield.into().into_curve("dividend_yield")?;
+    pub fn new(inputs: HestonParameterInputs) -> Result<Self> {
+        let HestonParameterInputs {
+            risk_free_rate,
+            dividend_yield,
+            initial_variance,
+            long_run_variance,
+            mean_reversion_speed,
+            vol_of_vol,
+            correlation,
+        } = inputs;
+        let risk_free_curve = risk_free_rate.into_curve("risk_free_rate")?;
+        let dividend_curve = dividend_yield.into_curve("dividend_yield")?;
         for (name, value) in [
             ("initial_variance", initial_variance),
             ("long_run_variance", long_run_variance),
@@ -110,7 +138,11 @@ impl HestonParameters {
     /// ```rust
     /// use kiyosi::{HestonParameterChanges, HestonParameters};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let model = HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?;
+    /// let model = HestonParameters::new(kiyosi::HestonParameterInputs {
+    ///     risk_free_rate: 0.05.into(), dividend_yield: 0.02.into(),
+    ///     initial_variance: 0.04, long_run_variance: 0.04,
+    ///     mean_reversion_speed: 1.5, vol_of_vol: 0.3, correlation: -0.7,
+    /// })?;
     /// let changed = model.replace(HestonParameterChanges {
     ///     initial_variance: Some(0.09), ..Default::default()
     /// })?;
@@ -119,21 +151,21 @@ impl HestonParameters {
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: HestonParameterChanges) -> Result<Self> {
-        Self::new(
-            changes
+        Self::new(HestonParameterInputs {
+            risk_free_rate: changes
                 .risk_free_rate
                 .unwrap_or_else(|| self.risk_free_curve.clone().into()),
-            changes
+            dividend_yield: changes
                 .dividend_yield
                 .unwrap_or_else(|| self.dividend_curve.clone().into()),
-            changes.initial_variance.unwrap_or(self.initial_variance),
-            changes.long_run_variance.unwrap_or(self.long_run_variance),
-            changes
+            initial_variance: changes.initial_variance.unwrap_or(self.initial_variance),
+            long_run_variance: changes.long_run_variance.unwrap_or(self.long_run_variance),
+            mean_reversion_speed: changes
                 .mean_reversion_speed
                 .unwrap_or(self.mean_reversion_speed),
-            changes.vol_of_vol.unwrap_or(self.vol_of_vol),
-            changes.correlation.unwrap_or(self.correlation),
-        )
+            vol_of_vol: changes.vol_of_vol.unwrap_or(self.vol_of_vol),
+            correlation: changes.correlation.unwrap_or(self.correlation),
+        })
     }
 
     /// Borrows the risk-free curve for this model's lifetime; see [`Self::new`].

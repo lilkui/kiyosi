@@ -7,7 +7,16 @@ fn dates() -> (Timestamp, Timestamp) {
     )
 }
 fn model() -> HestonParameters {
-    HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7).unwrap()
+    HestonParameters::new(kiyosi::HestonParameterInputs {
+        risk_free_rate: 0.05.into(),
+        dividend_yield: 0.02.into(),
+        initial_variance: 0.04,
+        long_run_variance: 0.04,
+        mean_reversion_speed: 1.5,
+        vol_of_vol: 0.3,
+        correlation: -0.7,
+    })
+    .unwrap()
 }
 fn context(model: HestonParameters) -> PricingContext {
     PricingContext::new(model, 100.0, dates().0).unwrap()
@@ -22,7 +31,16 @@ fn heston_matches_quantlib_and_put_call_parity() {
     for (model, reference) in [
         (model(), 9.011_278_407_541_74),
         (
-            HestonParameters::new(0.05, 0.02, 0.04, 0.04, 0.2, 1.0, -0.9).unwrap(),
+            HestonParameters::new(kiyosi::HestonParameterInputs {
+                risk_free_rate: 0.05.into(),
+                dividend_yield: 0.02.into(),
+                initial_variance: 0.04,
+                long_run_variance: 0.04,
+                mean_reversion_speed: 0.2,
+                vol_of_vol: 1.0,
+                correlation: -0.9,
+            })
+            .unwrap(),
             6.256_279_042_682_394,
         ),
     ] {
@@ -62,14 +80,35 @@ fn deterministic_variance_and_absorbing_zero_have_independent_prices() {
             dates().0,
         )
         .unwrap();
-        let heston =
-            context(HestonParameters::new(0.05, 0.02, v0, theta, kappa, 0.0, 1.0).unwrap());
+        let heston = context(
+            HestonParameters::new(kiyosi::HestonParameterInputs {
+                risk_free_rate: 0.05.into(),
+                dividend_yield: 0.02.into(),
+                initial_variance: v0,
+                long_run_variance: theta,
+                mean_reversion_speed: kappa,
+                vol_of_vol: 0.0,
+                correlation: 1.0,
+            })
+            .unwrap(),
+        );
         for kind in [OptionType::Call, OptionType::Put] {
             let expected = AnalyticEuropeanEngine.price(&option(kind), &bsm).unwrap();
             assert!((engine.price(&option(kind), &heston).unwrap() - expected).abs() < 1e-12);
         }
     }
-    let zero = context(HestonParameters::new(0.05, 0.02, 0.0, 0.0, 0.0, 0.3, -1.0).unwrap());
+    let zero = context(
+        HestonParameters::new(kiyosi::HestonParameterInputs {
+            risk_free_rate: 0.05.into(),
+            dividend_yield: 0.02.into(),
+            initial_variance: 0.0,
+            long_run_variance: 0.0,
+            mean_reversion_speed: 0.0,
+            vol_of_vol: 0.3,
+            correlation: -1.0,
+        })
+        .unwrap(),
+    );
     let expected = 100.0 * ((-0.02_f64).exp() - (-0.05_f64).exp());
     assert!((engine.price(&option(OptionType::Call), &zero).unwrap() - expected).abs() < 1e-12);
     assert_eq!(engine.price(&option(OptionType::Put), &zero).unwrap(), 0.0);
@@ -442,7 +481,16 @@ fn absorbing_variance_preserves_small_discounted_payoff_differences() {
         (OptionType::Call, 1e-18, 0.0),
         (OptionType::Put, 0.0, 1e-18),
     ] {
-        let parameters = HestonParameters::new(risk, dividend, 0.0, 0.0, 1.0, 0.3, 0.0).unwrap();
+        let parameters = HestonParameters::new(kiyosi::HestonParameterInputs {
+            risk_free_rate: risk.into(),
+            dividend_yield: dividend.into(),
+            initial_variance: 0.0,
+            long_run_variance: 0.0,
+            mean_reversion_speed: 1.0,
+            vol_of_vol: 0.3,
+            correlation: 0.0,
+        })
+        .unwrap();
         let context = PricingContext::new(parameters, 1e18, dates().0).unwrap();
         let option = EuropeanOption::new(kind, 1e18, dates().0, dates().1).unwrap();
         assert!((engine.price(&option, &context).unwrap() - 1.0).abs() < 1e-12);
@@ -454,7 +502,16 @@ fn rare_large_variance_does_not_hide_the_fourier_tail() {
     // QuantLib 1.43 Gatheral/exp-sinh at 1e-10 and 1e-12; independently
     // confirmed from the limiting characteristic function exp(-sqrt(u*u+0.25)).
     let expected = 59.021_179_583_659_89;
-    let parameters = HestonParameters::new(0.0, 0.0, 0.04, 1e40, 1.0, 1e40, 0.0).unwrap();
+    let parameters = HestonParameters::new(kiyosi::HestonParameterInputs {
+        risk_free_rate: 0.0.into(),
+        dividend_yield: 0.0.into(),
+        initial_variance: 0.04,
+        long_run_variance: 1e40,
+        mean_reversion_speed: 1.0,
+        vol_of_vol: 1e40,
+        correlation: 0.0,
+    })
+    .unwrap();
     let context = context(parameters);
     for settings in [
         HestonIntegrationSettings::default(),
@@ -480,8 +537,16 @@ fn rare_large_variance_does_not_hide_the_fourier_tail() {
 fn subnormal_reversion_preserves_long_run_variance_growth() {
     // With kappa*T this small, V = v0*T + kappa*theta*T*T/2 to binary64
     // accuracy. The ATM price is 100*erf(sqrt(V)/(2*sqrt(2))).
-    let parameters =
-        HestonParameters::new(0.0, 0.0, 1e-20, 1e308, f64::from_bits(1), 0.0, 0.0).unwrap();
+    let parameters = HestonParameters::new(kiyosi::HestonParameterInputs {
+        risk_free_rate: 0.0.into(),
+        dividend_yield: 0.0.into(),
+        initial_variance: 1e-20,
+        long_run_variance: 1e308,
+        mean_reversion_speed: f64::from_bits(1),
+        vol_of_vol: 0.0,
+        correlation: 0.0,
+    })
+    .unwrap();
     let context = context(parameters);
     let expected = 6.270_413_576_726_258e-7;
     for kind in [OptionType::Call, OptionType::Put] {
@@ -497,7 +562,16 @@ fn subnormal_reversion_preserves_long_run_variance_growth() {
 
 #[test]
 fn reversion_growth_avoids_intermediate_product_overflow() {
-    let parameters = HestonParameters::new(0.0, 0.0, 0.0, 1e308, 1e10, 0.0, 0.0).unwrap();
+    let parameters = HestonParameters::new(kiyosi::HestonParameterInputs {
+        risk_free_rate: 0.0.into(),
+        dividend_yield: 0.0.into(),
+        initial_variance: 0.0,
+        long_run_variance: 1e308,
+        mean_reversion_speed: 1e10,
+        vol_of_vol: 0.0,
+        correlation: 0.0,
+    })
+    .unwrap();
     let time = Timestamp::new(Date::new(2025, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap();
     let context = PricingContext::new(parameters, 100.0, time).unwrap();
     // Over one microsecond, kappa*theta overflows but the integrated variance
