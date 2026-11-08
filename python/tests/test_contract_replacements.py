@@ -348,6 +348,8 @@ class ContractReplacementTests(unittest.TestCase):
                     )
                 with self.subTest(contract=type(original).__name__, field=name):
                     updates = {name: value}
+                    if name == "knock_in_observation_mode":
+                        updates["observation_clock_time"] = None
                     if isinstance(original, (i.BinaryBarrierOption, i.TouchOption)):
                         if name == "payoff_type":
                             value = (
@@ -502,7 +504,7 @@ class ContractReplacementTests(unittest.TestCase):
                     self.assertEqual(scheduled.observation_times, (END,))
                     self.assertEqual(scheduled.observation_mode, "scheduled")
 
-    def test_monitoring_switch_clears_only_omitted_times_and_requires_history(self):
+    def test_monitoring_switch_requires_explicit_times_and_history(self):
         for original in contracts():
             if not hasattr(original, "observation_mode"):
                 continue
@@ -518,11 +520,14 @@ class ContractReplacementTests(unittest.TestCase):
                 )
                 with self.assertRaises(InvalidInputError):
                     scheduled.replace(observation_mode="continuous")
-                for fields in (
-                    {},
-                    {"observation_times": []},
-                    {"observation_times": ...},
-                ):
+                for fields in ({}, {"observation_times": ...}):
+                    with self.assertRaises(InvalidInputError):
+                        scheduled.replace(
+                            observation_mode="continuous",
+                            touch_state=scheduled.touch_state,
+                            **fields,
+                        )
+                for fields in ({"observation_times": []},):
                     continuous = scheduled.replace(
                         observation_mode="continuous",
                         touch_state=scheduled.touch_state,
@@ -530,13 +535,15 @@ class ContractReplacementTests(unittest.TestCase):
                     )
                     self.assertEqual(continuous, original)
                 cleared = scheduled.replace(
-                    observation_mode="continuous", touch_state=None
+                    observation_mode="continuous",
+                    observation_times=[],
+                    touch_state=None,
                 )
                 self.assertIsNone(cleared.touch_state)
                 self.assertEqual(cleared.observation_times, ())
                 self.assertEqual(
                     scheduled.replace_history(touch_state=None).replace(
-                        observation_mode="continuous"
+                        observation_mode="continuous", observation_times=[]
                     ),
                     cleared,
                 )

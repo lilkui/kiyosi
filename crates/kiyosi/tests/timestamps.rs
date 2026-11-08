@@ -730,6 +730,7 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
     let at_expiry = daily.replace(SnowballOptionChanges {
         barrier_state: Some(daily.barrier_state()),
         knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
+        observation_clock_time: Some(None),
         ..Default::default()
     })?;
     let mc = MonteCarloAutocallableEngine::new(MonteCarloSettings {
@@ -824,6 +825,7 @@ fn knock_in_mode_replacement_requires_clock_and_preserves_original_on_failure() 
     ))?;
     let inactive = original.replace(SnowballOptionChanges {
         knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
+        observation_clock_time: Some(None),
         ..Default::default()
     })?;
     assert_eq!(inactive.observation_clock_time(), None);
@@ -1141,6 +1143,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
     );
     let expiry_only = note.replace(SnowballOptionChanges {
         knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
+        observation_clock_time: Some(None),
         ..Default::default()
     })?;
     assert_eq!(

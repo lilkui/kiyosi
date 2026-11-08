@@ -72,7 +72,7 @@ Accumulators require both
 is allowed. Changes affecting only future payoff amounts retain history.
 For example, ``barrier.replace(strike=105)`` preserves monitoring and history,
 and changing monitoring to scheduled requires supplying the observation times in the same call.
-Changing barrier or touch monitoring to continuous clears omitted observation times.
+Changing barrier or touch monitoring to continuous requires explicitly empty observation times.
 Explicit times must agree with the selected mode; scheduled monitoring requires nonempty times.
 Phoenix replacements accept one concrete coupon choice and can change coupon units.
 None is accepted only alongside a concrete alternative, so both coupon properties
@@ -119,8 +119,8 @@ omitted fields retain their values.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
 monitoring to ``"every_trading_day"``, matching Rust terms. Daily monitoring requires
 the ``observation_clock_time`` keyword; supply None for expiry-only monitoring.
-Replacing daily monitoring with ``"at_expiry"`` clears its clock; switching to daily
-monitoring requires the clock in the same replacement.
+Replacing daily monitoring with ``"at_expiry"`` requires explicit ``observation_clock_time=None``;
+switching to daily monitoring requires the clock in the same replacement.
 
 ``BinaryBarrierOption``, ``TouchOption`` and ``DoubleTouchOption`` have keyword-only
 constructors, like other contracts. Binary barriers and single-touch contracts

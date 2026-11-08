@@ -1536,12 +1536,9 @@ impl SnowballOption {
             knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
             upper_strike: changes.upper_strike.unwrap_or(self.0.upper_strike),
             lower_strike: changes.lower_strike.unwrap_or(self.0.lower_strike),
-            observation_clock_time: replacement_clock_time(
-                self.0.knock_in_observation_mode,
-                self.0.observation_clock_time,
-                changes.knock_in_observation_mode,
-                changes.observation_clock_time,
-            ),
+            observation_clock_time: changes
+                .observation_clock_time
+                .unwrap_or(self.0.observation_clock_time),
             knock_in_observation_mode: changes
                 .knock_in_observation_mode
                 .unwrap_or(self.0.knock_in_observation_mode),
@@ -1642,12 +1639,9 @@ impl PhoenixOption {
             knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
             upper_strike: changes.upper_strike.unwrap_or(self.0.upper_strike),
             lower_strike: changes.lower_strike.unwrap_or(self.0.lower_strike),
-            observation_clock_time: replacement_clock_time(
-                self.0.knock_in_observation_mode,
-                self.0.observation_clock_time,
-                changes.knock_in_observation_mode,
-                changes.observation_clock_time,
-            ),
+            observation_clock_time: changes
+                .observation_clock_time
+                .unwrap_or(self.0.observation_clock_time),
             knock_in_observation_mode: changes
                 .knock_in_observation_mode
                 .unwrap_or(self.0.knock_in_observation_mode),
@@ -1787,12 +1781,9 @@ impl TernarySnowballOption {
                 .minimum_coupon_rate
                 .unwrap_or(self.0.minimum_coupon_rate),
             knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
-            observation_clock_time: replacement_clock_time(
-                self.0.knock_in_observation_mode,
-                self.0.observation_clock_time,
-                changes.knock_in_observation_mode,
-                changes.observation_clock_time,
-            ),
+            observation_clock_time: changes
+                .observation_clock_time
+                .unwrap_or(self.0.observation_clock_time),
             knock_in_observation_mode: changes
                 .knock_in_observation_mode
                 .unwrap_or(self.0.knock_in_observation_mode),
@@ -1812,23 +1803,4 @@ impl TernarySnowballOption {
         );
         updated.with_history_time(history_time)
     }
-}
-
-#[expect(
-    clippy::option_option,
-    reason = "Replacement distinguishes omitted, cleared and supplied clock times."
-)]
-fn replacement_clock_time(
-    current_mode: KnockInObservationMode,
-    current_clock: Option<TimeOfDay>,
-    mode: Option<KnockInObservationMode>,
-    clock: Option<Option<TimeOfDay>>,
-) -> Option<TimeOfDay> {
-    clock.unwrap_or_else(|| {
-        if mode.is_some_and(|mode| mode != current_mode) {
-            None
-        } else {
-            current_clock
-        }
-    })
 }

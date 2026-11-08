@@ -285,7 +285,7 @@ class ObservationClockTests(unittest.TestCase):
                     delta=1e-6,
                 )
 
-    def test_monitoring_replacement_requires_clock_and_clears_inactive_clock(self):
+    def test_monitoring_replacement_requires_explicit_clock_changes(self):
         expiry = SnowballOption(
             observation_clock_time=None,
             knock_in_observation_mode="at_expiry",
@@ -299,8 +299,12 @@ class ObservationClockTests(unittest.TestCase):
         )
         self.assertEqual(daily.observation_clock_time, CLOCK)
         self.assertEqual(pickle.loads(pickle.dumps(daily)), daily)
+        with self.assertRaises(InvalidInputError):
+            daily.replace(knock_in_observation_mode="at_expiry")
         self.assertIsNone(
-            daily.replace(knock_in_observation_mode="at_expiry").observation_clock_time
+            daily.replace(
+                knock_in_observation_mode="at_expiry", observation_clock_time=None
+            ).observation_clock_time
         )
         with self.assertRaises(InvalidInputError):
             daily.replace(
@@ -332,7 +336,9 @@ class ObservationClockTests(unittest.TestCase):
             ),
         )
         expiry = daily.replace(
-            knock_in_observation_mode="at_expiry", barrier_state=daily.barrier_state
+            knock_in_observation_mode="at_expiry",
+            observation_clock_time=None,
+            barrier_state=daily.barrier_state,
         )
         expected = 1 + 0.12 * 9 / (365 * 24)
         for engine in (

@@ -396,7 +396,7 @@ impl BarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Switching to continuous monitoring clears omitted observation times; explicit times must match the mode.
+    /// Switching to continuous monitoring requires explicitly empty observation times; omitted times are retained.
     /// See [`BarrierOption::new`] for construction examples.
     ///
     /// # Errors
@@ -437,9 +437,9 @@ impl BarrierOption {
             rebate: changes.rebate.unwrap_or(self.rebate()),
             rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
             observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_times: self
-                .monitoring
-                .replacement_times(changes.observation_mode, changes.observation_times),
+            observation_times: changes
+                .observation_times
+                .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         })?;
         self.monitoring.validate_replacement_history(

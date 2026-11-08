@@ -263,7 +263,9 @@ class TimestampTests(unittest.TestCase):
                 self.assertEqual(
                     list(note.knock_in_observation_schedule), [start, last]
                 )
-                expiry_only = note.replace(knock_in_observation_mode="at_expiry")
+                expiry_only = note.replace(
+                    knock_in_observation_mode="at_expiry", observation_clock_time=None
+                )
                 self.assertEqual(
                     list(expiry_only.knock_in_observation_schedule), [expiry]
                 )

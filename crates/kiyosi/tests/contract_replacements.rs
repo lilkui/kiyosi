@@ -10,11 +10,19 @@ macro_rules! check_monitoring_switch {
             }),
             Err(Error::InvalidInput(_))
         ));
-        for times in [None, Some(vec![])] {
+        assert!(matches!(
+            $scheduled.replace($changes {
+                observation_mode: Some(ObservationMode::Continuous),
+                touch_state: Some($scheduled.touch_state()),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+        {
             let continuous = $scheduled
                 .replace($changes {
                     observation_mode: Some(ObservationMode::Continuous),
-                    observation_times: times,
+                    observation_times: Some(vec![]),
                     touch_state: Some($scheduled.touch_state()),
                     ..Default::default()
                 })
@@ -24,6 +32,7 @@ macro_rules! check_monitoring_switch {
         let cleared = $scheduled
             .replace($changes {
                 observation_mode: Some(ObservationMode::Continuous),
+                observation_times: Some(vec![]),
                 touch_state: Some(None),
                 ..Default::default()
             })
@@ -36,6 +45,7 @@ macro_rules! check_monitoring_switch {
                 .unwrap()
                 .replace($changes {
                     observation_mode: Some(ObservationMode::Continuous),
+                    observation_times: Some(vec![]),
                     ..Default::default()
                 })
                 .unwrap(),
@@ -184,6 +194,18 @@ macro_rules! history_changes {
 }
 
 macro_rules! check_field {
+    ($original:ident, $changes:ident, knock_in_observation_mode, $value:expr, $($getter:tt)+) => {
+        assert!(matches!($original.replace($changes {
+            knock_in_observation_mode: Some($value),
+            ..history_changes!($original, $changes)
+        }), Err(Error::InvalidInput(_))));
+        let changed = $original.replace($changes {
+            knock_in_observation_mode: Some($value),
+            observation_clock_time: Some(None),
+            ..history_changes!($original, $changes)
+        }).unwrap();
+        assert_eq!(changed.$($getter)+, $value);
+    };
     ($original:ident, $changes:ident, $field:ident, $value:expr) => {
         check_field!($original, $changes, $field, $value, $field());
     };
