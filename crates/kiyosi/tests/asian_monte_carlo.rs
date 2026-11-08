@@ -201,11 +201,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
                 &dated(&a, &market(100.0, 0.35, valuation)),
                 &market(100.0, 0.35, valuation),
                 quote,
-                ImpliedVolatilitySettings {
-                    lower_bound: 0.1,
-                    upper_bound: 0.4,
-                    ..Default::default()
-                },
+                ImpliedVolatilitySettings::new(0.1, 0.4),
             )
             .unwrap();
             assert!((solved - 0.2).abs() < 1e-6);
@@ -420,7 +416,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
                 &dated(&a, &context),
                 &context,
                 expected,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::UnsupportedOperation(_)
@@ -632,7 +628,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             &dated(&affine, &context),
             &context,
             result.price(),
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)
@@ -832,7 +828,7 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
             &dated(&option, &context),
             &context,
             5.25,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         ),
         Err(Error::InvalidInput(_))
     ));
@@ -842,11 +838,7 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
         &dated(&option, &context),
         &context,
         5.25,
-        ImpliedVolatilitySettings {
-            lower_bound: 0.1,
-            upper_bound: 0.4,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.1, 0.4),
     )
     .unwrap();
     assert!((0.1..0.4).contains(&sigma));

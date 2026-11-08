@@ -574,11 +574,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
         &dated(&option, &context),
         &context,
         quote,
-        ImpliedVolatilitySettings {
-            lower_bound: 1e-8,
-            upper_bound: 0.5,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(1e-8, 0.5),
     )
     .unwrap();
     let shifted = context
@@ -605,11 +601,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
             &dated(&option, &context),
             &context,
             quote,
-            ImpliedVolatilitySettings {
-                lower_bound: 0.0001,
-                upper_bound: 0.0002,
-                ..Default::default()
-            }
+            ImpliedVolatilitySettings::new(0.0001, 0.0002)
         )
         .unwrap_err(),
         Error::RootNotBracketed(_)
@@ -649,7 +641,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
             &dated(&fixed, &later),
             &later,
             engine.price(&dated(&fixed, &later), &later).unwrap(),
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)

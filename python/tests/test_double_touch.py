@@ -504,6 +504,8 @@ class DoubleTouchTests(unittest.TestCase):
                     dated_history(known, market(time=later)),
                     market(time=later),
                     expected,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 ),
             )
         no_touch = contract(cash_double_no_touch, payout=3)
@@ -576,7 +578,12 @@ class DoubleTouchTests(unittest.TestCase):
             self.assert_core_error(
                 UnsupportedOperationError,
                 lambda context=context, expected=expected: pricing.implied_volatility(
-                    engine, dated_history(known, context), context, expected
+                    engine,
+                    dated_history(known, context),
+                    context,
+                    expected,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 ),
             )
         with self.assertRaises(InvalidInputError):
@@ -1087,7 +1094,12 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             )
             with self.assertRaises(UnsupportedOperationError):
                 pricing.implied_volatility(
-                    engine, dated_history(prior, later), later, expected
+                    engine,
+                    dated_history(prior, later),
+                    later,
+                    expected,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
             known = option.replace_history(
                 touch_state="untouched",
@@ -1180,7 +1192,12 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                     )
                 with self.assertRaises(UnsupportedOperationError):
                     pricing.implied_volatility(
-                        engine, dated_history(option, context), context, math.nan
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        math.nan,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
         with self.assertRaises(ComputationFailureError):
             engine.price(

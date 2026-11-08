@@ -8307,8 +8307,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8325,11 +8325,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8362,8 +8361,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8379,8 +8378,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8397,11 +8396,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8434,8 +8432,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8446,8 +8444,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8464,11 +8462,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8501,8 +8498,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8515,8 +8512,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8533,11 +8530,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8570,8 +8566,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8582,8 +8578,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8600,11 +8596,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8637,8 +8632,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8653,8 +8648,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8671,11 +8666,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8708,8 +8702,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8720,8 +8714,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8738,11 +8732,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8775,8 +8768,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8787,8 +8780,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8805,11 +8798,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8842,8 +8834,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8854,8 +8846,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8872,11 +8864,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8909,8 +8900,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8925,8 +8916,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -8943,11 +8934,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -8980,8 +8970,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -8992,8 +8982,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -9010,11 +9000,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -9047,8 +9036,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -9061,8 +9050,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -9079,11 +9068,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -9116,8 +9104,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 
@@ -9128,8 +9116,8 @@ def implied_volatility(
     context: PricingContext,
     observed_price: _Real,
     *,
-    lower_bound: _Real = ...,
-    upper_bound: _Real = ...,
+    lower_bound: _Real,
+    upper_bound: _Real,
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
@@ -9146,11 +9134,10 @@ def implied_volatility(
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    lower_bound : float, optional
-        Nonnegative finite lower annualized volatility in decimal units;
-        defaults to zero.
-    upper_bound : float, optional
-        Finite upper annualized volatility, above lower_bound; defaults to 4.
+    lower_bound : float
+        Required nonnegative finite lower annualized volatility in decimal units.
+    upper_bound : float
+        Required finite upper annualized volatility, above lower_bound.
     price_tolerance : float, optional
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
@@ -9183,8 +9170,8 @@ def implied_volatility(
     -----
     Pricing failures propagate. Monte Carlo solves require an explicit seed;
     call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital prices can have several volatility
-    roots. The supplied bracket selects a root; CRR engines restrict it to
+    curve, not its sampling error. Digital and barrier prices can have several
+    volatility roots. The required bracket selects a root; CRR engines restrict it to
     their admissible tree domain.
     """
 

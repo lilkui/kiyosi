@@ -669,11 +669,7 @@ fn check_solver<I: OptionContract, E: PricingEngine<I>>(
     context: &PricingContext,
 ) {
     let quote = engine.price(option, context).unwrap();
-    let settings = ImpliedVolatilitySettings {
-        lower_bound: 0.1,
-        upper_bound: 0.22,
-        ..Default::default()
-    };
+    let settings = ImpliedVolatilitySettings::new(0.1, 0.22);
     assert!(
         (implied_volatility(engine, option, context, quote, settings).unwrap() - 0.2).abs() < 1e-7
     );

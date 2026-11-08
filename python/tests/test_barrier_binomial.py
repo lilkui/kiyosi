@@ -6,6 +6,7 @@ import numbers
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import (
@@ -248,6 +249,8 @@ class BarrierBinomialTests(unittest.TestCase):
                 dated_history(fixed, later),
                 later,
                 engine.price(dated_history(fixed, later), later),
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
 
     def test_expiry_only_observation_matches_one_step_payment(self):
@@ -435,6 +438,8 @@ class BarrierBinomialTests(unittest.TestCase):
                     dated_history(option(), context),
                     context,
                     math.nan,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
         with self.assertRaises(InvalidInputError):
             option(
@@ -476,7 +481,10 @@ class BarrierBinomialTests(unittest.TestCase):
         for operation, args in (
             (engine.price, (mismatch, market())),
             (engine.price_with_greeks, (mismatch, market(), "delta")),
-            (pricing.implied_volatility, (engine, mismatch, market(), 10)),
+            (
+                partial(pricing.implied_volatility, lower_bound=0.0, upper_bound=4.0),
+                (engine, mismatch, market(), 10),
+            ),
         ):
             with self.assertRaises(UnsupportedOperationError):
                 operation(*args)
@@ -518,11 +526,16 @@ class BarrierBinomialTests(unittest.TestCase):
                 dated_history(contract, context),
                 context,
                 price,
-                **controls,
+                **{"lower_bound": 0.0, "upper_bound": 4.0, **controls},
             )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
-                engine, dated_history(contract, context), context, True
+                engine,
+                dated_history(contract, context),
+                context,
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
@@ -531,6 +544,8 @@ class BarrierBinomialTests(unittest.TestCase):
                 context,
                 quote,
                 max_iterations=1.5,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         self.assertEqual(engine.price(dated_history(contract, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)

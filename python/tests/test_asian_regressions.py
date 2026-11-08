@@ -391,6 +391,8 @@ class AsianRegressionTests(unittest.TestCase):
                                     dated_history(option, context),
                                     context,
                                     observed,
+                                    lower_bound=0.0,
+                                    upper_bound=4.0,
                                 )
                             self.assertIs(
                                 type(error.exception),

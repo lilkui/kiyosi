@@ -116,6 +116,8 @@ class AmericanTests(unittest.TestCase):
                     option,
                     context,
                     expected,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
             for at in (
                 datetime(2024, 12, 31, 23, 59, 59, 999999),
@@ -235,6 +237,8 @@ class AmericanTests(unittest.TestCase):
                     option,
                     context,
                     10,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
         explicit = self.market(
             rate=RateTermStructure.flat(
@@ -274,7 +278,14 @@ class AmericanTests(unittest.TestCase):
                         getattr(selected, "gamma" if name == "delta" else "delta")
                     )
             self.assertAlmostEqual(
-                implied_volatility(self.engine, option, self.context, result.price),
+                implied_volatility(
+                    self.engine,
+                    option,
+                    self.context,
+                    result.price,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
+                ),
                 0.2,
                 delta=1e-6,
             )
@@ -295,7 +306,12 @@ class AmericanTests(unittest.TestCase):
             values = list(
                 pool.map(
                     lambda _: implied_volatility(
-                        self.engine, self.option, self.context, quote
+                        self.engine,
+                        self.option,
+                        self.context,
+                        quote,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     ),
                     range(8),
                 )
@@ -309,6 +325,8 @@ class AmericanTests(unittest.TestCase):
             self.option,
             self.context,
             -1,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assert_rejection(
             NonConvergenceError,
@@ -320,6 +338,8 @@ class AmericanTests(unittest.TestCase):
             max_iterations=1,
             price_tolerance=1e-16,
             parameter_tolerance=1e-16,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assertEqual(self.context.spot_price, 100)
         self.assertEqual(self.context.model_parameters.volatility, 0.2)
@@ -363,14 +383,31 @@ class AmericanTests(unittest.TestCase):
         ):
             with self.assertRaises(TypeError):
                 implied_volatility(
-                    self.engine, self.option, self.context, 10, **settings
+                    self.engine,
+                    self.option,
+                    self.context,
+                    10,
+                    **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
                 )
         with self.assertRaises(OverflowError):
             implied_volatility(
-                self.engine, self.option, self.context, 10, max_iterations=2**31
+                self.engine,
+                self.option,
+                self.context,
+                10,
+                max_iterations=2**31,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         with self.assertRaises(TypeError):
-            implied_volatility(self.engine, self.option, self.context, True)
+            implied_volatility(
+                self.engine,
+                self.option,
+                self.context,
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
         for kwargs in (
             {"greeks": None},
             {"greeks": 1},
@@ -386,11 +423,25 @@ class AmericanTests(unittest.TestCase):
             with self.assertRaises(UnsupportedOperationError):
                 self.engine.price_with_greeks(instrument, self.context, "delta")
             with self.assertRaises(UnsupportedOperationError):
-                implied_volatility(self.engine, instrument, self.context, 10)
+                implied_volatility(
+                    self.engine,
+                    instrument,
+                    self.context,
+                    10,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
+                )
         with self.assertRaises(UnsupportedOperationError):
             AnalyticEuropeanEngine().price(self.option, self.context)
         with self.assertRaises(UnsupportedOperationError):
-            implied_volatility(AnalyticEuropeanEngine(), self.option, self.context, 10)
+            implied_volatility(
+                AnalyticEuropeanEngine(),
+                self.option,
+                self.context,
+                10,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
 
     def test_live_quantlib_refinement_and_existing_error_budgets(self):
         american = importlib.import_module("quantlib_reference.american")

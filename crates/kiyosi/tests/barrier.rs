@@ -130,11 +130,7 @@ fn live_barriers_preserve_in_out_parity_and_analytics() {
         &dated(&option, &context),
         &context,
         result.price(),
-        ImpliedVolatilitySettings {
-            lower_bound: 0.15,
-            upper_bound: 0.25,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.15, 0.25),
     )
     .unwrap();
     assert!((solved - 0.2).abs() < 1e-7);
@@ -305,7 +301,7 @@ fn expiry_settlement_matrix_includes_equality_and_paid_rebates() {
                             &dated(&option, &context),
                             &context,
                             expected,
-                            Default::default()
+                            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                         )
                         .unwrap_err(),
                         Error::UnsupportedOperation(_)
@@ -532,11 +528,7 @@ fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
         .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
         .unwrap();
     assert!(result.require(Greek::Theta).unwrap().is_finite());
-    let settings = ImpliedVolatilitySettings {
-        lower_bound: 0.15,
-        upper_bound: 0.25,
-        ..Default::default()
-    };
+    let settings = ImpliedVolatilitySettings::new(0.15, 0.25);
     let sigma = implied_volatility(
         &engine,
         &dated(&option, &context),
@@ -651,10 +643,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    let controls = ImpliedVolatilitySettings {
-        lower_bound: -0.1,
-        ..Default::default()
-    };
+    let controls = ImpliedVolatilitySettings::new(-0.1, 4.0);
     assert!(matches!(
         implied_volatility(
             &AnalyticBarrierEngine,
@@ -677,11 +666,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
         .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let controls = ImpliedVolatilitySettings {
-        lower_bound: 0.15,
-        upper_bound: 0.25,
-        ..Default::default()
-    };
+    let controls = ImpliedVolatilitySettings::new(0.15, 0.25);
     assert!(matches!(
         implied_volatility(
             &AnalyticBarrierEngine,

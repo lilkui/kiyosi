@@ -498,6 +498,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 dated_history(option, curved),
                 curved,
                 math.nan,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         for instrument, scenario in (
             (option, market(110, START + timedelta(days=1))),
@@ -513,6 +515,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 dated_history(instrument, scenario),
                 scenario,
                 quote,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         self.assert_rejection(
             InvalidInputError,
@@ -525,7 +529,12 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         for value in (True, "1", None):
             with self.assertRaises(TypeError):
                 pricing.implied_volatility(
-                    engine, dated_history(option, market()), market(), value
+                    engine,
+                    dated_history(option, market()),
+                    market(),
+                    value,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
         self.assertEqual(
             engine.price(

@@ -140,7 +140,12 @@ class BinaryBarrierTests(unittest.TestCase):
                     UnsupportedOperationError,
                     lambda context=context, expected=expected, known=known: (
                         implied_volatility(
-                            engine, dated_history(known, context), context, expected
+                            engine,
+                            dated_history(known, context),
+                            context,
+                            expected,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
                     ),
                 )
@@ -443,7 +448,12 @@ class BinaryBarrierTests(unittest.TestCase):
                 UnsupportedOperationError,
                 lambda option=option, expiry=expiry, terminal=terminal: (
                     implied_volatility(
-                        engine, dated_history(option, expiry), expiry, terminal.price
+                        engine,
+                        dated_history(option, expiry),
+                        expiry,
+                        terminal.price,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
                 ),
             )

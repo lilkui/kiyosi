@@ -719,7 +719,12 @@ class DeterministicBsmTests(unittest.TestCase):
                 self.assertEqual(result.status("vega"), "undefined")
                 self.assertEqual(
                     pricing.implied_volatility(
-                        engine, dated_history(option, context), context, 0
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        0,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     ),
                     0,
                 )

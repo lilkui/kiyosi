@@ -158,7 +158,12 @@ class ObservationClockTests(unittest.TestCase):
                 self.assertAlmostEqual(actual, expected, delta=1e-14)
                 with self.assertRaises(UnsupportedOperationError):
                     implied_volatility(
-                        engine, dated_history(note, market), market, actual
+                        engine,
+                        dated_history(note, market),
+                        market,
+                        actual,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
 
     def test_accumulator_allows_no_daily_events_and_does_not_add_units_at_expiry(self):
@@ -389,7 +394,12 @@ class ObservationClockTests(unittest.TestCase):
                         self.assertAlmostEqual(actual, expected, delta=1e-8)
                         with self.assertRaises(UnsupportedOperationError):
                             implied_volatility(
-                                engine, dated_history(daily, market), market, actual
+                                engine,
+                                dated_history(daily, market),
+                                market,
+                                actual,
+                                lower_bound=0.0,
+                                upper_bound=4.0,
                             )
                         self.assertAlmostEqual(
                             engine.price(dated_history(expiry, market), market),

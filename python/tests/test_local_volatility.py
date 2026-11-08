@@ -477,7 +477,12 @@ class LocalVolatilityTests(unittest.TestCase):
                     self.assertIsNone(result.delta)
             with self.assertRaises(UnsupportedOperationError):
                 pricing.implied_volatility(
-                    engine(), dated_history(option(), rolled), rolled, 10
+                    engine(),
+                    dated_history(option(), rolled),
+                    rolled,
+                    10,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
         terminal = engine().price_with_greeks(
             dated_history(option(), c.replace(valuation_time=END, spot_price=110)),

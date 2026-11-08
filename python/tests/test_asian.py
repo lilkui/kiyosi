@@ -151,7 +151,12 @@ class AsianTests(unittest.TestCase):
                     engine.price(dated_history(wrong, market()), market())
                 with self.assertRaises(UnsupportedOperationError):
                     implied_volatility(
-                        engine, dated_history(wrong, market()), market(), 5
+                        engine,
+                        dated_history(wrong, market()),
+                        market(),
+                        5,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
 
     def test_validation_schedule_history_life_and_single_fixing(self):
@@ -236,6 +241,8 @@ class AsianTests(unittest.TestCase):
                 dated_history(seasoned, market(END)),
                 market(END),
                 10,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             for direction in ("call", "put"):
                 single = kind(
@@ -331,7 +338,12 @@ class AsianTests(unittest.TestCase):
             self.assertTrue(all(getattr(result, g) is not None for g in GREEKS))
             self.assertAlmostEqual(
                 implied_volatility(
-                    engine, dated_history(seasoned, active), active, result.price
+                    engine,
+                    dated_history(seasoned, active),
+                    active,
+                    result.price,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 ),
                 0.2,
                 delta=1e-7,
@@ -343,6 +355,8 @@ class AsianTests(unittest.TestCase):
                 dated_history(option, context),
                 context,
                 -1,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             self.assert_rejection(
                 InvalidInputError,
@@ -351,6 +365,8 @@ class AsianTests(unittest.TestCase):
                 dated_history(option, context),
                 context,
                 math.nan,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             for field, value, exception in (
                 ("max_iterations", True, TypeError),
@@ -364,7 +380,7 @@ class AsianTests(unittest.TestCase):
                         dated_history(option, context),
                         context,
                         full.price,
-                        **{field: value},
+                        **{"lower_bound": 0.0, "upper_bound": 4.0, field: value},
                     )
             self.assertIsNone(option.realized_average)
             self.assertEqual(context.model_parameters.volatility, 0.2)

@@ -413,11 +413,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
             &dated(note, &context),
             &context,
             result.price(),
-            ImpliedVolatilitySettings {
-                lower_bound: 0.2,
-                upper_bound: 0.4,
-                ..Default::default()
-            },
+            ImpliedVolatilitySettings::new(0.2, 0.4),
         )
         .unwrap();
         assert!((solved - 0.3).abs() < 1e-6);
@@ -427,7 +423,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
                 &dated(note, &context),
                 &context,
                 10.0,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::RootNotBracketed(_)

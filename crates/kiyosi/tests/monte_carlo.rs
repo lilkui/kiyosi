@@ -314,11 +314,7 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
     }
     assert_eq!(engine.sampling_settings().seed, None);
     let option = contract(OptionType::Call);
-    let settings = ImpliedVolatilitySettings {
-        lower_bound: 0.1,
-        upper_bound: 0.4,
-        ..Default::default()
-    };
+    let settings = ImpliedVolatilitySettings::new(0.1, 0.4);
     for seed in [Some(42), Some(u64::MAX), None] {
         let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
             seed,
@@ -452,11 +448,7 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
         .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     let quote = expected.price();
-    let bounds = ImpliedVolatilitySettings {
-        lower_bound: 0.1,
-        upper_bound: 0.4,
-        ..Default::default()
-    };
+    let bounds = ImpliedVolatilitySettings::new(0.1, 0.4);
     let volatility = implied_volatility(&engine, &option, &context, quote, bounds).unwrap();
     for threads in [0, 1, 2, 4] {
         let other = MonteCarloVanillaEngine::new(MonteCarloSettings {
@@ -527,7 +519,14 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
         }
     }
     assert!(matches!(
-        implied_volatility(&engine, &option, &at(expiry), 0.0, Default::default()).unwrap_err(),
+        implied_volatility(
+            &engine,
+            &option,
+            &at(expiry),
+            0.0,
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+        )
+        .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     for time in [
@@ -603,7 +602,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
                 quote,
                 ImpliedVolatilitySettings {
                     max_iterations: 0,
-                    ..Default::default()
+                    ..ImpliedVolatilitySettings::new(0.0, 4.0)
                 }
             )
             .unwrap_err(),
@@ -960,11 +959,7 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
             let expected = engine
                 .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
-            let bounds = ImpliedVolatilitySettings {
-                lower_bound: 0.1,
-                upper_bound: 0.4,
-                ..Default::default()
-            };
+            let bounds = ImpliedVolatilitySettings::new(0.1, 0.4);
             let sigma =
                 implied_volatility(&engine, &option, &context, expected.price(), bounds).unwrap();
             assert!((sigma - 0.2).abs() < 1e-8);

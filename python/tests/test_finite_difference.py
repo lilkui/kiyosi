@@ -270,6 +270,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                         option,
                         context,
                         expected,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
                 for valuation in (
                     START - timedelta(days=1),
@@ -330,7 +332,9 @@ class FiniteDifferenceTests(unittest.TestCase):
             with self.assertRaises(UnsupportedOperationError):
                 engine.price(other, context)
             with self.assertRaises(UnsupportedOperationError):
-                implied_volatility(engine, other, context, baseline)
+                implied_volatility(
+                    engine, other, context, baseline, lower_bound=0.0, upper_bound=4.0
+                )
             for shift in (1e-300, 100):
                 self.assertIsNone(
                     numerical_greeks(
@@ -450,6 +454,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                     option,
                     context,
                     math.nan,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
                 self.assert_rejection(
                     NonConvergenceError,
@@ -476,6 +482,8 @@ class FiniteDifferenceTests(unittest.TestCase):
             option,
             context,
             engine.price(option, context),
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
 
     def test_grid_refinement_schemes_interpolation_and_long_expiry(self):

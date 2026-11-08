@@ -198,7 +198,14 @@ class PhoenixTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             engine.price(dated_history(object(), market()), market())
         with self.assertRaises(TypeError):
-            implied_volatility(engine, dated_history(object(), market()), market(), 1)
+            implied_volatility(
+                engine,
+                dated_history(object(), market()),
+                market(),
+                1,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
 
     def test_core_validation_order_errors_and_history(self):
         for fields, expected_error in (
@@ -416,6 +423,8 @@ class PhoenixTests(unittest.TestCase):
             dated_history(fixed, market()),
             market(),
             quote,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
 
     def test_event_greeks_settled_history_and_solver_failures(self):
@@ -440,6 +449,8 @@ class PhoenixTests(unittest.TestCase):
             dated_history(note, market(110, MIDDLE)),
             market(110, MIDDLE),
             result.price,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         settled = note.replace_history(
             barrier_state="knocked_out",
@@ -462,6 +473,8 @@ class PhoenixTests(unittest.TestCase):
             dated_history(note, market(90, END)),
             market(90, END),
             result.price,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         ctx = market(103)
         quote = engine.price(dated_history(note, ctx), ctx)

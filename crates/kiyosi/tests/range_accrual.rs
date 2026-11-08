@@ -260,11 +260,7 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
         &dated(&annual, &context),
         &context,
         quote,
-        ImpliedVolatilitySettings {
-            lower_bound: 0.1,
-            upper_bound: 0.4,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.1, 0.4),
     )
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-8);
@@ -799,11 +795,7 @@ fn request_and_solver_errors_preserve_inputs() {
     )
     .unwrap();
     assert!(!unavailable.has(Greek::Delta));
-    let settings = ImpliedVolatilitySettings {
-        lower_bound: 0.1,
-        upper_bound: 0.4,
-        ..Default::default()
-    };
+    let settings = ImpliedVolatilitySettings::new(0.1, 0.4);
     assert!(matches!(
         implied_volatility(&engine, &dated(&option, &context), &context, -1.0, settings)
             .unwrap_err(),

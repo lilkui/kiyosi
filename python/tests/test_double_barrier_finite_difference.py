@@ -367,7 +367,12 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                     UnsupportedOperationError,
                     lambda option=option, context=context, expected=expected: (
                         pricing.implied_volatility(
-                            engine, dated_history(option, context), context, expected
+                            engine,
+                            dated_history(option, context),
+                            context,
+                            expected,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
                     ),
                 )
@@ -520,6 +525,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 ),
                 market(time=START + timedelta(days=1)),
                 0,
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
         )
         scheduled = contract(
@@ -932,7 +939,12 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
-                engine, dated_history(instrument, context), context, True
+                engine,
+                dated_history(instrument, context),
+                context,
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
@@ -941,6 +953,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 context,
                 result.price,
                 max_iterations=1.5,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END

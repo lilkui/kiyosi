@@ -85,7 +85,12 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             engine.price(dated_history(wrong, market()), market())
         with self.assertRaises(UnsupportedOperationError):
             pricing.implied_volatility(
-                engine, dated_history(wrong, market()), market(), 1
+                engine,
+                dated_history(wrong, market()),
+                market(),
+                1,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
 
     def test_settlement_history_boundaries_and_failure_reuse(self):
@@ -503,11 +508,18 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 dated_history(instrument, scenario),
                 scenario,
                 engine.price(dated_history(instrument, scenario), scenario),
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         for value in (None, True, "1"):
             with self.assertRaises(TypeError):
                 pricing.implied_volatility(
-                    engine, dated_history(option, context), context, value
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    value,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
         for value in (True, 1.5):
             with self.assertRaises(TypeError):
@@ -517,6 +529,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                     context,
                     quote,
                     max_iterations=value,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
         with self.assertRaises(OverflowError):
             pricing.implied_volatility(
@@ -525,6 +539,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 context,
                 quote,
                 max_iterations=2**40,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         self.assert_rejection(
             InvalidInputError,
@@ -533,6 +549,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             dated_history(option, context),
             context,
             math.nan,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assertEqual(engine.price(dated_history(option, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.4)

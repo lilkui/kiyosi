@@ -313,6 +313,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             dated_history(option, ctx),
             ctx,
             -1,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assert_rejection(MissingHistoryError, engine.price, touch(), ctx)
         self.assert_rejection(
@@ -361,6 +363,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             dated_history(paid, ctx),
             ctx,
             0,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assertEqual(engine.price(dated_history(option, ctx), ctx), result.price)
         self.assertEqual(option.touch_state, "untouched")
@@ -450,7 +454,14 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 spot_shift=True,
             )
         with self.assertRaises(TypeError):
-            implied_volatility(engine, dated_history(touch(), market()), market(), True)
+            implied_volatility(
+                engine,
+                dated_history(touch(), market()),
+                market(),
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
         with self.assertRaises(AttributeError):
             engine.time_step_count = 1
 

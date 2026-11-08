@@ -97,16 +97,18 @@ fn greeks_and_implied_volatility_use_shared_contracts() {
                 &option,
                 &context,
                 expected.price(),
-                ImpliedVolatilitySettings {
-                    lower_bound: 0.1,
-                    upper_bound: 0.22,
-                    ..Default::default()
-                },
+                ImpliedVolatilitySettings::new(0.1, 0.22),
             )
             .unwrap();
             assert!((sigma - 0.2).abs() < 1e-7);
             assert!(matches!(
-                implied_volatility(&engine, &option, &context, 1e4, Default::default()),
+                implied_volatility(
+                    &engine,
+                    &option,
+                    &context,
+                    1e4,
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+                ),
                 Err(Error::RootNotBracketed(_))
             ));
         }

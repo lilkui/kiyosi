@@ -188,11 +188,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         &dated(&note, &context),
         &context,
         result.price(),
-        ImpliedVolatilitySettings {
-            lower_bound: 0.1,
-            upper_bound: 0.3,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.1, 0.3),
     )
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-6, "{sigma}");
@@ -255,7 +251,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
             &dated(&settled, &later),
             &later,
             0.0,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)
@@ -479,7 +475,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
             &dated(&fixed, &ctx),
             &ctx,
             result.price(),
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)

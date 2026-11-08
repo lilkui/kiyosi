@@ -312,6 +312,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         dated_history(note, context),
                         context,
                         1,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
                 self.assertIs(type(error.exception), ComputationFailureError)
 

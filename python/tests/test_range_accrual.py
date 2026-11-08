@@ -269,7 +269,14 @@ class RangeAccrualTests(unittest.TestCase):
         with self.assertRaises(UnsupportedOperationError):
             engine.price(dated_history(vanilla, context), context)
         with self.assertRaises(UnsupportedOperationError):
-            implied_volatility(engine, dated_history(vanilla, context), context, 1)
+            implied_volatility(
+                engine,
+                dated_history(vanilla, context),
+                context,
+                1,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
         with self.assertRaises(UnsupportedOperationError):
             AnalyticEuropeanEngine().price(dated_history(option, context), context)
         with self.assertRaises(TypeError):
@@ -281,7 +288,14 @@ class RangeAccrualTests(unittest.TestCase):
                 spot_shift=True,
             )
         with self.assertRaises(TypeError):
-            implied_volatility(engine, dated_history(option, context), context, True)
+            implied_volatility(
+                engine,
+                dated_history(option, context),
+                context,
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
         self.assertEqual(option.replace_history(), option)
         self.assertEqual(option, contract())
 
@@ -304,6 +318,8 @@ class RangeAccrualTests(unittest.TestCase):
             dated_history(contract(annual_coupon_rate=0), context),
             context,
             0,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assert_rejection(
             UnsupportedOperationError,
@@ -318,6 +334,8 @@ class RangeAccrualTests(unittest.TestCase):
             ),
             market(option.expiry_time),
             0,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assert_rejection(
             MissingHistoryError,
@@ -326,6 +344,8 @@ class RangeAccrualTests(unittest.TestCase):
             dated_history(option, market(START + timedelta(days=3))),
             market(START + timedelta(days=3)),
             0,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assertEqual(option, contract())
         self.assertEqual(context.model_parameters.volatility, 0.2)

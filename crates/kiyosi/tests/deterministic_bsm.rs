@@ -319,7 +319,7 @@ fn deterministic_payoff_boundaries_leave_greeks_undefined_and_solvers_accept_zer
                 &option,
                 &context,
                 0.0,
-                ImpliedVolatilitySettings::default()
+                ImpliedVolatilitySettings::new(0.0, 4.0)
             )?,
             0.0
         );

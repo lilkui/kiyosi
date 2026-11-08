@@ -311,7 +311,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
                 &dated(&stopped, &expiry),
                 &expiry,
                 result.price(),
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::UnsupportedOperation(_)
@@ -493,11 +493,9 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
             context,
             quote,
             ImpliedVolatilitySettings {
-                lower_bound: 0.15,
-                upper_bound: 0.25,
                 price_tolerance: 1e-9,
                 parameter_tolerance: 1e-9,
-                ..Default::default()
+                ..ImpliedVolatilitySettings::new(0.15, 0.25)
             },
         )
     };

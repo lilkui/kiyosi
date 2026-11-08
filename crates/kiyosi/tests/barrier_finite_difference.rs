@@ -207,7 +207,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
             &dated(&paid, &later),
             &later,
             0.0,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)
@@ -300,11 +300,7 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
         &dated(&option, &context),
         &context,
         result.price(),
-        ImpliedVolatilitySettings {
-            lower_bound: 0.15,
-            upper_bound: 0.25,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.15, 0.25),
     )
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-7);

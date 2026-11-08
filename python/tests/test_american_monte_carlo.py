@@ -47,7 +47,14 @@ class AmericanMonteCarloTests(unittest.TestCase):
                     InvalidInputError, engine.price_with_greeks, put, context, "delta"
                 )
                 self.assert_rejection(
-                    InvalidInputError, implied_volatility, engine, put, context, 1
+                    InvalidInputError,
+                    implied_volatility,
+                    engine,
+                    put,
+                    context,
+                    1,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
                 self.assertEqual(
                     engine.price(
@@ -128,6 +135,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
             option,
             expiry,
             50,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         for valuation in (
             START - timedelta(days=1),
@@ -272,6 +281,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
                     option,
                     context,
                     -1,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
                 unavailable = numerical_greeks(
                     engine, option, context, "gamma", spot_shift=200
@@ -358,7 +369,9 @@ class AmericanMonteCarloTests(unittest.TestCase):
         with self.assertRaises(UnsupportedOperationError):
             engine.price_with_greeks(digital, context, "delta")
         with self.assertRaises(UnsupportedOperationError):
-            implied_volatility(engine, digital, context, 1)
+            implied_volatility(
+                engine, digital, context, 1, lower_bound=0.0, upper_bound=4.0
+            )
         self.assertEqual(engine.price(option, context), price)
         self.assertEqual(context.model_parameters.volatility, 0.2)
         with self.assertRaises(AttributeError):

@@ -20,7 +20,7 @@ fn implied_volatility_recovers_tree_quotes_with_zero_or_tiny_carry() {
                         &option,
                         &context,
                         vanilla.price(&option, &context).unwrap(),
-                        Default::default(),
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0),
                     ),
                 ),
                 (
@@ -30,7 +30,7 @@ fn implied_volatility_recovers_tree_quotes_with_zero_or_tiny_carry() {
                         &digital,
                         &context,
                         cash.price(&digital, &context).unwrap(),
-                        Default::default(),
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0),
                     ),
                 ),
             ] {
@@ -53,11 +53,7 @@ fn implied_volatility_rejects_a_price_jump_without_a_matching_quote() {
             &option,
             &context,
             1.0,
-            ImpliedVolatilitySettings {
-                lower_bound: 0.01,
-                upper_bound: 0.2,
-                ..Default::default()
-            }
+            ImpliedVolatilitySettings::new(0.01, 0.2)
         ),
         Err(Error::NonConvergence(_))
     ));
@@ -310,7 +306,7 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                         &option,
                         &context,
                         result.price(),
-                        Default::default()
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                     )
                     .unwrap_err(),
                     Error::UnsupportedOperation(_)
@@ -454,7 +450,14 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     let before = context.clone();
     let quote = vanilla.price(&option, &context).unwrap();
     assert!(matches!(
-        implied_volatility(&vanilla, &option, &context, -1.0, Default::default()).unwrap_err(),
+        implied_volatility(
+            &vanilla,
+            &option,
+            &context,
+            -1.0,
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+        )
+        .unwrap_err(),
         Error::RootNotBracketed(_)
     ));
     assert_eq!(context, before);
@@ -470,11 +473,7 @@ fn implied_brackets_intersect_tree_domain_for_all_supported_contracts() {
         context: &PricingContext,
     ) {
         let quote = engine.price(option, context).unwrap();
-        let settings = ImpliedVolatilitySettings {
-            lower_bound: 0.0001,
-            upper_bound: 0.4,
-            ..Default::default()
-        };
+        let settings = ImpliedVolatilitySettings::new(0.0001, 0.4);
         assert!(
             (implied_volatility(engine, option, context, quote, settings).unwrap() - 0.2).abs()
                 < 1e-6
@@ -485,10 +484,7 @@ fn implied_brackets_intersect_tree_domain_for_all_supported_contracts() {
                 option,
                 context,
                 quote,
-                ImpliedVolatilitySettings {
-                    upper_bound: 0.01,
-                    ..Default::default()
-                }
+                ImpliedVolatilitySettings::new(0.0, 0.01)
             )
             .unwrap_err(),
             Error::RootNotBracketed(_)

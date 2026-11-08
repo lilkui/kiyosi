@@ -211,6 +211,8 @@ class DigitalTests(unittest.TestCase):
                         option,
                         context,
                         expected,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
         for option in self.options():
             time = datetime(2026, 1, 1, 0, 0, 0, 1)
@@ -230,6 +232,8 @@ class DigitalTests(unittest.TestCase):
                 option,
                 outside,
                 0,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
 
     def test_constructor_domains_and_native_representation_errors(self):
@@ -357,7 +361,7 @@ class DigitalTests(unittest.TestCase):
                     option,
                     self.context,
                     quote,
-                    **settings,
+                    **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
                 )
             for value, expected_error in (
                 (math.nan, InvalidInputError),
@@ -371,11 +375,17 @@ class DigitalTests(unittest.TestCase):
                     option,
                     self.context,
                     value,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
             for settings in ({"lower_bound": True}, {"max_iterations": 1.0}):
                 with self.assertRaises(TypeError):
                     implied_volatility(
-                        self.engine, option, self.context, quote, **settings
+                        self.engine,
+                        option,
+                        self.context,
+                        quote,
+                        **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
                     )
             self.assertEqual(self.engine.price(option, self.context), quote)
             self.assertEqual(self.context.model_parameters.volatility, 0.2)
@@ -423,6 +433,8 @@ class DigitalTests(unittest.TestCase):
                 option,
                 uncovered,
                 0,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             with ThreadPoolExecutor(max_workers=4) as pool:
                 prices = list(

@@ -99,7 +99,7 @@
 //!     kiyosi::GreeksRequest::all())?;
 //! assert!(result.require(kiyosi::Greek::Delta)? > 0.0);
 //! let sigma = kiyosi::implied_volatility(&AnalyticEuropeanEngine, &option,
-//!     &context, result.price(), Default::default())?;
+//!     &context, result.price(), kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0))?;
 //! assert!((sigma - 0.2).abs() < 1e-8);
 //! # Ok(()) }
 //! ```

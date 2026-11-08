@@ -533,7 +533,10 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         for operation, args in (
             (engine.price, (option, market())),
             (engine.price_with_greeks, (option, market(), "delta")),
-            (pricing.implied_volatility, (engine, option, market(), 10)),
+            (
+                partial(pricing.implied_volatility, lower_bound=0.0, upper_bound=4.0),
+                (engine, option, market(), 10),
+            ),
         ):
             with self.assertRaises(UnsupportedOperationError):
                 operation(*args)
@@ -581,6 +584,8 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 dated_history(option, curved),
                 curved,
                 math.nan,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         for time in (START - timedelta(days=1), END + timedelta(days=1)):
             self.assert_rejection(
@@ -658,7 +663,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 dated_history(option, context),
                 context,
                 observed,
-                **controls,
+                **{"lower_bound": 0.0, "upper_bound": 4.0, **controls},
             )
         later = market(time=FIRST + timedelta(days=1))
         fixed = contract(rebate=3, touch_state="touched")
@@ -681,6 +686,8 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 dated_history(option, context),
                 context,
                 engine.price(dated_history(option, context), context),
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         self.assertEqual(
             engine.price(

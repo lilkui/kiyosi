@@ -43,7 +43,13 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
-            implied_volatility(&engine, &put, &context, 1.0, Default::default()),
+            implied_volatility(
+                &engine,
+                &put,
+                &context,
+                1.0,
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+            ),
             Err(Error::InvalidInput(_))
         ));
         let expiry = context
@@ -364,16 +370,19 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
                 &put,
                 &context,
                 all.price(),
-                ImpliedVolatilitySettings {
-                    lower_bound: 0.15,
-                    upper_bound: 0.25,
-                    ..Default::default()
-                },
+                ImpliedVolatilitySettings::new(0.15, 0.25),
             )
             .unwrap();
             assert!((solved - 0.2).abs() < 1e-7, "{solved}");
             assert!(matches!(
-                implied_volatility(&engine, &put, &context, -1.0, Default::default()).unwrap_err(),
+                implied_volatility(
+                    &engine,
+                    &put,
+                    &context,
+                    -1.0,
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+                )
+                .unwrap_err(),
                 Error::RootNotBracketed(_)
             ));
             let unavailable = kiyosi::numerical_greeks(
@@ -483,7 +492,14 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         }
     }
     assert!(matches!(
-        implied_volatility(&engine, &put, &at_expiry, 0.0, Default::default()).unwrap_err(),
+        implied_volatility(
+            &engine,
+            &put,
+            &at_expiry,
+            0.0,
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+        )
+        .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     for time in [
@@ -534,7 +550,14 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         Error::UnsupportedOperation(_)
     ));
     assert!(matches!(
-        implied_volatility(&engine, &put, &node, f64::NAN, Default::default()).unwrap_err(),
+        implied_volatility(
+            &engine,
+            &put,
+            &node,
+            f64::NAN,
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+        )
+        .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
 

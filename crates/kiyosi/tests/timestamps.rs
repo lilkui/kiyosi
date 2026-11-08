@@ -706,7 +706,7 @@ fn range_accrual_discounts_known_coupon_between_final_observation_and_payment() 
                 &dated(&seasoned, &context),
                 &context,
                 actual,
-                Default::default(),
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0),
             ),
             Err(Error::UnsupportedOperation(_))
         ));
@@ -773,7 +773,7 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
                         &dated(&daily, &context),
                         &context,
                         actual,
-                        Default::default()
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                     ),
                     Err(Error::UnsupportedOperation(_))
                 ));

@@ -67,7 +67,7 @@ context = PricingContext(
 engine = AnalyticEuropeanEngine()
 result = engine.price_with_greeks(option, context, greeks="delta")
 price, delta = result.price, result.delta
-sigma = implied_volatility(engine, option, context, observed_price=price)
+sigma = implied_volatility(engine, option, context, observed_price=price, lower_bound=0.1, upper_bound=0.3)
 print(f"Price: {price:.6f}")  # Price: 9.227006
 print(f"Delta: {delta:.6f}")  # Delta: 0.586851
 print(f"Implied volatility: {sigma:.2%}")  # Implied volatility: 20.00%

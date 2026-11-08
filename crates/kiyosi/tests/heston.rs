@@ -402,7 +402,13 @@ fn unsupported_requests_and_invalid_computations_preserve_categories() {
         Err(Error::UnsupportedOperation(_))
     ));
     assert!(matches!(
-        implied_volatility(&engine, &option, &context, 9.0, Default::default()),
+        implied_volatility(
+            &engine,
+            &option,
+            &context,
+            9.0,
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+        ),
         Err(Error::UnsupportedOperation(_))
     ));
     assert!(matches!(

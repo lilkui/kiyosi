@@ -860,11 +860,7 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
             &dated(&option, &context),
             &context,
             result.price(),
-            ImpliedVolatilitySettings {
-                lower_bound: 0.2,
-                upper_bound: 0.6,
-                ..Default::default()
-            },
+            ImpliedVolatilitySettings::new(0.2, 0.6),
         )
         .unwrap();
         assert!((volatility - 0.4).abs() < 1e-6, "{volatility}");
@@ -883,7 +879,7 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
                     &dated(&linear, &context),
                     &context,
                     quote,
-                    Default::default()
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                 ),
                 Err(Error::UnsupportedOperation(_))
             ));

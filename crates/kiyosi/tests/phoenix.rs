@@ -310,11 +310,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
         &dated(&note, &ctx),
         &ctx,
         result.price(),
-        ImpliedVolatilitySettings {
-            lower_bound: 0.2,
-            upper_bound: 0.4,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.2, 0.4),
     )
     .unwrap();
     assert!((sigma - 0.3).abs() < 1e-6);
@@ -348,7 +344,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
             &dated(&settled, &market(100.0, date(3, 3))),
             &market(100.0, date(3, 3)),
             0.0,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)

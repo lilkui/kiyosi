@@ -365,7 +365,11 @@ class AutocallableRegressionTests(unittest.TestCase):
 
                         def solve(quote, *, engine=engine, note=note):
                             return pricing.implied_volatility(
-                                engine, dated_history(note, base), base, quote, **bounds
+                                engine,
+                                dated_history(note, base),
+                                base,
+                                quote,
+                                **{"lower_bound": 0.0, "upper_bound": 4.0, **bounds},
                             )
 
                         expected = [solve(quote) for quote in quotes]

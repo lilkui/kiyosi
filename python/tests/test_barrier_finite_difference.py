@@ -184,6 +184,8 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 dated_history(fixed, later),
                 later,
                 engine.price(dated_history(fixed, later), later),
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
 
     def test_continuous_prices_and_greeks_against_live_quantlib(self):
@@ -375,7 +377,12 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
-                engine, dated_history(contract, context), context, True
+                engine,
+                dated_history(contract, context),
+                context,
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
@@ -384,6 +391,8 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 context,
                 quote,
                 max_iterations=1.5,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         self.assertEqual(engine.price(dated_history(contract, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)

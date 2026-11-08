@@ -390,6 +390,8 @@ class AsianMonteCarloTests(unittest.TestCase):
                 dated_history(instrument, market(volatility=0.35)),
                 market(volatility=0.35),
                 observed,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             self.assertAlmostEqual(solved, 0.2, delta=0.00001)
         settled = pricing.MonteCarloAsianEngine(path_count=1, seed=42)
@@ -418,6 +420,8 @@ class AsianMonteCarloTests(unittest.TestCase):
             dated_history(instrument, context),
             context,
             actual.price,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
 
     def test_curves_support_arithmetic_and_keep_history_validation_order(self):
@@ -525,7 +529,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                     dated_history(instrument, context),
                     context,
                     observed,
-                    **settings,
+                    **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
                 )
             with self.assertRaises(TypeError):
                 pricing.implied_volatility(
@@ -534,6 +538,8 @@ class AsianMonteCarloTests(unittest.TestCase):
                     context,
                     quote,
                     max_iterations=True,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
             self.assertEqual(
                 engine.price(dated_history(instrument, context), context), quote
@@ -547,6 +553,8 @@ class AsianMonteCarloTests(unittest.TestCase):
                 dated_history(instrument, context),
                 context,
                 quote,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             solved = pricing.implied_volatility(
                 unseeded.with_resolved_seed(),
@@ -575,7 +583,12 @@ class AsianMonteCarloTests(unittest.TestCase):
             engine.price(dated_history(wrong, market()), market())
         with self.assertRaises(UnsupportedOperationError):
             pricing.implied_volatility(
-                engine, dated_history(wrong, market()), market(), 5
+                engine,
+                dated_history(wrong, market()),
+                market(),
+                5,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         for settings, exception in (
             ({"sampling": "Sobol"}, ValueError),

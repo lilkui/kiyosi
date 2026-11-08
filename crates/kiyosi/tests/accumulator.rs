@@ -778,11 +778,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         0.01,
     );
     let quote = engine.price(&dated(&option, &context), &context).unwrap();
-    let settings = ImpliedVolatilitySettings {
-        lower_bound: 0.2,
-        upper_bound: 0.6,
-        ..Default::default()
-    };
+    let settings = ImpliedVolatilitySettings::new(0.2, 0.6);
     assert!(
         (implied_volatility(
             &engine,

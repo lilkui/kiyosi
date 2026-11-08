@@ -461,7 +461,9 @@ class HestonTests(unittest.TestCase):
             )
             self.assertIsNone(result.delta)
             with self.assertRaises(UnsupportedOperationError):
-                pricing.implied_volatility(engine, option(), snapshot, 9)
+                pricing.implied_volatility(
+                    engine, option(), snapshot, 9, lower_bound=0.0, upper_bound=4.0
+                )
             with self.assertRaises(UnsupportedOperationError):
                 AnalyticEuropeanEngine().price(option(), snapshot)
         with self.assertRaises(TypeError):

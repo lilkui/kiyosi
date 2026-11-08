@@ -144,7 +144,7 @@ fn analytic_greeks_and_volatility_recovery_use_public_api() {
         &option,
         &context,
         result.price(),
-        ImpliedVolatilitySettings::default(),
+        ImpliedVolatilitySettings::new(0.0, 4.0),
     )
     .unwrap();
     assert!((recovered - 0.2).abs() < 1e-8);
@@ -710,7 +710,7 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
     let (option, context) = market();
     let saved = context.clone();
     let engine = AnalyticEuropeanEngine;
-    let defaults = ImpliedVolatilitySettings::default();
+    let defaults = ImpliedVolatilitySettings::new(0.0, 4.0);
     assert_eq!(
         (
             defaults.lower_bound,
@@ -843,7 +843,14 @@ fn non_finite_solver_values_and_pricing_errors_report_computation_failure() {
     }
     let (option, context) = market();
     assert!(matches!(
-        implied_volatility(&NonFinite, &option, &context, 1.0, Default::default()).unwrap_err(),
+        implied_volatility(
+            &NonFinite,
+            &option,
+            &context,
+            1.0,
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+        )
+        .unwrap_err(),
         Error::ComputationFailure(_)
     ));
     assert!(matches!(
@@ -877,7 +884,7 @@ fn non_finite_solver_values_and_pricing_errors_report_computation_failure() {
             &put,
             &market,
             1.0,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::ComputationFailure(_)
@@ -900,7 +907,14 @@ fn custom_engine_io_failures_propagate_through_solvers_and_greeks() {
     let (option, context) = market();
     let original = context.clone();
     for error in [
-        implied_volatility(&Unavailable, &option, &context, 1.0, Default::default()).unwrap_err(),
+        implied_volatility(
+            &Unavailable,
+            &option,
+            &context,
+            1.0,
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0),
+        )
+        .unwrap_err(),
         numerical_greeks(
             &Unavailable,
             &option,
@@ -1129,7 +1143,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
             &option,
             &context,
             exact.price(),
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap()
             - 0.2)

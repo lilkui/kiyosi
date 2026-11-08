@@ -205,6 +205,8 @@ class BarrierTests(unittest.TestCase):
                                         dated_history(option, context),
                                         context,
                                         expected,
+                                        lower_bound=0.0,
+                                        upper_bound=4.0,
                                     )
                                 ),
                             )
@@ -225,7 +227,12 @@ class BarrierTests(unittest.TestCase):
                 UnsupportedOperationError,
                 lambda option=option, context=context, expected=expected: (
                     implied_volatility(
-                        engine, dated_history(option, context), context, expected
+                        engine,
+                        dated_history(option, context),
+                        context,
+                        expected,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
                 ),
             )
@@ -581,7 +588,11 @@ class BarrierTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 lambda changes=changes: implied_volatility(
-                    engine, dated_history(option, context), context, 1, **changes
+                    engine,
+                    dated_history(option, context),
+                    context,
+                    1,
+                    **{"lower_bound": 0.0, "upper_bound": 4.0, **changes},
                 ),
             )
         self.assert_rejection(
@@ -613,7 +624,12 @@ class BarrierTests(unittest.TestCase):
         self.assert_rejection(
             UnsupportedOperationError,
             lambda: implied_volatility(
-                engine, dated_history(option, curved), curved, 1, lower_bound=0
+                engine,
+                dated_history(option, curved),
+                curved,
+                1,
+                lower_bound=0,
+                upper_bound=4.0,
             ),
         )
         with ThreadPoolExecutor(4) as pool:

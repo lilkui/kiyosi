@@ -482,11 +482,7 @@ fn solver_replays_request_samples_and_rejects_fixed_cashflows() {
         &dated(&option, &context),
         &context,
         quote,
-        ImpliedVolatilitySettings {
-            lower_bound: 0.15,
-            upper_bound: 0.25,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.15, 0.25),
     )
     .unwrap();
     assert!((solved - 0.2).abs() < 1e-5);
@@ -514,7 +510,7 @@ fn solver_replays_request_samples_and_rejects_fixed_cashflows() {
             &dated(&fixed, &later),
             &later,
             0.0,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)
@@ -787,7 +783,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
                 &dated(&option, &curved),
                 &curved,
                 f64::NAN,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::UnsupportedOperation(_)

@@ -418,7 +418,7 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
                 &dated(&paid, &context(100.0, later)),
                 &context(100.0, later),
                 expected,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             ),
             Err(Error::UnsupportedOperation(_))
         ));
@@ -536,7 +536,7 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
                     &dated(&option, &context),
                     &context,
                     f64::NAN,
-                    Default::default()
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                 ),
                 Err(Error::UnsupportedOperation(_))
             ));
@@ -605,11 +605,7 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
             &dated(&option, &market(100.0)),
             &market(100.0),
             result.price(),
-            ImpliedVolatilitySettings {
-                lower_bound: 0.15,
-                upper_bound: 0.25,
-                ..Default::default()
-            },
+            ImpliedVolatilitySettings::new(0.15, 0.25),
         )
         .unwrap();
         assert!((solved - 0.2).abs() < 1e-7);
@@ -908,7 +904,7 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
                 &dated(&paid, &context(100.0, later)),
                 &context(100.0, later),
                 expected,
-                Default::default(),
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0),
             )
             .unwrap_err(),
             Error::UnsupportedOperation(_)
@@ -1059,7 +1055,7 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
             &dated(&known, &ctx),
             &ctx,
             expected,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)
@@ -1123,11 +1119,7 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
                 "{kind:?} {timing:?} {g:?}"
             );
         }
-        let controls = ImpliedVolatilitySettings {
-            lower_bound: 0.15,
-            upper_bound: 0.25,
-            ..Default::default()
-        };
+        let controls = ImpliedVolatilitySettings::new(0.15, 0.25);
         let sigma = implied_volatility(
             &engine,
             &dated(&option, &ctx),

@@ -503,6 +503,8 @@ class AccumulatorExtensionTests(unittest.TestCase):
                             dated_history(linear, context),
                             context,
                             engine.price(dated_history(linear, context), context),
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
 
     def test_sparse_knock_out_prices_survive_drift_back_inside_barrier(self):

@@ -118,11 +118,7 @@ fn european_greeks_and_implied_volatility_use_shared_contracts() {
         &option,
         &context,
         actual.price(),
-        ImpliedVolatilitySettings {
-            lower_bound: 0.1,
-            upper_bound: 0.3,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.1, 0.3),
     )
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-7);

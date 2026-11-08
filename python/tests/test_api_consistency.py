@@ -292,6 +292,8 @@ class ApiConsistencyTests(unittest.TestCase):
                         dated_history(future, context),
                         context,
                         engine.price(dated_history(future, context), context),
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     ),
                     volatility,
                     delta=1e-7,
@@ -1336,7 +1338,12 @@ class ApiConsistencyTests(unittest.TestCase):
                     self.assertEqual(result.require(greek), 0)
                 with self.assertRaises(UnsupportedOperationError):
                     pricing.implied_volatility(
-                        engine, dated_history(settled, context), context, 0
+                        engine,
+                        dated_history(settled, context),
+                        context,
+                        0,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
         for invalid in (0, 1, "yes"):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):

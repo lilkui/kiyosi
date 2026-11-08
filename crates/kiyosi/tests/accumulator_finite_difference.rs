@@ -657,11 +657,7 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
     );
     let engine = FiniteDifferenceAccumulatorEngine::default();
     let quote = engine.price(&dated(&option, &context), &context).unwrap();
-    let controls = ImpliedVolatilitySettings {
-        lower_bound: 0.15,
-        upper_bound: 0.25,
-        ..Default::default()
-    };
+    let controls = ImpliedVolatilitySettings::new(0.15, 0.25);
     assert!(
         (implied_volatility(
             &engine,

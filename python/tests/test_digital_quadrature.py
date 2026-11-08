@@ -238,7 +238,14 @@ class DigitalQuadratureTests(unittest.TestCase):
                 )
                 self.assertAlmostEqual(sigma, 0.2, delta=1e-7)
                 with self.assertRaises(RootNotBracketedError):
-                    pricing.implied_volatility(engine, option, iv_context, 1e4)
+                    pricing.implied_volatility(
+                        engine,
+                        option,
+                        iv_context,
+                        1e4,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
+                    )
 
     def test_strict_expiry_microsecond_life_and_rejections_preserve_state(self):
         engine = pricing.QuadratureDigitalEngine()

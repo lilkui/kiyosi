@@ -319,6 +319,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 option,
                 node,
                 math.nan,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
 
     def test_strict_expiry_and_solver_failures_leave_inputs_unchanged(self):
@@ -338,6 +340,8 @@ class DigitalNumericalTests(unittest.TestCase):
                     option,
                     context,
                     result.price,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
         for sampling in ("pseudo_random", "sobol"):
             for antithetic in (False, True):
@@ -356,7 +360,11 @@ class DigitalNumericalTests(unittest.TestCase):
                         "parameter_tolerance": 1e-12,
                     }
                     sigma = pricing.implied_volatility(
-                        engine, option, context, quote, **bounds
+                        engine,
+                        option,
+                        context,
+                        quote,
+                        **{"lower_bound": 0.0, "upper_bound": 4.0, **bounds},
                     )
                     # Restrict asset brackets to a price-continuous neighborhood of the quote.
                     self.assertAlmostEqual(sigma, 0.2, delta=0.002 if asset else 0.001)
@@ -388,15 +396,32 @@ class DigitalNumericalTests(unittest.TestCase):
                         )
                         self.assertEqual(
                             pricing.implied_volatility(
-                                other, option, context, quote, **bounds
+                                other,
+                                option,
+                                context,
+                                quote,
+                                **{"lower_bound": 0.0, "upper_bound": 4.0, **bounds},
                             ),
                             sigma,
                         )
                     with self.assertRaises(TypeError):
-                        pricing.implied_volatility(engine, option, context, True)
+                        pricing.implied_volatility(
+                            engine,
+                            option,
+                            context,
+                            True,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
+                        )
                     with self.assertRaises(TypeError):
                         pricing.implied_volatility(
-                            engine, option, context, quote, max_iterations=1.5
+                            engine,
+                            option,
+                            context,
+                            quote,
+                            max_iterations=1.5,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
                     self.assertEqual(engine.price(option, context), quote)
                     self.assertEqual(context.model_parameters.volatility, 0.2)
@@ -409,6 +434,8 @@ class DigitalNumericalTests(unittest.TestCase):
             option,
             market(),
             4.945810910532236,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         with self.assertRaises((NonConvergenceError, RootNotBracketedError)):
             pricing.implied_volatility(

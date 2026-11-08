@@ -177,7 +177,14 @@ class BinomialTests(unittest.TestCase):
                     ):
                         option, engine = contract(kind), engine_for(kind, steps)
                         quote = engine.price(option, context)
-                        sigma = implied_volatility(engine, option, context, quote)
+                        sigma = implied_volatility(
+                            engine,
+                            option,
+                            context,
+                            quote,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
+                        )
                         self.assertAlmostEqual(sigma, 0.2, delta=1e-6)
                         shifted = context.replace(
                             model_parameters=context.model_parameters.replace(
@@ -398,6 +405,8 @@ class BinomialTests(unittest.TestCase):
                         option,
                         context,
                         expected,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
                 for time in (
                     START - timedelta(days=1),
@@ -486,7 +495,10 @@ class BinomialTests(unittest.TestCase):
             for operation, args in (
                 (engine.price, (mismatch, market())),
                 (engine.price_with_greeks, (mismatch, market(), "delta")),
-                (implied_volatility, (engine, mismatch, market(), 10)),
+                (
+                    partial(implied_volatility, lower_bound=0.0, upper_bound=4.0),
+                    (engine, mismatch, market(), 10),
+                ),
             ):
                 with self.assertRaises(UnsupportedOperationError):
                     operation(*args)
@@ -524,7 +536,9 @@ class BinomialTests(unittest.TestCase):
                 )
                 quote = engine.price(option, context)
                 self.assertAlmostEqual(
-                    implied_volatility(engine, option, context, quote, upper_bound=0.4),
+                    implied_volatility(
+                        engine, option, context, quote, upper_bound=0.4, lower_bound=0.0
+                    ),
                     0.2,
                     delta=1e-6,
                 )
@@ -536,6 +550,7 @@ class BinomialTests(unittest.TestCase):
                     context,
                     quote,
                     upper_bound=0.01,
+                    lower_bound=0.0,
                 )
                 self.assert_rejection(
                     RootNotBracketedError,
@@ -545,6 +560,7 @@ class BinomialTests(unittest.TestCase):
                     context,
                     -1,
                     upper_bound=0.4,
+                    lower_bound=0.0,
                 )
                 self.assert_rejection(
                     InvalidInputError,
@@ -553,6 +569,8 @@ class BinomialTests(unittest.TestCase):
                     option,
                     context,
                     math.nan,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
                 self.assert_rejection(
                     InvalidInputError,
@@ -562,6 +580,8 @@ class BinomialTests(unittest.TestCase):
                     context,
                     quote,
                     max_iterations=0,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
                 self.assertEqual(engine.price(option, context), quote)
                 self.assertEqual(engine.step_count, 17)

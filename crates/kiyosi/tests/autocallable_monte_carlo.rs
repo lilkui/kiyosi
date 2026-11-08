@@ -301,11 +301,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         &dated(&note, &context),
         &context,
         result.price(),
-        ImpliedVolatilitySettings {
-            lower_bound: 0.2,
-            upper_bound: 0.4,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.2, 0.4),
     )
     .unwrap();
     assert!((volatility - 0.3).abs() < 1e-6);
@@ -370,11 +366,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         &dated(&smooth, &context),
         &context,
         price,
-        ImpliedVolatilitySettings {
-            lower_bound: 0.2,
-            upper_bound: 0.4,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.2, 0.4),
     )
     .unwrap();
     assert!((sigma - 0.3).abs() < 1e-6);
@@ -444,7 +436,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
             &dated(&out, &market(100.0, date(3, 3))),
             &market(100.0, date(3, 3)),
             0.0,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)

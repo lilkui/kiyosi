@@ -130,8 +130,14 @@ fn american_expiry_and_exercise_window_are_inclusive() {
                 assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
             }
             assert!(matches!(
-                implied_volatility(&engine, &option, &context, expected, Default::default())
-                    .unwrap_err(),
+                implied_volatility(
+                    &engine,
+                    &option,
+                    &context,
+                    expected,
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+                )
+                .unwrap_err(),
                 Error::UnsupportedOperation(_)
             ));
         }
@@ -193,21 +199,28 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
     assert!((all.require(Greek::Gamma).unwrap() - 0.018_979_671_807_509_157).abs() < 1e-7);
     assert!((all.require(Greek::Vega).unwrap() - 37.957_057_743_800_16).abs() < 1e-7);
     assert!(
-        (implied_volatility(&engine, &option, &context, all.price(), Default::default()).unwrap()
+        (implied_volatility(
+            &engine,
+            &option,
+            &context,
+            all.price(),
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+        )
+        .unwrap()
             - 0.2)
             .abs()
             < 1e-6
     );
     for (settings, quote, expected) in [
         (
-            ImpliedVolatilitySettings::default(),
+            ImpliedVolatilitySettings::new(0.0, 4.0),
             -1.0,
             (|error| matches!(error, Error::RootNotBracketed(_))) as fn(Error) -> bool,
         ),
         (
             ImpliedVolatilitySettings {
                 max_iterations: 0,
-                ..Default::default()
+                ..ImpliedVolatilitySettings::new(0.0, 4.0)
             },
             all.price(),
             (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
@@ -217,7 +230,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
                 max_iterations: 1,
                 price_tolerance: 1e-16,
                 parameter_tolerance: 1e-16,
-                ..Default::default()
+                ..ImpliedVolatilitySettings::new(0.0, 4.0)
             },
             all.price(),
             (|error| matches!(error, Error::NonConvergence(_))) as fn(Error) -> bool,
@@ -247,7 +260,15 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap();
     let quote = engine.price(&put, &context).unwrap();
     assert!(
-        (implied_volatility(&engine, &put, &context, quote, Default::default()).unwrap() - 0.2)
+        (implied_volatility(
+            &engine,
+            &put,
+            &context,
+            quote,
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+        )
+        .unwrap()
+            - 0.2)
             .abs()
             < 1e-8
     );
@@ -257,11 +278,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
             &put,
             &context,
             quote,
-            ImpliedVolatilitySettings {
-                lower_bound: 0.1,
-                upper_bound: 0.4,
-                ..Default::default()
-            }
+            ImpliedVolatilitySettings::new(0.1, 0.4)
         )
         .unwrap()
             - 0.2)

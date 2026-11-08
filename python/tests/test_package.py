@@ -167,6 +167,8 @@ class PackageTests(unittest.TestCase):
             option,
             context,
             engine.price(dated_history(option, context), context),
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         arguments.apply_defaults()
         self.assertAlmostEqual(

@@ -155,7 +155,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                     &dated(&known, &later),
                     &later,
                     quote,
-                    Default::default()
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                 )
                 .unwrap_err(),
                 Error::UnsupportedOperation(_)
@@ -166,7 +166,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                     &dated(&option, &market(130.0, day(2025, 1, 1))),
                     &market(130.0, day(2025, 1, 1)),
                     now,
-                    Default::default(),
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0),
                 )
                 .unwrap_err(),
                 Error::UnsupportedOperation(_)
@@ -283,7 +283,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
                 &dated(&option, &intraday),
                 &intraday,
                 price,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::UnsupportedOperation(_)
@@ -369,11 +369,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
-    let controls = ImpliedVolatilitySettings {
-        lower_bound: 0.15,
-        upper_bound: 0.25,
-        ..Default::default()
-    };
+    let controls = ImpliedVolatilitySettings::new(0.15, 0.25);
     assert!(
         (implied_volatility(
             &engine,

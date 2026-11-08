@@ -332,11 +332,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
         &dated(&note, &ctx),
         &ctx,
         result.price(),
-        ImpliedVolatilitySettings {
-            lower_bound: 0.2,
-            upper_bound: 0.4,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.2, 0.4),
     )
     .unwrap();
     assert!((solved - 0.3).abs() < 1e-6);
@@ -370,7 +366,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
             &dated(&note, &market(110.0, date(2, 3))),
             &market(110.0, date(2, 3)),
             result.price(),
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::UnsupportedOperation(_)

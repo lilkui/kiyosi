@@ -264,7 +264,7 @@ macro_rules! contract_tests {
                         &dated(&seasoned, &market(end)),
                         &market(end),
                         10.0,
-                        Default::default()
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                     )
                     .unwrap_err(),
                     Error::UnsupportedOperation(_)
@@ -351,7 +351,7 @@ macro_rules! contract_tests {
                         &dated(&option, &context),
                         &context,
                         full.price(),
-                        Default::default()
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                     )
                     .unwrap()
                         - 0.2)
@@ -379,7 +379,7 @@ macro_rules! contract_tests {
                         &dated(&option, &context),
                         &context,
                         -1.0,
-                        Default::default()
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                     )
                     .unwrap_err(),
                     Error::RootNotBracketed(_)
@@ -487,11 +487,7 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
                 &dated(&option, &context),
                 &context,
                 quote,
-                ImpliedVolatilitySettings {
-                    lower_bound: 0.05,
-                    upper_bound: 0.4,
-                    ..Default::default()
-                },
+                ImpliedVolatilitySettings::new(0.05, 0.4),
             );
             if realized == 100.0 {
                 assert!((implied.unwrap() - 0.2).abs() < 1e-6);
@@ -626,11 +622,7 @@ fn arithmetic_solver_prices_only_the_requested_volatility_bracket() {
         &dated(&option, &context),
         &context,
         quote,
-        ImpliedVolatilitySettings {
-            lower_bound: 0.05,
-            upper_bound: 0.4,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.05, 0.4),
     )
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-7);

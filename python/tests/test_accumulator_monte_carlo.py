@@ -163,13 +163,29 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                 engine, dated_history(note, context), context, "delta", spot_shift=True
             ),
             lambda: pricing.implied_volatility(
-                engine, dated_history(object(), context), context, 1
+                engine,
+                dated_history(object(), context),
+                context,
+                1,
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
             lambda: pricing.implied_volatility(
-                engine, dated_history(note, context), context, True
+                engine,
+                dated_history(note, context),
+                context,
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
             lambda: pricing.implied_volatility(
-                engine, dated_history(note, context), context, 1, max_iterations=2.5
+                engine,
+                dated_history(note, context),
+                context,
+                1,
+                max_iterations=2.5,
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
         ):
             with self.assertRaises(TypeError):
@@ -443,7 +459,12 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda curved=curved: pricing.implied_volatility(
-                    engine, dated_history(note, curved), curved, math.nan
+                    engine,
+                    dated_history(note, curved),
+                    curved,
+                    math.nan,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 ),
             )
         for instrument, fixed, expected in (
@@ -466,7 +487,12 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                 UnsupportedOperationError,
                 lambda instrument=instrument, fixed=fixed, expected=expected: (
                     pricing.implied_volatility(
-                        engine, dated_history(instrument, fixed), fixed, expected
+                        engine,
+                        dated_history(instrument, fixed),
+                        fixed,
+                        expected,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
                 ),
             )
@@ -477,7 +503,12 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             self.assert_rejection(
                 expected_error,
                 lambda quote=quote: pricing.implied_volatility(
-                    engine, dated_history(note, context), context, quote
+                    engine,
+                    dated_history(note, context),
+                    context,
+                    quote,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 ),
             )
         self.assertEqual(

@@ -15,11 +15,10 @@ use pyo3::prelude::*;
 ///     Market snapshot.
 /// observed_price : float
 ///     Finite target price in the engine's payment units.
-/// lower_bound : float, optional
-///     Nonnegative finite lower annualized volatility in decimal units;
-///     defaults to zero.
-/// upper_bound : float, optional
-///     Finite upper annualized volatility, above lower_bound; defaults to 4.
+/// lower_bound : float
+///     Required nonnegative finite lower annualized volatility in decimal units.
+/// upper_bound : float
+///     Required finite upper annualized volatility, above lower_bound.
 /// price_tolerance : float, optional
 ///     Positive finite absolute price residual tolerance; defaults to 1e-8.
 /// parameter_tolerance : float, optional
@@ -52,12 +51,12 @@ use pyo3::prelude::*;
 /// -----
 /// Pricing failures propagate. Monte Carlo solves require an explicit seed;
 /// call with_resolved_seed() first; tolerances constrain the sampled price
-/// curve, not its sampling error. Digital prices can have several volatility
-/// roots. The supplied bracket selects a root; CRR engines restrict it to
+/// curve, not its sampling error. Digital and barrier prices can have several
+/// volatility roots. The required bracket selects a root; CRR engines restrict it to
 /// their admissible tree domain.
 ///
 #[pyfunction]
-#[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound=kiyosi::ImpliedVolatilitySettings::default().lower_bound, upper_bound=kiyosi::ImpliedVolatilitySettings::default().upper_bound, price_tolerance=kiyosi::ImpliedVolatilitySettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedVolatilitySettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedVolatilitySettings::default().max_iterations))]
+#[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound, upper_bound, price_tolerance=kiyosi::ImpliedVolatilitySettings::DEFAULT_PRICE_TOLERANCE, parameter_tolerance=kiyosi::ImpliedVolatilitySettings::DEFAULT_PARAMETER_TOLERANCE, max_iterations=kiyosi::ImpliedVolatilitySettings::DEFAULT_MAX_ITERATIONS))]
 #[expect(clippy::too_many_arguments, reason = "explicit solver controls")]
 pub(crate) fn implied_volatility(
     py: Python<'_>,

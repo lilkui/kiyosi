@@ -620,6 +620,8 @@ class DoubleBarrierTests(unittest.TestCase):
                 context,
                 quote,
                 max_iterations=2**80,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         fixed = contract(rebate=3, touch_state="touched")
         self.assert_rejection(
@@ -629,6 +631,8 @@ class DoubleBarrierTests(unittest.TestCase):
                 dated_history(fixed, later),
                 later,
                 engine.price(dated_history(fixed, later), later),
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
         )
         node = RateTermStructure(
@@ -650,7 +654,12 @@ class DoubleBarrierTests(unittest.TestCase):
         self.assert_rejection(
             UnsupportedOperationError,
             lambda: implied_volatility(
-                engine, dated_history(option, curved), curved, math.nan
+                engine,
+                dated_history(option, curved),
+                curved,
+                math.nan,
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
         )
         near = market(80.005)

@@ -70,10 +70,20 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             solvers.set_item($name, values)?;
         };
     }
-    solver!(
-        "implied_volatility",
-        kiyosi::ImpliedVolatilitySettings::default()
-    );
+    let volatility = PyDict::new(py);
+    volatility.set_item(
+        "price_tolerance",
+        kiyosi::ImpliedVolatilitySettings::DEFAULT_PRICE_TOLERANCE,
+    )?;
+    volatility.set_item(
+        "parameter_tolerance",
+        kiyosi::ImpliedVolatilitySettings::DEFAULT_PARAMETER_TOLERANCE,
+    )?;
+    volatility.set_item(
+        "max_iterations",
+        kiyosi::ImpliedVolatilitySettings::DEFAULT_MAX_ITERATIONS,
+    )?;
+    solvers.set_item("implied_volatility", volatility)?;
     solver!(
         "implied_snowball_coupon",
         kiyosi::ImpliedCouponSettings::default()

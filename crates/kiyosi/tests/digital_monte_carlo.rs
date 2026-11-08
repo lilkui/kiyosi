@@ -180,7 +180,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                         &option,
                         &context,
                         result.price(),
-                        Default::default()
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                     )
                     .unwrap_err(),
                     Error::UnsupportedOperation(_)
@@ -247,8 +247,14 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 Error::UnsupportedOperation(_)
             ));
             assert!(matches!(
-                implied_volatility(&engine, &option, &node, f64::NAN, Default::default())
-                    .unwrap_err(),
+                implied_volatility(
+                    &engine,
+                    &option,
+                    &node,
+                    f64::NAN,
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
+                )
+                .unwrap_err(),
                 Error::UnsupportedOperation(_)
             ));
             assert!(engine.price(&option, &base).unwrap().is_finite());
@@ -326,11 +332,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
             })
             .unwrap();
             let quote = engine.price(&option, &context).unwrap();
-            let bounds = ImpliedVolatilitySettings {
-                lower_bound: 0.1,
-                upper_bound: 0.3,
-                ..Default::default()
-            };
+            let bounds = ImpliedVolatilitySettings::new(0.1, 0.3);
             let sigma = implied_volatility(&engine, &option, &context, quote, bounds).unwrap();
             assert!((sigma - 0.2).abs() < 0.001);
             let shifts = NumericalShiftSettings {
@@ -394,7 +396,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
             &option,
             &context,
             4.945_810_910_532_236,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         ),
         Err(Error::InvalidInput(_))
     ));
@@ -403,11 +405,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
         &option,
         &context,
         4.945_810_910_532_236,
-        ImpliedVolatilitySettings {
-            lower_bound: 0.1,
-            upper_bound: 0.3,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.1, 0.3),
     );
     assert!(matches!(
         solved,

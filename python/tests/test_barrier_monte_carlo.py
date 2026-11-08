@@ -472,7 +472,10 @@ class BarrierMonteCarloTests(unittest.TestCase):
         for operation, args in (
             (engine.price, (vanilla, market())),
             (engine.price_with_greeks, (vanilla, market(), "delta")),
-            (pricing.implied_volatility, (engine, vanilla, market(), 10)),
+            (
+                partial(pricing.implied_volatility, lower_bound=0.0, upper_bound=4.0),
+                (engine, vanilla, market(), 10),
+            ),
         ):
             with self.assertRaises(UnsupportedOperationError):
                 operation(*args)
@@ -508,6 +511,8 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 dated_history(contract, curved),
                 curved,
                 math.nan,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
             self.assert_rejection(
@@ -567,7 +572,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 dated_history(contract, context),
                 context,
                 observed,
-                **controls,
+                **{"lower_bound": 0.0, "upper_bound": 4.0, **controls},
             )
         fixed = contract.replace_history(
             touch_state="touched",
@@ -581,6 +586,8 @@ class BarrierMonteCarloTests(unittest.TestCase):
             dated_history(fixed, later),
             later,
             engine.price(dated_history(fixed, later), later),
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         self.assertEqual(engine.price(dated_history(contract, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)

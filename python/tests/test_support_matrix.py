@@ -378,6 +378,8 @@ class SupportMatrixTests(unittest.TestCase):
                             dated_history(instrument, context),
                             context,
                             1,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
 
     def context_for(self, name):
@@ -411,7 +413,12 @@ class SupportMatrixTests(unittest.TestCase):
                         else InvalidInputError
                     ):
                         pricing.implied_volatility(
-                            engine, dated_history(instrument, expired), expired, 1
+                            engine,
+                            dated_history(instrument, expired),
+                            expired,
+                            1,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
         self.assertEqual(self.context.valuation_time, datetime(2026, 1, 1))
 
@@ -429,7 +436,12 @@ class SupportMatrixTests(unittest.TestCase):
         ):
             with self.subTest(engine=engine), self.assertRaises(TypeError):
                 pricing.implied_volatility(
-                    engine, dated_history(instrument, self.context), self.context, 1
+                    engine,
+                    dated_history(instrument, self.context),
+                    self.context,
+                    1,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
 
     def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(self):
@@ -466,6 +478,8 @@ class SupportMatrixTests(unittest.TestCase):
                             dated_history(instrument, self.context),
                             self.context,
                             expected,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
                     self.assertIs(type(error.exception), UnsupportedOperationError)
 
@@ -520,6 +534,8 @@ class SupportMatrixTests(unittest.TestCase):
                             dated_history(instrument, self.context),
                             self.context,
                             1,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
 
     def test_invalid_instrument_representations_keep_native_errors(self):
@@ -550,6 +566,8 @@ class SupportMatrixTests(unittest.TestCase):
                             dated_history(instrument, self.context),
                             self.context,
                             1,
+                            lower_bound=0.0,
+                            upper_bound=4.0,
                         )
 
     def test_autocallable_instrument_conversion_precedes_greek_name_validation(self):

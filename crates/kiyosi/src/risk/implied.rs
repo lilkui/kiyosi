@@ -9,9 +9,9 @@ use crate::{
 /// returns [`Error::NonConvergence`]. See [`implied_volatility`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct ImpliedVolatilitySettings {
-    /// Sets the nonnegative lower volatility bound (default zero).
+    /// Sets the caller-selected nonnegative lower volatility bound.
     pub lower_bound: f64,
-    /// Sets the upper volatility bound, above the lower bound (default 4).
+    /// Sets the caller-selected upper volatility bound, above the lower bound.
     pub upper_bound: f64,
     /// Sets the positive absolute price tolerance (default 1e-8).
     pub price_tolerance: f64,
@@ -20,14 +20,26 @@ pub struct ImpliedVolatilitySettings {
     /// Sets the positive iteration limit (default 100).
     pub max_iterations: i32,
 }
-impl Default for ImpliedVolatilitySettings {
-    fn default() -> Self {
+impl ImpliedVolatilitySettings {
+    /// Sets the default absolute price residual tolerance; see [`Self::new`].
+    pub const DEFAULT_PRICE_TOLERANCE: f64 = 1e-8;
+    /// Sets the default absolute volatility tolerance; see [`Self::new`].
+    pub const DEFAULT_PARAMETER_TOLERANCE: f64 = 1e-8;
+    /// Sets the default iteration budget; see [`Self::new`].
+    pub const DEFAULT_MAX_ITERATIONS: i32 = 100;
+
+    /// Creates controls for an explicit volatility bracket with default tolerances.
+    ///
+    /// Bounds and tolerances are validated by [`implied_volatility`]. Digital and
+    /// barrier prices may have several roots; choose bounds around the desired root.
+    /// See [`implied_volatility`] for an example.
+    pub const fn new(lower_bound: f64, upper_bound: f64) -> Self {
         Self {
-            lower_bound: 0.0,
-            upper_bound: 4.0,
-            price_tolerance: 1e-8,
-            parameter_tolerance: 1e-8,
-            max_iterations: 100,
+            lower_bound,
+            upper_bound,
+            price_tolerance: Self::DEFAULT_PRICE_TOLERANCE,
+            parameter_tolerance: Self::DEFAULT_PARAMETER_TOLERANCE,
+            max_iterations: Self::DEFAULT_MAX_ITERATIONS,
         }
     }
 }
@@ -36,7 +48,7 @@ impl Default for ImpliedVolatilitySettings {
 ///
 /// Endpoint pricing validates the contract before expiry identifiability checks.
 /// Pricing errors propagate; non-finite scalar prices or residuals return [`Error::ComputationFailure`].
-/// Digital prices need not be monotone in volatility; the supplied bracket may select
+/// Digital and barrier prices need not be monotone in volatility; the required bracket may select
 /// one of several roots or fail to bracket a quote attainable elsewhere.
 /// A zero lower bound checks the exact deterministic price. CRR engines then
 /// intersect positive-volatility trials with the tree's admissible range.
@@ -65,7 +77,7 @@ impl Default for ImpliedVolatilitySettings {
 ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
 /// let quote = AnalyticDigitalEngine.price(&option, &context)?;
 /// let sigma = implied_volatility(&AnalyticDigitalEngine, &option, &context, quote,
-///     ImpliedVolatilitySettings { lower_bound: 0.1, upper_bound: 0.22, ..Default::default() })?;
+///     ImpliedVolatilitySettings::new(0.1, 0.22))?;
 /// assert!((sigma - 0.2).abs() < 1e-7);
 /// # Ok(()) }
 /// ```

@@ -80,7 +80,12 @@ class AutocallableValidationTests(unittest.TestCase):
                         ),
                         lambda engine=engine, note=note, context=context: (
                             pricing.implied_volatility(
-                                engine, dated_history(note, context), context, 1
+                                engine,
+                                dated_history(note, context),
+                                context,
+                                1,
+                                lower_bound=0.0,
+                                upper_bound=4.0,
                             )
                         ),
                     ):

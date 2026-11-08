@@ -678,11 +678,7 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
     let option = DoubleBarrierOption::new(t.clone()).unwrap();
     let context = market();
     let quote = engine.price(&dated(&option, &context), &context).unwrap();
-    let controls = ImpliedVolatilitySettings {
-        lower_bound: 0.15,
-        upper_bound: 0.25,
-        ..Default::default()
-    };
+    let controls = ImpliedVolatilitySettings::new(0.15, 0.25);
     assert!(
         (implied_volatility(
             &engine,
@@ -851,7 +847,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
                 &dated(&option, &curved),
                 &curved,
                 f64::NAN,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::UnsupportedOperation(_)

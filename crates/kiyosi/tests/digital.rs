@@ -176,11 +176,7 @@ fn analytic_delta_gamma_and_completed_greeks_preserve_selections() {
             &option,
             &context,
             full.price(),
-            ImpliedVolatilitySettings {
-                lower_bound: 0.1,
-                upper_bound: 0.22,
-                ..Default::default()
-            },
+            ImpliedVolatilitySettings::new(0.1, 0.22),
         )
         .unwrap();
         assert!((sigma - 0.2).abs() < 1e-7);
@@ -247,7 +243,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                         &option,
                         &context,
                         expected,
-                        Default::default()
+                        kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                     )
                     .unwrap_err(),
                     Error::UnsupportedOperation(_)
@@ -669,7 +665,7 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                     &option,
                     &context,
                     quote,
-                    Default::default()
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                 )
                 .unwrap_err(),
                 Error::RootNotBracketed(_)
@@ -681,7 +677,7 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                 &option,
                 &context,
                 f64::NAN,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::InvalidInput(_)
@@ -719,7 +715,7 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                 &option,
                 &short,
                 quote,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::InvalidInput(_)

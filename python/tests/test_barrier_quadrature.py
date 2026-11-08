@@ -241,6 +241,8 @@ class BarrierQuadratureTests(unittest.TestCase):
                 dated_history(fixed, later),
                 later,
                 engine.price(dated_history(fixed, later), later),
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
 
     def test_continuous_prices_and_greeks_against_live_quantlib(self):
@@ -483,7 +485,10 @@ class BarrierQuadratureTests(unittest.TestCase):
         for operation, args in (
             (engine.price, (mismatch, market())),
             (engine.price_with_greeks, (mismatch, market(), "delta")),
-            (pricing.implied_volatility, (engine, mismatch, market(), 10)),
+            (
+                partial(pricing.implied_volatility, lower_bound=0.0, upper_bound=4.0),
+                (engine, mismatch, market(), 10),
+            ),
         ):
             with self.assertRaises(UnsupportedOperationError):
                 operation(*args)
@@ -499,7 +504,12 @@ class BarrierQuadratureTests(unittest.TestCase):
             for operation, args in (
                 (engine.price, (option(), context)),
                 (engine.price_with_greeks, (option(), context, [])),
-                (pricing.implied_volatility, (engine, option(), context, math.nan)),
+                (
+                    partial(
+                        pricing.implied_volatility, lower_bound=0.0, upper_bound=4.0
+                    ),
+                    (engine, option(), context, math.nan),
+                ),
             ):
                 self.assert_rejection(UnsupportedOperationError, operation, *args)
         with self.assertRaises(InvalidInputError):
@@ -578,7 +588,12 @@ class BarrierQuadratureTests(unittest.TestCase):
             )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
-                engine, dated_history(contract, context), context, True
+                engine,
+                dated_history(contract, context),
+                context,
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         with self.assertRaises(TypeError):
             pricing.implied_volatility(
@@ -587,6 +602,8 @@ class BarrierQuadratureTests(unittest.TestCase):
                 context,
                 quote,
                 max_iterations=1.5,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         self.assertEqual(engine.price(dated_history(contract, context), context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)

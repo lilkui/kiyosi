@@ -402,7 +402,7 @@ fn unsupported_models_requests_and_solves_fail_even_at_expiry() {
                 &option,
                 &c,
                 10.0,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             ),
             Err(Error::UnsupportedOperation(_))
         ));

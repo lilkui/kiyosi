@@ -26,6 +26,51 @@ from kiyosi.pricing import AnalyticEuropeanEngine, implied_volatility, numerical
 
 
 class AnalyticsTests(unittest.TestCase):
+    def test_implied_volatility_requires_a_bracket_for_nonmonotone_prices(self):
+        from kiyosi.instruments import BarrierOption, CashOrNothingOption
+        from kiyosi.pricing import AnalyticBarrierEngine, AnalyticDigitalEngine
+
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=datetime(2025, 1, 1),
+        )
+        life = {
+            "option_type": "call",
+            "effective_time": context.valuation_time,
+            "expiry_time": datetime(2026, 1, 1),
+        }
+        cases = (
+            (
+                AnalyticBarrierEngine(),
+                BarrierOption(
+                    **life, strike=100, barrier_level=120, barrier_type="up_and_out"
+                ),
+            ),
+            (
+                AnalyticDigitalEngine(),
+                CashOrNothingOption(**life, strike=110, payout=10),
+            ),
+        )
+        for engine, option in cases:
+            quote = engine.price(option, context)
+            for bounds in ({}, {"lower_bound": 0.1}, {"upper_bound": 0.3}):
+                with self.subTest(bounds=bounds), self.assertRaises(TypeError):
+                    implied_volatility(engine, option, context, quote, **bounds)
+            with self.assertRaises(RootNotBracketedError):
+                implied_volatility(
+                    engine, option, context, quote, lower_bound=0, upper_bound=4
+                )
+            self.assertAlmostEqual(
+                implied_volatility(
+                    engine, option, context, quote, lower_bound=0.1, upper_bound=0.3
+                ),
+                0.2,
+                delta=1e-8,
+            )
+
     def setUp(self):
         self.option = EuropeanOption(
             option_type="call",
@@ -48,7 +93,14 @@ class AnalyticsTests(unittest.TestCase):
         self.assertAlmostEqual(result.gamma, 0.0189505787550087, delta=1e-12)
         self.assertAlmostEqual(result.vega, 37.9011575100175, delta=1e-10)
         self.assertAlmostEqual(
-            implied_volatility(self.engine, self.option, self.context, result.price),
+            implied_volatility(
+                self.engine,
+                self.option,
+                self.context,
+                result.price,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            ),
             0.2,
             delta=1e-8,
         )
@@ -162,7 +214,14 @@ class AnalyticsTests(unittest.TestCase):
                             + metadata[f"uncertainty_{name}"],
                         )
             self.assertAlmostEqual(
-                implied_volatility(self.engine, option, context, result.price),
+                implied_volatility(
+                    self.engine,
+                    option,
+                    context,
+                    result.price,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
+                ),
                 inputs["volatility"],
                 delta=1e-7,
             )
@@ -268,26 +327,72 @@ class AnalyticsTests(unittest.TestCase):
             for bad in (True, "1", None, complex(1)):
                 with self.subTest(field=field, bad=bad), self.assertRaises(TypeError):
                     implied_volatility(
-                        self.engine, self.option, self.context, 9.227, **{field: bad}
+                        self.engine,
+                        self.option,
+                        self.context,
+                        9.227,
+                        **{"lower_bound": 0.0, "upper_bound": 4.0, field: bad},
                     )
         for value in (1.5, 1.0, Fraction(3, 2)):
             with self.assertRaises(TypeError):
                 implied_volatility(
-                    self.engine, self.option, self.context, 9.227, max_iterations=value
+                    self.engine,
+                    self.option,
+                    self.context,
+                    9.227,
+                    max_iterations=value,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
                 )
         with self.assertRaises(OverflowError):
             implied_volatility(
-                self.engine, self.option, self.context, 9.227, max_iterations=2**40
+                self.engine,
+                self.option,
+                self.context,
+                9.227,
+                max_iterations=2**40,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         for quote in (True, "1", None):
             with self.assertRaises(TypeError):
-                implied_volatility(self.engine, self.option, self.context, quote)
+                implied_volatility(
+                    self.engine,
+                    self.option,
+                    self.context,
+                    quote,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
+                )
         with self.assertRaises(OverflowError):
-            implied_volatility(self.engine, self.option, self.context, 10**1000)
+            implied_volatility(
+                self.engine,
+                self.option,
+                self.context,
+                10**1000,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
         with self.assertRaises(TypeError):
-            implied_volatility(self.engine, self.option, self.context, 9.227, unknown=1)
+            implied_volatility(
+                self.engine,
+                self.option,
+                self.context,
+                9.227,
+                unknown=1,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
         with self.assertRaises(TypeError):
-            implied_volatility(self.engine, self.option, self.context, 9.227, 0.1)
+            implied_volatility(
+                self.engine,
+                self.option,
+                self.context,
+                9.227,
+                0.1,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
         with self.assertRaises(TypeError):
             self.engine.price_with_greeks(self.option, self.context, "delta", unknown=1)
         result = self.engine.price_with_greeks(self.option, self.context, "delta")
@@ -298,7 +403,11 @@ class AnalyticsTests(unittest.TestCase):
 
         def solve(context=None, observed=quote, **kw):
             return implied_volatility(
-                self.engine, self.option, context or self.context, observed, **kw
+                self.engine,
+                self.option,
+                context or self.context,
+                observed,
+                **{"lower_bound": 0.0, "upper_bound": 4.0, **kw},
             )
 
         for controls in (
@@ -345,7 +454,14 @@ class AnalyticsTests(unittest.TestCase):
             )
             quote = self.engine.price(self.option, context)
             self.assertAlmostEqual(
-                implied_volatility(self.engine, self.option, self.context, quote),
+                implied_volatility(
+                    self.engine,
+                    self.option,
+                    self.context,
+                    quote,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
+                ),
                 vol,
                 delta=1e-8,
             )
@@ -379,7 +495,14 @@ class AnalyticsTests(unittest.TestCase):
         quote = result.price
 
         def recover(_):
-            return implied_volatility(self.engine, self.option, context, quote)
+            return implied_volatility(
+                self.engine,
+                self.option,
+                context,
+                quote,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             for vol in pool.map(recover, range(16)):

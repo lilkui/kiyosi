@@ -695,6 +695,8 @@ class SnowballVariantTests(unittest.TestCase):
                 dated_history(note, ctx),
                 ctx,
                 10,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             self.assertEqual(repr(note), original)
             self.assertEqual(ctx.model_parameters.volatility, 0.3)
@@ -741,6 +743,8 @@ class SnowballVariantTests(unittest.TestCase):
                 dated_history(note, market(110, middle)),
                 market(110, middle),
                 current.price,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             intraday = datetime(2025, 2, 3, 0, 0, 0, 1)
             self.assert_rejection(
@@ -784,6 +788,8 @@ class SnowballVariantTests(unittest.TestCase):
                 dated_history(fixed, ctx),
                 ctx,
                 engine.price(dated_history(fixed, ctx), ctx),
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
 
     def test_multi_event_convergence_for_fixed_variants_and_both_monitoring_modes(self):

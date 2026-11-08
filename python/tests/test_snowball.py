@@ -427,6 +427,8 @@ class SnowballTests(unittest.TestCase):
             dated_history(note, current),
             current,
             result.price,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         past = market(110, datetime(2025, 2, 3, 0, 0, 0, 1))
         self.assert_rejection(
@@ -511,6 +513,8 @@ class SnowballTests(unittest.TestCase):
             dated_history(note, context),
             context,
             result.price,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
 
     def test_all_greeks_and_volatility_recovery_against_digital_formula(self):

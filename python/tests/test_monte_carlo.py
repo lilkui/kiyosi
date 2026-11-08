@@ -319,6 +319,8 @@ class MonteCarloTests(unittest.TestCase):
             option,
             expiry,
             10,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
         for valuation in (
             END + timedelta(microseconds=1),
@@ -360,6 +362,8 @@ class MonteCarloTests(unittest.TestCase):
                 node_context,
                 invalid_quote,
                 max_iterations=0,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
         self.assert_rejection(
             InvalidInputError,
@@ -413,14 +417,26 @@ class MonteCarloTests(unittest.TestCase):
             )
             quote = engine.price(option, context)
             bounds = {"lower_bound": 0.1, "upper_bound": 0.4}
-            expected = implied_volatility(engine, option, context, quote, **bounds)
+            expected = implied_volatility(
+                engine,
+                option,
+                context,
+                quote,
+                **{"lower_bound": 0.0, "upper_bound": 4.0, **bounds},
+            )
             self.assertAlmostEqual(expected, 0.2, delta=1e-8)
             for threads in (0, 2, 4):
                 other = MonteCarloVanillaEngine(
                     path_count=4097, seed=seed, max_active_workers=threads
                 )
                 self.assertEqual(
-                    implied_volatility(other, option, context, quote, **bounds),
+                    implied_volatility(
+                        other,
+                        option,
+                        context,
+                        quote,
+                        **{"lower_bound": 0.0, "upper_bound": 4.0, **bounds},
+                    ),
                     expected,
                 )
             self.assert_rejection(
@@ -430,7 +446,7 @@ class MonteCarloTests(unittest.TestCase):
                 option,
                 context,
                 -1,
-                **bounds,
+                **{"lower_bound": 0.0, "upper_bound": 4.0, **bounds},
             )
             self.assert_rejection(
                 InvalidInputError,
@@ -439,6 +455,8 @@ class MonteCarloTests(unittest.TestCase):
                 option,
                 context,
                 math.nan,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             self.assert_rejection(
                 InvalidInputError,
@@ -448,6 +466,8 @@ class MonteCarloTests(unittest.TestCase):
                 context,
                 quote,
                 max_iterations=0,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
             self.assert_rejection(
                 NonConvergenceError,
@@ -463,12 +483,27 @@ class MonteCarloTests(unittest.TestCase):
                 parameter_tolerance=1e-15,
             )
             with self.assertRaises(TypeError):
-                implied_volatility(engine, option, context, quote, max_iterations=True)
+                implied_volatility(
+                    engine,
+                    option,
+                    context,
+                    quote,
+                    max_iterations=True,
+                    lower_bound=0.0,
+                    upper_bound=4.0,
+                )
             self.assertEqual(engine.price(option, context), quote)
             self.assertEqual(engine.seed, seed)
         unseeded = MonteCarloVanillaEngine(path_count=4097, max_active_workers=4)
         with self.assertRaisesRegex(InvalidInputError, "with_resolved_seed"):
-            implied_volatility(unseeded, option, context, 9.227005508154036)
+            implied_volatility(
+                unseeded,
+                option,
+                context,
+                9.227005508154036,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
         replay = unseeded.with_resolved_seed()
         sigma = implied_volatility(
             replay,
@@ -875,7 +910,9 @@ class SamplingTests(unittest.TestCase):
                 analysis = engine.price_with_greeks(option, expiry, greeks="all")
                 assert_terminal_greeks(self, analysis, 1)
                 with self.assertRaises(UnsupportedOperationError) as error:
-                    implied_volatility(engine, option, expiry, 10)
+                    implied_volatility(
+                        engine, option, expiry, 10, lower_bound=0.0, upper_bound=4.0
+                    )
                 self.assertIs(type(error.exception), UnsupportedOperationError)
 
     def test_sobol_greek_accuracy_and_multiseed_rmse(self):

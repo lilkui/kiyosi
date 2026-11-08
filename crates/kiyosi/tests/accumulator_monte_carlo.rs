@@ -290,11 +290,7 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
         &dated(&option, &context),
         &context,
         result.price(),
-        ImpliedVolatilitySettings {
-            lower_bound: 0.1,
-            upper_bound: 0.3,
-            ..Default::default()
-        },
+        ImpliedVolatilitySettings::new(0.1, 0.3),
     )
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-6);
@@ -633,7 +629,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
                 &dated(&contract, &context),
                 &context,
                 expected,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             )
             .unwrap_err(),
             Error::UnsupportedOperation(_)
@@ -649,7 +645,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
             &dated(&option, &context),
             &context,
             f64::NAN,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::InvalidInput(_)
@@ -660,7 +656,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
             &dated(&option, &context),
             &context,
             1e100,
-            Default::default()
+            kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
         )
         .unwrap_err(),
         Error::RootNotBracketed(_)

@@ -90,10 +90,21 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                 engine, dated_history(note, context), context, "delta", spot_shift=True
             ),
             lambda: implied_volatility(
-                engine, dated_history(note, context), context, True
+                engine,
+                dated_history(note, context),
+                context,
+                True,
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
             lambda: implied_volatility(
-                engine, dated_history(note, context), context, 1, max_iterations=2.5
+                engine,
+                dated_history(note, context),
+                context,
+                1,
+                max_iterations=2.5,
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
             lambda: implied_phoenix_coupon(
                 engine, dated_history(note, context), context, True
@@ -302,7 +313,12 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         self.assert_rejection(
             UnsupportedOperationError,
             lambda: implied_volatility(
-                engine, dated_history(fixed, market(rate=0)), market(rate=0), 1
+                engine,
+                dated_history(fixed, market(rate=0)),
+                market(rate=0),
+                1,
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
         )
         self.assert_rejection(

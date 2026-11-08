@@ -551,11 +551,7 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                                 &dated(&future, &context),
                                 &context,
                                 price,
-                                ImpliedVolatilitySettings {
-                                    lower_bound: 0.2,
-                                    upper_bound: 0.3,
-                                    ..Default::default()
-                                },
+                                ImpliedVolatilitySettings::new(0.2, 0.3),
                             )?;
                             assert!((solved - 0.2).abs() < 1e-12);
                         }
@@ -658,7 +654,7 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
                     &dated(&future, &context),
                     &context,
                     quote,
-                    Default::default()
+                    kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                 )? - volatility)
                     .abs()
                     < 1e-7
@@ -964,7 +960,7 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
                 &dated(&settled, &context),
                 &context,
                 0.0,
-                Default::default()
+                kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
             ),
             Err(Error::UnsupportedOperation(_))
         ));
