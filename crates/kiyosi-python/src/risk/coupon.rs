@@ -6,7 +6,6 @@ use crate::error::UnsupportedOperationError;
 use crate::error::domain;
 use crate::instruments::autocallable::{AutocallableInstrument, coupon_convention};
 use crate::market::PricingContext;
-use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 /// Solve the annual snowball coupon that reproduces an observed price.
@@ -45,8 +44,10 @@ use pyo3::types::PyDict;
 ///
 /// Returns
 /// -------
-/// float
-///     Annual coupon rate in decimal units.
+/// SnowballCouponQuote
+///     Dictionary containing first_observation_coupon, an annual decimal rate,
+///     and quote_convention. Apply with instrument.with_quoted_coupon(**quote)
+///     to preserve observation spreads and the maturity convention.
 ///
 /// Raises
 /// ------
@@ -70,8 +71,8 @@ use pyo3::types::PyDict;
 /// curve, not its sampling error. Snowballs shift all observation coupons
 /// relative to the first one, including past observations. The maturity
 /// convention controls the final coupon; the ternary minimum remains fixed.
-/// Bounds, parameter tolerance and result use annual decimal units. Trials use
-/// affine interpolation, then bisection.
+/// The quoted rate, bounds and parameter tolerance use annual decimal units.
+/// Trials use affine interpolation, then bisection.
 ///
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, observed_price, *, quote_convention, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
@@ -261,19 +262,22 @@ where
     let instrument = crate::conversions::instrument::<AutocallableInstrument<'_>>(instrument)?;
     macro_rules! solve {
         ($note:expr) => {{
-            let convention = convention.ok_or_else(|| {
+            let quote_convention = convention.ok_or_else(|| {
                 UnsupportedOperationError::new_err(
                     "Phoenix coupon solving requires a PhoenixOption",
                 )
             })?;
-            let convention = coupon_convention(convention)?;
+            let convention = coupon_convention(quote_convention)?;
             let note = &$note.0;
-            domain(crate::cancellation::run(py, || {
+            let coupon = domain(crate::cancellation::run(py, || {
                 kiyosi::implied_snowball_coupon(
                     &engine, note, context, observed, convention, controls,
                 )
-            })?)?
-            .into_py_any(py)
+            })?)?;
+            let quote = PyDict::new(py);
+            quote.set_item("first_observation_coupon", coupon)?;
+            quote.set_item("quote_convention", quote_convention)?;
+            Ok(quote.into_any().unbind())
         }};
     }
     match instrument {

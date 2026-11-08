@@ -48,7 +48,7 @@ print(f"名义本金 {notional:,.0f} 对应的价值：{price * notional:,.2f}")
 # 此约定同时平移观察票息和到期票息；另一个约定可固定到期票息。
 convention = "shift_maturity_coupon"
 target = 1.0
-coupon = implied_snowball_coupon(
+quote = implied_snowball_coupon(
     engine,
     note,
     context,
@@ -57,8 +57,9 @@ coupon = implied_snowball_coupon(
     lower_bound=0,
     upper_bound=0.5,
 )
-quoted = note.with_quoted_coupon(coupon, quote_convention=convention)
+quoted = note.with_quoted_coupon(**quote)
 repriced = engine.price(quoted, context)
+coupon = quote["first_observation_coupon"]
 print(f"平价年化票息：{coupon:.4%}，回代价格：{repriced:.8f}")
 assert abs(repriced - target) < 1e-7
 

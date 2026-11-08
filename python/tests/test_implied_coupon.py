@@ -65,11 +65,9 @@ class ImpliedCouponTests(unittest.TestCase):
         solved = implied_snowball_coupon(
             engine, note, context, target, quote_convention=convention
         )
-        self.assertAlmostEqual(solved, 0.12, delta=1e-8)
+        self.assertAlmostEqual(solved["first_observation_coupon"], 0.12, delta=1e-8)
         self.assertAlmostEqual(
-            engine.price(
-                note.with_quoted_coupon(solved, quote_convention=convention), context
-            ),
+            engine.price(note.with_quoted_coupon(**solved), context),
             target,
             delta=1e-8,
         )
@@ -124,7 +122,9 @@ class ImpliedCouponTests(unittest.TestCase):
                             quote_convention="shift_maturity_coupon",
                             lower_bound=lower,
                         )
-                        self.assertAlmostEqual(solved, anchor, delta=1e-7)
+                        self.assertAlmostEqual(
+                            solved["first_observation_coupon"], anchor, delta=1e-7
+                        )
                 with self.assertRaises(RootNotBracketedError):
                     implied_snowball_coupon(
                         engine,
@@ -154,7 +154,7 @@ class ImpliedCouponTests(unittest.TestCase):
                         context,
                         engine.price(dated_history(fixed, context), context),
                         quote_convention="preserve_maturity_coupon",
-                    ),
+                    )["first_observation_coupon"],
                     0,
                 )
                 self.assertEqual(note.maturity_coupon_rate, maturity)
@@ -177,7 +177,7 @@ class ImpliedCouponTests(unittest.TestCase):
                     context,
                     engine.price(dated_history(boundary, context), context),
                     quote_convention="shift_maturity_coupon",
-                ),
+                )["first_observation_coupon"],
                 0.05,
                 delta=1e-15,
             )
@@ -238,9 +238,7 @@ class ImpliedCouponTests(unittest.TestCase):
                     self.assertAlmostEqual(
                         engine.price(
                             dated_history(
-                                note.with_quoted_coupon(
-                                    solved, quote_convention=convention
-                                ),
+                                note.with_quoted_coupon(**solved),
                                 context,
                             ),
                             context,
@@ -416,7 +414,9 @@ class ImpliedCouponTests(unittest.TestCase):
                 price_tolerance=1e-13,
                 parameter_tolerance=1e-12,
             )
-            self.assertAlmostEqual(solved, 0.073, delta=1e-9)
+            self.assertAlmostEqual(
+                solved["first_observation_coupon"], 0.073, delta=1e-9
+            )
 
     def assert_rejection(self, expected_error, operation):
         with self.assertRaises(expected_error) as error:
@@ -438,9 +438,11 @@ class ImpliedCouponTests(unittest.TestCase):
                 quote,
                 quote_convention=convention,
             )
-            self.assertAlmostEqual(solved, 0.18, delta=1e-7)
+            self.assertAlmostEqual(solved["first_observation_coupon"], 0.18, delta=1e-7)
             self.assertAlmostEqual(
-                engine.price(dated_history(binary(solved, maturity), context), context),
+                engine.price(
+                    dated_history(note.with_quoted_coupon(**solved), context), context
+                ),
                 quote,
                 delta=1e-8,
             )
@@ -580,11 +582,20 @@ class ImpliedCouponTests(unittest.TestCase):
                         )
                         if isinstance(original, PhoenixOption):
                             self.assertEqual(set(solved), {"coupon_rate"})
-                            solved = solved["coupon_rate"]
-                        self.assertAlmostEqual(solved, coupon, delta=1e-8)
+                            actual_coupon = solved["coupon_rate"]
+                        else:
+                            self.assertEqual(
+                                set(solved),
+                                {"first_observation_coupon", "quote_convention"},
+                            )
+                            self.assertEqual(solved["quote_convention"], convention)
+                            actual_coupon = solved["first_observation_coupon"]
+                        self.assertAlmostEqual(actual_coupon, coupon, delta=1e-8)
                         self.assertAlmostEqual(
                             engine.price(
-                                dated_history(note(kind, solved, convention), context),
+                                dated_history(
+                                    original.with_quoted_coupon(**solved), context
+                                ),
                                 context,
                             ),
                             quote,
@@ -612,7 +623,7 @@ class ImpliedCouponTests(unittest.TestCase):
             quote,
             quote_convention="preserve_maturity_coupon",
         )
-        self.assertAlmostEqual(solved, 0.18, delta=1e-8)
+        self.assertAlmostEqual(solved["first_observation_coupon"], 0.18, delta=1e-8)
 
     def test_bounds_defaults_and_validation_order(self):
         engine, note, context = QuadratureAutocallableEngine(), binary(), market()
@@ -629,7 +640,9 @@ class ImpliedCouponTests(unittest.TestCase):
 
         for bound in (0, 2):
             self.assertEqual(
-                solve(engine.price(dated_history(binary(bound), context), context)),
+                solve(engine.price(dated_history(binary(bound), context), context))[
+                    "first_observation_coupon"
+                ],
                 bound,
             )
         for settings in (
@@ -728,7 +741,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 context,
                 quote,
                 quote_convention="shift_maturity_coupon",
-            ),
+            )["first_observation_coupon"],
             0.08,
             delta=1e-8,
         )
@@ -739,7 +752,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 market(110, END),
                 1 + 0.18 * 90 / 365,
                 quote_convention="preserve_maturity_coupon",
-            ),
+            )["first_observation_coupon"],
             0.18,
             delta=1e-8,
         )
@@ -790,7 +803,11 @@ class ImpliedCouponTests(unittest.TestCase):
             engine.price(dated_history(ternary, market()), market()),
             quote_convention="shift_maturity_coupon",
         )
-        self.assertAlmostEqual(coupon, ternary.observations[0].coupon_rate, delta=1e-7)
+        self.assertAlmostEqual(
+            coupon["first_observation_coupon"],
+            ternary.observations[0].coupon_rate,
+            delta=1e-7,
+        )
         for note in (
             known,
             snowball(barrier_state="no_event", observations=known.observations),
@@ -900,7 +917,9 @@ class ImpliedCouponTests(unittest.TestCase):
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             for coupon in pool.map(recover, range(4)):
-                self.assertAlmostEqual(coupon, 0.18, delta=1e-8)
+                self.assertAlmostEqual(
+                    coupon["first_observation_coupon"], 0.18, delta=1e-8
+                )
 
     def test_nonfinite_residual_and_exhausted_bisection_errors(self):
         engine = QuadratureAutocallableEngine(asset_step_count=17)

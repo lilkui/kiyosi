@@ -960,6 +960,7 @@ class PackageTests(unittest.TestCase):
                     "MonteCarloUncertaintyStatus",
                     "CouponQuoteConvention",
                     "PhoenixCouponQuote",
+                    "SnowballCouponQuote",
                     "GreekMethod",
                     "GreekControl",
                 ):

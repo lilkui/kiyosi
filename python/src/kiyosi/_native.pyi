@@ -79,7 +79,7 @@ def implied_snowball_coupon(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
+) -> _pricing.SnowballCouponQuote:
     """Solve the annual snowball coupon that reproduces an observed price.
 
     Parameters
@@ -116,8 +116,10 @@ def implied_snowball_coupon(
 
     Returns
     -------
-    float
-        Annual coupon rate in decimal units.
+    SnowballCouponQuote
+        Dictionary containing first_observation_coupon, an annual decimal rate,
+        and quote_convention. Apply with instrument.with_quoted_coupon(**quote)
+        to preserve observation spreads and the maturity convention.
 
     Raises
     ------
@@ -141,8 +143,8 @@ def implied_snowball_coupon(
     curve, not its sampling error. Snowballs shift all observation coupons
     relative to the first one, including past observations. The maturity
     convention controls the final coupon; the ternary minimum remains fixed.
-    Bounds, parameter tolerance and result use annual decimal units. Trials use
-    affine interpolation, then bisection.
+    The quoted rate, bounds and parameter tolerance use annual decimal units.
+    Trials use affine interpolation, then bisection.
     """
 
 def implied_phoenix_coupon(

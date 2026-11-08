@@ -15,10 +15,31 @@ from kiyosi.instruments import (
     TouchOption,
     autocallable_observations,
 )
+from kiyosi.market import PricingContext
+from kiyosi.pricing import (
+    CouponQuoteConvention,
+    QuadratureAutocallableEngine,
+    SnowballCouponQuote,
+    implied_snowball_coupon,
+)
 
 BinaryBarrierOption()  # ty: ignore[no-matching-overload]
 TouchOption()  # ty: ignore[no-matching-overload]
 DoubleTouchOption()  # ty: ignore[missing-argument]
+
+
+def snowball_quote_application(note: SnowballOption, context: PricingContext) -> None:
+    quote = implied_snowball_coupon(
+        QuadratureAutocallableEngine(),
+        note,
+        context,
+        1.0,
+        quote_convention="preserve_maturity_coupon",
+    )
+    assert_type(quote, SnowballCouponQuote)
+    assert_type(quote["first_observation_coupon"], float)
+    assert_type(quote["quote_convention"], CouponQuoteConvention)
+    assert_type(note.with_quoted_coupon(**quote), SnowballOption)
 
 
 def observation_choices(at: datetime) -> None:

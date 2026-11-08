@@ -78,7 +78,7 @@ class SnowballVariantTests(unittest.TestCase):
                 context,
                 expected,
                 quote_convention="preserve_maturity_coupon",
-            ),
+            )["first_observation_coupon"],
             0.2,
             delta=1e-7,
         )

@@ -23,9 +23,8 @@ returns the actual seed; ``price_with_statistics`` adds sampling uncertainty.
 Sobol estimates omit uncertainty. Implied-parameter solvers require an explicit
 seed: retain the engine returned by ``with_resolved_seed`` for solving and repricing.
 
-Apply snowball coupon quotes with ``with_quoted_coupon`` and the solver's maturity
-convention. Phoenix solvers return a dictionary for ``note.replace(**quote)``,
-preserving annual or per-period coupon units.
+Coupon solvers return dictionaries for ``note.with_quoted_coupon(**quote)``,
+preserving the snowball maturity convention or Phoenix annual/per-period units.
 
 Examples
 --------
@@ -133,6 +132,13 @@ MonteCarloUncertaintyStatus = Literal[
 ]
 
 
+class SnowballCouponQuote(TypedDict):
+    """Annual first-observation coupon and its maturity linkage."""
+
+    first_observation_coupon: float
+    quote_convention: CouponQuoteConvention
+
+
 class _AnnualPhoenixCouponQuote(TypedDict):
     coupon_rate: float
     coupon_per_period: NotRequired[None]
@@ -190,6 +196,7 @@ __all__ = [
     "QuadratureBarrierEngine",
     "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",
+    "SnowballCouponQuote",
     "TurnbullWakemanArithmeticAveragePriceEngine",
     "configure_monte_carlo_pool",
     "implied_phoenix_coupon",

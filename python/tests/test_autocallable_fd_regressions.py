@@ -556,13 +556,25 @@ class AutocallableRegressionTests(unittest.TestCase):
                                 results = list(
                                     pool.map(solve, (quote, alternate_quote))
                                 )
-                            solved_coupons = (
-                                [quote["coupon_rate"] for quote in results]
+                            field = (
+                                "coupon_rate"
                                 if isinstance(note, PhoenixOption)
-                                else results
+                                else "first_observation_coupon"
                             )
+                            solved_coupons = [result[field] for result in results]
                             self.assertAlmostEqual(solved_coupons[0], 0.073, delta=1e-9)
                             self.assertAlmostEqual(solved_coupons[1], 0.12, delta=1e-9)
+                            for result, target in zip(
+                                results, (quote, alternate_quote), strict=True
+                            ):
+                                repriced = note.with_quoted_coupon(**result)
+                                self.assertAlmostEqual(
+                                    engine.price(
+                                        dated_history(repriced, context), context
+                                    ),
+                                    target,
+                                    delta=1e-12,
+                                )
                             with self.assertRaises(InvalidInputError) as error:
                                 (
                                     pricing.implied_phoenix_coupon
