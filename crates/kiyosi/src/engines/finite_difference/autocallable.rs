@@ -94,19 +94,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<crate::GreekMethod> {
-        <Self as PricingEngine<AutocallableNote<T>>>::validate_applicability(self, context)?;
-        Ok(crate::GreekMethod::for_valuation(
-            option,
-            context,
-            if matches!(
-                context.model_parameters(),
-                crate::ModelParameters::LocalVolatility(_)
-            ) {
-                crate::GreekMethod::NativeWithSpotControl
-            } else {
-                crate::GreekMethod::Mixed
-            },
-        ))
+        local_volatility::greek_method(option, context)
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {

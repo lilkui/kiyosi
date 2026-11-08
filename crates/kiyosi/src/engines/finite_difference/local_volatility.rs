@@ -2,7 +2,23 @@ use super::{
     Error, FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, OptionContract, Payoff,
     PricingContext, PricingResult, Result,
 };
-use crate::{LocalVolatilityParameters, ModelParameters};
+use crate::{GreekMethod, LocalVolatilityParameters, ModelParameters};
+
+pub(super) fn greek_method(
+    option: &impl OptionContract,
+    context: &PricingContext,
+) -> Result<GreekMethod> {
+    validate_model(context)?;
+    Ok(GreekMethod::for_valuation(
+        option,
+        context,
+        if local_model(context).is_some() {
+            GreekMethod::NativeWithSpotControl
+        } else {
+            GreekMethod::Mixed
+        },
+    ))
+}
 
 pub(super) fn validate_request(
     context: &PricingContext,
