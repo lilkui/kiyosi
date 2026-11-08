@@ -256,7 +256,7 @@ class ImpliedCouponTests(unittest.TestCase):
         ):
             for coupon in (-0.02, 0, 0.02):
                 with self.subTest(field=field, coupon=coupon):
-                    changed = note.with_quoted_coupon(coupon)
+                    changed = note.with_quoted_coupon(**{field: coupon})
                     self.assertEqual(changed, note.replace(**{field: coupon}))
                     quote = engine.price(dated_history(changed, context), context)
                     solved = implied_phoenix_coupon(
@@ -286,7 +286,16 @@ class ImpliedCouponTests(unittest.TestCase):
                 (None, TypeError),
             ):
                 with self.subTest(field=field, value=value), self.assertRaises(error):
-                    note.with_quoted_coupon(value)
+                    note.with_quoted_coupon(**{field: value})
+            for keyword in ("coupon_rate", "coupon_per_period"):
+                quoted = note.with_quoted_coupon(**{keyword: 0.12})
+                self.assertEqual(getattr(quoted, keyword), 0.12)
+                self.assertEqual(quoted.barrier_state, note.barrier_state)
+            for choices in ({}, {"coupon_rate": 0.12, "coupon_per_period": 0.01}):
+                with self.assertRaises(TypeError):
+                    note.with_quoted_coupon(**choices)
+            with self.assertRaises(TypeError):
+                note.with_quoted_coupon(0.12)
             self.assertEqual(getattr(note, field), 0.01)
 
     def test_coupon_signatures_express_product_requirements(self):

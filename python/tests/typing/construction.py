@@ -125,6 +125,11 @@ def phoenix_choices() -> None:
 
 
 def phoenix_replacements(note: PhoenixOption) -> None:
+    assert_type(note.with_quoted_coupon(coupon_rate=0.1), PhoenixOption)
+    assert_type(note.with_quoted_coupon(coupon_per_period=0.01), PhoenixOption)
+    note.with_quoted_coupon(0.1)  # ty: ignore[no-matching-overload]
+    note.with_quoted_coupon()  # ty: ignore[no-matching-overload]
+    note.with_quoted_coupon(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[no-matching-overload]
     assert_type(note.replace(), PhoenixOption)
     assert_type(note.replace(coupon_rate=0.1, coupon_per_period=None), PhoenixOption)
     assert_type(note.replace(coupon_per_period=0.01, coupon_rate=None), PhoenixOption)

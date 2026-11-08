@@ -10289,12 +10289,27 @@ class PhoenixOption:
     def history_time(self) -> datetime | None:
         """Return the timestamp through which supplied history is known, or None."""
 
-    def with_quoted_coupon(self, coupon: _Real) -> Self:
-        """Returns a note with the quoted coupon in its existing annual or per-period units.
+    @overload
+    def with_quoted_coupon(
+        self, *, coupon_rate: _Real, coupon_per_period: None = None
+    ) -> Self:
+        """Returns a note with an explicitly annual or per-period quoted coupon.
 
-        Applies a scalar coupon while preserving the coupon convention,
-        history and other terms. Non-finite coupons raise InvalidInputError;
-        invalid numeric representations raise native conversion errors."""
+        Supply exactly one of coupon_rate or coupon_per_period. The keyword selects
+        the convention, independently of the existing note. History and other terms
+        are preserved. Invalid numeric terms raise InvalidInputError; missing or
+        conflicting choices and invalid representations raise TypeError."""
+
+    @overload
+    def with_quoted_coupon(
+        self, *, coupon_rate: None = None, coupon_per_period: _Real
+    ) -> Self:
+        """Returns a note with an explicitly annual or per-period quoted coupon.
+
+        Supply exactly one of coupon_rate or coupon_per_period. The keyword selects
+        the convention, independently of the existing note. History and other terms
+        are preserved. Invalid numeric terms raise InvalidInputError; missing or
+        conflicting choices and invalid representations raise TypeError."""
 
     @property
     def knock_in_observation_schedule(self) -> ObservationSchedule:

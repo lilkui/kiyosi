@@ -57,7 +57,7 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
                 PhoenixCoupon::Annual(_) => (PhoenixCoupon::Annual(coupon), coupon * 90.0 / 365.0),
                 PhoenixCoupon::PerPeriod(_) => (PhoenixCoupon::PerPeriod(coupon), coupon),
             };
-            let quoted = note.with_quoted_coupon(coupon).unwrap();
+            let quoted = note.with_quoted_coupon(expected_coupon).unwrap();
             let mut expected = input.clone();
             expected.coupon = expected_coupon;
             assert_eq!(quoted.terms(), &expected);
@@ -94,9 +94,14 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
                     < 1e-12
             );
         }
+        for coupon in [PhoenixCoupon::Annual(0.12), PhoenixCoupon::PerPeriod(0.12)] {
+            let quoted = note.with_quoted_coupon(coupon).unwrap();
+            assert_eq!(quoted.terms().coupon, coupon);
+            assert_eq!(quoted.barrier_state(), note.barrier_state());
+        }
         for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(matches!(
-                note.with_quoted_coupon(invalid),
+                note.with_quoted_coupon(PhoenixCoupon::Annual(invalid)),
                 Err(Error::InvalidInput(_))
             ));
         }

@@ -1433,13 +1433,24 @@ autocallable_properties! {
         terms.calendar = calendar.0;
         Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::PhoenixOption::new(terms))?, history_time))?))
     },
-    /// Returns a note with the quoted coupon in its existing annual or per-period units.
+    /// Returns a note with an explicitly annual or per-period quoted coupon.
     ///
-    /// Applies a scalar coupon while preserving the coupon convention,
-    /// history and other terms. Non-finite coupons raise InvalidInputError;
-    /// invalid numeric representations raise native conversion errors.
-    fn with_quoted_coupon(&self, coupon: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(self.0.with_quoted_coupon(real(coupon)?))?))
+    /// Supply exactly one of coupon_rate or coupon_per_period. The keyword selects
+    /// the convention, independently of the existing note. History and other terms
+    /// are preserved. Invalid numeric terms raise InvalidInputError; missing or
+    /// conflicting choices and invalid representations raise TypeError.
+    #[pyo3(signature = (*, coupon_rate=None, coupon_per_period=None))]
+    fn with_quoted_coupon(
+        &self,
+        coupon_rate: Option<&Bound<'_, PyAny>>,
+        coupon_per_period: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let coupon = match (coupon_rate, coupon_per_period) {
+            (Some(value), None) => kiyosi::PhoenixCoupon::Annual(real(value)?),
+            (None, Some(value)) => kiyosi::PhoenixCoupon::PerPeriod(real(value)?),
+            _ => return Err(PyTypeError::new_err("supply exactly one of coupon_rate and coupon_per_period")),
+        };
+        Ok(Self(domain(self.0.with_quoted_coupon(coupon))?))
     },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]

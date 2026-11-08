@@ -132,7 +132,7 @@ pub fn implied_snowball_coupon<
 /// let market = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();
-/// let quoted = note.with_quoted_coupon(0.12)?;
+/// let quoted = note.with_quoted_coupon(PhoenixCoupon::Annual(0.12))?;
 /// let quote = engine.price(&quoted, &market)?;
 /// let coupon = implied_phoenix_coupon(&engine, &note, &market, quote, ImpliedCouponSettings::default())?;
 /// let PhoenixCoupon::Annual(rate) = coupon else { unreachable!() };
@@ -155,7 +155,12 @@ pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
         observed_price,
         settings,
         None,
-        &PhoenixOption::with_quoted_coupon,
+        &|note, value| {
+            note.with_quoted_coupon(match note.terms().coupon {
+                PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(value),
+                PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(value),
+            })
+        },
     )?;
     Ok(match option.terms().coupon {
         PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
