@@ -1,4 +1,4 @@
-use super::barrier::Contract;
+use super::barrier::{Contract, greeks};
 use super::unstable;
 use crate::{
     DoubleBarrierOption, GreeksRequest, MonteCarloBarrierEngine, MonteCarloEstimate,
@@ -231,32 +231,10 @@ impl MonteCarloDoubleBarrierEngine {
         request: GreeksRequest,
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.validate_applicability(context)?;
-        shifts.validate()?;
-        request.validate_support(GreeksRequest::new([
-            crate::Greek::Delta,
-            crate::Greek::Gamma,
-        ]))?;
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, shifts).map(|result| {
-                result.with_request(
-                    request,
-                    GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
-                )
-            });
-        }
-        let settings = shifts;
-        let result = self
-            .engine
-            .native(Contract::Double(option), context, request, settings, false)
-            .map(|result| {
-                result.0.with_request(
-                    request,
-                    GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
-                )
-            })?;
-        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
-            self.price(option, context)
+        greeks(self, option, context, request, shifts, || {
+            self.engine
+                .native(Contract::Double(option), context, request, shifts, false)
+                .map(|result| result.0)
         })
     }
 }

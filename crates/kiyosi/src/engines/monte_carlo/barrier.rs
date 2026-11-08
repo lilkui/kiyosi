@@ -233,28 +233,9 @@ impl MonteCarloBarrierEngine {
         request: GreeksRequest,
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.validate_applicability(context)?;
-        shifts.validate()?;
-        request.validate_support(GreeksRequest::new([
-            crate::Greek::Delta,
-            crate::Greek::Gamma,
-        ]))?;
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, shifts).map(|result| {
-                result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-            });
-        }
-        let settings = shifts;
-        let result = self
-            .native(Contract::Single(option), context, request, settings, false)
-            .map(|result| {
-                result.0.with_request(
-                    request,
-                    GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
-                )
-            })?;
-        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
-            self.price(option, context)
+        greeks(self, option, context, request, shifts, || {
+            self.native(Contract::Single(option), context, request, shifts, false)
+                .map(|result| result.0)
         })
     }
 
@@ -606,6 +587,28 @@ impl MonteCarloBarrierEngine {
         result.set(request, Greek::Gamma, values[2])?;
         Ok((result.with_seed(Some(seed)), error, Some(seed)))
     }
+}
+
+pub(super) fn greeks<I: OptionContract>(
+    engine: &impl PricingEngine<I>,
+    option: &I,
+    context: &PricingContext,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    native: impl FnOnce() -> Result<PricingResult>,
+) -> Result<PricingResult> {
+    engine.validate_applicability(context)?;
+    shifts.validate()?;
+    let supported = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    request.validate_support(supported)?;
+    if crate::engines::deterministic::enabled(context) {
+        return crate::numerical_greeks(engine, option, context, request, shifts)
+            .map(|result| result.with_request(request, supported));
+    }
+    let result = native()?.with_request(request, supported);
+    crate::risk::numerical::expiry_greeks(option, context, shifts, result, |context| {
+        engine.price(option, context)
+    })
 }
 
 impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
