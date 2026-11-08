@@ -58,7 +58,6 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///     120.0, BarrierType::UpAndIn), 10.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
-    /// let option = option.with_history_time(Some(context.valuation_time()))?;
     /// let engine = FiniteDifferenceBinaryBarrierEngine::default();
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta]))?;
@@ -221,6 +220,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// let mut terms = DoubleTouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
     ///     80.0, 120.0, DoubleBarrierType::KnockOut);
     /// terms.touch_state = Some(BarrierTouchState::Untouched);
+    /// terms.history_time = Some(start);
     /// let option = DoubleTouchOption::cash(terms, 1.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
     ///     100.0, start.into())?;

@@ -207,7 +207,10 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                 Error::InvalidInput(_)
             ));
             let past = option
-                .replace_history(Some(BarrierTouchState::Touched), None)
+                .replace_history(
+                    Some(BarrierTouchState::Touched),
+                    Some(option.history_time().unwrap_or(option.effective_time())),
+                )
                 .unwrap();
             assert!(matches!(
                 engine
@@ -253,7 +256,10 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
         t.rebate = 2.0;
         let option = DoubleBarrierOption::new(t)
             .unwrap()
-            .replace_history(Some(BarrierTouchState::Untouched), None)
+            .replace_history(
+                Some(BarrierTouchState::Untouched),
+                Some((terms(OptionType::Call, kind)).effective_time),
+            )
             .unwrap();
         for spot in [80.0, 110.0, 120.0] {
             let context = market(spot, end, 0.2, 0.04, 0.01);
@@ -277,7 +283,10 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
             }
         }
         let touched = option
-            .replace_history(Some(BarrierTouchState::Touched), None)
+            .replace_history(
+                Some(BarrierTouchState::Touched),
+                Some(option.history_time().unwrap_or(option.effective_time())),
+            )
             .unwrap();
         let context = market(100.0, later, 0.2, 0.04, 0.01);
         if kind == DoubleBarrierType::KnockIn {
@@ -322,7 +331,10 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
         Error::UnsupportedOperation(_)
     ));
     let impossible = option
-        .replace_history(Some(BarrierTouchState::Touched), None)
+        .replace_history(
+            Some(BarrierTouchState::Touched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     assert!(matches!(
         engine
@@ -353,7 +365,10 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
         Error::InvalidInput(_)
     ));
     let known = option
-        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .replace_history(
+            Some(BarrierTouchState::Untouched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     assert_eq!(
         engine.price(&dated(&known, &intraday), &intraday).unwrap(),
@@ -371,7 +386,10 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
     t.barrier_type = DoubleBarrierType::KnockIn;
     let inside = DoubleBarrierOption::new(t.clone())
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .replace_history(
+            Some(BarrierTouchState::Untouched),
+            Some((terms(OptionType::Call, DoubleBarrierType::KnockOut)).effective_time),
+        )
         .unwrap();
     assert!(
         (engine.price(&dated(&inside, &intraday), &intraday).unwrap()
@@ -614,7 +632,10 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     .unwrap();
     assert!((solved - 0.2).abs() < 1e-7);
     let known = option
-        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .replace_history(
+            Some(BarrierTouchState::Untouched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     let later = market(100.0, day(2025, 1, 2), 0.2, 0.04, 0.01);
     let result = engine
@@ -641,7 +662,10 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     t.rebate = 3.0;
     let fixed = DoubleBarrierOption::new(t)
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Touched), None)
+        .replace_history(
+            Some(BarrierTouchState::Touched),
+            Some((terms(OptionType::Call, DoubleBarrierType::KnockOut)).effective_time),
+        )
         .unwrap();
     assert!(matches!(
         implied_volatility(
@@ -761,6 +785,7 @@ fn settled_zero_rebates_do_not_require_a_representable_discount() {
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_times = vec![t.effective_time];
     t.touch_state = Some(BarrierTouchState::Untouched);
+    t.history_time = Some(t.effective_time);
     let inside = DoubleBarrierOption::new(t).unwrap();
     let later = market(100.0, day(2025, 1, 2), 0.2, 1e308, 0.0);
     assert_eq!(engine.price(&dated(&inside, &later), &later).unwrap(), 0.0);

@@ -27,7 +27,7 @@ macro_rules! monitoring_properties {
             ///
             /// history_time : datetime.datetime or None, optional
             ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required at pricing whenever history is supplied. Refresh the history
+            ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
             ///     payload and timestamp together.
             ///
             /// Returns
@@ -38,7 +38,7 @@ macro_rules! monitoring_properties {
             /// Raises
             /// ------
             /// InvalidInputError
-            ///     If history_time falls outside the contract life.
+            ///     If supplied history has no timestamp or history_time falls outside the contract life.
             /// TypeError
             ///     If a field is unknown or touch_state is not a string, None or Ellipsis.
             /// ValueError
@@ -56,16 +56,14 @@ macro_rules! monitoring_properties {
                     .map(crate::conversions::optional_timestamp)
                     .transpose()?;
 
-                let updated = match touch_state {
-                    Some(value) => {
-                        let state = $crate::instruments::barrier::history(value)?;
-                        let at = state.and(kiyosi::OptionContract::history_time(&self.0));
-                        $crate::error::domain(self.0.replace_history(state, at))?
-                    },
-                    None => self.0.clone(),
-                };
-                let history_time = history_time.unwrap_or(kiyosi::OptionContract::history_time(&updated));
-                Ok(Self(crate::error::domain(kiyosi::OptionContract::with_history_time(updated, history_time))?))
+                let supplied = touch_state.is_some();
+                let state = touch_state.map($crate::instruments::barrier::history).transpose()?
+                    .unwrap_or(self.0.touch_state());
+                let at = history_time.unwrap_or_else(|| {
+                    if supplied && state.is_none() { None }
+                    else { kiyosi::OptionContract::history_time(&self.0) }
+                });
+                Ok(Self($crate::error::domain(self.0.replace_history(state, at))?))
             }
             /// Returns the inclusive contract start.
             #[getter]

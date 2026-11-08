@@ -8096,7 +8096,7 @@ class GeometricAveragePriceOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -8138,7 +8138,7 @@ class GeometricAveragePriceOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -8183,7 +8183,7 @@ class GeometricAveragePriceOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -8350,7 +8350,7 @@ class ArithmeticAveragePriceOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -8392,7 +8392,7 @@ class ArithmeticAveragePriceOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -8437,7 +8437,7 @@ class ArithmeticAveragePriceOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -8617,7 +8617,7 @@ class BarrierOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -8684,7 +8684,7 @@ class BarrierOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -8735,7 +8735,7 @@ class BarrierOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -8746,7 +8746,7 @@ class BarrierOption:
         Raises
         ------
         InvalidInputError
-            If history_time falls outside the contract life.
+            If supplied history has no timestamp or history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -8948,7 +8948,7 @@ class DoubleBarrierOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -9017,7 +9017,7 @@ class DoubleBarrierOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -9069,7 +9069,7 @@ class DoubleBarrierOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -9080,7 +9080,7 @@ class DoubleBarrierOption:
         Raises
         ------
         InvalidInputError
-            If history_time falls outside the contract life.
+            If supplied history has no timestamp or history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -9165,7 +9165,7 @@ class RangeAccrualOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -9236,7 +9236,7 @@ class RangeAccrualOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -9283,7 +9283,7 @@ class RangeAccrualOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -9684,7 +9684,7 @@ class BinaryBarrierOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -9791,7 +9791,7 @@ class BinaryBarrierOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -9825,7 +9825,7 @@ class BinaryBarrierOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -9836,7 +9836,7 @@ class BinaryBarrierOption:
         Raises
         ------
         InvalidInputError
-            If history_time falls outside the contract life.
+            If supplied history has no timestamp or history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -9924,7 +9924,7 @@ class TouchOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -10027,7 +10027,7 @@ class TouchOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -10061,7 +10061,7 @@ class TouchOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -10072,7 +10072,7 @@ class TouchOption:
         Raises
         ------
         InvalidInputError
-            If history_time falls outside the contract life.
+            If supplied history has no timestamp or history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -10499,7 +10499,7 @@ class DoubleTouchOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -10585,7 +10585,7 @@ class DoubleTouchOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -10619,7 +10619,7 @@ class DoubleTouchOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -10630,7 +10630,7 @@ class DoubleTouchOption:
         Raises
         ------
         InvalidInputError
-            If history_time falls outside the contract life.
+            If supplied history has no timestamp or history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -11160,7 +11160,7 @@ class SnowballOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -11240,7 +11240,7 @@ class SnowballOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -11320,7 +11320,7 @@ class SnowballOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -11433,7 +11433,7 @@ class PhoenixOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -11550,7 +11550,7 @@ class PhoenixOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -11626,7 +11626,7 @@ class PhoenixOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -11702,7 +11702,7 @@ class PhoenixOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -11779,7 +11779,7 @@ class PhoenixOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -11880,7 +11880,7 @@ class BinarySnowballOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -11936,7 +11936,7 @@ class BinarySnowballOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -12010,7 +12010,7 @@ class BinarySnowballOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -12095,7 +12095,7 @@ class TernarySnowballOption:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -12168,7 +12168,7 @@ class TernarySnowballOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -12246,7 +12246,7 @@ class TernarySnowballOption:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -12355,7 +12355,7 @@ def standard_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -12419,7 +12419,7 @@ def european_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -12486,7 +12486,7 @@ def step_down_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -12559,7 +12559,7 @@ def both_down_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -12629,7 +12629,7 @@ def dual_coupon_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -12696,7 +12696,7 @@ def parachute_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -12763,7 +12763,7 @@ def otm_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -12830,7 +12830,7 @@ def loss_capped_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -12890,7 +12890,7 @@ class Accumulator:
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Raises
@@ -12980,7 +12980,7 @@ class Accumulator:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -13076,7 +13076,7 @@ class Accumulator:
 
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required at pricing whenever history is supplied. Refresh the history
+            Required whenever history is supplied; checked on construction and replacement. Refresh the history
             payload and timestamp together.
 
         Returns
@@ -13271,7 +13271,7 @@ def fixed_coupon_note(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -13336,7 +13336,7 @@ def digital_coupon_note(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -13407,7 +13407,7 @@ def early_profit_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns
@@ -13486,7 +13486,7 @@ def butterfly_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required at pricing whenever history is supplied. Refresh the history
+        Required whenever history is supplied; checked on construction and replacement. Refresh the history
         payload and timestamp together.
 
     Returns

@@ -9,6 +9,7 @@ fn day(date: u32) -> Timestamp {
 
 fn terms(direction: OptionType, dates: Option<Vec<Timestamp>>) -> AccumulatorTerms {
     AccumulatorTerms {
+        history_time: Some(day(1)),
         knock_out_settled: Some(false),
         option_type: direction,
         accumulated_quantity: Some(3.0),
@@ -180,6 +181,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
         t.daily_quantity = 0.25;
         t.acceleration_factor = 0.5;
         t.accumulated_quantity = Some(0.5);
+        t.history_time = Some(t.effective_time);
         let option = Accumulator::new(t).unwrap();
         let spot = if direction == OptionType::Call {
             90.0
@@ -271,6 +273,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
         (OptionType::Put, 89.95, 90.0, 0.06, 0.04, -1.0),
     ] {
         let option = Accumulator::new(AccumulatorTerms {
+            history_time: Some(day(1)),
             knock_out_settled: Some(false),
             option_type: direction,
             accumulated_quantity: Some(3.0),
@@ -362,6 +365,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             Some(vec![day(2), day(3)]),
         ] {
             let option = Accumulator::new(AccumulatorTerms {
+                history_time: Some(day(1)),
                 knock_out_settled: Some(false),
                 option_type: direction,
                 knock_out_observation_times: dates,
@@ -397,7 +401,12 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
                 context.valuation_time(),
             )
             .unwrap();
-            let holding = option.replace_history(3.0, None).unwrap();
+            let holding = option
+                .replace_history(
+                    3.0,
+                    Some(option.history_time().unwrap_or(option.effective_time())),
+                )
+                .unwrap();
             assert_eq!(
                 clipped
                     .price(&dated(&holding, &holding_context), &holding_context)
@@ -413,6 +422,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             );
         }
         let option = Accumulator::new(AccumulatorTerms {
+            history_time: Some(day(1)),
             knock_out_settled: Some(false),
             option_type: direction,
             knock_out_observation_times: Some(vec![day(3)]),
@@ -494,6 +504,7 @@ fn zero_multiplier_with_inverted_barrier_still_accrues_on_non_knock_out_dates() 
         t.knock_out_level = barrier;
         t.acceleration_factor = 0.0;
         t.accumulated_quantity = Some(0.0);
+        t.history_time = Some(t.effective_time);
         let option = Accumulator::new(t).unwrap();
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, 0.0, 1e-8).unwrap(),
@@ -546,7 +557,12 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     let mut dates = vec![day(2), day(6)];
     let option = Accumulator::new(terms(OptionType::Put, Some(dates.clone()))).unwrap();
     dates.clear();
-    let updated = option.replace_history(0.25, None).unwrap();
+    let updated = option
+        .replace_history(
+            0.25,
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
+        .unwrap();
     assert_eq!(updated.option_type(), OptionType::Put);
     assert_eq!(
         updated.knock_out_observation_times(),
@@ -556,7 +572,10 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     assert_eq!(option.accumulated_quantity().unwrap(), 3.0);
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            updated.replace_history(invalid, None),
+            updated.replace_history(
+                invalid,
+                Some(updated.history_time().unwrap_or(updated.effective_time()))
+            ),
             Err(Error::InvalidInput(_))
         ));
         assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
@@ -610,7 +629,12 @@ fn midnight_purchases_use_strict_strike_comparisons_and_intraday_history_once() 
             Timestamp::new(day(3).date(), 0, 0, 0, 1).unwrap(),
             0.4,
         );
-        let history = option.replace_history(quantity, None).unwrap();
+        let history = option
+            .replace_history(
+                quantity,
+                Some(option.history_time().unwrap_or(option.effective_time())),
+            )
+            .unwrap();
         for engine in engines() {
             let at_price = engine.price(&dated(&option, &at_event), &at_event).unwrap();
             let after_price = engine

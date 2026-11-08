@@ -56,7 +56,7 @@ coincident events check knock-out before accumulating. Constructors validate ter
 explicit observation dates and expiry-only knock-in observations. Settlement-only
 expiry dates may be closed without adding observations. Pricing validates
 consistency with the market snapshot and supplied history.
-Supplied history requires ``history_time`` at pricing. It describes events strictly
+Supplied history requires ``history_time`` on construction and replacement. It describes events strictly
 before that timestamp. Set it in the constructor or together with the history through
 ``replace_history(..., history_time=...)``. Replacements and pickle preserve it.
 Future-dated history is rejected.

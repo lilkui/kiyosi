@@ -10,6 +10,7 @@ from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
 from support.history import dated as dated_history
+from support.history import history_fields
 
 START, END = datetime(2025, 1, 2), datetime(2026, 1, 2)
 LIFE = {"effective_time": START, "expiry_time": END}
@@ -27,23 +28,36 @@ def contracts():
         (
             "geometric",
             p.MonteCarloAsianEngine,
-            i.GeometricAveragePriceOption(averaging_start_time=START, **vanilla),
+            i.GeometricAveragePriceOption(
+                **history_fields(averaging_start_time=START, **vanilla)
+            ),
         ),
         (
             "arithmetic",
             p.MonteCarloAsianEngine,
-            i.ArithmeticAveragePriceOption(averaging_start_time=START, **vanilla),
+            i.ArithmeticAveragePriceOption(
+                **history_fields(averaging_start_time=START, **vanilla)
+            ),
         ),
         (
             "barrier",
             p.MonteCarloBarrierEngine,
-            i.BarrierOption(barrier_type="up_and_out", barrier_level=120, **vanilla),
+            i.BarrierOption(
+                **history_fields(
+                    barrier_type="up_and_out", barrier_level=120, **vanilla
+                )
+            ),
         ),
         (
             "double",
             p.MonteCarloDoubleBarrierEngine,
             i.DoubleBarrierOption(
-                barrier_type="knock_out", lower_barrier=80, upper_barrier=120, **vanilla
+                **history_fields(
+                    barrier_type="knock_out",
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    **vanilla,
+                )
             ),
         ),
     )
@@ -78,25 +92,29 @@ def seed_cases():
             "snowball",
             p.MonteCarloAutocallableEngine,
             i.standard_snowball(
-                coupon_rate=0.1,
-                initial_spot=100,
-                knock_in_level=80,
-                knock_out_level=110,
-                observation_times=[END],
-                observation_clock_time=time(),
-                **LIFE,
+                **history_fields(
+                    coupon_rate=0.1,
+                    initial_spot=100,
+                    knock_in_level=80,
+                    knock_out_level=110,
+                    observation_times=[END],
+                    observation_clock_time=time(),
+                    **LIFE,
+                )
             ),
         ),
         (
             "accumulator",
             p.MonteCarloAccumulatorEngine,
             i.Accumulator(
-                strike=100,
-                knock_out_level=120,
-                daily_quantity=1,
-                acceleration_factor=2,
-                observation_clock_time=time(),
-                **LIFE,
+                **history_fields(
+                    strike=100,
+                    knock_out_level=120,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    observation_clock_time=time(),
+                    **LIFE,
+                )
             ),
         ),
     )
@@ -360,9 +378,15 @@ class MonteCarloStatisticsTests(unittest.TestCase):
         snapshot = context().replace(spot_price=110, valuation_time=END)
         for name, factory, original in contracts():
             if name in ("barrier", "double"):
-                option = original.replace_history(touch_state="untouched")
+                option = original.replace_history(
+                    touch_state="untouched",
+                    history_time=original.history_time or original.effective_time,
+                )
             elif name in ("geometric", "arithmetic"):
-                option = original.replace_history(realized_average=110)
+                option = original.replace_history(
+                    realized_average=110,
+                    history_time=original.history_time or original.effective_time,
+                )
             else:
                 option = original
             expected_price = 110 if name == "asset" else 10
@@ -412,6 +436,9 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                 observation_mode="scheduled",
                 touch_state=original.touch_state,
                 observation_times=[START + timedelta(days=182), END],
+                history_time=(original.history_time or original.effective_time)
+                if original.touch_state is not None
+                else None,
             )
             with self.subTest(product=name):
                 sampler = engine(factory)
@@ -485,7 +512,11 @@ class MonteCarloStatisticsTests(unittest.TestCase):
         )
         for direction in ("call", "put"):
             with self.subTest(direction=direction):
-                seasoned = option.replace(option_type=direction, realized_average=1000)
+                seasoned = option.replace(
+                    option_type=direction,
+                    realized_average=1000,
+                    history_time=option.history_time or option.effective_time,
+                )
                 estimate = sampler.price_with_statistics(
                     dated_history(seasoned, snapshot), snapshot
                 )

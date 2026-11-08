@@ -27,6 +27,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 GREEKS = (
@@ -74,7 +75,7 @@ class DigitalTests(unittest.TestCase):
             (CashOrNothingOption, 4.945810910532236, {"payout": 10}),
             (AssetOrNothingOption, 58.6851146134764, {}),
         ):
-            option = cls(**self.terms, **extra)
+            option = cls(**history_fields(**self.terms, **extra))
             result = self.engine.price_with_greeks(option, self.context, greeks="all")
             self.assertAlmostEqual(result.price, expected, delta=1e-12)
             self.assertAlmostEqual(
@@ -100,7 +101,7 @@ class DigitalTests(unittest.TestCase):
             self.assertEqual(option.strike, 100)
             self.assertEqual(option.effective_time, self.terms["effective_time"])
             self.assertEqual(option.expiry_time, self.terms["expiry_time"])
-            self.assertEqual(option, cls(**self.terms, **extra))
+            self.assertEqual(option, cls(**history_fields(**self.terms, **extra)))
             with self.assertRaises(AttributeError):
                 option.strike = 105
 
@@ -118,11 +119,17 @@ class DigitalTests(unittest.TestCase):
                 else AssetOrNothingOption
             )
             option = cls(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
+                **history_fields(
+                    option_type=inputs["option"],
+                    strike=inputs["strike"],
+                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+                    **(
+                        {"payout": inputs["payout"]}
+                        if inputs["payoff"] == "cash"
+                        else {}
+                    ),
+                )
             )
             context = PricingContext(
                 model_parameters=BlackScholesMertonParameters(
@@ -247,18 +254,24 @@ class DigitalTests(unittest.TestCase):
                         self.subTest(field=field, value=value),
                         self.assertRaises(TypeError),
                     ):
-                        cls(**(self.terms | extra | {field: value}))
+                        cls(**history_fields(**(self.terms | extra | {field: value})))
                 with self.assertRaises(OverflowError):
-                    cls(**(self.terms | extra | {field: 10**1000}))
+                    cls(**history_fields(**(self.terms | extra | {field: 10**1000})))
             for value in (True, 1, None):
                 with self.assertRaises(TypeError):
-                    cls(**dict(self.terms, option_type=value), **extra)
+                    cls(
+                        **history_fields(**dict(self.terms, option_type=value), **extra)
+                    )
             with self.assertRaises(ValueError):
-                cls(**dict(self.terms, option_type="Call"), **extra)
+                cls(**history_fields(**dict(self.terms, option_type="Call"), **extra))
             for field in ("effective_time", "expiry_time"):
                 for value in ("2025-01-01", None, datetime(2025, 1, 1).date()):
                     with self.assertRaises(TypeError):
-                        cls(**dict(self.terms, **{field: value}), **extra)
+                        cls(
+                            **history_fields(
+                                **dict(self.terms, **{field: value}), **extra
+                            )
+                        )
             with self.assertRaises(TypeError):
                 cls("call", 100, datetime(2025, 1, 1), datetime(2026, 1, 1))
         for payout in (0, -1, math.nan, math.inf):

@@ -18,6 +18,7 @@ from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption, Europe
 from kiyosi.market import HestonParameters, PricingContext, RateTermStructure
 from kiyosi.pricing import numerical_greeks
 from quantlib_reference import digital, oracle
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, contract, market
 
@@ -58,7 +59,7 @@ class DigitalQuadratureTests(unittest.TestCase):
             {"integration_standard_deviations": math.inf},
         ):
             with self.subTest(fields=fields), self.assertRaises(InvalidInputError):
-                factory(**fields)
+                factory(**history_fields(**fields))
         for value in (True, "8", None):
             with self.assertRaises(TypeError):
                 factory(integration_standard_deviations=value)
@@ -85,11 +86,17 @@ class DigitalQuadratureTests(unittest.TestCase):
                 else AssetOrNothingOption
             )
             option = kind(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
+                **history_fields(
+                    option_type=inputs["option"],
+                    strike=inputs["strike"],
+                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+                    **(
+                        {"payout": inputs["payout"]}
+                        if inputs["payoff"] == "cash"
+                        else {}
+                    ),
+                )
             )
             context = market(
                 inputs["spot"],
@@ -304,11 +311,13 @@ class DigitalQuadratureTests(unittest.TestCase):
         for kind in DIGITAL:
             for direction in ("call", "put"):
                 option = kind(
-                    option_type=direction,
-                    strike=1.75e308,
-                    effective_time=START,
-                    expiry_time=END,
-                    **({"payout": 1.75e308} if kind is CashOrNothingOption else {}),
+                    **history_fields(
+                        option_type=direction,
+                        strike=1.75e308,
+                        effective_time=START,
+                        expiry_time=END,
+                        **({"payout": 1.75e308} if kind is CashOrNothingOption else {}),
+                    )
                 )
                 context = market(1.75e308, -0.03, -0.05)
                 expected = pricing.AnalyticDigitalEngine().price(option, context)
@@ -323,11 +332,17 @@ class DigitalQuadratureTests(unittest.TestCase):
             for kind in DIGITAL:
                 for direction in ("call", "put"):
                     option = kind(
-                        option_type=direction,
-                        strike=amount,
-                        effective_time=START,
-                        expiry_time=END,
-                        **({"payout": amount} if kind is CashOrNothingOption else {}),
+                        **history_fields(
+                            option_type=direction,
+                            strike=amount,
+                            effective_time=START,
+                            expiry_time=END,
+                            **(
+                                {"payout": amount}
+                                if kind is CashOrNothingOption
+                                else {}
+                            ),
+                        )
                     )
                     expected = pricing.AnalyticDigitalEngine().price(option, context)
                     self.assertTrue(

@@ -18,6 +18,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -25,17 +26,19 @@ START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 def contract(**changes):
     return DoubleBarrierOption(
-        **(
-            {
-                "option_type": "call",
-                "strike": 100,
-                "effective_time": START,
-                "expiry_time": END,
-                "lower_barrier": 80,
-                "upper_barrier": 120,
-                "barrier_type": "knock_out",
-            }
-            | changes
+        **history_fields(
+            **(
+                {
+                    "option_type": "call",
+                    "strike": 100,
+                    "effective_time": START,
+                    "expiry_time": END,
+                    "lower_barrier": 80,
+                    "upper_barrier": 120,
+                    "barrier_type": "knock_out",
+                }
+                | changes
+            )
         )
     )
 
@@ -226,7 +229,10 @@ class DoubleBarrierTests(unittest.TestCase):
             with self.assertRaises(error):
                 option.replace_history(**changes)
             self.assertEqual(option, contract())
-        known = option.replace_history(touch_state="untouched")
+        known = option.replace_history(
+            touch_state="untouched",
+            history_time=option.history_time or option.effective_time,
+        )
         self.assertEqual(known.replace_history(), known)
         self.assertEqual(known.replace_history(touch_state=None), option)
         self.assertIsNone(option.touch_state)
@@ -253,7 +259,10 @@ class DoubleBarrierTests(unittest.TestCase):
                 expected,
                 delta=1e-12,
             )
-            past = option.replace_history(touch_state="touched")
+            past = option.replace_history(
+                touch_state="touched",
+                history_time=option.history_time or option.effective_time,
+            )
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.04 * 364 / 365)
             self.assertAlmostEqual(
                 engine.price(dated_history(past, later), later), expected, delta=1e-12
@@ -332,7 +341,10 @@ class DoubleBarrierTests(unittest.TestCase):
                     dated_history(option, market()), market()
                 ),
             )
-            touched = option.replace_history(touch_state="touched")
+            touched = option.replace_history(
+                touch_state="touched",
+                history_time=option.history_time or option.effective_time,
+            )
             self.assert_rejection(
                 InvalidInputError,
                 lambda touched=touched: engine.price(
@@ -374,7 +386,10 @@ class DoubleBarrierTests(unittest.TestCase):
                     dated_history(option, intraday), intraday
                 ),
             )
-            known = option.replace_history(touch_state="untouched")
+            known = option.replace_history(
+                touch_state="untouched",
+                history_time=option.history_time or option.effective_time,
+            )
             expected = (
                 3 * math.exp(-0.04 * 184.5 / 365)
                 if kind == "knock_in"
@@ -550,7 +565,10 @@ class DoubleBarrierTests(unittest.TestCase):
             upper_bound=0.25,
         )
         self.assertAlmostEqual(solved, 0.2, delta=1e-7)
-        known = option.replace_history(touch_state="untouched")
+        known = option.replace_history(
+            touch_state="untouched",
+            history_time=option.history_time or option.effective_time,
+        )
         later = market(time=START + timedelta(days=1))
         result = engine.price_with_greeks(
             dated_history(known, later), later, greeks="all"

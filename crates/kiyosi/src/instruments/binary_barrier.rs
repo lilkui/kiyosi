@@ -38,6 +38,10 @@ pub enum SettlementTiming {
 /// [`BinaryBarrierOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryBarrierTerms {
+    /// Dates supplied history; required when any history payload is known.
+    ///
+    /// See the [crate-level history example](crate).
+    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
@@ -72,6 +76,7 @@ impl BinaryBarrierTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
+            history_time: None,
             calendar: TradingCalendar::default(),
             option_type,
             strike,
@@ -94,6 +99,7 @@ impl BinaryBarrierTerms {
             self.observation_times,
             self.touch_state,
             self.calendar,
+            self.history_time,
         )
     }
 }
@@ -114,8 +120,12 @@ impl BinaryBarrierOption {
     ///
     /// # Errors
     ///
+    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
+    /// or a timestamp outside the contract life.
+    ///
     /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
     /// barrier, fixing times or calendar compatibility, checked in that order.
+    /// Supplied history requires an in-life timestamp on construction.
     /// History relative to valuation is checked during pricing.
     ///
     /// # Examples
@@ -210,6 +220,10 @@ impl BinaryBarrierOption {
 /// Strike-free touch inputs; validated by [`TouchOption::cash`] or [`TouchOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TouchOptionTerms {
+    /// Dates supplied history; required when any history payload is known.
+    ///
+    /// See the [crate-level history example](crate).
+    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Inclusive effective time.
@@ -240,6 +254,7 @@ impl TouchOptionTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
+            history_time: None,
             calendar: TradingCalendar::default(),
             effective_time,
             expiry_time,
@@ -266,6 +281,7 @@ impl TouchOptionTerms {
             self.observation_times,
             self.touch_state,
             self.calendar,
+            self.history_time,
         )
     }
 }
@@ -286,6 +302,9 @@ impl TouchOption {
     /// Current at-hit cash pays the payout; prior at-hit settlement has zero remaining value.
     ///
     /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
+    /// or a timestamp outside the contract life.
     ///
     /// Returns [`Error::InvalidInput`] for invalid positive payout or barrier,
     /// reversed life, invalid fixings, or at-hit no-touch settlement.
@@ -592,6 +611,12 @@ impl BinaryBarrierOption {
     pub fn replace(&self, changes: BinaryBarrierOptionChanges) -> Result<Self> {
         let history_supplied = changes.touch_state.is_some();
         let terms = BinaryBarrierTerms {
+            history_time: super::replacement_history_time(
+                self.history_time(),
+                changes.history_time,
+                changes.touch_state.is_some()
+                    && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
+            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -617,12 +642,7 @@ impl BinaryBarrierOption {
             history_supplied,
             false,
         )?;
-        let history_time = super::replacement_history_time(
-            self.history_time(),
-            changes.history_time,
-            history_supplied && updated.touch_state().is_none(),
-        );
-        updated.with_history_time(history_time)
+        Ok(updated)
     }
 }
 
@@ -675,6 +695,12 @@ impl TouchOption {
     pub fn replace(&self, changes: TouchOptionChanges) -> Result<Self> {
         let history_supplied = changes.touch_state.is_some();
         let terms = TouchOptionTerms {
+            history_time: super::replacement_history_time(
+                self.history_time(),
+                changes.history_time,
+                changes.touch_state.is_some()
+                    && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
+            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
@@ -701,11 +727,6 @@ impl TouchOption {
             history_supplied,
             false,
         )?;
-        let history_time = super::replacement_history_time(
-            self.history_time(),
-            changes.history_time,
-            history_supplied && updated.touch_state().is_none(),
-        );
-        updated.with_history_time(history_time)
+        Ok(updated)
     }
 }

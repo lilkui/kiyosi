@@ -83,7 +83,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         )?;
     }
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 90.0, start, start, end, None)?;
+        GeometricAveragePriceOption::new(OptionType::Call, 90.0, start, start, end, None, None)?;
     verify(
         &geometric,
         &context,
@@ -94,7 +94,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         ],
     )?;
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 90.0, start, start, end, None)?;
+        ArithmeticAveragePriceOption::new(OptionType::Call, 90.0, start, start, end, None, None)?;
     verify(
         &arithmetic,
         &context,
@@ -430,8 +430,15 @@ fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Res
     let geometric_average = (80.0_f64.ln() * 180.0 / 365.0
         + remaining * (100.0_f64.ln() + 0.06 * remaining / 2.0))
         .exp();
-    let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 85.0, start, start, end, Some(80.0))?;
+    let arithmetic = ArithmeticAveragePriceOption::new(
+        OptionType::Call,
+        85.0,
+        start,
+        start,
+        end,
+        Some(80.0),
+        Some(start),
+    )?;
     verify(
         &arithmetic,
         &seasoned,
@@ -441,8 +448,15 @@ fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Res
             &MonteCarloAsianEngine::default(),
         ],
     )?;
-    let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 85.0, start, start, end, Some(80.0))?;
+    let geometric = GeometricAveragePriceOption::new(
+        OptionType::Call,
+        85.0,
+        start,
+        start,
+        end,
+        Some(80.0),
+        Some(start),
+    )?;
     verify(
         &geometric,
         &seasoned,
@@ -595,9 +609,9 @@ fn deterministic_puts_forward_start_averages_and_sobol_statistics_are_consistent
         100.0 * (0.06_f64 * lead).exp() * (0.06_f64 * future).exp_m1() / (0.06 * future);
     let geometric_average = 100.0 * (0.06_f64 * (lead + future / 2.0)).exp();
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 90.0, start, middle, end, None)?;
+        ArithmeticAveragePriceOption::new(OptionType::Call, 90.0, start, middle, end, None, None)?;
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 90.0, start, middle, end, None)?;
+        GeometricAveragePriceOption::new(OptionType::Call, 90.0, start, middle, end, None, None)?;
     let expected_arithmetic = (arithmetic_average - 90.0) * (-0.08_f64).exp();
     let expected_geometric = (geometric_average - 90.0) * (-0.08_f64).exp();
     verify(

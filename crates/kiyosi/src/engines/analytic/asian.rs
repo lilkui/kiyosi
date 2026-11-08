@@ -36,7 +36,7 @@ impl AnalyticGeometricAveragePriceEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None, None)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// assert!((AnalyticGeometricAveragePriceEngine.price(&option, &context)? - 5.035867546515384).abs() < 1e-12);
     /// # Ok(()) }
@@ -182,7 +182,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = ArithmeticAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None, None)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let result = TurnbullWakemanArithmeticAveragePriceEngine.price_with_greeks(
     ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;

@@ -42,6 +42,10 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             effective_time=START - timedelta(days=1),
             accumulated_quantity=note.accumulated_quantity,
             knock_out_settled=note.knock_out_settled,
+            history_time=(note.history_time or note.effective_time)
+            if note.accumulated_quantity is not None
+            or note.knock_out_settled is not None
+            else None,
         )
         context = market(spot=100, valuation=START, volatility=1, rate=0.01, dividend=0)
         engine = MC(path_count=2, seed=0, max_active_workers=1)
@@ -50,7 +54,12 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             engine.price_with_statistics(dated_history(note, context), context).price
             * quantity
         )
-        scaled = note.replace_history(accumulated_quantity=quantity)
+        scaled = note.replace_history(
+            accumulated_quantity=quantity,
+            history_time=(note.history_time or note.effective_time)
+            if quantity is not None
+            else None,
+        )
         self.assertTrue(math.isfinite(expected))
         self.assertGreater(expected, 0)
         self.assertAlmostEqual(
@@ -250,6 +259,10 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                             calendar=calendar,
                             accumulated_quantity=note.accumulated_quantity,
                             knock_out_settled=note.knock_out_settled,
+                            history_time=(note.history_time or note.effective_time)
+                            if note.accumulated_quantity is not None
+                            or note.knock_out_settled is not None
+                            else None,
                         ),
                         context,
                     ),
@@ -277,7 +290,9 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             engine.price(
                 dated_history(
                     omitted.replace_history(
-                        accumulated_quantity=0, knock_out_settled=False
+                        accumulated_quantity=0,
+                        knock_out_settled=False,
+                        history_time=omitted.history_time or omitted.effective_time,
                     ),
                     market(90, omitted.expiry_time),
                 ),
@@ -481,6 +496,10 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             calendar=all_days_calendar(),
             accumulated_quantity=note.accumulated_quantity,
             knock_out_settled=note.knock_out_settled,
+            history_time=(note.history_time or note.effective_time)
+            if note.accumulated_quantity is not None
+            or note.knock_out_settled is not None
+            else None,
         )
         self.assert_rejection(
             InvalidInputError,

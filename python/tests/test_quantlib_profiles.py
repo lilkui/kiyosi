@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 
 from kiyosi import pricing
 from quantlib_reference import oracle, structured
+from support.history import history_fields
 
 
 class QuantLibProfileTests(unittest.TestCase):
@@ -64,7 +65,9 @@ class QuantLibProfileTests(unittest.TestCase):
             with self.subTest(fixture=name):
                 self.assertCountEqual([p["engine"] for p in profiles], expected)
                 for profile in profiles:
-                    engine = getattr(pricing, profile["engine"])(**profile["settings"])
+                    engine = getattr(pricing, profile["engine"])(
+                        **history_fields(**profile["settings"])
+                    )
                     for field, value in profile["settings"].items():
                         self.assertEqual(getattr(engine, field), value)
 

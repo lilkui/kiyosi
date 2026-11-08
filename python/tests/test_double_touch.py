@@ -28,6 +28,7 @@ from kiyosi.market import (
 from kiyosi.pricing import numerical_greeks
 from price_differences import price_differences
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -36,15 +37,17 @@ FIRST = START + timedelta(days=180)
 
 def contract(factory=cash_double_touch, **changes):
     return factory(
-        **(
-            {
-                "effective_time": START,
-                "expiry_time": END,
-                "lower_barrier": 80,
-                "upper_barrier": 120,
-                "payout": 1,
-            }
-            | changes
+        **history_fields(
+            **(
+                {
+                    "effective_time": START,
+                    "expiry_time": END,
+                    "lower_barrier": 80,
+                    "upper_barrier": 120,
+                    "payout": 1,
+                }
+                | changes
+            )
         )
     )
 
@@ -299,7 +302,10 @@ class DoubleTouchTests(unittest.TestCase):
         self.assertIsNone(option.touch_state)
         self.assertEqual(option.observation_times, ())
         self.assertEqual(option.payout, 1)
-        replaced = option.replace_history(touch_state="untouched")
+        replaced = option.replace_history(
+            touch_state="untouched",
+            history_time=option.history_time or option.effective_time,
+        )
         self.assertEqual(replaced.touch_state, "untouched")
         self.assertIsNone(option.touch_state)
         self.assertEqual(replaced.replace_history(touch_state=None), option)
@@ -362,7 +368,10 @@ class DoubleTouchTests(unittest.TestCase):
             contract(settlement_timing="later")
         option = contract()
         with self.assertRaises(TypeError):
-            option.replace_history(touch_state=True)
+            option.replace_history(
+                touch_state=True,
+                history_time=option.history_time or option.effective_time,
+            )
         self.assertEqual(option, contract())
 
     def test_continuous_prices_match_independent_series_and_converge(self):
@@ -475,7 +484,10 @@ class DoubleTouchTests(unittest.TestCase):
                         market(spot, time=later),
                     ),
                 )
-            known = option.replace_history(touch_state="touched")
+            known = option.replace_history(
+                touch_state="touched",
+                history_time=option.history_time or option.effective_time,
+            )
             self.assert_core_error(
                 InvalidInputError,
                 lambda known=known: engine.price(
@@ -509,7 +521,10 @@ class DoubleTouchTests(unittest.TestCase):
             contract(payout=3),
             contract(payout=3, settlement_timing="at_hit"),
         ):
-            known = option.replace_history(touch_state="untouched")
+            known = option.replace_history(
+                touch_state="untouched",
+                history_time=option.history_time or option.effective_time,
+            )
             result = engine.price_with_greeks(
                 dated_history(known, market(time=END)), market(time=END), greeks="all"
             )
@@ -546,7 +561,10 @@ class DoubleTouchTests(unittest.TestCase):
                 dated_history(option, market(130, time=after)), market(130, time=after)
             ),
         )
-        known = option.replace_history(touch_state="untouched")
+        known = option.replace_history(
+            touch_state="untouched",
+            history_time=option.history_time or option.effective_time,
+        )
         for offset in (timedelta(seconds=1), timedelta(hours=12)):
             time = event + offset
             remaining = (
@@ -1061,7 +1079,10 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                         ),
                         market(spot, time=START + timedelta(days=1)),
                     )
-            prior = option.replace_history(touch_state="touched")
+            prior = option.replace_history(
+                touch_state="touched",
+                history_time=option.history_time or option.effective_time,
+            )
             with self.assertRaises(InvalidInputError):
                 engine.price(dated_history(prior, market()), market())
             later = market(time=START + timedelta(days=1))
@@ -1077,7 +1098,10 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 pricing.implied_volatility(
                     engine, dated_history(prior, later), later, expected
                 )
-            known = option.replace_history(touch_state="untouched")
+            known = option.replace_history(
+                touch_state="untouched",
+                history_time=option.history_time or option.effective_time,
+            )
             for spot in (80, 100, 120):
                 terminal = engine.price_with_greeks(
                     dated_history(known, market(spot, time=END)),
@@ -1112,7 +1136,10 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 engine.price(
                     dated_history(option, market(time=after)), market(time=after)
                 )
-            known = option.replace_history(touch_state="untouched")
+            known = option.replace_history(
+                touch_state="untouched",
+                history_time=option.history_time or option.effective_time,
+            )
             for spot in (80, 120):
                 expected = (
                     0

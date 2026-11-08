@@ -21,6 +21,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 class AutocallableMonteCarloRegressionTests(unittest.TestCase):
@@ -65,13 +66,15 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         cases = [
             (
                 BinarySnowballOption(
-                    maturity_coupon_rate=0.05,
-                    **terms,
-                    observations=autocallable_observations(
-                        observation_times,
-                        knock_out_levels,
-                        knock_out_coupon_rates=[0.08] * 3,
-                    ),
+                    **history_fields(
+                        maturity_coupon_rate=0.05,
+                        **terms,
+                        observations=autocallable_observations(
+                            observation_times,
+                            knock_out_levels,
+                            knock_out_coupon_rates=[0.08] * 3,
+                        ),
+                    )
                 ),
                 pricing.MonteCarloAutocallableEngine,
             ),
@@ -82,53 +85,59 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 [
                     (
                         SnowballOption(
-                            observation_clock_time=clock_time()
-                            if mode == "every_trading_day"
-                            else None,
-                            maturity_coupon_rate=0.06,
-                            initial_spot=100,
-                            upper_strike=100,
-                            lower_strike=60,
-                            **common,
-                            observations=autocallable_observations(
-                                observation_times,
-                                knock_out_levels,
-                                knock_out_coupon_rates=[0.08] * 3,
-                            ),
+                            **history_fields(
+                                observation_clock_time=clock_time()
+                                if mode == "every_trading_day"
+                                else None,
+                                maturity_coupon_rate=0.06,
+                                initial_spot=100,
+                                upper_strike=100,
+                                lower_strike=60,
+                                **common,
+                                observations=autocallable_observations(
+                                    observation_times,
+                                    knock_out_levels,
+                                    knock_out_coupon_rates=[0.08] * 3,
+                                ),
+                            )
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         PhoenixOption(
-                            observation_clock_time=clock_time()
-                            if mode == "every_trading_day"
-                            else None,
-                            coupon_rate=0.08,
-                            initial_spot=100,
-                            upper_strike=100,
-                            lower_strike=60,
-                            **common,
-                            observations=autocallable_observations(
-                                observation_times,
-                                knock_out_levels,
-                                coupon_barrier_levels=[100, 99, 98],
-                            ),
+                            **history_fields(
+                                observation_clock_time=clock_time()
+                                if mode == "every_trading_day"
+                                else None,
+                                coupon_rate=0.08,
+                                initial_spot=100,
+                                upper_strike=100,
+                                lower_strike=60,
+                                **common,
+                                observations=autocallable_observations(
+                                    observation_times,
+                                    knock_out_levels,
+                                    coupon_barrier_levels=[100, 99, 98],
+                                ),
+                            )
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         TernarySnowballOption(
-                            observation_clock_time=clock_time()
-                            if mode == "every_trading_day"
-                            else None,
-                            maturity_coupon_rate=0.06,
-                            minimum_coupon_rate=0.02,
-                            **common,
-                            observations=autocallable_observations(
-                                observation_times,
-                                knock_out_levels,
-                                knock_out_coupon_rates=[0.08] * 3,
-                            ),
+                            **history_fields(
+                                observation_clock_time=clock_time()
+                                if mode == "every_trading_day"
+                                else None,
+                                maturity_coupon_rate=0.06,
+                                minimum_coupon_rate=0.02,
+                                **common,
+                                observations=autocallable_observations(
+                                    observation_times,
+                                    knock_out_levels,
+                                    knock_out_coupon_rates=[0.08] * 3,
+                                ),
+                            )
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
@@ -206,6 +215,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0]
             ),
+            history_time=start,
         )
         for engine in (pricing.MonteCarloAutocallableEngine(path_count=64, seed=42),):
             for time in (
@@ -266,6 +276,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         observations=autocallable_observations(
                             [end], [110], knock_out_coupon_rates=[0.08]
                         ),
+                        history_time=(start) if state is not None else None,
                     )
                     result = engine.price_with_greeks(
                         dated_history(note, context),
@@ -322,19 +333,21 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             }
             for mode in ("at_expiry", "every_trading_day"):
                 snowball = SnowballOption(
-                    observation_clock_time=clock_time()
-                    if mode == "every_trading_day"
-                    else None,
-                    **terms,
-                    initial_spot=100,
-                    knock_in_level=90,
-                    upper_strike=100,
-                    lower_strike=60,
-                    knock_in_observation_mode=mode,
+                    **history_fields(
+                        observation_clock_time=clock_time()
+                        if mode == "every_trading_day"
+                        else None,
+                        **terms,
+                        initial_spot=100,
+                        knock_in_level=90,
+                        upper_strike=100,
+                        lower_strike=60,
+                        knock_in_observation_mode=mode,
+                    )
                 )
                 for note, engine in (
                     (
-                        BinarySnowballOption(**terms),
+                        BinarySnowballOption(**history_fields(**terms)),
                         pricing.MonteCarloAutocallableEngine(path_count=2000, seed=42),
                     ),
                     (
@@ -351,6 +364,11 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                                     note.replace(
                                         calendar=calendar,
                                         barrier_state=note.barrier_state,
+                                        history_time=(
+                                            note.history_time or note.effective_time
+                                        )
+                                        if note.barrier_state is not None
+                                        else None,
                                     ),
                                     PricingContext(
                                         model_parameters=parameters,
@@ -399,46 +417,54 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         strikes = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
         notes = (
             BinarySnowballOption(
-                **common,
-                maturity_coupon_rate=5,
-                barrier_state="no_event",
-                observations=observations,
+                **history_fields(
+                    **common,
+                    maturity_coupon_rate=5,
+                    barrier_state="no_event",
+                    observations=observations,
+                )
             ),
             SnowballOption(
-                observation_clock_time=clock_time(),
-                **common,
-                **strikes,
-                maturity_coupon_rate=5,
-                knock_in_level=80,
-                knock_in_observation_mode="every_trading_day",
-                barrier_state="knocked_in",
-                observations=observations,
+                **history_fields(
+                    observation_clock_time=clock_time(),
+                    **common,
+                    **strikes,
+                    maturity_coupon_rate=5,
+                    knock_in_level=80,
+                    knock_in_observation_mode="every_trading_day",
+                    barrier_state="knocked_in",
+                    observations=observations,
+                )
             ),
             TernarySnowballOption(
-                observation_clock_time=clock_time(),
-                **common,
-                maturity_coupon_rate=5,
-                minimum_coupon_rate=-1,
-                knock_in_level=80,
-                knock_in_observation_mode="every_trading_day",
-                barrier_state="knocked_in",
-                observations=observations,
+                **history_fields(
+                    observation_clock_time=clock_time(),
+                    **common,
+                    maturity_coupon_rate=5,
+                    minimum_coupon_rate=-1,
+                    knock_in_level=80,
+                    knock_in_observation_mode="every_trading_day",
+                    barrier_state="knocked_in",
+                    observations=observations,
+                )
             ),
         )
         for note in notes:
             self.check_autocallable(note, cashflow_market(100, FIRST), 0.99)
         for barrier, expected in ((100, 0.99), (math.nextafter(100, 200), 1)):
             note = PhoenixOption(
-                observation_clock_time=clock_time(),
-                **common,
-                **strikes,
-                coupon_rate=-0.365,
-                knock_in_level=80,
-                knock_in_observation_mode="every_trading_day",
-                barrier_state="knocked_in",
-                observations=autocallable_observations(
-                    [FIRST, END], [100, 100], coupon_barrier_levels=[barrier, 0]
-                ),
+                **history_fields(
+                    observation_clock_time=clock_time(),
+                    **common,
+                    **strikes,
+                    coupon_rate=-0.365,
+                    knock_in_level=80,
+                    knock_in_observation_mode="every_trading_day",
+                    barrier_state="knocked_in",
+                    observations=autocallable_observations(
+                        [FIRST, END], [100, 100], coupon_barrier_levels=[barrier, 0]
+                    ),
+                )
             )
             self.check_autocallable(note, cashflow_market(100, FIRST), expected)
 
@@ -456,20 +482,24 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             "expiry_time": END,
         }
         snowball = SnowballOption(
-            observation_clock_time=clock_time(),
-            **common,
-            maturity_coupon_rate=5,
-            observations=autocallable_observations(
-                [END], [110], knock_out_coupon_rates=[100]
-            ),
+            **history_fields(
+                observation_clock_time=clock_time(),
+                **common,
+                maturity_coupon_rate=5,
+                observations=autocallable_observations(
+                    [END], [110], knock_out_coupon_rates=[100]
+                ),
+            )
         )
         phoenix = PhoenixOption(
-            observation_clock_time=clock_time(),
-            **common,
-            coupon_rate=-0.365,
-            observations=autocallable_observations(
-                [FIRST, END], [110, 110], coupon_barrier_levels=[90, 90]
-            ),
+            **history_fields(
+                observation_clock_time=clock_time(),
+                **common,
+                coupon_rate=-0.365,
+                observations=autocallable_observations(
+                    [FIRST, END], [110, 110], coupon_barrier_levels=[90, 90]
+                ),
+            )
         )
         for spot, expected in ((50, 0.85), (90, 1.15), (105, 1.25)):
             self.check_autocallable(snowball, cashflow_market(spot, END), expected)

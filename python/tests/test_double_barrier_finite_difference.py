@@ -22,6 +22,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -30,17 +31,19 @@ FIRST = START + timedelta(days=180)
 
 def contract(**changes):
     return DoubleBarrierOption(
-        **(
-            {
-                "option_type": "call",
-                "strike": 100,
-                "effective_time": START,
-                "expiry_time": END,
-                "lower_barrier": 80,
-                "upper_barrier": 120,
-                "barrier_type": "knock_out",
-            }
-            | changes
+        **history_fields(
+            **(
+                {
+                    "option_type": "call",
+                    "strike": 100,
+                    "effective_time": START,
+                    "expiry_time": END,
+                    "lower_barrier": 80,
+                    "upper_barrier": 120,
+                    "barrier_type": "knock_out",
+                }
+                | changes
+            )
         )
     )
 
@@ -282,7 +285,10 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 expected,
                 delta=1e-12,
             )
-            past = option.replace_history(touch_state="touched")
+            past = option.replace_history(
+                touch_state="touched",
+                history_time=option.history_time or option.effective_time,
+            )
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.04 * 364 / 365)
             self.assertAlmostEqual(
                 engine.price(
@@ -512,7 +518,10 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             lambda: pricing.implied_volatility(
                 engine,
                 dated_history(
-                    option.replace_history(touch_state="touched"),
+                    option.replace_history(
+                        touch_state="touched",
+                        history_time=option.history_time or option.effective_time,
+                    ),
                     market(time=START + timedelta(days=1)),
                 ),
                 market(time=START + timedelta(days=1)),
@@ -534,7 +543,11 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assertIsNone(event.color)
         at_expiry = engine.price_with_greeks(
             dated_history(
-                option.replace_history(touch_state="untouched"), market(110, time=END)
+                option.replace_history(
+                    touch_state="untouched",
+                    history_time=option.history_time or option.effective_time,
+                ),
+                market(110, time=END),
             ),
             market(110, time=END),
             greeks="all",

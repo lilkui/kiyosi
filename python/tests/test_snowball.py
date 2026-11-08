@@ -31,6 +31,7 @@ from kiyosi.pricing import (
 )
 from quantlib_reference import structured
 from support.history import dated as dated_history
+from support.history import history_fields
 
 START, END = datetime(2025, 1, 1), datetime(2025, 4, 1)
 
@@ -51,11 +52,13 @@ def contract(**changes):
     }
     fields.update(changes)
     return SnowballOption(
-        observation_clock_time=clock_time()
-        if fields.get("knock_in_observation_mode", "every_trading_day")
-        == "every_trading_day"
-        else None,
-        **fields,
+        **history_fields(
+            observation_clock_time=clock_time()
+            if fields.get("knock_in_observation_mode", "every_trading_day")
+            == "every_trading_day"
+            else None,
+            **fields,
+        )
     )
 
 
@@ -105,11 +108,16 @@ class SnowballTests(unittest.TestCase):
         self.assertEqual(note.observation_times, (END,))
         self.assertEqual(note.knock_out_levels, (110,))
         self.assertEqual(note.knock_out_coupon_rates, (0,))
-        known = note.replace_history(barrier_state="no_event")
+        known = note.replace_history(
+            barrier_state="no_event",
+            history_time=note.history_time or note.effective_time,
+        )
         self.assertEqual(known.barrier_state, "no_event")
         for replacement in (
             known.replace_history(),
-            known.replace_history(barrier_state=Ellipsis),
+            known.replace_history(
+                barrier_state=Ellipsis,
+            ),
         ):
             self.assertEqual(replacement, known)
             self.assertIsNot(replacement, known)
@@ -215,7 +223,11 @@ class SnowballTests(unittest.TestCase):
             InvalidInputError,
             engine.price,
             dated_history(
-                unknown.replace_history(barrier_state="knocked_out"), market()
+                unknown.replace_history(
+                    barrier_state="knocked_out",
+                    history_time=unknown.history_time or unknown.effective_time,
+                ),
+                market(),
             ),
             market(),
         )
@@ -422,7 +434,10 @@ class SnowballTests(unittest.TestCase):
             dated_history(note.replace_history(barrier_state=None), past),
             past,
         )
-        settled = note.replace_history(barrier_state="knocked_out")
+        settled = note.replace_history(
+            barrier_state="knocked_out",
+            history_time=note.history_time or note.effective_time,
+        )
         result = engine.price_with_greeks(
             dated_history(settled, market(valuation=datetime(2025, 3, 3))),
             market(valuation=datetime(2025, 3, 3)),
@@ -453,7 +468,10 @@ class SnowballTests(unittest.TestCase):
             engine.price(dated_history(daily, market(90, END)), market(90, END)), 0.9
         )
         # Midnight KI is strict; intraday spot does not create a historical breach.
-        daily = daily.replace_history(barrier_state="no_event")
+        daily = daily.replace_history(
+            barrier_state="no_event",
+            history_time=daily.history_time or daily.effective_time,
+        )
         for when, has_theta in ((datetime(2025, 1, 2, 12), True),):
             result = engine.price_with_greeks(
                 dated_history(daily, market(80, when)), market(80, when), "theta"

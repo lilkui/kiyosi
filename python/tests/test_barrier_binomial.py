@@ -25,6 +25,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -68,7 +69,7 @@ def option(kind="down_and_out", direction="call", **changes):
         "calendar": all_days_calendar(),
     }
     terms.update(changes)
-    return BarrierOption(**terms)
+    return BarrierOption(**history_fields(**terms))
 
 
 def engines():
@@ -347,7 +348,10 @@ class BarrierBinomialTests(unittest.TestCase):
                 )
                 for name in ("delta", "gamma", *OTHER_GREEKS):
                     self.assertIsNone(getattr(result, name))
-                touched = contract.replace_history(touch_state="touched")
+                touched = contract.replace_history(
+                    touch_state="touched",
+                    history_time=contract.history_time or contract.effective_time,
+                )
                 context = market(valuation=START + timedelta(days=2))
                 expected = pricing.AnalyticBarrierEngine().price(
                     dated_history(touched, context), context

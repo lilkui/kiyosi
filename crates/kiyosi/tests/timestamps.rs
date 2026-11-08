@@ -129,6 +129,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
         );
         terms.calendar = calendar.clone();
         terms.realized_hit_count = Some(1);
+        terms.history_time = Some(terms.effective_time);
         let range = RangeAccrualOption::new(terms)?;
         assert_eq!(range.observation_schedule()?.times(), &[observation]);
 
@@ -143,7 +144,9 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
         );
         terms.calendar = calendar.clone();
         terms.accumulated_quantity = Some(3.0);
+        terms.history_time = Some(terms.effective_time);
         terms.knock_out_settled = Some(false);
+        terms.history_time = Some(terms.effective_time);
         let accumulator = Accumulator::new(terms)?;
         assert_eq!(accumulator.accumulation_schedule()?.times(), &[observation]);
         assert_eq!(
@@ -165,6 +168,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
         );
         terms.calendar = calendar.clone();
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        terms.history_time = Some(terms.effective_time);
         let note = SnowballOption::new(terms.clone())?;
         assert_eq!(
             note.knock_in_observation_schedule()?.unwrap().times(),
@@ -180,6 +184,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
         let mut terms = BinarySnowballTerms::new(0.12, start, expiry, records);
         terms.calendar = calendar.clone();
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        terms.history_time = Some(terms.effective_time);
         let binary = BinarySnowballOption::new(terms)?;
         let coupon = 0.12 * start.years_until(expiry);
         for volatility in [0.0, 0.2] {
@@ -348,7 +353,10 @@ fn scheduled_barriers_use_exact_current_observations_and_strict_history() {
         Err(Error::InvalidInput(_))
     ));
     let touched = option
-        .replace_history(Some(BarrierTouchState::Touched), None)
+        .replace_history(
+            Some(BarrierTouchState::Touched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     assert!(matches!(
         AnalyticBarrierEngine.price(
@@ -413,7 +421,12 @@ fn range_accrual_observes_same_day_and_excludes_only_the_effective_instant() {
     assert!(matches!(
         AnalyticRangeAccrualEngine.price(
             &dated(
-                &option.replace_history(Some(1), None).unwrap(),
+                &option
+                    .replace_history(
+                        Some(1),
+                        Some(option.history_time().unwrap_or(option.effective_time()))
+                    )
+                    .unwrap(),
                 &market(time(6, 15, 1), 100.0)
             ),
             &market(time(6, 15, 1), 100.0)
@@ -597,7 +610,7 @@ fn daily_clock_controls_current_history_and_does_not_add_expiry_units() -> Resul
                 accumulated_quantity: Some(Some(1.0)),
                 knock_out_settled: Some(Some(false)),
             },
-            None,
+            Some(option.history_time().unwrap_or(option.effective_time())),
         )?;
         assert_eq!(
             engine.price(
@@ -679,7 +692,10 @@ fn range_accrual_discounts_known_coupon_between_final_observation_and_payment() 
             time(6, hour, 0),
         )?;
         let expected = coupon * (-0.5 * f64::from(18 - hour) / (365.0 * 24.0)).exp();
-        let seasoned = option.replace_history(hits, None)?;
+        let seasoned = option.replace_history(
+            hits,
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )?;
         let actual = AnalyticRangeAccrualEngine.price(&dated(&seasoned, &context), &context)?;
         assert!(
             (actual - expected).abs() < 1e-14,
@@ -726,6 +742,7 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
         Some(clock),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let daily = SnowballOption::new(terms)?;
     let at_expiry = daily.replace(SnowballOptionChanges {
         barrier_state: Some(daily.barrier_state()),
@@ -964,6 +981,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
 #[test]
 fn nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega() {
     let option = Accumulator::new(AccumulatorTerms {
+        history_time: Some(time(3, 9, 0)),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(

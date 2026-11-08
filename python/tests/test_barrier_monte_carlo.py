@@ -18,6 +18,7 @@ from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
@@ -309,7 +310,10 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     contract,
                     later,
                 )
-                touched = contract.replace_history(touch_state="touched")
+                touched = contract.replace_history(
+                    touch_state="touched",
+                    history_time=contract.history_time or contract.effective_time,
+                )
                 self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
                     engine.price(dated_history(touched, later), later),
@@ -318,7 +322,12 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     ),
                 )
                 for history in ("touched", "untouched"):
-                    known = contract.replace_history(touch_state=history)
+                    known = contract.replace_history(
+                        touch_state=history,
+                        history_time=(contract.history_time or contract.effective_time)
+                        if history is not None
+                        else None,
+                    )
                     expired = market(spot=contract.barrier_level, valuation=END)
                     result = engine.price_with_greeks(
                         dated_history(known, expired), expired, greeks="all"
@@ -353,7 +362,10 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     valuation_time=datetime.combine(observation, datetime.min.time())
                     + timedelta(microseconds=1)
                 )
-                untouched = scheduled.replace_history(touch_state="untouched")
+                untouched = scheduled.replace_history(
+                    touch_state="untouched",
+                    history_time=scheduled.history_time or scheduled.effective_time,
+                )
                 self.assertEqual(
                     engine.price(dated_history(untouched, after), after),
                     pricing.AnalyticBarrierEngine().price(
@@ -392,16 +404,16 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 None if name != "seed" else object(),
             ):
                 with self.assertRaises(TypeError):
-                    factory(**{name: value})
+                    factory(**history_fields(**{name: value}))
             with self.assertRaises(OverflowError):
-                factory(**{name: 1 << 100})
+                factory(**history_fields(**{name: 1 << 100}))
         for fields in (
             {"antithetic": 1},
             {"unknown": 1},
             {"sampling": True},
         ):
             with self.assertRaises(TypeError):
-                factory(**fields)
+                factory(**history_fields(**fields))
         with self.assertRaises(ValueError):
             factory(sampling="unknown")
         for fields in (
@@ -562,7 +574,10 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 observed,
                 **controls,
             )
-        fixed = contract.replace_history(touch_state="touched")
+        fixed = contract.replace_history(
+            touch_state="touched",
+            history_time=contract.history_time or contract.effective_time,
+        )
         later = market(valuation=START + timedelta(days=1))
         self.assert_rejection(
             UnsupportedOperationError,

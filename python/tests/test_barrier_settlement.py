@@ -6,6 +6,7 @@ from datetime import datetime
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 class BarrierSettlementTests(unittest.TestCase):
@@ -30,20 +31,29 @@ class BarrierSettlementTests(unittest.TestCase):
             "payout": 10,
         }
         binary = ins.cash_binary_barrier_option(
-            **common,
-            option_type="call",
-            strike=100,
-            barrier_level=120,
-            barrier_type="up_and_out",
+            **history_fields(
+                **common,
+                option_type="call",
+                strike=100,
+                barrier_level=120,
+                barrier_type="up_and_out",
+            )
         )
         touch = ins.cash_touch_option(
-            **common,
-            barrier_level=120,
-            barrier_type="up_and_in",
-            settlement_timing="at_hit",
+            **history_fields(
+                **common,
+                barrier_level=120,
+                barrier_type="up_and_in",
+                settlement_timing="at_hit",
+            )
         )
         double = ins.cash_double_touch(
-            **common, lower_barrier=80, upper_barrier=120, settlement_timing="at_hit"
+            **history_fields(
+                **common,
+                lower_barrier=80,
+                upper_barrier=120,
+                settlement_timing="at_hit",
+            )
         )
         for engine, settled, unpaid in (
             (

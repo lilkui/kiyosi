@@ -20,6 +20,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -38,12 +39,14 @@ def market(spot=100, volatility=0.2, valuation=START, rate=0.04, dividend=0.01):
 
 def option(kind, direction="call", strike=100, averaging=START, realized=None):
     return kind(
-        option_type=direction,
-        strike=strike,
-        effective_time=START,
-        averaging_start_time=averaging,
-        expiry_time=END,
-        realized_average=realized,
+        **history_fields(
+            option_type=direction,
+            strike=strike,
+            effective_time=START,
+            averaging_start_time=averaging,
+            expiry_time=END,
+            realized_average=realized,
+        )
     )
 
 
@@ -71,9 +74,9 @@ class AsianMonteCarloTests(unittest.TestCase):
         for name in ("path_count", "step_count", "max_active_workers", "seed"):
             for value in (True, 2.5):
                 with self.subTest(name=name, value=value), self.assertRaises(TypeError):
-                    cls(**{name: value})
+                    cls(**history_fields(**{name: value}))
             with self.subTest(name=name), self.assertRaises(OverflowError):
-                cls(**{name: 1 << 100})
+                cls(**history_fields(**{name: 1 << 100}))
         with self.assertRaises(TypeError):
             cls(100)
         with self.assertRaises(TypeError):

@@ -12,6 +12,7 @@ from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
 from kiyosi import instruments as ins
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 class ApiConsistencyTests(unittest.TestCase):
@@ -128,11 +129,13 @@ class ApiConsistencyTests(unittest.TestCase):
         for kind in (ins.CashOrNothingOption, ins.AssetOrNothingOption):
             for direction in ("call", "put"):
                 future = kind(
-                    option_type=direction,
-                    strike=100,
-                    effective_time=effective,
-                    expiry_time=expiry,
-                    **({"payout": 10} if kind is ins.CashOrNothingOption else {}),
+                    **history_fields(
+                        option_type=direction,
+                        strike=100,
+                        effective_time=effective,
+                        expiry_time=expiry,
+                        **({"payout": 10} if kind is ins.CashOrNothingOption else {}),
+                    )
                 )
                 existing = future.replace(effective_time=start)
                 for volatility in (0, 0.2):
@@ -378,7 +381,7 @@ class ApiConsistencyTests(unittest.TestCase):
             ):
                 with self.subTest(contract=factory.__name__, field=field):
                     with self.assertRaises(InvalidInputError) as error:
-                        factory(**common, **fields)
+                        factory(**history_fields(**common, **fields))
                     self.assertIn(field, str(error.exception))
 
     def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
@@ -409,6 +412,7 @@ class ApiConsistencyTests(unittest.TestCase):
             accumulated_quantity=3,
             effective_time=start,
             expiry_time=end,
+            history_time=start,
         )
         note = ins.BinarySnowballOption(
             maturity_coupon_rate=0.1,
@@ -420,23 +424,36 @@ class ApiConsistencyTests(unittest.TestCase):
                 [120, 120, 120],
                 knock_out_coupon_rates=[0] * 3,
             ),
+            history_time=start,
         )
         for kind, contract, settled, active, current_value in (
             (
                 "Accumulator",
                 accumulator,
-                accumulator.replace(knock_out_settled=True),
+                accumulator.replace(
+                    knock_out_settled=True,
+                    history_time=accumulator.history_time or accumulator.effective_time,
+                ),
                 accumulator.replace(
                     knock_out_level=150,
                     accumulated_quantity=accumulator.accumulated_quantity,
                     knock_out_settled=accumulator.knock_out_settled,
+                    history_time=(
+                        accumulator.history_time or accumulator.effective_time
+                    )
+                    if accumulator.accumulated_quantity is not None
+                    or accumulator.knock_out_settled is not None
+                    else None,
                 ),
                 75,
             ),
             (
                 "Autocallable",
                 note,
-                note.replace_history(barrier_state="knocked_out"),
+                note.replace_history(
+                    barrier_state="knocked_out",
+                    history_time=note.history_time or note.effective_time,
+                ),
                 note.replace(
                     barrier_state=note.barrier_state,
                     observations=ins.autocallable_observations(
@@ -444,6 +461,9 @@ class ApiConsistencyTests(unittest.TestCase):
                         [150, 150, 150],
                         knock_out_coupon_rates=[0] * 3,
                     ),
+                    history_time=(note.history_time or note.effective_time)
+                    if note.barrier_state is not None
+                    else None,
                 ),
                 1,
             ),
@@ -495,7 +515,10 @@ class ApiConsistencyTests(unittest.TestCase):
                 expiry_time=end,
                 knock_out_observation_times=times,
             )
-            settled = original.replace_history(knock_out_settled=True)
+            settled = original.replace_history(
+                knock_out_settled=True,
+                history_time=original.history_time or original.effective_time,
+            )
             for valuation in (
                 start,
                 first_explicit,
@@ -651,8 +674,10 @@ class ApiConsistencyTests(unittest.TestCase):
         for factory, fields in factories:
             with self.subTest(contract=factory.__name__):
                 with self.assertRaises(InvalidInputError):
-                    factory(**fields)
-                option = factory(**fields, calendar=market.all_days_calendar())
+                    factory(**history_fields(**fields))
+                option = factory(
+                    **history_fields(**fields, calendar=market.all_days_calendar())
+                )
                 with self.assertRaises(InvalidInputError):
                     option.replace(calendar=market.weekdays_calendar())
                 self.assertEqual(option.calendar, market.all_days_calendar())
@@ -678,10 +703,15 @@ class ApiConsistencyTests(unittest.TestCase):
                 "expiry_time": end,
             }
             single = ins.BarrierOption(
-                **terms, barrier_level=120, barrier_type="up_and_out"
+                **history_fields(**terms, barrier_level=120, barrier_type="up_and_out")
             )
             double = ins.DoubleBarrierOption(
-                **terms, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
+                **history_fields(
+                    **terms,
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    barrier_type="knock_out",
+                )
             )
             expected = pricing.AnalyticBarrierEngine().price(
                 dated_history(single, context), context
@@ -728,6 +758,7 @@ class ApiConsistencyTests(unittest.TestCase):
             barrier_type="up_and_out",
             touch_state="touched",
             rebate_timing="at_hit",
+            history_time=start,
         )
         for factory in (
             pricing.AnalyticBarrierEngine,
@@ -777,6 +808,7 @@ class ApiConsistencyTests(unittest.TestCase):
             effective_time=start,
             expiry_time=end,
             realized_hit_count=0,
+            history_time=start,
         )
         expiry = context.replace(valuation_time=end)
         engine = pricing.AnalyticRangeAccrualEngine()
@@ -785,6 +817,9 @@ class ApiConsistencyTests(unittest.TestCase):
         daily = accrual.replace(
             calendar=market.all_days_calendar(),
             realized_hit_count=accrual.realized_hit_count,
+            history_time=(accrual.history_time or accrual.effective_time)
+            if accrual.realized_hit_count is not None
+            else None,
         )
         self.assertAlmostEqual(
             engine.price(dated_history(daily, expiry), expiry), price / 3, delta=1e-12
@@ -910,12 +945,14 @@ class ApiConsistencyTests(unittest.TestCase):
             (
                 pricing.AnalyticRangeAccrualEngine(),
                 ins.RangeAccrualOption(
-                    observation_clock_time=clock_time(),
-                    notional=100,
-                    annual_coupon_rate=coupon,
-                    lower_bound=90,
-                    upper_bound=110,
-                    **life,
+                    **history_fields(
+                        observation_clock_time=clock_time(),
+                        notional=100,
+                        annual_coupon_rate=coupon,
+                        lower_bound=90,
+                        upper_bound=110,
+                        **life,
+                    )
                 ),
             )
             for coupon in (0, 0.1)
@@ -1027,7 +1064,10 @@ class ApiConsistencyTests(unittest.TestCase):
                 self.assertIsNone(original.realized_average)
                 with self.assertRaises(InvalidInputError):
                     engine.price(dated_history(original, context), context)
-                seasoned = original.replace_history(realized_average=110)
+                seasoned = original.replace_history(
+                    realized_average=110,
+                    history_time=original.history_time or original.effective_time,
+                )
                 self.assertEqual(seasoned.realized_average, 110)
                 self.assertGreater(
                     engine.price(dated_history(seasoned, context), context), 0
@@ -1041,7 +1081,14 @@ class ApiConsistencyTests(unittest.TestCase):
                 self.assertEqual(pickle.loads(pickle.dumps(seasoned)), seasoned)
                 for invalid in (0, -1, float("nan"), float("inf")):
                     with self.assertRaises(InvalidInputError):
-                        seasoned.replace_history(realized_average=invalid)
+                        seasoned.replace_history(
+                            realized_average=invalid,
+                            history_time=(
+                                seasoned.history_time or seasoned.effective_time
+                            )
+                            if invalid is not None
+                            else None,
+                        )
                 self.assertEqual(seasoned.realized_average, 110)
 
     def test_integer_inputs_share_the_index_protocol(self):
@@ -1197,11 +1244,17 @@ class ApiConsistencyTests(unittest.TestCase):
             effective_time=start,
             expiry_time=end,
         )
-        settled = option.replace_history(knock_out_settled=True)
+        settled = option.replace_history(
+            knock_out_settled=True,
+            history_time=option.history_time or option.effective_time,
+        )
         self.assertFalse(option.knock_out_settled)
         self.assertTrue(settled.replace(strike=95).knock_out_settled)
         self.assertTrue(
-            settled.replace_history(accumulated_quantity=3).knock_out_settled
+            settled.replace_history(
+                accumulated_quantity=3,
+                history_time=settled.history_time or settled.effective_time,
+            ).knock_out_settled
         )
         self.assertEqual(pickle.loads(pickle.dumps(settled)), settled)
         self.assertTrue(
@@ -1214,6 +1267,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 effective_time=start,
                 expiry_time=end,
                 knock_out_settled=True,
+                history_time=start,
             ).knock_out_settled
         )
         context = market.PricingContext(
@@ -1238,14 +1292,21 @@ class ApiConsistencyTests(unittest.TestCase):
                 self.assertEqual(
                     engine.price(
                         dated_history(
-                            settled.replace_history(accumulated_quantity=3), context
+                            settled.replace_history(
+                                accumulated_quantity=3,
+                                history_time=settled.history_time
+                                or settled.effective_time,
+                            ),
+                            context,
                         ),
                         context,
                     ),
                     0,
                 )
                 active = settled.replace_history(
-                    knock_out_settled=False, accumulated_quantity=0
+                    knock_out_settled=False,
+                    accumulated_quantity=0,
+                    history_time=settled.history_time or settled.effective_time,
                 )
                 self.assertGreater(
                     engine.price(dated_history(active, context), context), 0
@@ -1253,7 +1314,12 @@ class ApiConsistencyTests(unittest.TestCase):
                 with self.assertRaises(InvalidInputError):
                     engine.price(
                         dated_history(
-                            settled.replace_history(knock_out_settled=False), context
+                            settled.replace_history(
+                                knock_out_settled=False,
+                                history_time=settled.history_time
+                                or settled.effective_time,
+                            ),
+                            context,
                         ),
                         context,
                     )
@@ -1274,7 +1340,12 @@ class ApiConsistencyTests(unittest.TestCase):
                     )
         for invalid in (0, 1, "yes"):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
-                option.replace_history(knock_out_settled=invalid)
+                option.replace_history(
+                    knock_out_settled=invalid,
+                    history_time=(option.history_time or option.effective_time)
+                    if invalid is not None
+                    else None,
+                )
 
     def test_smaller_volatility_bumps_recover_unavailable_stencils(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -1332,11 +1403,13 @@ class ApiConsistencyTests(unittest.TestCase):
                 (ins.AssetOrNothingOption, {}, 50),
             ):
                 option = kind(
-                    option_type=direction,
-                    strike=100,
-                    effective_time=start,
-                    expiry_time=end,
-                    **fields,
+                    **history_fields(
+                        option_type=direction,
+                        strike=100,
+                        effective_time=start,
+                        expiry_time=end,
+                        **fields,
+                    )
                 )
                 native = engine.price_with_greeks(
                     option, context, ["delta", "gamma", "vega"]
@@ -1448,7 +1521,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 continue
             factory = getattr(pricing, name)
             with self.subTest(engine=name):
-                configured = factory(**shifts)
+                configured = factory(**history_fields(**shifts))
                 restored = pickle.loads(pickle.dumps(configured))
                 self.assertEqual(restored, configured)
                 for field, expected in shifts.items():
@@ -1460,14 +1533,14 @@ class ApiConsistencyTests(unittest.TestCase):
                     ("time_shift", timedelta(seconds=-1)),
                 ):
                     with self.assertRaises(InvalidInputError):
-                        factory(**{field: bad})
+                        factory(**history_fields(**{field: bad}))
                 for field, bad in (
                     ("volatility_shift", True),
                     ("rate_shift", True),
                     ("time_shift", 1),
                 ):
                     with self.assertRaises(TypeError):
-                        factory(**{field: bad})
+                        factory(**history_fields(**{field: bad}))
 
     def test_greek_status_distinguishes_requests_support_and_stencils(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -1684,12 +1757,14 @@ class GreekShiftValidationTests(unittest.TestCase):
             (
                 pricing.CoxRossRubinsteinBarrierEngine(),
                 ins.BarrierOption(
-                    option_type="call",
-                    strike=100,
-                    barrier_level=120,
-                    barrier_type="up_and_out",
-                    touch_state="untouched",
-                    **life,
+                    **history_fields(
+                        option_type="call",
+                        strike=100,
+                        barrier_level=120,
+                        barrier_type="up_and_out",
+                        touch_state="untouched",
+                        **life,
+                    )
                 ),
                 bsm,
             ),
@@ -1697,25 +1772,29 @@ class GreekShiftValidationTests(unittest.TestCase):
             (
                 pricing.MonteCarloBarrierEngine(**sampling),
                 ins.BarrierOption(
-                    option_type="call",
-                    strike=100,
-                    barrier_level=120,
-                    barrier_type="up_and_out",
-                    touch_state="untouched",
-                    **life,
+                    **history_fields(
+                        option_type="call",
+                        strike=100,
+                        barrier_level=120,
+                        barrier_type="up_and_out",
+                        touch_state="untouched",
+                        **life,
+                    )
                 ),
                 bsm,
             ),
             (
                 pricing.MonteCarloDoubleBarrierEngine(**sampling),
                 ins.DoubleBarrierOption(
-                    option_type="call",
-                    strike=100,
-                    lower_barrier=80,
-                    upper_barrier=120,
-                    barrier_type="knock_out",
-                    touch_state="untouched",
-                    **life,
+                    **history_fields(
+                        option_type="call",
+                        strike=100,
+                        lower_barrier=80,
+                        upper_barrier=120,
+                        barrier_type="knock_out",
+                        touch_state="untouched",
+                        **life,
+                    )
                 ),
                 bsm,
             ),
@@ -1723,10 +1802,12 @@ class GreekShiftValidationTests(unittest.TestCase):
                 (
                     pricing.MonteCarloAsianEngine(**sampling),
                     kind(
-                        option_type="call",
-                        strike=100,
-                        averaging_start_time=end,
-                        **life,
+                        **history_fields(
+                            option_type="call",
+                            strike=100,
+                            averaging_start_time=end,
+                            **life,
+                        )
                     ),
                     bsm,
                 )
@@ -1816,7 +1897,7 @@ class SettingsDiagnosticTests(unittest.TestCase):
         for factory, field, invalid in cases:
             with self.subTest(engine=factory.__name__, field=field):
                 with self.assertRaises(InvalidInputError) as caught:
-                    factory(**{field: invalid})
+                    factory(**history_fields(**{field: invalid}))
                 self.assertIn(field, str(caught.exception))
 
     def test_surface_diagnostics_identify_the_invalid_node(self):
@@ -1838,10 +1919,14 @@ class GreekMethodTests(unittest.TestCase):
             option_type="call", strike=100, payout=10, **life
         )
         geometric = ins.GeometricAveragePriceOption(
-            option_type="call", strike=100, averaging_start_time=start, **life
+            **history_fields(
+                option_type="call", strike=100, averaging_start_time=start, **life
+            )
         )
         arithmetic = ins.ArithmeticAveragePriceOption(
-            option_type="call", strike=100, averaging_start_time=start, **life
+            **history_fields(
+                option_type="call", strike=100, averaging_start_time=start, **life
+            )
         )
         mc = pricing.MonteCarloAsianEngine(path_count=16, seed=42, max_active_workers=1)
         curve = market.RateTermStructure(
@@ -1909,7 +1994,10 @@ class GreekMethodTests(unittest.TestCase):
             (mc, geometric),
             (pricing.TurnbullWakemanArithmeticAveragePriceEngine(), arithmetic),
         ):
-            option = option.replace_history(realized_average=110)
+            option = option.replace_history(
+                realized_average=110,
+                history_time=option.history_time or option.effective_time,
+            )
             self.assertEqual(engine.greek_method(option, terminal), "terminal")
             self.assertEqual(
                 engine.price(dated_history(option, terminal), terminal), 10
@@ -1923,11 +2011,13 @@ class GreekMethodTests(unittest.TestCase):
             option_type="call", strike=100, payout=10, **life
         )
         barrier = ins.BarrierOption(
-            option_type="call",
-            strike=100,
-            barrier_level=120,
-            barrier_type="up_and_out",
-            **life,
+            **history_fields(
+                option_type="call",
+                strike=100,
+                barrier_level=120,
+                barrier_type="up_and_out",
+                **life,
+            )
         )
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -2082,18 +2172,22 @@ class ObservationReplacementTests(unittest.TestCase):
         life = {"effective_time": start, "expiry_time": end}
         with self.assertRaises(InvalidInputError):
             ins.BinarySnowballOption(
-                maturity_coupon_rate=0.1, observations=[phoenix], **life
+                **history_fields(
+                    maturity_coupon_rate=0.1, observations=[phoenix], **life
+                )
             )
         with self.assertRaises(InvalidInputError):
             ins.PhoenixOption(
-                coupon_rate=0.1,
-                initial_spot=100,
-                knock_in_level=80,
-                upper_strike=100,
-                lower_strike=0,
-                observations=[snowball],
-                observation_clock_time=end.time(),
-                **life,
+                **history_fields(
+                    coupon_rate=0.1,
+                    initial_spot=100,
+                    knock_in_level=80,
+                    upper_strike=100,
+                    lower_strike=0,
+                    observations=[snowball],
+                    observation_clock_time=end.time(),
+                    **life,
+                )
             )
 
     def test_observation_replacement_preserves_validity_and_original_values(self):

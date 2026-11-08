@@ -129,10 +129,19 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             )
         for value in (True, "3"):
             with self.assertRaises(TypeError):
-                option.replace_history(accumulated_quantity=value)
+                option.replace_history(
+                    accumulated_quantity=value,
+                    history_time=(option.history_time or option.effective_time)
+                    if value is not None
+                    else None,
+                )
         self.assertEqual(option.accumulated_quantity, 3)
         self.assertEqual(
-            option.replace_history(accumulated_quantity=0.25).accumulated_quantity, 0.25
+            option.replace_history(
+                accumulated_quantity=0.25,
+                history_time=option.history_time or option.effective_time,
+            ).accumulated_quantity,
+            0.25,
         )
         for instrument, context, expected_error in (
             (
@@ -169,7 +178,13 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         for spot, quantity in ((90, 5), (100, 4), (109, 4)):
             at = datetime(2025, 1, 3)
             expected = terminal_reference(
-                option.replace_history(accumulated_quantity=quantity), market(spot, at)
+                option.replace_history(
+                    accumulated_quantity=quantity,
+                    history_time=(option.history_time or option.effective_time)
+                    if quantity is not None
+                    else None,
+                ),
+                market(spot, at),
             )
             self.assertAlmostEqual(
                 engine.price(dated_history(option, market(spot, at)), market(spot, at)),
@@ -192,6 +207,10 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             calendar=holiday,
             accumulated_quantity=option.accumulated_quantity,
             knock_out_settled=option.knock_out_settled,
+            history_time=(option.history_time or option.effective_time)
+            if option.accumulated_quantity is not None
+            or option.knock_out_settled is not None
+            else None,
         )
         self.assertAlmostEqual(
             engine.price(dated_history(option, context), context),

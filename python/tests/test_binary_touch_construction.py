@@ -8,6 +8,7 @@ from datetime import datetime
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 class BinaryTouchConstructionTests(unittest.TestCase):
@@ -25,7 +26,9 @@ class BinaryTouchConstructionTests(unittest.TestCase):
             (ins.BinaryBarrierOption, {"strike": 100, "option_type": "call"}),
         ):
             with self.subTest(contract=cls.__name__):
-                cash = cls(**common, **extra, payoff_type="cash", payout=10)
+                cash = cls(
+                    **history_fields(**common, **extra, payoff_type="cash", payout=10)
+                )
                 for fields, error in (
                     ({"payoff_type": "cash"}, TypeError),
                     ({"payoff_type": "cash", "payout": None}, TypeError),
@@ -34,7 +37,7 @@ class BinaryTouchConstructionTests(unittest.TestCase):
                     ({"payoff_type": True}, TypeError),
                 ):
                     with self.assertRaises(error):
-                        cls(**common, **extra, **fields)
+                        cls(**history_fields(**common, **extra, **fields))
                 with self.assertRaises(TypeError):
                     cash.replace(payout=None)
                 self.assertEqual((cash.payoff_type, cash.payout), ("cash", 10))
@@ -104,7 +107,7 @@ class BinaryTouchConstructionTests(unittest.TestCase):
         ]
         for cls, factory, terms, expected in cases:
             with self.subTest(contract=cls.__name__, factory=factory.__name__):
-                fields = dict(life, **terms, **monitoring)
+                fields = history_fields(**life, **terms, **monitoring)
                 if cls is not ins.DoubleTouchOption:
                     fields["payoff_type"] = (
                         "cash" if terms["payout"] is not None else "asset"
@@ -118,7 +121,7 @@ class BinaryTouchConstructionTests(unittest.TestCase):
                     factory_fields.pop("barrier_type")
                 elif fields["payout"] is None:
                     factory_fields.pop("payout")
-                self.assertEqual(contract, factory(**factory_fields))
+                self.assertEqual(contract, factory(**history_fields(**factory_fields)))
                 self.assertEqual(contract.payout, terms["payout"])
                 self.assertEqual(contract.calendar, calendar)
                 self.assertEqual(contract.observation_times, (end,))
@@ -196,19 +199,21 @@ class BinaryTouchConstructionTests(unittest.TestCase):
                     self.subTest(contract=cls.__name__, changes=changes),
                     self.assertRaises(error),
                 ):
-                    cls(**(fields | changes))
+                    cls(**history_fields(**(fields | changes)))
             without_payout = fields.copy()
             without_payout.pop("payout")
             with self.assertRaises(TypeError):
-                cls(**without_payout)
+                cls(**history_fields(**without_payout))
             with self.assertRaises(TypeError):
                 cls(10)
         with self.assertRaises(TypeError):
             ins.DoubleTouchOption(
-                **(life | {"payout": None}),
-                lower_barrier=80,
-                upper_barrier=120,
-                barrier_type="knock_in",
+                **history_fields(
+                    **(life | {"payout": None}),
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    barrier_type="knock_in",
+                )
             )
 
     def test_at_hit_settlement_requires_one_touch(self):
@@ -218,40 +223,48 @@ class BinaryTouchConstructionTests(unittest.TestCase):
         }
         for payout in (10, None):
             contract = ins.TouchOption(
-                payoff_type="cash" if payout is not None else "asset",
-                **life,
-                barrier_level=120,
-                barrier_type="up_and_in",
-                payout=payout,
-                settlement_timing="at_hit",
+                **history_fields(
+                    payoff_type="cash" if payout is not None else "asset",
+                    **life,
+                    barrier_level=120,
+                    barrier_type="up_and_in",
+                    payout=payout,
+                    settlement_timing="at_hit",
+                )
             )
             self.assertEqual(contract.settlement_timing, "at_hit")
             self.assertTrue(contract.is_one_touch)
             with self.subTest(payout=payout), self.assertRaises(InvalidInputError):
                 ins.TouchOption(
-                    payoff_type="cash" if payout is not None else "asset",
-                    **life,
-                    barrier_level=120,
-                    barrier_type="up_and_out",
-                    payout=payout,
-                    settlement_timing="at_hit",
+                    **history_fields(
+                        payoff_type="cash" if payout is not None else "asset",
+                        **life,
+                        barrier_level=120,
+                        barrier_type="up_and_out",
+                        payout=payout,
+                        settlement_timing="at_hit",
+                    )
                 )
         contract = ins.DoubleTouchOption(
-            **life,
-            lower_barrier=80,
-            upper_barrier=120,
-            barrier_type="knock_in",
-            payout=10,
-            settlement_timing="at_hit",
+            **history_fields(
+                **life,
+                lower_barrier=80,
+                upper_barrier=120,
+                barrier_type="knock_in",
+                payout=10,
+                settlement_timing="at_hit",
+            )
         )
         self.assertEqual(contract.settlement_timing, "at_hit")
         self.assertTrue(contract.is_one_touch)
         with self.assertRaises(InvalidInputError):
             ins.DoubleTouchOption(
-                **life,
-                lower_barrier=80,
-                upper_barrier=120,
-                barrier_type="knock_out",
-                payout=10,
-                settlement_timing="at_hit",
+                **history_fields(
+                    **life,
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    barrier_type="knock_out",
+                    payout=10,
+                    settlement_timing="at_hit",
+                )
             )

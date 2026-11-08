@@ -37,7 +37,7 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -95,7 +95,7 @@ impl RangeAccrualOption {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -201,6 +201,7 @@ impl RangeAccrualOption {
             terms.realized_hit_count = history(value)?;
         }
         terms.calendar = calendar.0;
+        terms.history_time = history_time;
         Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(kiyosi::RangeAccrualOption::new(terms))?,
             history_time,
@@ -219,7 +220,7 @@ impl RangeAccrualOption {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns

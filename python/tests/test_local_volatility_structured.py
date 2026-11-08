@@ -26,6 +26,7 @@ from quantlib_reference.local_volatility_paths import (
     trading_dates,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 
 START, END = (datetime.combine(value, datetime.min.time()) for value in (START, END))
 OBSERVATIONS = tuple(
@@ -72,43 +73,50 @@ def contracts():
             daily_quantity=1,
             acceleration_factor=2,
             accumulated_quantity=3,
+            history_time=START - timedelta(days=1),
         )
     }
     for suffix, mode in [("daily", "every_trading_day"), ("terminal", "at_expiry")]:
         state = {"knock_in_observation_mode": mode, "barrier_state": "no_event"}
         result[f"snowball_{suffix}"] = ins.SnowballOption(
-            observation_clock_time=clock_time()
-            if mode == "every_trading_day"
-            else None,
-            **common,
-            **loss,
-            **state,
-            maturity_coupon_rate=0.06,
+            **history_fields(
+                observation_clock_time=clock_time()
+                if mode == "every_trading_day"
+                else None,
+                **common,
+                **loss,
+                **state,
+                maturity_coupon_rate=0.06,
+            )
         )
         result[f"ternary_{suffix}"] = ins.TernarySnowballOption(
-            observation_clock_time=clock_time()
-            if mode == "every_trading_day"
-            else None,
-            **common,
-            **state,
-            maturity_coupon_rate=0.06,
-            minimum_coupon_rate=0.01,
-            knock_in_level=95,
+            **history_fields(
+                observation_clock_time=clock_time()
+                if mode == "every_trading_day"
+                else None,
+                **common,
+                **state,
+                maturity_coupon_rate=0.06,
+                minimum_coupon_rate=0.01,
+                knock_in_level=95,
+            )
         )
         result[f"phoenix_{suffix}"] = ins.PhoenixOption(
-            observation_clock_time=clock_time()
-            if mode == "every_trading_day"
-            else None,
-            **dates,
-            **loss,
-            **state,
-            coupon_rate=0.08,
-            observations=ins.autocallable_observations(
-                OBSERVATIONS, KNOCK_OUT_LEVELS, coupon_barrier_levels=[95] * 3
-            ),
+            **history_fields(
+                observation_clock_time=clock_time()
+                if mode == "every_trading_day"
+                else None,
+                **dates,
+                **loss,
+                **state,
+                coupon_rate=0.08,
+                observations=ins.autocallable_observations(
+                    OBSERVATIONS, KNOCK_OUT_LEVELS, coupon_barrier_levels=[95] * 3
+                ),
+            )
         )
     result["binary_snowball"] = ins.BinarySnowballOption(
-        **common, maturity_coupon_rate=0.06
+        **history_fields(**common, maturity_coupon_rate=0.06)
     )
     return result
 

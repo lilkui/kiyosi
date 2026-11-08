@@ -12,181 +12,255 @@ from kiyosi.market import all_days_calendar
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 
+def contract_inputs():
+    yield (
+        i.BarrierOption,
+        {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": START,
+            "expiry_time": END,
+            "barrier_level": 120,
+            "barrier_type": "up_and_out",
+            "rebate": 0,
+            "rebate_timing": "at_expiry",
+            "observation_mode": "continuous",
+            "observation_times": [],
+            "touch_state": "untouched",
+        },
+    )
+    yield (
+        i.DoubleBarrierOption,
+        {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": START,
+            "expiry_time": END,
+            "lower_barrier": 80,
+            "upper_barrier": 120,
+            "barrier_type": "knock_out",
+            "rebate": 0,
+            "rebate_timing": "at_expiry",
+            "observation_mode": "continuous",
+            "observation_times": [],
+            "touch_state": "untouched",
+        },
+    )
+    yield (
+        i.cash_binary_barrier_option,
+        {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": START,
+            "expiry_time": END,
+            "barrier_level": 120,
+            "barrier_type": "up_and_out",
+            "observation_mode": "continuous",
+            "observation_times": [],
+            "touch_state": "untouched",
+            "payout": 10,
+        },
+    )
+    yield (
+        i.asset_binary_barrier_option,
+        {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": START,
+            "expiry_time": END,
+            "barrier_level": 120,
+            "barrier_type": "up_and_out",
+            "observation_mode": "continuous",
+            "observation_times": [],
+            "touch_state": "untouched",
+        },
+    )
+    yield (
+        i.cash_touch_option,
+        {
+            "effective_time": START,
+            "expiry_time": END,
+            "barrier_level": 120,
+            "barrier_type": "up_and_in",
+            "settlement_timing": "at_expiry",
+            "observation_mode": "continuous",
+            "observation_times": [],
+            "touch_state": "untouched",
+            "payout": 10,
+        },
+    )
+    yield (
+        i.asset_touch_option,
+        {
+            "effective_time": START,
+            "expiry_time": END,
+            "barrier_level": 120,
+            "barrier_type": "up_and_in",
+            "settlement_timing": "at_expiry",
+            "observation_mode": "continuous",
+            "observation_times": [],
+            "touch_state": "untouched",
+        },
+    )
+    yield (
+        i.cash_double_touch,
+        {
+            "effective_time": START,
+            "expiry_time": END,
+            "lower_barrier": 80,
+            "upper_barrier": 120,
+            "settlement_timing": "at_expiry",
+            "observation_mode": "continuous",
+            "observation_times": [],
+            "touch_state": "untouched",
+            "payout": 10,
+        },
+    )
+    yield (
+        i.Accumulator,
+        {
+            "knock_out_settled": False,
+            "observation_clock_time": clock_time(),
+            "option_type": "call",
+            "strike": 100,
+            "knock_out_level": 120,
+            "daily_quantity": 1,
+            "acceleration_factor": 2,
+            "accumulated_quantity": 3,
+            "effective_time": START,
+            "expiry_time": END,
+            "knock_out_observation_times": [END],
+        },
+    )
+    yield (
+        i.RangeAccrualOption,
+        {
+            "observation_clock_time": clock_time(),
+            "notional": 1000,
+            "annual_coupon_rate": 0.12,
+            "lower_bound": 90,
+            "upper_bound": 110,
+            "effective_time": START,
+            "expiry_time": END,
+            "realized_hit_count": 1,
+        },
+    )
+    yield (
+        i.SnowballOption,
+        {
+            "observation_clock_time": clock_time(),
+            "maturity_coupon_rate": 0.1,
+            "initial_spot": 100,
+            "knock_in_level": 80,
+            "upper_strike": 100,
+            "lower_strike": 0,
+            "knock_in_observation_mode": "every_trading_day",
+            "barrier_state": "no_event",
+            "principal_redemption_ratio": 1,
+            "effective_time": START,
+            "expiry_time": END,
+            "observations": [
+                i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
+            ],
+        },
+    )
+    yield (
+        i.PhoenixOption,
+        {
+            "observation_clock_time": clock_time(),
+            "coupon_rate": 0.1,
+            "initial_spot": 100,
+            "knock_in_level": 80,
+            "upper_strike": 100,
+            "lower_strike": 0,
+            "knock_in_observation_mode": "every_trading_day",
+            "barrier_state": "no_event",
+            "principal_redemption_ratio": 1,
+            "effective_time": START,
+            "expiry_time": END,
+            "observations": [
+                i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
+            ],
+        },
+    )
+    yield (
+        i.BinarySnowballOption,
+        {
+            "maturity_coupon_rate": 0.1,
+            "barrier_state": "no_event",
+            "principal_redemption_ratio": 1,
+            "effective_time": START,
+            "expiry_time": END,
+            "observations": [
+                i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
+            ],
+        },
+    )
+    yield (
+        i.TernarySnowballOption,
+        {
+            "observation_clock_time": clock_time(),
+            "maturity_coupon_rate": 0.1,
+            "minimum_coupon_rate": 0.02,
+            "knock_in_level": 80,
+            "knock_in_observation_mode": "every_trading_day",
+            "barrier_state": "no_event",
+            "principal_redemption_ratio": 1,
+            "effective_time": START,
+            "expiry_time": END,
+            "observations": [
+                i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
+            ],
+        },
+    )
+    yield (
+        i.GeometricAveragePriceOption,
+        {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": START,
+            "averaging_start_time": START,
+            "expiry_time": END,
+            "realized_average": None,
+        },
+    )
+    yield (
+        i.ArithmeticAveragePriceOption,
+        {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": START,
+            "averaging_start_time": START,
+            "expiry_time": END,
+            "realized_average": None,
+        },
+    )
+
+
 def contracts():
-    yield i.BarrierOption(
-        option_type="call",
-        strike=100,
-        effective_time=START,
-        expiry_time=END,
-        barrier_level=120,
-        barrier_type="up_and_out",
-        rebate=0,
-        rebate_timing="at_expiry",
-        observation_mode="continuous",
-        observation_times=[],
-        touch_state="untouched",
-    )
-    yield i.DoubleBarrierOption(
-        option_type="call",
-        strike=100,
-        effective_time=START,
-        expiry_time=END,
-        lower_barrier=80,
-        upper_barrier=120,
-        barrier_type="knock_out",
-        rebate=0,
-        rebate_timing="at_expiry",
-        observation_mode="continuous",
-        observation_times=[],
-        touch_state="untouched",
-    )
-    yield i.cash_binary_barrier_option(
-        option_type="call",
-        strike=100,
-        effective_time=START,
-        expiry_time=END,
-        barrier_level=120,
-        barrier_type="up_and_out",
-        observation_mode="continuous",
-        observation_times=[],
-        touch_state="untouched",
-        payout=10,
-    )
-    yield i.asset_binary_barrier_option(
-        option_type="call",
-        strike=100,
-        effective_time=START,
-        expiry_time=END,
-        barrier_level=120,
-        barrier_type="up_and_out",
-        observation_mode="continuous",
-        observation_times=[],
-        touch_state="untouched",
-    )
-    yield i.cash_touch_option(
-        effective_time=START,
-        expiry_time=END,
-        barrier_level=120,
-        barrier_type="up_and_in",
-        settlement_timing="at_expiry",
-        observation_mode="continuous",
-        observation_times=[],
-        touch_state="untouched",
-        payout=10,
-    )
-    yield i.asset_touch_option(
-        effective_time=START,
-        expiry_time=END,
-        barrier_level=120,
-        barrier_type="up_and_in",
-        settlement_timing="at_expiry",
-        observation_mode="continuous",
-        observation_times=[],
-        touch_state="untouched",
-    )
-    yield i.cash_double_touch(
-        effective_time=START,
-        expiry_time=END,
-        lower_barrier=80,
-        upper_barrier=120,
-        settlement_timing="at_expiry",
-        observation_mode="continuous",
-        observation_times=[],
-        touch_state="untouched",
-        payout=10,
-    )
-    yield i.Accumulator(
-        knock_out_settled=False,
-        observation_clock_time=clock_time(),
-        option_type="call",
-        strike=100,
-        knock_out_level=120,
-        daily_quantity=1,
-        acceleration_factor=2,
-        accumulated_quantity=3,
-        effective_time=START,
-        expiry_time=END,
-        knock_out_observation_times=[END],
-    )
-    yield i.RangeAccrualOption(
-        observation_clock_time=clock_time(),
-        notional=1000,
-        annual_coupon_rate=0.12,
-        lower_bound=90,
-        upper_bound=110,
-        effective_time=START,
-        expiry_time=END,
-        realized_hit_count=1,
-    )
-    yield i.SnowballOption(
-        observation_clock_time=clock_time(),
-        maturity_coupon_rate=0.1,
-        initial_spot=100,
-        knock_in_level=80,
-        upper_strike=100,
-        lower_strike=0,
-        knock_in_observation_mode="every_trading_day",
-        barrier_state="no_event",
-        principal_redemption_ratio=1,
-        effective_time=START,
-        expiry_time=END,
-        observations=[i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
-    )
-    yield i.PhoenixOption(
-        observation_clock_time=clock_time(),
-        coupon_rate=0.1,
-        initial_spot=100,
-        knock_in_level=80,
-        upper_strike=100,
-        lower_strike=0,
-        knock_in_observation_mode="every_trading_day",
-        barrier_state="no_event",
-        principal_redemption_ratio=1,
-        effective_time=START,
-        expiry_time=END,
-        observations=[
-            i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
-        ],
-    )
-    yield i.BinarySnowballOption(
-        maturity_coupon_rate=0.1,
-        barrier_state="no_event",
-        principal_redemption_ratio=1,
-        effective_time=START,
-        expiry_time=END,
-        observations=[i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
-    )
-    yield i.TernarySnowballOption(
-        observation_clock_time=clock_time(),
-        maturity_coupon_rate=0.1,
-        minimum_coupon_rate=0.02,
-        knock_in_level=80,
-        knock_in_observation_mode="every_trading_day",
-        barrier_state="no_event",
-        principal_redemption_ratio=1,
-        effective_time=START,
-        expiry_time=END,
-        observations=[i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
-    )
-    yield i.GeometricAveragePriceOption(
-        option_type="call",
-        strike=100,
-        effective_time=START,
-        averaging_start_time=START,
-        expiry_time=END,
-        realized_average=None,
-    )
-    yield i.ArithmeticAveragePriceOption(
-        option_type="call",
-        strike=100,
-        effective_time=START,
-        averaging_start_time=START,
-        expiry_time=END,
-        realized_average=None,
-    )
+    for factory, fields in contract_inputs():
+        yield factory(
+            **fields,
+            history_time=(
+                datetime(2025, 1, 6, 12)
+                if any(
+                    fields.get(name) is not None
+                    for name in (
+                        "touch_state",
+                        "barrier_state",
+                        "realized_average",
+                        "realized_hit_count",
+                        "accumulated_quantity",
+                        "knock_out_settled",
+                    )
+                )
+                else None
+            ),
+        )
 
 
 UPDATES = {
+    "history_time": datetime(2025, 1, 7),
     "calendar": all_days_calendar(),
     "option_type": "put",
     "strike": 105,
@@ -258,7 +332,9 @@ class ContractReplacementTests(unittest.TestCase):
     def test_event_changes_require_an_explicit_history_choice(self):
         for original in contracts():
             if hasattr(original, "realized_average"):
-                original = original.replace_history(realized_average=100)
+                original = original.replace_history(
+                    realized_average=100, history_time=datetime(2025, 1, 6, 12)
+                )
             history = {
                 field: getattr(original, field)
                 for field in (
@@ -287,6 +363,13 @@ class ContractReplacementTests(unittest.TestCase):
                     + timedelta(days=1)
                 }
             else:
+                original = original.replace(
+                    observations=[
+                        original.observations[0].replace(time=datetime(2025, 1, 3)),
+                        *original.observations,
+                    ],
+                    barrier_state=original.barrier_state,
+                )
                 updates = {
                     "observations": [
                         r.replace(knock_out_level=r.knock_out_level + 5)
@@ -376,6 +459,8 @@ class ContractReplacementTests(unittest.TestCase):
                     ):
                         if hasattr(original, field):
                             updates.setdefault(field, getattr(original, field))
+                    if name == "realized_average":
+                        updates["history_time"] = original.expiry_time
                     changed = original.replace(**updates)
                     if (
                         isinstance(original, i.DoubleTouchOption)
@@ -405,7 +490,20 @@ class ContractReplacementTests(unittest.TestCase):
                         and name == "barrier_type"
                     ):
                         self.assertEqual(changed, factory(**expected))
-                    if name in NULLABLE:
+                    if name == "history_time" and any(
+                        getattr(original, field, None) is not None
+                        for field in (
+                            "touch_state",
+                            "barrier_state",
+                            "realized_average",
+                            "realized_hit_count",
+                            "accumulated_quantity",
+                            "knock_out_settled",
+                        )
+                    ):
+                        with self.assertRaises(InvalidInputError):
+                            original.replace(**(updates | {name: None}))
+                    elif name in NULLABLE:
                         self.assertIsNone(
                             getattr(original.replace(**(updates | {name: None})), name)
                         )

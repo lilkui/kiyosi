@@ -26,6 +26,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 from test_snowball import market, structured
 
@@ -62,11 +63,13 @@ def contract(**changes):
     }
     fields.update(changes)
     return PhoenixOption(
-        observation_clock_time=clock_time()
-        if fields.get("knock_in_observation_mode", "every_trading_day")
-        == "every_trading_day"
-        else None,
-        **fields,
+        **history_fields(
+            observation_clock_time=clock_time()
+            if fields.get("knock_in_observation_mode", "every_trading_day")
+            == "every_trading_day"
+            else None,
+            **fields,
+        )
     )
 
 
@@ -80,7 +83,7 @@ class PhoenixTests(unittest.TestCase):
                     name: getattr(note, name)
                     for name in inspect.signature(PhoenixOption).parameters
                 }
-                self.assertEqual(PhoenixOption(**fields), note)
+                self.assertEqual(PhoenixOption(**history_fields(**fields)), note)
                 self.assertEqual(
                     note.replace(
                         coupon_rate=note.coupon_rate,
@@ -101,7 +104,7 @@ class PhoenixTests(unittest.TestCase):
                 ):
                     with self.subTest(update=update), self.assertRaises(TypeError):
                         note.replace(**update)
-                self.assertEqual(PhoenixOption(**fields), note)
+                self.assertEqual(PhoenixOption(**history_fields(**fields)), note)
                 for operation in (PhoenixOption, note.replace):
                     with self.assertRaises(TypeError):
                         operation(
@@ -109,7 +112,7 @@ class PhoenixTests(unittest.TestCase):
                         )
         fields.update(coupon_rate=None, coupon_per_period=None)
         with self.assertRaises(TypeError):
-            PhoenixOption(**fields)
+            PhoenixOption(**history_fields(**fields))
 
     def test_current_conditional_coupon_and_settlement_boundaries(self):
         engine = QuadratureAutocallableEngine()
@@ -149,9 +152,10 @@ class PhoenixTests(unittest.TestCase):
         records.clear()
         self.assertEqual(note.observation_times, (MIDDLE, END))
         self.assertEqual(
-            note.replace_history(barrier_state="no_event").replace_history(
-                barrier_state=None
-            ),
+            note.replace_history(
+                barrier_state="no_event",
+                history_time=note.history_time or note.effective_time,
+            ).replace_history(barrier_state=None),
             note,
         )
         self.assertIn("PhoenixOption(coupon_rate=", repr(note))
@@ -175,7 +179,9 @@ class PhoenixTests(unittest.TestCase):
                 contract(**fields)
         for replacement in (
             note.replace_history(),
-            note.replace_history(barrier_state=Ellipsis),
+            note.replace_history(
+                barrier_state=Ellipsis,
+            ),
         ):
             self.assertEqual(replacement, note)
             self.assertIsNot(replacement, note)
@@ -434,7 +440,10 @@ class PhoenixTests(unittest.TestCase):
             market(110, MIDDLE),
             result.price,
         )
-        settled = note.replace_history(barrier_state="knocked_out")
+        settled = note.replace_history(
+            barrier_state="knocked_out",
+            history_time=note.history_time or note.effective_time,
+        )
         self.assertEqual(
             engine.price(
                 dated_history(settled, market(valuation=END)), market(valuation=END)

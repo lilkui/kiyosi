@@ -10,6 +10,7 @@ fn day(day: u32) -> Timestamp {
 
 fn terms() -> RangeAccrualTerms {
     RangeAccrualTerms {
+        history_time: None,
         observation_clock_time: (day(17)).time_of_day(),
         calendar: TradingCalendar::default(),
         notional: 1000.0,
@@ -36,6 +37,7 @@ fn automatic_time_bumps_recover_daily_risk_without_crossing_observations() -> Re
     let clock = TimeOfDay::new(15, 0, 0, 0)?;
     let mut terms = RangeAccrualTerms::new(1000.0, 0.12, 90.0, 110.0, day(1), day(5), clock);
     terms.realized_hit_count = Some(1);
+    terms.history_time = Some(terms.effective_time);
     let option = RangeAccrualOption::new(terms)?;
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.0, 0.0)?,
@@ -336,6 +338,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
 #[test]
 fn terminal_coupon_counts_current_spot_inclusively() {
     let option = RangeAccrualOption::new(RangeAccrualTerms {
+        history_time: Some((terms()).effective_time),
         calendar: TradingCalendar::all_days(),
         expiry_time: day(3),
         realized_hit_count: Some(1),
@@ -423,11 +426,21 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
         ),
         terms()
     );
-    let changed = option.replace_history(Some(3), None).unwrap();
+    let changed = option
+        .replace_history(
+            Some(3),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
+        .unwrap();
     assert_eq!(changed.realized_hit_count(), Some(3));
     assert_eq!(changed.replace_history(None, None).unwrap(), option);
     assert!(matches!(
-        option.replace_history(Some(-1), None).unwrap_err(),
+        option
+            .replace_history(
+                Some(-1),
+                Some(option.history_time().unwrap_or(option.effective_time()))
+            )
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert_eq!(
@@ -485,6 +498,7 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
         ),
         (
             RangeAccrualTerms {
+                history_time: Some((terms()).effective_time),
                 realized_hit_count: Some(-1),
                 ..terms()
             },
@@ -529,7 +543,12 @@ fn history_is_strictly_prior_within_contract_life() {
         (Timestamp::new(day(2).date(), 12, 0, 0, 0).unwrap(), Some(1)),
         (day(9), Some(5)),
     ] {
-        let live = option.replace_history(hits, None).unwrap();
+        let live = option
+            .replace_history(
+                hits,
+                Some(option.history_time().unwrap_or(option.effective_time())),
+            )
+            .unwrap();
         let context = market(at, 100.0);
         assert!(
             (AnalyticRangeAccrualEngine
@@ -546,7 +565,12 @@ fn history_is_strictly_prior_within_contract_life() {
         (Timestamp::new(day(2).date(), 12, 0, 0, 0).unwrap(), Some(2)),
         (day(3), None),
     ] {
-        let live = option.replace_history(hits, None).unwrap();
+        let live = option
+            .replace_history(
+                hits,
+                Some(option.history_time().unwrap_or(option.effective_time())),
+            )
+            .unwrap();
         assert!(matches!(
             AnalyticRangeAccrualEngine
                 .price(&dated(&live, &market(at, 100.0)), &market(at, 100.0))
@@ -791,7 +815,12 @@ fn request_and_solver_errors_preserve_inputs() {
         implied_volatility(&engine, &dated(&zero, &context), &context, 0.0, settings).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    let end = option.replace_history(Some(15), None).unwrap();
+    let end = option
+        .replace_history(
+            Some(15),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
+        .unwrap();
     let terminal = market(day(17), 100.0);
     assert!(matches!(
         implied_volatility(&engine, &dated(&end, &terminal), &terminal, 0.0, settings).unwrap_err(),
@@ -844,7 +873,12 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
     let engine = AnalyticRangeAccrualEngine;
     let expected = 120.0 * 16.0 / 365.0 * (-0.8_f64 * 16.0 / 365.0).exp();
     assert!((engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 1e-12);
-    let seasoned = option.replace_history(Some(3), None).unwrap();
+    let seasoned = option
+        .replace_history(
+            Some(3),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
+        .unwrap();
     let live = context
         .replace(PricingContextChanges {
             valuation_time: Some(day(8)),
@@ -873,7 +907,12 @@ fn long_and_zero_lower_bound_contracts_support_shared_concurrent_reads() {
         );
         assert!((parallel.join().unwrap() - expected).abs() < 1e-8);
     });
-    let seasoned = option.replace_history(Some(20000), None).unwrap();
+    let seasoned = option
+        .replace_history(
+            Some(20000),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
+        .unwrap();
     let live = market(add(day(1), 20001), 100.0);
     assert!(
         (engine.price(&dated(&seasoned, &live), &live).unwrap() - reference(&seasoned, &live))

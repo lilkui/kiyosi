@@ -530,7 +530,10 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
         Error::RootNotBracketed(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::NoEvent), None)
+        .replace_history(
+            Some(AutocallableBarrierState::NoEvent),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     let terminal = market(100.0, date(4, 1));
     let quote = engine.price(&dated(&known, &terminal), &terminal).unwrap();
@@ -557,7 +560,10 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     .unwrap();
     assert!((shifted - 0.08).abs() < 1e-8);
     let knocked_out = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
+        .replace_history(
+            Some(AutocallableBarrierState::KnockedOut),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     assert!(matches!(
         implied_snowball_coupon(
@@ -868,6 +874,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         Some((date(4, 1)).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let phoenix = PhoenixOption::new(terms).unwrap();
     let quote = engine.price(&dated(&phoenix, &context), &context).unwrap();
     assert!(matches!(
@@ -921,6 +928,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         Some((date(4, 1)).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms).unwrap();
     let quote = engine.price(&dated(&note, &context), &context).unwrap();
     assert!(matches!(
@@ -962,6 +970,7 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
         Some((date(1, 13)).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms).unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.03, 0.0, 0.3).unwrap(),

@@ -51,7 +51,7 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -118,7 +118,7 @@ impl Accumulator {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -249,6 +249,7 @@ impl Accumulator {
         terms.knock_out_observation_times =
             knock_out_observation_times.map(timestamps).transpose()?;
         terms.calendar = calendar.0;
+        terms.history_time = history_time;
         Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(kiyosi::Accumulator::new(terms))?,
             history_time,
@@ -271,7 +272,7 @@ impl Accumulator {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns

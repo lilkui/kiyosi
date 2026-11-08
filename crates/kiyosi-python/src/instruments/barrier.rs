@@ -71,7 +71,7 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -117,7 +117,7 @@ monitoring_properties!(
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -237,6 +237,7 @@ monitoring_properties!(
         terms.observation_times = observation_times;
         terms.touch_state = touch_state;
         terms.calendar = calendar.0;
+        terms.history_time = history_time;
         Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(kiyosi::BarrierOption::new(terms))?,
             history_time,

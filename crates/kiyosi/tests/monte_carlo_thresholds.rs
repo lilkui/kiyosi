@@ -123,6 +123,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             terms.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
                 .then_some(terms.expiry_time.time_of_day());
             terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+            terms.history_time = Some(terms.effective_time);
             let note = TernarySnowballOption::new(terms).unwrap();
             assert!(
                 (engine.price(&dated(&note, &context), &context).unwrap() - (1.0 + 0.07 / 365.0))
@@ -164,7 +165,9 @@ fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
                 AccumulatorTerms::new(strike, 100.0, 1.0, 1.0, start, end, (end).time_of_day());
             terms.option_type = direction;
             terms.accumulated_quantity = Some(1.0);
+            terms.history_time = Some(terms.effective_time);
             terms.knock_out_settled = Some(false);
+            terms.history_time = Some(terms.effective_time);
             let option = Accumulator::new(terms).unwrap();
             assert!(
                 (engine.price(&dated(&option, &context), &context).unwrap() - 15.0).abs() < 1e-12
@@ -180,7 +183,9 @@ fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
                 (end).time_of_day(),
             );
             terms.accumulated_quantity = Some(0.0);
+            terms.history_time = Some(terms.effective_time);
             terms.knock_out_settled = Some(false);
+            terms.history_time = Some(terms.effective_time);
             terms.option_type = direction;
             let option = Accumulator::new(terms).unwrap();
             let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();

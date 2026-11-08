@@ -8,6 +8,7 @@ from datetime import datetime
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 class BarrierCalendarTests(unittest.TestCase):
@@ -100,14 +101,22 @@ class BarrierCalendarTests(unittest.TestCase):
         ]
         for factory, fields, engines in cases:
             with self.assertRaises(InvalidInputError):
-                factory(**common, **fields)
-            original = factory(**common, **fields, calendar=market.all_days_calendar())
+                factory(**history_fields(**common, **fields))
+            original = factory(
+                **history_fields(
+                    **common, **fields, calendar=market.all_days_calendar()
+                )
+            )
             owned = original.replace(calendar=market.all_days_calendar())
             with self.subTest(factory=factory.__name__):
                 self.assertEqual(original.calendar, market.all_days_calendar())
                 self.assertEqual(
                     owned,
-                    factory(**common, **fields, calendar=market.all_days_calendar()),
+                    factory(
+                        **history_fields(
+                            **common, **fields, calendar=market.all_days_calendar()
+                        )
+                    ),
                 )
                 self.assertEqual(owned.replace(), owned)
                 self.assertEqual(owned.replace_history(), owned)

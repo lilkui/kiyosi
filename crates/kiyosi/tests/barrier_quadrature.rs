@@ -256,11 +256,17 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
         Error::InvalidInput(_)
     ));
     let paid = option
-        .replace_history(Some(BarrierTouchState::Touched), None)
+        .replace_history(
+            Some(BarrierTouchState::Touched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     assert_eq!(engine.price(&dated(&paid, &past), &past).unwrap(), 0.0);
     let untouched = option
-        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .replace_history(
+            Some(BarrierTouchState::Untouched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     assert!(engine.price(&dated(&untouched, &past), &past).unwrap() > 0.0);
     assert!(matches!(
@@ -270,6 +276,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
     t.observation_times = vec![observed];
     t.rebate_timing = RebateTiming::AtExpiry;
     t.touch_state = Some(BarrierTouchState::Untouched);
+    t.history_time = Some(t.effective_time);
     for kind in KINDS {
         t.barrier_type = kind;
         t.barrier_level = if matches!(kind, BarrierType::UpAndIn | BarrierType::UpAndOut) {
@@ -317,6 +324,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
     }
     t.observation_times = vec![day(1, 4)];
     t.touch_state = Some(BarrierTouchState::Touched);
+    t.history_time = Some(t.effective_time);
     assert!(matches!(BarrierOption::new(t), Err(Error::InvalidInput(_))));
 }
 
@@ -447,7 +455,10 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
     .unwrap();
     let option = BarrierOption::new(terms(BarrierType::DownAndOut, OptionType::Call))
         .unwrap()
-        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .replace_history(
+            Some(BarrierTouchState::Untouched),
+            Some((terms(BarrierType::DownAndOut, OptionType::Call)).effective_time),
+        )
         .unwrap();
     let context = market(0.04);
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho]);
@@ -497,7 +508,10 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
     };
     assert!((solve(&option, &context, actual.price()).unwrap() - 0.2).abs() < 1e-8);
     let fixed = option
-        .replace_history(Some(BarrierTouchState::Touched), None)
+        .replace_history(
+            Some(BarrierTouchState::Touched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     let later = context
         .replace(PricingContextChanges {
@@ -531,6 +545,7 @@ fn short_maturity_near_barrier_and_continuous_refinement_retain_accuracy() {
             let mut t = terms(kind, direction);
             t.rebate = 1.0;
             t.touch_state = Some(BarrierTouchState::Untouched);
+            t.history_time = Some(t.effective_time);
             let expiry = t.expiry_time;
             let barrier = t.barrier_level;
             let up = matches!(kind, BarrierType::UpAndIn | BarrierType::UpAndOut);

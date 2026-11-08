@@ -23,6 +23,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -44,7 +45,7 @@ def touch(factory=ins.cash_touch_option, **changes):
     terms["barrier_type"] = "up_and_in"
     if factory is ins.cash_touch_option:
         terms["payout"] = 10
-    return factory(**(terms | changes))
+    return factory(**history_fields(**(terms | changes)))
 
 
 class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
@@ -82,7 +83,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertEqual(
                 engine.price(
                     dated_history(
-                        option.replace_history(touch_state="touched"),
+                        option.replace_history(
+                            touch_state="touched",
+                            history_time=option.history_time or option.effective_time,
+                        ),
                         market(time=datetime(2025, 1, 2)),
                     ),
                     market(time=datetime(2025, 1, 2)),
@@ -154,7 +158,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                         }
                         if not asset:
                             fields["payout"] = 10
-                        option = factory(**fields)
+                        option = factory(**history_fields(**fields))
                         expected = two_fixing_price(
                             up=up, knock_in=knock_in, asset=asset, direction=direction
                         )
@@ -233,7 +237,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         later_payment = touch(observation_mode="scheduled", observation_times=[fixing])
         self.assert_rejection(InvalidInputError, engine.price, later_payment, ctx)
-        known = option.replace_history(touch_state="untouched")
+        known = option.replace_history(
+            touch_state="untouched",
+            history_time=option.history_time or option.effective_time,
+        )
         after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1))
         self.assert_rejection(InvalidInputError, engine.price, option, after)
         self.assertEqual(engine.price(dated_history(known, after), after), 0)
@@ -310,7 +317,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            option.replace_history(touch_state="touched"),
+            option.replace_history(
+                touch_state="touched",
+                history_time=option.history_time or option.effective_time,
+            ),
             market(),
         )
         self.assert_rejection(
@@ -467,9 +477,11 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 if inputs["option"] == "none":
                     factory = ins.asset_touch_option if asset else ins.cash_touch_option
                     option = factory(
-                        **fields,
-                        barrier_type=kind,
-                        settlement_timing=inputs["settlement"],
+                        **history_fields(
+                            **fields,
+                            barrier_type=kind,
+                            settlement_timing=inputs["settlement"],
+                        )
                     )
                 else:
                     option = (
@@ -477,10 +489,12 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                         if asset
                         else ins.cash_binary_barrier_option
                     )(
-                        **fields,
-                        option_type=inputs["option"],
-                        strike=inputs["strike"],
-                        barrier_type=kind,
+                        **history_fields(
+                            **fields,
+                            option_type=inputs["option"],
+                            strike=inputs["strike"],
+                            barrier_type=kind,
+                        )
                     )
                 ctx = market(
                     inputs["spot"],

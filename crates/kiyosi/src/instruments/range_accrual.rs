@@ -3,6 +3,10 @@ use crate::{Error, OptionContract, PricingContext, Result, TimeOfDay, Timestamp,
 /// Supplies equally weighted range-coupon terms; see [`RangeAccrualOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct RangeAccrualTerms {
+    /// Dates supplied history; required when any history payload is known.
+    ///
+    /// See the [crate-level history example](crate).
+    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Positive finite coupon notional, without principal repayment.
@@ -35,6 +39,7 @@ impl RangeAccrualTerms {
         observation_clock_time: TimeOfDay,
     ) -> Self {
         Self {
+            history_time: None,
             calendar: TradingCalendar::default(),
             notional,
             annual_coupon_rate,
@@ -57,7 +62,6 @@ impl RangeAccrualTerms {
 /// See [`Self::new`] for an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RangeAccrualOption {
-    history_time: Option<Timestamp>,
     terms: RangeAccrualTerms,
 }
 
@@ -65,6 +69,9 @@ impl RangeAccrualOption {
     /// Validates finite amounts, ordered bounds, nonnegative history and positive term.
     ///
     /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
+    /// or a timestamp outside the contract life.
     ///
     /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
     /// history, then for nonpositive contract life or an empty daily observation schedule.
@@ -78,8 +85,7 @@ impl RangeAccrualOption {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
     /// let option = RangeAccrualOption::new(terms)?;
-    /// let seasoned = option.replace_history(Some(3), None)?
-    ///     .with_history_time(Some(option.effective_time().add_days(6)?))?;
+    /// let seasoned = option.replace_history(Some(3), Some(option.effective_time().add_days(6)?))?;
     /// assert_eq!(seasoned.realized_hit_count(), Some(3));
     /// assert_eq!(seasoned.replace_history(None, None)?, option);
     /// # Ok(()) }
@@ -112,11 +118,9 @@ impl RangeAccrualOption {
                 "range accrual requires a positive contract term".into(),
             ));
         }
-        let option = Self {
-            terms,
-            history_time: None,
-        };
+        let option = Self { terms };
         option.validate_calendar()?;
+        super::validate_history_snapshot(&option, option.realized_hit_count().is_some())?;
         Ok(option)
     }
 
@@ -269,11 +273,11 @@ impl RangeAccrualOption {
 
 impl OptionContract for RangeAccrualOption {
     fn history_time(&self) -> Option<Timestamp> {
-        self.history_time
+        self.terms.history_time
     }
     fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-        crate::instruments::validate_history_time_bounds(&self, time)?;
-        self.history_time = time;
+        self.terms.history_time = time;
+        super::validate_history_snapshot(&self, self.realized_hit_count().is_some())?;
         Ok(self)
     }
 
@@ -381,6 +385,15 @@ impl RangeAccrualOption {
     pub fn replace(&self, changes: RangeAccrualOptionChanges) -> Result<Self> {
         let history_supplied = changes.realized_hit_count.is_some();
         let updated = Self::new(RangeAccrualTerms {
+            history_time: super::replacement_history_time(
+                self.history_time(),
+                changes.history_time,
+                changes.realized_hit_count.is_some()
+                    && changes
+                        .realized_hit_count
+                        .unwrap_or(self.realized_hit_count())
+                        .is_none(),
+            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             notional: changes.notional.unwrap_or(self.notional()),
             annual_coupon_rate: changes
@@ -401,7 +414,7 @@ impl RangeAccrualOption {
         super::validate_history_replacement(
             self.realized_hit_count().is_some(),
             history_supplied,
-            self.history_time.is_none() && self.expiry_time() != updated.expiry_time()
+            self.terms.history_time.is_none() && self.expiry_time() != updated.expiry_time()
                 || (
                     self.lower_bound(),
                     self.upper_bound(),
@@ -416,18 +429,13 @@ impl RangeAccrualOption {
                 || self.calendar() != updated.calendar()
                     && super::historical_times(
                         self.observation_schedule()?.times(),
-                        self.history_time,
+                        self.terms.history_time,
                     ) != super::historical_times(
                         updated.observation_schedule()?.times(),
-                        self.history_time,
+                        self.terms.history_time,
                     ),
             "realized_hit_count",
         )?;
-        let history_time = super::replacement_history_time(
-            self.history_time,
-            changes.history_time,
-            history_supplied && updated.realized_hit_count().is_none(),
-        );
-        updated.with_history_time(history_time)
+        Ok(updated)
     }
 }

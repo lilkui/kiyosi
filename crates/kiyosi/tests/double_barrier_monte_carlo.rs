@@ -566,7 +566,10 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                     Error::InvalidInput(_)
                 ));
                 let touched = option
-                    .replace_history(Some(BarrierTouchState::Touched), None)
+                    .replace_history(
+                        Some(BarrierTouchState::Touched),
+                        Some(option.history_time().unwrap_or(option.effective_time())),
+                    )
                     .unwrap();
                 assert!(matches!(
                     engine
@@ -581,7 +584,12 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                         .unwrap()
                 );
                 for history in [BarrierTouchState::Touched, BarrierTouchState::Untouched] {
-                    let known = option.replace_history(Some(history), None).unwrap();
+                    let known = option
+                        .replace_history(
+                            Some(history),
+                            Some(option.history_time().unwrap_or(option.effective_time())),
+                        )
+                        .unwrap();
                     let expired = context
                         .replace(PricingContextChanges {
                             valuation_time: Some(option.expiry_time()),
@@ -630,7 +638,14 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                 })
                 .unwrap();
             let untouched = scheduled
-                .replace_history(Some(BarrierTouchState::Untouched), None)
+                .replace_history(
+                    Some(BarrierTouchState::Untouched),
+                    Some(
+                        scheduled
+                            .history_time()
+                            .unwrap_or(scheduled.effective_time()),
+                    ),
+                )
                 .unwrap();
             assert_eq!(
                 engine.price(&dated(&untouched, &after), &after).unwrap(),
@@ -717,6 +732,7 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
         .unwrap();
     t.rebate = 3.0;
     t.touch_state = Some(BarrierTouchState::Touched);
+    t.history_time = Some(t.effective_time);
     let touched = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
         implied_volatility(
@@ -733,6 +749,7 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_times = vec![Date::new(2025, 7, 1).unwrap().start_of_day()];
     t.touch_state = Some(BarrierTouchState::Untouched);
+    t.history_time = Some(t.effective_time);
     let finished = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
         implied_volatility(&engine, &dated(&finished, &later), &later, 0.0, controls).unwrap_err(),

@@ -268,8 +268,11 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
         engine
             .price(
                 &dated(
-                    &hit.replace_history(Some(BarrierTouchState::Touched), None)
-                        .unwrap(),
+                    &hit.replace_history(
+                        Some(BarrierTouchState::Touched),
+                        Some(hit.history_time().unwrap_or(hit.effective_time()))
+                    )
+                    .unwrap(),
                     &settled_context
                 ),
                 &settled_context
@@ -281,7 +284,10 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
         .price(
             &dated(
                 &expiry
-                    .replace_history(Some(BarrierTouchState::Touched), None)
+                    .replace_history(
+                        Some(BarrierTouchState::Touched),
+                        Some(expiry.history_time().unwrap_or(expiry.effective_time())),
+                    )
                     .unwrap(),
                 &settled_context,
             ),
@@ -294,8 +300,11 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
         engine
             .price_with_greeks(
                 &dated(
-                    &hit.replace_history(Some(BarrierTouchState::Touched), None)
-                        .unwrap(),
+                    &hit.replace_history(
+                        Some(BarrierTouchState::Touched),
+                        Some(hit.history_time().unwrap_or(hit.effective_time()))
+                    )
+                    .unwrap(),
                     &settled_context
                 ),
                 &settled_context,
@@ -319,6 +328,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         BarrierType::UpAndIn,
     );
     terms.touch_state = Some(BarrierTouchState::Touched);
+    terms.history_time = Some(terms.effective_time);
     let option = BinaryBarrierOption::cash(terms, 10.0).unwrap();
     let context = local(true)
         .replace(PricingContextChanges {
@@ -372,7 +382,10 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         })
         .unwrap();
     let option = option
-        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .replace_history(
+            Some(BarrierTouchState::Untouched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     let result = engine
         .price_with_greeks(

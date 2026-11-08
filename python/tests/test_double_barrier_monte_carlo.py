@@ -18,6 +18,7 @@ from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 from test_double_barrier import END, START, contract, market, reference
 from test_double_barrier_finite_difference import (
     FIRST,
@@ -412,14 +413,22 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     valuation_time=datetime(2025, 1, 1) + timedelta(microseconds=1)
                 )
                 self.assert_rejection(InvalidInputError, engine.price, option, later)
-                touched = option.replace_history(touch_state="touched")
+                touched = option.replace_history(
+                    touch_state="touched",
+                    history_time=option.history_time or option.effective_time,
+                )
                 self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
                     engine.price(dated_history(touched, later), later),
                     analytic.price(dated_history(touched, later), later),
                 )
                 for history in ("touched", "untouched"):
-                    known = option.replace_history(touch_state=history)
+                    known = option.replace_history(
+                        touch_state=history,
+                        history_time=(option.history_time or option.effective_time)
+                        if history is not None
+                        else None,
+                    )
                     expired = market(spot, time=END)
                     result = engine.price_with_greeks(
                         dated_history(known, expired), expired, greeks="all"
@@ -449,7 +458,10 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 valuation_time=datetime.combine(FIRST, datetime.min.time())
                 + timedelta(microseconds=1)
             )
-            untouched = scheduled.replace_history(touch_state="untouched")
+            untouched = scheduled.replace_history(
+                touch_state="untouched",
+                history_time=scheduled.history_time or scheduled.effective_time,
+            )
             self.assertEqual(
                 engine.price(dated_history(untouched, after), after),
                 analytic.price(dated_history(untouched, after), after),
@@ -486,16 +498,16 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 None if name != "seed" else object(),
             ):
                 with self.assertRaises(TypeError):
-                    factory(**{name: value})
+                    factory(**history_fields(**{name: value}))
             with self.assertRaises(OverflowError):
-                factory(**{name: 1 << 100})
+                factory(**history_fields(**{name: 1 << 100}))
         for fields in (
             {"antithetic": 1},
             {"unknown": 1},
             {"sampling": True},
         ):
             with self.assertRaises(TypeError):
-                factory(**fields)
+                factory(**history_fields(**fields))
         with self.assertRaises(ValueError):
             factory(sampling="unknown")
         for fields in (

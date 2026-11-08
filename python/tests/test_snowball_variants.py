@@ -28,6 +28,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 from test_snowball import END, START, autocallable_observations, market, structured
 
 
@@ -45,10 +46,10 @@ class SnowballVariantTests(unittest.TestCase):
             "effective_time": START,
             "expiry_time": END,
         }
-        expected = factory(**fields)
+        expected = factory(**history_fields(**fields))
         bound = signature.bind(**fields)
         bound.apply_defaults()
-        self.assertEqual(factory(**bound.arguments), expected)
+        self.assertEqual(factory(**history_fields(**bound.arguments)), expected)
         self.assertIsNone(expected.observation_clock_time)
         self.assertEqual(expected.knock_in_observation_mode, "at_expiry")
 
@@ -117,13 +118,21 @@ class SnowballVariantTests(unittest.TestCase):
                 states += ("knocked_in",)
             for state in states:
                 with self.subTest(kind=kind.__name__, state=state):
-                    replaced = note.replace_history(barrier_state=state)
+                    replaced = note.replace_history(
+                        barrier_state=state,
+                        history_time=(note.history_time or note.effective_time)
+                        if state is not None
+                        else None,
+                    )
                     self.assertEqual(replaced, self.fixed(kind, barrier_state=state))
                     self.assertEqual(replaced.replace_history(barrier_state=None), note)
             self.assertEqual(note, self.fixed(kind))
         binary = self.fixed(BinarySnowballOption)
         with self.assertRaises(InvalidInputError):
-            binary.replace_history(barrier_state="knocked_in")
+            binary.replace_history(
+                barrier_state="knocked_in",
+                history_time=binary.history_time or binary.effective_time,
+            )
         self.assertEqual(binary, self.fixed(BinarySnowballOption))
 
     def test_fixed_terminal_regions_and_no_binary_monitoring(self):
@@ -136,13 +145,15 @@ class SnowballVariantTests(unittest.TestCase):
                 [END], [110], knock_out_coupon_rates=[0.08]
             ),
         }
-        binary = BinarySnowballOption(**common)
+        binary = BinarySnowballOption(**history_fields(**common))
         ternary = TernarySnowballOption(
-            observation_clock_time=None,
-            **common,
-            minimum_coupon_rate=-0.02,
-            knock_in_level=80,
-            knock_in_observation_mode="at_expiry",
+            **history_fields(
+                observation_clock_time=None,
+                **common,
+                minimum_coupon_rate=-0.02,
+                knock_in_level=80,
+                knock_in_observation_mode="at_expiry",
+            )
         )
         engine = QuadratureAutocallableEngine()
         valuation = datetime(2025, 2, 3)
@@ -205,7 +216,7 @@ class SnowballVariantTests(unittest.TestCase):
                 if fields["knock_in_observation_mode"] == "every_trading_day"
                 else None,
             )
-        return kind(**fields)
+        return kind(**history_fields(**fields))
 
     def test_existing_quantlib_terminal_portfolios(self):
         engine = QuadratureAutocallableEngine()
@@ -234,7 +245,7 @@ class SnowballVariantTests(unittest.TestCase):
                         if inputs["knock_in_mode"] == "every_trading_day"
                         else None,
                     )
-                note = getattr(instruments, kind)(**fields)
+                note = getattr(instruments, kind)(**history_fields(**fields))
                 ctx = market(
                     inputs["spot"],
                     datetime.fromisoformat(inputs["valuation"]),
@@ -362,11 +373,13 @@ class SnowballVariantTests(unittest.TestCase):
         for name, extra, levels, coupons, maturity, upper, lower, mode in cases:
             with self.subTest(preset=name):
                 actual = getattr(instruments, name)(
-                    observation_clock_time=clock_time()
-                    if mode == "every_trading_day"
-                    else None,
-                    **common,
-                    **extra,
+                    **history_fields(
+                        observation_clock_time=clock_time()
+                        if mode == "every_trading_day"
+                        else None,
+                        **common,
+                        **extra,
+                    )
                 )
                 explicit = SnowballOption(
                     observation_clock_time=clock_time()
@@ -385,6 +398,7 @@ class SnowballVariantTests(unittest.TestCase):
                     observations=autocallable_observations(
                         dates, levels, knock_out_coupon_rates=coupons
                     ),
+                    history_time=START,
                 )
                 self.assertEqual(actual, explicit)
                 self.assertEqual(
@@ -407,8 +421,14 @@ class SnowballVariantTests(unittest.TestCase):
                     self.assertIsNotNone(result.delta)
                     self.assertIsNotNone(result.vega)
                 self.assertEqual(
-                    actual.replace_history(barrier_state="knocked_in"),
-                    explicit.replace_history(barrier_state="knocked_in"),
+                    actual.replace_history(
+                        barrier_state="knocked_in",
+                        history_time=actual.history_time or actual.effective_time,
+                    ),
+                    explicit.replace_history(
+                        barrier_state="knocked_in",
+                        history_time=explicit.history_time or explicit.effective_time,
+                    ),
                 )
                 self.assertEqual(
                     eval(
@@ -478,15 +498,25 @@ class SnowballVariantTests(unittest.TestCase):
                 maturity_coupon_rate=math.nan,
             )
             with self.assertRaises(ValueError):
-                note.replace_history(barrier_state="unknown")
+                note.replace_history(
+                    barrier_state="unknown",
+                    history_time=note.history_time or note.effective_time,
+                )
             with self.assertRaises(TypeError):
-                note.replace_history(barrier_state=True)
+                note.replace_history(
+                    barrier_state=True,
+                    history_time=note.history_time or note.effective_time,
+                )
             self.assertIsNone(note.barrier_state)
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
                 dated_history(
-                    note.replace_history(barrier_state="knocked_out"), market()
+                    note.replace_history(
+                        barrier_state="knocked_out",
+                        history_time=note.history_time or note.effective_time,
+                    ),
+                    market(),
                 ),
                 market(),
             )
@@ -530,7 +560,11 @@ class SnowballVariantTests(unittest.TestCase):
         self.assertEqual(
             engine.price(
                 dated_history(
-                    daily.replace_history(barrier_state="knocked_in"), market(100, END)
+                    daily.replace_history(
+                        barrier_state="knocked_in",
+                        history_time=daily.history_time or daily.effective_time,
+                    ),
+                    market(100, END),
                 ),
                 market(100, END),
             ),
@@ -569,7 +603,10 @@ class SnowballVariantTests(unittest.TestCase):
             for value in (True, "100"):
                 with self.assertRaises(TypeError):
                     instruments.standard_snowball(
-                        observation_clock_time=clock_time(), **(common | {field: value})
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            **(common | {field: value}),
+                        )
                     )
         self.assert_rejection(
             InvalidInputError,
@@ -609,9 +646,11 @@ class SnowballVariantTests(unittest.TestCase):
         )
         # A negative decrement is supported if the expanded levels remain positive.
         note = instruments.step_down_snowball(
-            observation_clock_time=clock_time(),
-            **(stepped | {"observation_times": [datetime(2025, 2, 3), END]}),
-            knock_out_level_decrement=-2,
+            **history_fields(
+                observation_clock_time=clock_time(),
+                **(stepped | {"observation_times": [datetime(2025, 2, 3), END]}),
+                knock_out_level_decrement=-2,
+            )
         )
         self.assertEqual(note.knock_out_levels, (110, 112))
 
@@ -714,7 +753,10 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertEqual(
                 engine.price(
                     dated_history(
-                        note.replace_history(barrier_state="knocked_out"),
+                        note.replace_history(
+                            barrier_state="knocked_out",
+                            history_time=note.history_time or note.effective_time,
+                        ),
                         market(100, END),
                     ),
                     market(100, END),

@@ -5,6 +5,7 @@ from datetime import datetime
 
 from kiyosi import InvalidInputError
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
+from support.history import history_fields
 
 
 class DigitalReplacementTests(unittest.TestCase):
@@ -17,7 +18,7 @@ class DigitalReplacementTests(unittest.TestCase):
         }
         for cls in (CashOrNothingOption, AssetOrNothingOption):
             extra = {"payout": 10} if cls is CashOrNothingOption else {}
-            original = cls(**terms, **extra)
+            original = cls(**history_fields(**terms, **extra))
             self.assertEqual(original.replace(), original)
             replaced = original.replace(
                 option_type="put", strike=105, expiry_time=datetime(2027, 1, 1)
@@ -43,7 +44,7 @@ class DigitalReplacementTests(unittest.TestCase):
             ):
                 with self.assertRaises(TypeError):
                     original.replace(**fields)
-            self.assertEqual(original, cls(**terms, **extra))
+            self.assertEqual(original, cls(**history_fields(**terms, **extra)))
             if extra:
                 self.assertEqual(original.replace(payout=7).payout, 7)
                 with self.assertRaises(InvalidInputError) as error:

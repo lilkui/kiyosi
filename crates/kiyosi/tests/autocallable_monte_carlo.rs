@@ -247,6 +247,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         Some((end).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms).unwrap();
     let original = note.clone();
     let context = market(100.0, date(1, 1));
@@ -417,6 +418,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         Error::InvalidInput(_)
     ));
     terms.barrier_state = Some(AutocallableBarrierState::KnockedOut);
+    terms.history_time = Some(terms.effective_time);
     let out = SnowballOption::new(terms.clone()).unwrap();
     assert!(matches!(
         engine
@@ -447,6 +449,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         Error::UnsupportedOperation(_)
     ));
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms).unwrap();
     for (spot, expected) in [
         (70.0, 0.7),
@@ -597,6 +600,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
         snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(snow.expiry_time.time_of_day());
         snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        snow.history_time = Some(snow.effective_time);
         let mut ternary = TernarySnowballTerms::new(
             0.06,
             0.01,
@@ -610,6 +614,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
         ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(ternary.expiry_time.time_of_day());
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        ternary.history_time = Some(ternary.effective_time);
         let mut phoenix = PhoenixTerms::new(
             kiyosi::PhoenixCoupon::Annual(0.08),
             100.0,
@@ -631,6 +636,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
         phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(phoenix.expiry_time.time_of_day());
         phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        phoenix.history_time = Some(phoenix.effective_time);
 
         check(&SnowballOption::new(snow).unwrap(), &context);
         check(&TernarySnowballOption::new(ternary).unwrap(), &context);

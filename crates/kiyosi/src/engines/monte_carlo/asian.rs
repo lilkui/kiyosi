@@ -158,7 +158,7 @@ impl MonteCarloAsianEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None, None)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloAsianEngine::new(MonteCarloSettings {

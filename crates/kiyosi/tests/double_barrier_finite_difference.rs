@@ -114,7 +114,10 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         Error::InvalidInput(_)
     ));
     let paid = option
-        .replace_history(Some(BarrierTouchState::Touched), None)
+        .replace_history(
+            Some(BarrierTouchState::Touched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     assert_eq!(engine.price(&dated(&paid, &later), &later).unwrap(), 0.0);
     assert!(matches!(
@@ -141,7 +144,10 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         })
         .unwrap();
     let untouched = option
-        .replace_history(Some(BarrierTouchState::Untouched), None)
+        .replace_history(
+            Some(BarrierTouchState::Untouched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     let result = engine
         .price_with_greeks(
@@ -176,6 +182,7 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
     .unwrap();
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
     t.touch_state = Some(BarrierTouchState::Untouched);
+    t.history_time = Some(t.effective_time);
     let option = DoubleBarrierOption::new(t).unwrap();
     let context = market(100.0);
     let result = engine

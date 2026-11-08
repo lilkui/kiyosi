@@ -84,3 +84,15 @@ pub(crate) fn validate_history_time_bounds(
     }
     Ok(())
 }
+
+pub(crate) fn validate_history_snapshot(
+    option: &impl crate::OptionContract,
+    known: bool,
+) -> crate::Result<()> {
+    if known && option.history_time().is_none() {
+        return Err(crate::Error::InvalidInput(
+            "supplied history requires history_time".into(),
+        ));
+    }
+    validate_history_time_bounds(option, option.history_time())
+}

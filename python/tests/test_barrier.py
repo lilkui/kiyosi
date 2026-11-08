@@ -20,6 +20,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 
@@ -46,7 +47,9 @@ class BarrierTests(unittest.TestCase):
 
     def test_history_is_prior_and_paid_hit_rebate_does_not_recur(self):
         engine = AnalyticBarrierEngine()
-        option = BarrierOption(**self.terms(rebate=7, rebate_timing="at_hit"))
+        option = BarrierOption(
+            **history_fields(**self.terms(rebate=7, rebate_timing="at_hit"))
+        )
         self.assertEqual(option.touch_state, None)
         self.assertEqual(option.observation_mode, "continuous")
         self.assertEqual(
@@ -58,7 +61,10 @@ class BarrierTests(unittest.TestCase):
                 self.context(time=datetime(2025, 1, 2)),
             )
         self.assertIs(type(error.exception), InvalidInputError)
-        touched = option.replace_history(touch_state="touched")
+        touched = option.replace_history(
+            touch_state="touched",
+            history_time=option.history_time or option.effective_time,
+        )
         self.assertEqual(
             engine.price(
                 dated_history(touched, self.context(time=datetime(2025, 1, 2))),
@@ -75,14 +81,14 @@ class BarrierTests(unittest.TestCase):
         self.assertIs(type(error.exception), expected_error)
 
     def test_construction_representation_and_replacement_failures_preserve_owner(self):
-        option = BarrierOption(**self.terms())
+        option = BarrierOption(**history_fields(**self.terms()))
         for field in ("strike", "barrier_level", "rebate"):
             for value in (True, "100", None, complex(1, 0)):
                 with (
                     self.subTest(field=field, value=value),
                     self.assertRaises(TypeError),
                 ):
-                    BarrierOption(**self.terms(**{field: value}))
+                    BarrierOption(**history_fields(**self.terms(**{field: value})))
         for field in (
             "option_type",
             "barrier_type",
@@ -91,9 +97,9 @@ class BarrierTests(unittest.TestCase):
             "touch_state",
         ):
             with self.subTest(field=field), self.assertRaises(ValueError):
-                BarrierOption(**self.terms(**{field: "unknown"}))
+                BarrierOption(**history_fields(**self.terms(**{field: "unknown"})))
             with self.subTest(field=field), self.assertRaises(TypeError):
-                BarrierOption(**self.terms(**{field: True}))
+                BarrierOption(**history_fields(**self.terms(**{field: True})))
         for values, expected_error in (
             ({"barrier_level": 0}, InvalidInputError),
             ({"barrier_level": float("nan"), "strike": -1}, InvalidInputError),
@@ -125,7 +131,9 @@ class BarrierTests(unittest.TestCase):
             with self.subTest(values=values):
                 self.assert_rejection(
                     expected_error,
-                    lambda values=values: BarrierOption(**self.terms(**values)),
+                    lambda values=values: BarrierOption(
+                        **history_fields(**self.terms(**values))
+                    ),
                 )
         for fields, error in (
             ({"touch_state": "bad"}, ValueError),
@@ -134,7 +142,7 @@ class BarrierTests(unittest.TestCase):
         ):
             with self.assertRaises(error):
                 option.replace_history(**fields)
-            self.assertEqual(option, BarrierOption(**self.terms()))
+            self.assertEqual(option, BarrierOption(**history_fields(**self.terms())))
         with self.assertRaises(AttributeError):
             option.touch_state = "touched"
         self.assertEqual(option.replace_history(), option)
@@ -150,13 +158,15 @@ class BarrierTests(unittest.TestCase):
                         else ("at_hit", "at_expiry")
                     ):
                         option = BarrierOption(
-                            **self.terms(
-                                strike=80,
-                                barrier_type=kind,
-                                barrier_level=level,
-                                touch_state=state,
-                                rebate=7,
-                                rebate_timing=timing,
+                            **history_fields(
+                                **self.terms(
+                                    strike=80,
+                                    barrier_type=kind,
+                                    barrier_level=level,
+                                    touch_state=state,
+                                    rebate=7,
+                                    rebate_timing=timing,
+                                )
                             )
                         )
                         hit = state == "touched" or (
@@ -199,7 +209,9 @@ class BarrierTests(unittest.TestCase):
                             )
         for timing in ("at_hit", "at_expiry"):
             option = BarrierOption(
-                **self.terms(rebate=7, rebate_timing=timing, touch_state="touched")
+                **history_fields(
+                    **self.terms(rebate=7, rebate_timing=timing, touch_state="touched")
+                )
             )
             context = self.context(time=datetime(2025, 1, 2))
             expected = 0 if timing == "at_hit" else 7 * math.exp(-0.05 * 364 / 365)
@@ -221,8 +233,10 @@ class BarrierTests(unittest.TestCase):
         engine = AnalyticBarrierEngine()
         fixing = datetime(2025, 1, 2)
         option = BarrierOption(
-            **self.terms(
-                observation_mode="scheduled", observation_times=[fixing], rebate=7
+            **history_fields(
+                **self.terms(
+                    observation_mode="scheduled", observation_times=[fixing], rebate=7
+                )
             )
         )
         self.assert_rejection(
@@ -233,7 +247,10 @@ class BarrierTests(unittest.TestCase):
             InvalidInputError,
             lambda: engine.price(
                 dated_history(
-                    option.replace_history(touch_state="touched"),
+                    option.replace_history(
+                        touch_state="touched",
+                        history_time=option.history_time or option.effective_time,
+                    ),
                     self.context(time=fixing),
                 ),
                 self.context(time=fixing),
@@ -254,7 +271,10 @@ class BarrierTests(unittest.TestCase):
                 dated_history(option, self.context(150, noon)), self.context(150, noon)
             ),
         )
-        untouched = option.replace_history(touch_state="untouched")
+        untouched = option.replace_history(
+            touch_state="untouched",
+            history_time=option.history_time or option.effective_time,
+        )
         vanilla = EuropeanOption(
             option_type="call",
             strike=100,
@@ -277,10 +297,12 @@ class BarrierTests(unittest.TestCase):
         self.assertAlmostEqual(untouched.mean_observation_year_fraction, 1 / 365)
         with self.assertRaises(InvalidInputError):
             BarrierOption(
-                **self.terms(
-                    observation_mode="scheduled",
-                    observation_times=[datetime(2025, 1, 4)],
-                    touch_state="touched",
+                **history_fields(
+                    **self.terms(
+                        observation_mode="scheduled",
+                        observation_times=[datetime(2025, 1, 4)],
+                        touch_state="touched",
+                    )
                 )
             )
 
@@ -290,20 +312,24 @@ class BarrierTests(unittest.TestCase):
             level = 120 if up else 80
             kind = "up_and_out" if up else "down_and_out"
             scheduled = BarrierOption(
-                **self.terms(
-                    barrier_type=kind,
-                    barrier_level=level,
-                    observation_mode="scheduled",
-                    observation_times=[datetime(2026, 1, 1)],
-                    touch_state="untouched",
+                **history_fields(
+                    **self.terms(
+                        barrier_type=kind,
+                        barrier_level=level,
+                        observation_mode="scheduled",
+                        observation_times=[datetime(2026, 1, 1)],
+                        touch_state="untouched",
+                    )
                 )
             )
             shift = (1 if up else -1) * 0.5825971579390107 * 0.2
             shifted = BarrierOption(
-                **self.terms(
-                    barrier_type=kind,
-                    barrier_level=level * math.exp(shift),
-                    touch_state="untouched",
+                **history_fields(
+                    **self.terms(
+                        barrier_type=kind,
+                        barrier_level=level * math.exp(shift),
+                        touch_state="untouched",
+                    )
                 )
             )
             noon = datetime(2025, 1, 1, 12)
@@ -321,15 +347,18 @@ class BarrierTests(unittest.TestCase):
                 ),
             )
             dense = BarrierOption(
-                **self.terms(
-                    barrier_type=kind,
-                    barrier_level=level,
-                    observation_mode="scheduled",
-                    observation_times=[
-                        datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
-                    ],
-                    touch_state="untouched",
-                    calendar=all_days_calendar(),
+                **history_fields(
+                    **self.terms(
+                        barrier_type=kind,
+                        barrier_level=level,
+                        observation_mode="scheduled",
+                        observation_times=[
+                            datetime(2025, 1, 1) + timedelta(days=i)
+                            for i in range(1, 366)
+                        ],
+                        touch_state="untouched",
+                        calendar=all_days_calendar(),
+                    )
                 )
             )
             result = engine.price_with_greeks(
@@ -340,7 +369,9 @@ class BarrierTests(unittest.TestCase):
             for greek in ("theta", "charm", "color"):
                 self.assertTrue(math.isfinite(result.require(greek)))
             self.assertIsNotNone(result.delta)
-        option = BarrierOption(**self.terms(touch_state="untouched", rebate=7))
+        option = BarrierOption(
+            **history_fields(**self.terms(touch_state="untouched", rebate=7))
+        )
         result = engine.price_with_greeks(
             dated_history(option, self.context(120)), self.context(120), greeks="all"
         )
@@ -399,7 +430,10 @@ class BarrierTests(unittest.TestCase):
                             ):
                                 self.assertAlmostEqual(
                                     engine.price(
-                                        dated_history(BarrierOption(**terms), context),
+                                        dated_history(
+                                            BarrierOption(**history_fields(**terms)),
+                                            context,
+                                        ),
                                         context,
                                     ),
                                     expected,
@@ -411,7 +445,7 @@ class BarrierTests(unittest.TestCase):
             rebate=7,
             touch_state="untouched",
         )
-        option = BarrierOption(**terms)
+        option = BarrierOption(**history_fields(**terms))
         result = engine.price_with_greeks(
             dated_history(option, self.context()), self.context(), greeks="all"
         )
@@ -469,11 +503,13 @@ class BarrierTests(unittest.TestCase):
             for direction in ("call", "put"):
                 for spot, sigma in ((1e16, 1e-20), (1e150, 1e-200)):
                     option = BarrierOption(
-                        **self.terms(
-                            option_type=direction,
-                            strike=spot,
-                            barrier_type=kind,
-                            barrier_level=(1.2 if up else 0.8) * spot,
+                        **history_fields(
+                            **self.terms(
+                                option_type=direction,
+                                strike=spot,
+                                barrier_type=kind,
+                                barrier_level=(1.2 if up else 0.8) * spot,
+                            )
                         )
                     )
                     context = self.context(spot).replace(
@@ -494,7 +530,9 @@ class BarrierTests(unittest.TestCase):
                     barrier_level=120 if up else 80,
                 )
                 unit = engine.price(
-                    dated_history(BarrierOption(**terms), self.context()),
+                    dated_history(
+                        BarrierOption(**history_fields(**terms)), self.context()
+                    ),
                     self.context(),
                 )
                 for scale in (1e-300, 1e300):
@@ -504,7 +542,8 @@ class BarrierTests(unittest.TestCase):
                     }
                     actual = engine.price(
                         dated_history(
-                            BarrierOption(**scaled), self.context(100 * scale)
+                            BarrierOption(**history_fields(**scaled)),
+                            self.context(100 * scale),
                         ),
                         self.context(100 * scale),
                     )
@@ -514,7 +553,7 @@ class BarrierTests(unittest.TestCase):
         from concurrent.futures import ThreadPoolExecutor
 
         engine = AnalyticBarrierEngine()
-        option = BarrierOption(**self.terms(touch_state="untouched"))
+        option = BarrierOption(**history_fields(**self.terms(touch_state="untouched")))
         context = self.context()
         for field, value, error in (
             ("spot_shift", True, TypeError),
@@ -593,7 +632,10 @@ class BarrierTests(unittest.TestCase):
         self.assertEqual(
             prices, [engine.price(dated_history(option, context), context)] * 16
         )
-        self.assertEqual(option, BarrierOption(**self.terms(touch_state="untouched")))
+        self.assertEqual(
+            option,
+            BarrierOption(**history_fields(**self.terms(touch_state="untouched"))),
+        )
 
 
 GREEKS = (

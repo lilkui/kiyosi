@@ -69,7 +69,7 @@ fn replace_payoff(
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -112,7 +112,7 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -195,6 +195,7 @@ binary_properties!(
         terms.observation_times = observation_times;
         terms.touch_state = touch_state;
         terms.calendar = calendar.0;
+        terms.history_time = history_time;
         Ok(Self(domain(match payoff {
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::BinaryBarrierOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::BinaryBarrierOption::asset(terms),
@@ -239,7 +240,7 @@ binary_properties!(
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -368,6 +369,7 @@ binary_properties!(
         terms.observation_times = observation_times;
         terms.touch_state = touch_state;
         terms.calendar = calendar.0;
+        terms.history_time = history_time;
         Ok(Self(domain(match payoff {
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::TouchOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::TouchOption::asset(terms),
@@ -410,7 +412,7 @@ binary_properties!(
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns

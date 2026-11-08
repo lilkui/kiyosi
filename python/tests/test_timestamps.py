@@ -41,6 +41,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 def time(day, hour, microsecond=0):
@@ -67,7 +68,9 @@ def accumulator(**changes):
         "expiry_time": time(7, 15),
     }
     fields.update(changes)
-    return Accumulator(observation_clock_time=clock_time(15), **fields)
+    return Accumulator(
+        **history_fields(observation_clock_time=clock_time(15), **fields)
+    )
 
 
 def accumulator_engines():
@@ -93,23 +96,27 @@ class TimestampTests(unittest.TestCase):
                 "calendar": calendar,
             }
             range_option = RangeAccrualOption(
-                notional=1000,
-                annual_coupon_rate=0.12,
-                lower_bound=80,
-                upper_bound=120,
-                observation_clock_time=clock_time(15),
-                realized_hit_count=1,
-                **life,
+                **history_fields(
+                    notional=1000,
+                    annual_coupon_rate=0.12,
+                    lower_bound=80,
+                    upper_bound=120,
+                    observation_clock_time=clock_time(15),
+                    realized_hit_count=1,
+                    **life,
+                )
             )
             accumulated = Accumulator(
-                knock_out_settled=False,
-                strike=90,
-                knock_out_level=110,
-                daily_quantity=1,
-                acceleration_factor=2,
-                accumulated_quantity=3,
-                observation_clock_time=clock_time(15),
-                **life,
+                **history_fields(
+                    knock_out_settled=False,
+                    strike=90,
+                    knock_out_level=110,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    accumulated_quantity=3,
+                    observation_clock_time=clock_time(15),
+                    **life,
+                )
             )
             fields = dict(
                 maturity_coupon_rate=0.12,
@@ -124,12 +131,14 @@ class TimestampTests(unittest.TestCase):
                 barrier_state="no_event",
                 **life,
             )
-            note = SnowballOption(**fields)
+            note = SnowballOption(**history_fields(**fields))
             binary = BinarySnowballOption(
-                maturity_coupon_rate=0.12,
-                observations=fields["observations"],
-                barrier_state="no_event",
-                **life,
+                **history_fields(
+                    maturity_coupon_rate=0.12,
+                    observations=fields["observations"],
+                    barrier_state="no_event",
+                    **life,
+                )
             )
             for schedule in (
                 range_option.observation_schedule,
@@ -140,12 +149,14 @@ class TimestampTests(unittest.TestCase):
                 self.assertEqual(list(schedule), [observation])
             with self.assertRaises(InvalidInputError):
                 SnowballOption(
-                    **(
-                        fields
-                        | {
-                            "knock_in_observation_mode": "at_expiry",
-                            "observation_clock_time": None,
-                        }
+                    **history_fields(
+                        **(
+                            fields
+                            | {
+                                "knock_in_observation_mode": "at_expiry",
+                                "observation_clock_time": None,
+                            }
+                        )
                     )
                 )
             coupon = 0.12 * (expiry - start).total_seconds() / (365 * 86400)
@@ -199,23 +210,27 @@ class TimestampTests(unittest.TestCase):
         expiry = datetime(2025, 1, 8, 17)
         life = {"effective_time": start, "expiry_time": expiry, "calendar": calendar}
         accrual = RangeAccrualOption(
-            notional=1000,
-            annual_coupon_rate=0.12,
-            lower_bound=90,
-            upper_bound=110,
-            observation_clock_time=clock,
-            **life,
+            **history_fields(
+                notional=1000,
+                annual_coupon_rate=0.12,
+                lower_bound=90,
+                upper_bound=110,
+                observation_clock_time=clock,
+                **life,
+            )
         )
         schedule = accrual.observation_schedule
         del accrual
         self.assertEqual(list(schedule), [last])
         accumulator = Accumulator(
-            strike=90,
-            knock_out_level=120,
-            daily_quantity=1,
-            acceleration_factor=2,
-            observation_clock_time=clock,
-            **life,
+            **history_fields(
+                strike=90,
+                knock_out_level=120,
+                daily_quantity=1,
+                acceleration_factor=2,
+                observation_clock_time=clock,
+                **life,
+            )
         )
         self.assertEqual(list(accumulator.accumulation_schedule), [start, last])
         self.assertEqual(
@@ -239,23 +254,27 @@ class TimestampTests(unittest.TestCase):
             **life,
         )
         notes = [
-            SnowballOption(maturity_coupon_rate=0.1, **terms),
+            SnowballOption(**history_fields(maturity_coupon_rate=0.1, **terms)),
             PhoenixOption(
-                coupon_rate=0.1,
-                **dict(
-                    terms,
-                    observations=autocallable_observations(
-                        [expiry], [110], coupon_barrier_levels=[0]
+                **history_fields(
+                    coupon_rate=0.1,
+                    **dict(
+                        terms,
+                        observations=autocallable_observations(
+                            [expiry], [110], coupon_barrier_levels=[0]
+                        ),
                     ),
-                ),
+                )
             ),
             TernarySnowballOption(
-                maturity_coupon_rate=0.1,
-                minimum_coupon_rate=0.02,
-                knock_in_level=80,
-                observation_clock_time=clock,
-                observations=observations,
-                **life,
+                **history_fields(
+                    maturity_coupon_rate=0.1,
+                    minimum_coupon_rate=0.02,
+                    knock_in_level=80,
+                    observation_clock_time=clock,
+                    observations=observations,
+                    **life,
+                )
             ),
         ]
         for note in notes:
@@ -275,7 +294,9 @@ class TimestampTests(unittest.TestCase):
                     list(note.knock_in_observation_schedule), [start, last]
                 )
         binary = BinarySnowballOption(
-            maturity_coupon_rate=0.1, observations=observations, **life
+            **history_fields(
+                maturity_coupon_rate=0.1, observations=observations, **life
+            )
         )
         self.assertIsNone(binary.knock_in_observation_schedule)
 
@@ -475,7 +496,10 @@ class TimestampTests(unittest.TestCase):
                 dated_history(option, market(time(6, 10, 1), 100)),
                 market(time(6, 10, 1), 100),
             )
-        touched = option.replace_history(touch_state="touched")
+        touched = option.replace_history(
+            touch_state="touched",
+            history_time=option.history_time or option.effective_time,
+        )
         with self.assertRaises(InvalidInputError):
             engine.price(
                 dated_history(touched, market(time(6, 9), 110)), market(time(6, 9), 110)
@@ -521,7 +545,10 @@ class TimestampTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError):
             engine.price(
                 dated_history(
-                    option.replace_history(realized_hit_count=1),
+                    option.replace_history(
+                        realized_hit_count=1,
+                        history_time=option.history_time or option.effective_time,
+                    ),
                     market(time(6, 15, 1), 100),
                 ),
                 market(time(6, 15, 1), 100),

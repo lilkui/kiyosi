@@ -140,7 +140,7 @@ pub trait OptionContract {
 
     /// Dates supplied history at `time`, consuming and returning this contract.
     ///
-    /// Built-in path-dependent contracts require dated history at pricing. Reuse across
+    /// Built-in path-dependent contracts require dated history on construction and replacement. Reuse across
     /// observations is rejected; continuously accumulated history requires the same instant.
     /// Dates after valuation are rejected at pricing. Contracts without history reject
     /// a supplied timestamp; clearing with `None` retains their value.
@@ -149,7 +149,8 @@ pub trait OptionContract {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for a supplied timestamp when history
-    /// is unsupported, or [`Error::InvalidInput`] for a supported timestamp outside life.
+    /// is unsupported, or [`Error::InvalidInput`] for a supported timestamp outside life
+    /// or clearing the timestamp while history remains known.
     fn with_history_time(self, time: Option<Timestamp>) -> Result<Self>
     where
         Self: Sized,

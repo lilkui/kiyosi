@@ -21,6 +21,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 GREEKS = (
@@ -55,7 +56,7 @@ class BinaryBarrierTests(unittest.TestCase):
         terms["barrier_type"] = "up_and_in"
         if factory is ins.cash_touch_option:
             terms["payout"] = 10
-        return factory(**(terms | changes))
+        return factory(**history_fields(**(terms | changes)))
 
     def context(
         self,
@@ -109,7 +110,10 @@ class BinaryBarrierTests(unittest.TestCase):
                         self.context(130, datetime(2025, 1, 2)),
                     ),
                 )
-                known = option.replace_history(touch_state="touched")
+                known = option.replace_history(
+                    touch_state="touched",
+                    history_time=option.history_time or option.effective_time,
+                )
                 self.assert_rejection(
                     InvalidInputError,
                     lambda known=known: engine.price(
@@ -139,15 +143,21 @@ class BinaryBarrierTests(unittest.TestCase):
                 self.assertEqual(known.replace_history(touch_state=None), option)
                 self.assertEqual(option.replace_history(), option)
                 with self.assertRaises(ValueError):
-                    option.replace_history(touch_state="unknown")
+                    option.replace_history(
+                        touch_state="unknown",
+                        history_time=option.history_time or option.effective_time,
+                    )
                 with self.assertRaises(TypeError):
-                    option.replace_history(touch_state=True)
+                    option.replace_history(
+                        touch_state=True,
+                        history_time=option.history_time or option.effective_time,
+                    )
                 with self.assertRaises(TypeError):
                     option.replace_history(payout=7)
                 self.assertIsNone(option.touch_state)
         for kind in ("up_and_in", "up_and_out"):
             option = ins.cash_binary_barrier_option(
-                **self.terms(barrier_type=kind), payout=10
+                **history_fields(**self.terms(barrier_type=kind), payout=10)
             )
             self.assert_rejection(
                 InvalidInputError,
@@ -156,7 +166,10 @@ class BinaryBarrierTests(unittest.TestCase):
                     self.context(130, datetime(2025, 7, 1)),
                 ),
             )
-            known = option.replace_history(touch_state="touched")
+            known = option.replace_history(
+                touch_state="touched",
+                history_time=option.history_time or option.effective_time,
+            )
             self.assertEqual(
                 engine.price(
                     dated_history(known, self.context(100, datetime(2025, 7, 1))),
@@ -173,14 +186,16 @@ class BinaryBarrierTests(unittest.TestCase):
             ins.asset_binary_barrier_option,
         ):
             extra = {"payout": 10} if factory is ins.cash_binary_barrier_option else {}
-            option = factory(**self.terms(), **extra)
+            option = factory(**history_fields(**self.terms(), **extra))
             for field in ("strike", "barrier_level", *extra):
                 for value in (True, "100", None, 1 + 0j):
                     with (
                         self.subTest(field=field, value=value),
                         self.assertRaises(TypeError),
                     ):
-                        factory(**(self.terms() | extra | {field: value}))
+                        factory(
+                            **history_fields(**(self.terms() | extra | {field: value}))
+                        )
             for field in (
                 "option_type",
                 "barrier_type",
@@ -188,9 +203,11 @@ class BinaryBarrierTests(unittest.TestCase):
                 "touch_state",
             ):
                 with self.subTest(field=field), self.assertRaises(TypeError):
-                    factory(**(self.terms() | extra | {field: True}))
+                    factory(**history_fields(**(self.terms() | extra | {field: True})))
                 with self.subTest(field=field), self.assertRaises(ValueError):
-                    factory(**(self.terms() | extra | {field: "unknown"}))
+                    factory(
+                        **history_fields(**(self.terms() | extra | {field: "unknown"}))
+                    )
             for fields, expected_error in (
                 ({"strike": 0, "barrier_level": 0}, InvalidInputError),
                 ({"barrier_level": 0}, InvalidInputError),
@@ -215,13 +232,13 @@ class BinaryBarrierTests(unittest.TestCase):
                 self.assert_rejection(
                     expected_error,
                     lambda fields=fields, factory=factory, extra=extra: factory(
-                        **(self.terms() | extra | fields)
+                        **history_fields(**(self.terms() | extra | fields))
                     ),
                 )
             for fields in ({"strike": 7}, {"touch_state": True}):
                 with self.assertRaises(TypeError):
                     option.replace_history(**fields)
-            self.assertEqual(option, factory(**self.terms(), **extra))
+            self.assertEqual(option, factory(**history_fields(**self.terms(), **extra)))
             with self.assertRaises(AttributeError):
                 option.strike = 0
         for payout in (0, -1, math.inf, math.nan):
@@ -231,7 +248,7 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 lambda payout=payout: ins.cash_binary_barrier_option(
-                    **self.terms(strike=0), payout=payout
+                    **history_fields(**self.terms(strike=0), payout=payout)
                 ),
             )
         for field in (
@@ -318,7 +335,10 @@ class BinaryBarrierTests(unittest.TestCase):
                 InvalidInputError,
                 lambda option=option: engine.price(
                     dated_history(
-                        option.replace_history(touch_state="touched"),
+                        option.replace_history(
+                            touch_state="touched",
+                            history_time=option.history_time or option.effective_time,
+                        ),
                         self.context(120, fixing),
                     ),
                     self.context(120, fixing),
@@ -341,7 +361,10 @@ class BinaryBarrierTests(unittest.TestCase):
                     self.context(130, noon),
                 ),
             )
-            known = option.replace_history(touch_state="untouched")
+            known = option.replace_history(
+                touch_state="untouched",
+                history_time=option.history_time or option.effective_time,
+            )
             expected = 0 if one else 10 * math.exp(-0.04 * 363 / 365)
             self.assertAlmostEqual(
                 engine.price(
@@ -367,7 +390,7 @@ class BinaryBarrierTests(unittest.TestCase):
         engine = AnalyticBinaryBarrierEngine()
         options = [
             ins.cash_binary_barrier_option(
-                **self.terms(touch_state="untouched"), payout=10
+                **history_fields(**self.terms(touch_state="untouched"), payout=10)
             ),
             self.touch(touch_state="untouched"),
         ]
@@ -508,9 +531,11 @@ class BinaryBarrierTests(unittest.TestCase):
                 if inputs["option"] == "none":
                     factory = ins.asset_touch_option if asset else ins.cash_touch_option
                     option = factory(
-                        **terms,
-                        barrier_type=kind,
-                        settlement_timing=inputs["settlement"],
+                        **history_fields(
+                            **terms,
+                            barrier_type=kind,
+                            settlement_timing=inputs["settlement"],
+                        )
                     )
                 else:
                     factory = (
@@ -519,10 +544,12 @@ class BinaryBarrierTests(unittest.TestCase):
                         else ins.cash_binary_barrier_option
                     )
                     option = factory(
-                        **terms,
-                        option_type=inputs["option"],
-                        strike=inputs["strike"],
-                        barrier_type=kind,
+                        **history_fields(
+                            **terms,
+                            option_type=inputs["option"],
+                            strike=inputs["strike"],
+                            barrier_type=kind,
+                        )
                     )
                 context = self.context(
                     inputs["spot"],

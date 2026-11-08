@@ -13,6 +13,7 @@ from kiyosi.market import (
     all_days_calendar,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
 
@@ -48,7 +49,7 @@ def cases():
         (ins.AssetOrNothingOption, 100, {}),
     ):
         yield (
-            cls(**vanilla, **fields),
+            cls(**history_fields(**vanilla, **fields)),
             (
                 "AnalyticDigitalEngine",
                 "CoxRossRubinsteinDigitalEngine",
@@ -66,12 +67,14 @@ def cases():
         ),
     ):
         yield (
-            cls(**vanilla, averaging_start_time=START),
+            cls(**history_fields(**vanilla, averaging_start_time=START)),
             (analytic, "MonteCarloAsianEngine"),
             10,
         )
     yield (
-        ins.BarrierOption(**vanilla, barrier_level=80, barrier_type="down_and_out"),
+        ins.BarrierOption(
+            **history_fields(**vanilla, barrier_level=80, barrier_type="down_and_out")
+        ),
         (
             "AnalyticBarrierEngine",
             "CoxRossRubinsteinBarrierEngine",
@@ -83,7 +86,9 @@ def cases():
     )
     yield (
         ins.DoubleBarrierOption(
-            **vanilla, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
+            **history_fields(
+                **vanilla, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
+            )
         ),
         (
             "AnalyticDoubleBarrierEngine",
@@ -95,33 +100,39 @@ def cases():
     for payout, expected in ((None, 100), (10, 10)):
         yield (
             ins.BinaryBarrierOption(
-                payoff_type="cash" if payout is not None else "asset",
-                **vanilla,
-                barrier_level=80,
-                barrier_type="down_and_out",
-                payout=payout,
+                **history_fields(
+                    payoff_type="cash" if payout is not None else "asset",
+                    **vanilla,
+                    barrier_level=80,
+                    barrier_type="down_and_out",
+                    payout=payout,
+                )
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             expected,
         )
         yield (
             ins.TouchOption(
-                payoff_type="cash" if payout is not None else "asset",
-                **life,
-                barrier_level=80,
-                barrier_type="down_and_out",
-                payout=payout,
+                **history_fields(
+                    payoff_type="cash" if payout is not None else "asset",
+                    **life,
+                    barrier_level=80,
+                    barrier_type="down_and_out",
+                    payout=payout,
+                )
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             expected,
         )
     yield (
         ins.DoubleTouchOption(
-            **life,
-            lower_barrier=80,
-            upper_barrier=120,
-            barrier_type="knock_out",
-            payout=10,
+            **history_fields(
+                **life,
+                lower_barrier=80,
+                upper_barrier=120,
+                barrier_type="knock_out",
+                payout=10,
+            )
         ),
         ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
         10,
@@ -136,29 +147,35 @@ def cases():
     }
     for contract in (
         ins.SnowballOption(
-            observation_clock_time=clock_time(),
-            **note,
-            **downside,
-            maturity_coupon_rate=0.1,
+            **history_fields(
+                observation_clock_time=clock_time(),
+                **note,
+                **downside,
+                maturity_coupon_rate=0.1,
+            )
         ),
         ins.PhoenixOption(
-            observation_clock_time=clock_time(),
-            **dict(
-                note,
-                observations=ins.autocallable_observations(
-                    [END], [120], coupon_barrier_levels=[0]
+            **history_fields(
+                observation_clock_time=clock_time(),
+                **dict(
+                    note,
+                    observations=ins.autocallable_observations(
+                        [END], [120], coupon_barrier_levels=[0]
+                    ),
                 ),
-            ),
-            **downside,
-            coupon_rate=0.1,
+                **downside,
+                coupon_rate=0.1,
+            )
         ),
-        ins.BinarySnowballOption(**note, maturity_coupon_rate=0.1),
+        ins.BinarySnowballOption(**history_fields(**note, maturity_coupon_rate=0.1)),
         ins.TernarySnowballOption(
-            observation_clock_time=clock_time(),
-            **note,
-            knock_in_level=80,
-            maturity_coupon_rate=0.1,
-            minimum_coupon_rate=0,
+            **history_fields(
+                observation_clock_time=clock_time(),
+                **note,
+                knock_in_level=80,
+                maturity_coupon_rate=0.1,
+                minimum_coupon_rate=0,
+            )
         ),
     ):
         yield (
@@ -172,12 +189,14 @@ def cases():
         )
     yield (
         ins.Accumulator(
-            observation_clock_time=clock_time(),
-            **life,
-            strike=90,
-            knock_out_level=120,
-            daily_quantity=1,
-            acceleration_factor=2,
+            **history_fields(
+                observation_clock_time=clock_time(),
+                **life,
+                strike=90,
+                knock_out_level=120,
+                daily_quantity=1,
+                acceleration_factor=2,
+            )
         ),
         (
             "QuadratureAccumulatorEngine",
@@ -188,13 +207,15 @@ def cases():
     )
     yield (
         ins.RangeAccrualOption(
-            observation_clock_time=clock_time(),
-            **life,
-            notional=1000,
-            annual_coupon_rate=0.1,
-            lower_bound=100,
-            upper_bound=110,
-            calendar=all_days_calendar(),
+            **history_fields(
+                observation_clock_time=clock_time(),
+                **life,
+                notional=1000,
+                annual_coupon_rate=0.1,
+                lower_bound=100,
+                upper_bound=110,
+                calendar=all_days_calendar(),
+            )
         ),
         ("AnalyticRangeAccrualEngine",),
         100 * 4 / 365,
@@ -234,10 +255,12 @@ class DeterministicBsmTests(unittest.TestCase):
             for name in engines:
                 with self.subTest(contract=type(option).__name__, engine=name):
                     engine = getattr(pricing, name)(
-                        **(
-                            {"path_count": 16, "seed": 42, "max_active_workers": 1}
-                            if name.startswith("MonteCarlo")
-                            else {}
+                        **history_fields(
+                            **(
+                                {"path_count": 16, "seed": 42, "max_active_workers": 1}
+                                if name.startswith("MonteCarlo")
+                                else {}
+                            )
                         )
                     )
                     self.assertAlmostEqual(
@@ -311,13 +334,15 @@ class DeterministicBsmTests(unittest.TestCase):
         checks = [
             (
                 ins.BarrierOption(
-                    **life,
-                    option_type="call",
-                    strike=90,
-                    barrier_level=105,
-                    barrier_type="up_and_out",
-                    rebate=7,
-                    rebate_timing="at_hit",
+                    **history_fields(
+                        **life,
+                        option_type="call",
+                        strike=90,
+                        barrier_level=105,
+                        barrier_type="up_and_out",
+                        rebate=7,
+                        rebate_timing="at_hit",
+                    )
                 ),
                 (
                     "AnalyticBarrierEngine",
@@ -330,11 +355,13 @@ class DeterministicBsmTests(unittest.TestCase):
             ),
             (
                 ins.BarrierOption(
-                    **life,
-                    option_type="call",
-                    strike=90,
-                    barrier_level=105,
-                    barrier_type="up_and_in",
+                    **history_fields(
+                        **life,
+                        option_type="call",
+                        strike=90,
+                        barrier_level=105,
+                        barrier_type="up_and_in",
+                    )
                 ),
                 (
                     "AnalyticBarrierEngine",
@@ -345,50 +372,58 @@ class DeterministicBsmTests(unittest.TestCase):
             ),
             (
                 ins.TouchOption(
-                    payoff_type="cash",
-                    **life,
-                    barrier_level=105,
-                    barrier_type="up_and_in",
-                    payout=7,
-                    settlement_timing="at_hit",
+                    **history_fields(
+                        payoff_type="cash",
+                        **life,
+                        barrier_level=105,
+                        barrier_type="up_and_in",
+                        payout=7,
+                        settlement_timing="at_hit",
+                    )
                 ),
                 ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
                 7 * math.exp(-0.1 * hit),
             ),
             (
                 ins.TouchOption(
-                    payoff_type="asset",
-                    **life,
-                    barrier_level=105,
-                    barrier_type="up_and_in",
-                    payout=None,
-                    settlement_timing="at_hit",
+                    **history_fields(
+                        payoff_type="asset",
+                        **life,
+                        barrier_level=105,
+                        barrier_type="up_and_in",
+                        payout=None,
+                        settlement_timing="at_hit",
+                    )
                 ),
                 ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
                 105 * math.exp(-0.1 * hit),
             ),
             (
                 ins.DoubleTouchOption(
-                    **life,
-                    lower_barrier=80,
-                    upper_barrier=105,
-                    barrier_type="knock_in",
-                    payout=7,
-                    settlement_timing="at_hit",
+                    **history_fields(
+                        **life,
+                        lower_barrier=80,
+                        upper_barrier=105,
+                        barrier_type="knock_in",
+                        payout=7,
+                        settlement_timing="at_hit",
+                    )
                 ),
                 ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
                 7 * math.exp(-0.1 * hit),
             ),
             (
                 ins.TouchOption(
-                    payoff_type="cash",
-                    **life,
-                    barrier_level=105,
-                    barrier_type="up_and_in",
-                    payout=7,
-                    settlement_timing="at_hit",
-                    observation_mode="scheduled",
-                    observation_times=[end],
+                    **history_fields(
+                        payoff_type="cash",
+                        **life,
+                        barrier_level=105,
+                        barrier_type="up_and_in",
+                        payout=7,
+                        settlement_timing="at_hit",
+                        observation_mode="scheduled",
+                        observation_times=[end],
+                    )
                 ),
                 ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
                 7 * math.exp(-0.1),
@@ -440,6 +475,9 @@ class DeterministicBsmTests(unittest.TestCase):
             observation_mode="scheduled",
             observation_times=[end],
             touch_state=continuous.touch_state,
+            history_time=(continuous.history_time or continuous.effective_time)
+            if continuous.touch_state is not None
+            else None,
         )
         self.assertEqual(engine.price(dated_history(scheduled, context), context), 0)
 
@@ -497,12 +535,14 @@ class DeterministicBsmTests(unittest.TestCase):
             ),
         ):
             option = cls(
-                option_type="call",
-                strike=85,
-                effective_time=START,
-                averaging_start_time=START,
-                expiry_time=end,
-                realized_average=80,
+                **history_fields(
+                    option_type="call",
+                    strike=85,
+                    effective_time=START,
+                    averaging_start_time=START,
+                    expiry_time=end,
+                    realized_average=80,
+                )
             )
             for name in (analytic, "MonteCarloAsianEngine"):
                 with self.subTest(engine=name, contract=cls.__name__):

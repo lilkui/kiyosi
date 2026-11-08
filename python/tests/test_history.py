@@ -10,7 +10,7 @@ from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
 from kiyosi.market import custom_calendar
-from test_contract_replacements import contracts
+from test_contract_replacements import contract_inputs, contracts
 
 AT = datetime(2025, 1, 6, 12)
 
@@ -54,7 +54,9 @@ class HistoryTests(unittest.TestCase):
         )
         for original in contracts():
             if hasattr(original, "realized_average"):
-                original = original.replace_history(realized_average=100)
+                original = original.replace_history(
+                    realized_average=100, history_time=AT
+                )
             original = original.replace(history_time=AT)
             fields = {name: None for name in names if hasattr(original, name)}
             for method in ("replace", "replace_history"):
@@ -289,16 +291,18 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(selected.price(note.replace(history_time=AT), context()), 0)
 
     def test_every_path_dependent_family_requires_dated_history(self):
-        for original in contracts():
-            if hasattr(original, "realized_average"):
-                original = original.replace_history(realized_average=100)
-            with self.subTest(contract=type(original).__name__):
+        for factory, fields in contract_inputs():
+            if "realized_average" in fields:
+                fields["realized_average"] = 100
+            with self.subTest(contract=factory.__name__):
+                for omitted in ({}, {"history_time": None}):
+                    with self.assertRaises(InvalidInputError):
+                        factory(**fields, **omitted)
+                original = factory(**fields, history_time=AT)
                 selected = engine(original)
-                with self.assertRaises(InvalidInputError):
-                    selected.price(original, context())
                 dated = original.replace(history_time=AT)
                 self.assertTrue(math.isfinite(selected.price(dated, context())))
-                self.assertIsNone(original.history_time)
+                self.assertEqual(original.history_time, AT)
                 self.assertEqual(dated.history_time, AT)
                 self.assertEqual(pickle.loads(pickle.dumps(dated)), dated)
                 self.assertEqual(dated.replace(), dated)

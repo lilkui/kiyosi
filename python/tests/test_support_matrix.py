@@ -15,6 +15,7 @@ from kiyosi.market import (
     all_days_calendar,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 
 HESTON_ENGINES = (
     "AnalyticHestonEuropeanEngine",
@@ -73,7 +74,7 @@ def terminal_cases():
         (ins.CashOrNothingOption(**vanilla, payout=10), cash_digital, 10),
         (ins.AssetOrNothingOption(**vanilla), cash_digital, 105),
         (
-            ins.BarrierOption(**barrier),
+            ins.BarrierOption(**history_fields(**barrier)),
             (
                 "AnalyticBarrierEngine",
                 "CoxRossRubinsteinBarrierEngine",
@@ -83,15 +84,21 @@ def terminal_cases():
             ),
             5,
         ),
-        (ins.cash_binary_barrier_option(**barrier, payout=10), binary, 10),
-        (ins.asset_binary_barrier_option(**barrier), binary, 105),
+        (
+            ins.cash_binary_barrier_option(**history_fields(**barrier, payout=10)),
+            binary,
+            10,
+        ),
+        (ins.asset_binary_barrier_option(**history_fields(**barrier)), binary, 105),
         (
             ins.DoubleBarrierOption(
-                **vanilla,
-                barrier_type="knock_out",
-                lower_barrier=80,
-                upper_barrier=120,
-                touch_state="untouched",
+                **history_fields(
+                    **vanilla,
+                    barrier_type="knock_out",
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    touch_state="untouched",
+                )
             ),
             (
                 "AnalyticDoubleBarrierEngine",
@@ -102,18 +109,22 @@ def terminal_cases():
         ),
         (
             ins.GeometricAveragePriceOption(
-                **vanilla,
-                averaging_start_time=dates["effective_time"],
-                realized_average=110,
+                **history_fields(
+                    **vanilla,
+                    averaging_start_time=dates["effective_time"],
+                    realized_average=110,
+                )
             ),
             ("AnalyticGeometricAveragePriceEngine", "MonteCarloAsianEngine"),
             10,
         ),
         (
             ins.ArithmeticAveragePriceOption(
-                **vanilla,
-                averaging_start_time=dates["effective_time"],
-                realized_average=110,
+                **history_fields(
+                    **vanilla,
+                    averaging_start_time=dates["effective_time"],
+                    realized_average=110,
+                )
             ),
             ("TurnbullWakemanArithmeticAveragePriceEngine", "MonteCarloAsianEngine"),
             10,
@@ -129,6 +140,7 @@ def terminal_cases():
                 daily_quantity=1,
                 acceleration_factor=2,
                 accumulated_quantity=3,
+                history_time=dates["effective_time"] - timedelta(days=1),
             ),
             (
                 "QuadratureAccumulatorEngine",
@@ -139,14 +151,16 @@ def terminal_cases():
         ),
         (
             ins.RangeAccrualOption(
-                observation_clock_time=clock_time(),
-                **dates,
-                calendar=all_days_calendar(),
-                notional=1000,
-                annual_coupon_rate=0.12,
-                lower_bound=95,
-                upper_bound=110,
-                realized_hit_count=0,
+                **history_fields(
+                    observation_clock_time=clock_time(),
+                    **dates,
+                    calendar=all_days_calendar(),
+                    notional=1000,
+                    annual_coupon_rate=0.12,
+                    lower_bound=95,
+                    upper_bound=110,
+                    realized_hit_count=0,
+                )
             ),
             ("AnalyticRangeAccrualEngine",),
             120 / 365,
@@ -162,11 +176,13 @@ def terminal_cases():
         cases.append(
             (
                 factory(
-                    **dates,
-                    barrier_level=120,
-                    barrier_type=kind,
-                    touch_state="untouched",
-                    **payout,
+                    **history_fields(
+                        **dates,
+                        barrier_level=120,
+                        barrier_type=kind,
+                        touch_state="untouched",
+                        **payout,
+                    )
                 ),
                 binary,
                 amount,
@@ -176,11 +192,13 @@ def terminal_cases():
         cases.append(
             (
                 factory(
-                    **dates,
-                    lower_barrier=80,
-                    upper_barrier=120,
-                    payout=10,
-                    touch_state="untouched",
+                    **history_fields(
+                        **dates,
+                        lower_barrier=80,
+                        upper_barrier=120,
+                        payout=10,
+                        touch_state="untouched",
+                    )
                 ),
                 ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
                 amount,
@@ -204,41 +222,49 @@ def terminal_cases():
         [
             (
                 ins.SnowballOption(
-                    observation_clock_time=None,
-                    **common,
-                    **loss,
-                    maturity_coupon_rate=0.06,
+                    **history_fields(
+                        observation_clock_time=None,
+                        **common,
+                        **loss,
+                        maturity_coupon_rate=0.06,
+                    )
                 ),
                 notes,
                 1.06,
             ),
             (
-                ins.BinarySnowballOption(**common, maturity_coupon_rate=0.06),
+                ins.BinarySnowballOption(
+                    **history_fields(**common, maturity_coupon_rate=0.06)
+                ),
                 notes,
                 1.06,
             ),
             (
                 ins.TernarySnowballOption(
-                    observation_clock_time=None,
-                    **common,
-                    maturity_coupon_rate=0.06,
-                    minimum_coupon_rate=-0.02,
-                    knock_in_level=80,
-                    knock_in_observation_mode="at_expiry",
-                    barrier_state="no_event",
+                    **history_fields(
+                        observation_clock_time=None,
+                        **common,
+                        maturity_coupon_rate=0.06,
+                        minimum_coupon_rate=-0.02,
+                        knock_in_level=80,
+                        knock_in_observation_mode="at_expiry",
+                        barrier_state="no_event",
+                    )
                 ),
                 notes,
                 1.06,
             ),
             (
                 ins.PhoenixOption(
-                    observation_clock_time=None,
-                    **dates,
-                    **loss,
-                    coupon_rate=0.08,
-                    observations=ins.autocallable_observations(
-                        [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
-                    ),
+                    **history_fields(
+                        observation_clock_time=None,
+                        **dates,
+                        **loss,
+                        coupon_rate=0.08,
+                        observations=ins.autocallable_observations(
+                            [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
+                        ),
+                    )
                 ),
                 notes,
                 1.08,

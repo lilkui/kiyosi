@@ -124,7 +124,9 @@ class LocalVolatilityFDContractTests(unittest.TestCase):
                     )
                 with self.assertRaises(InvalidInputError):
                     getattr(pricing, name)(
-                        asset_step_count=800, time_step_count=1, scheme="explicit_euler"
+                        asset_step_count=800,
+                        time_step_count=1,
+                        scheme="explicit_euler",
                     ).price(dated_history(contract, context()), context())
 
     def test_digital_rejects_node_rates_even_at_expiry(self):

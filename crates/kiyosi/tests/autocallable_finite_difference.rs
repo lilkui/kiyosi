@@ -92,6 +92,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
         snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(snow.expiry_time.time_of_day());
         snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        snow.history_time = Some(snow.effective_time);
         let mut ternary = TernarySnowballTerms::new(
             0.06,
             0.01,
@@ -105,6 +106,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
         ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(ternary.expiry_time.time_of_day());
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        ternary.history_time = Some(ternary.effective_time);
         let mut phoenix = PhoenixTerms::new(
             kiyosi::PhoenixCoupon::Annual(0.08),
             100.0,
@@ -126,6 +128,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
         phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(phoenix.expiry_time.time_of_day());
         phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        phoenix.history_time = Some(phoenix.effective_time);
 
         check(&SnowballOption::new(snow).unwrap(), &context);
         check(&TernarySnowballOption::new(ternary).unwrap(), &context);
@@ -161,6 +164,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = PhoenixOption::new(terms).unwrap();
     let original = note.clone();
     let context = market(103.0, date(1, 1));
@@ -238,7 +242,10 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         );
     }
     let settled = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
+        .replace_history(
+            Some(AutocallableBarrierState::KnockedOut),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     let later = market(100.0, date(3, 3));
     assert_eq!(engine.price(&dated(&settled, &later), &later).unwrap(), 0.0);
@@ -317,10 +324,16 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::NoEvent), None)
+        .replace_history(
+            Some(AutocallableBarrierState::NoEvent),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     let impossible = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
+        .replace_history(
+            Some(AutocallableBarrierState::KnockedOut),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     assert!(matches!(
         engine
@@ -430,6 +443,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let engine = FiniteDifferenceAutocallableEngine::default();
     let note = PhoenixOption::new(terms).unwrap();
     let result = engine

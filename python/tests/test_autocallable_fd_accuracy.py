@@ -45,7 +45,9 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 effective_time=start,
                 expiry_time=end,
                 observations=autocallable_observations(
-                    [middle, end], [100, barrier], knock_out_coupon_rates=[0.08, 0.08]
+                    [middle, end],
+                    [100, barrier],
+                    knock_out_coupon_rates=[0.08, 0.08],
                 ),
             )
             return engine.price_with_greeks(
@@ -146,6 +148,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
             observations=autocallable_observations(
                 dates, [103] * len(dates), knock_out_coupon_rates=[0.2] * len(dates)
             ),
+            history_time=start,
         )
         model = BlackScholesMertonParameters(
             risk_free_rate=0.02, dividend_yield=0, volatility=0.2
@@ -298,6 +301,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
             observations=autocallable_observations(
                 [end], [100], coupon_barrier_levels=[100]
             ),
+            history_time=start,
         )
         engine = pricing.FiniteDifferenceAutocallableEngine()
         for spot, expected in (
@@ -344,6 +348,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 [110] * 4,
                 knock_out_coupon_rates=[carry_rate(day) for day in dates],
             ),
+            history_time=start,
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(

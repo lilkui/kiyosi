@@ -9,6 +9,7 @@ from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
 from kiyosi.pricing import numerical_greeks
+from support.history import history_fields
 
 
 class SpotShiftDefaultTests(unittest.TestCase):
@@ -31,16 +32,20 @@ class SpotShiftDefaultTests(unittest.TestCase):
             (
                 p.MonteCarloBarrierEngine(path_count=64, seed=42),
                 i.BarrierOption(
-                    **vanilla, barrier_level=120, barrier_type="up_and_out"
+                    **history_fields(
+                        **vanilla, barrier_level=120, barrier_type="up_and_out"
+                    )
                 ),
             ),
             (
                 p.MonteCarloDoubleBarrierEngine(path_count=64, seed=42),
                 i.DoubleBarrierOption(
-                    **vanilla,
-                    lower_barrier=80,
-                    upper_barrier=120,
-                    barrier_type="knock_out",
+                    **history_fields(
+                        **vanilla,
+                        lower_barrier=80,
+                        upper_barrier=120,
+                        barrier_type="knock_out",
+                    )
                 ),
             ),
         ):

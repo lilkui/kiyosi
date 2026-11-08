@@ -21,9 +21,16 @@ fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     for averaging in [start, date(5, 1), end] {
-        let option =
-            GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, averaging, end, None)
-                .unwrap();
+        let option = GeometricAveragePriceOption::new(
+            OptionType::Call,
+            100.0,
+            start,
+            averaging,
+            end,
+            None,
+            None,
+        )
+        .unwrap();
         let context = market(100.0, 0.2, start);
         let settings = MonteCarloSettings {
             path_count: 16384,
@@ -58,7 +65,8 @@ fn arithmetic_retains_conditioned_integration_and_converges() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let option =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 2.0, start, start, end, None).unwrap();
+        ArithmeticAveragePriceOption::new(OptionType::Call, 2.0, start, start, end, None, None)
+            .unwrap();
     let settings = MonteCarloSettings {
         path_count: 65536,
         seed: Some(42),
@@ -114,6 +122,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
                 averaging,
                 end,
                 (history != 0.0).then_some(history),
+                Some(start),
             )
             .unwrap();
             let g = GeometricAveragePriceOption::new(
@@ -123,6 +132,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
                 averaging,
                 end,
                 (history != 0.0).then_some(history),
+                Some(start),
             )
             .unwrap();
             let context = market(100.0, 0.2, valuation);
@@ -212,10 +222,12 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
 fn sampling_exact_counts_threads_and_shared_calls_agree() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
-    let a = ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
-        .unwrap();
+    let a =
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+            .unwrap();
     let g =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+            .unwrap();
     let context = market(100.0, 0.2, start);
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         for antithetic in [false, true] {
@@ -335,6 +347,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             averaging,
             end,
             (history != 0.0).then_some(history),
+            Some(start),
         )
         .unwrap();
         let g = GeometricAveragePriceOption::new(
@@ -344,6 +357,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             averaging,
             end,
             (history != 0.0).then_some(history),
+            Some(start),
         )
         .unwrap();
         let context = market(100.0, 0.2, valuation);
@@ -367,6 +381,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             averaging,
             end,
             (history != 0.0).then_some(history),
+            Some(start),
         )
         .unwrap();
         let g = GeometricAveragePriceOption::new(
@@ -376,6 +391,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             averaging,
             end,
             (history != 0.0).then_some(history),
+            Some(start),
         )
         .unwrap();
         let context = market(100.0, 0.2, end);
@@ -462,10 +478,12 @@ fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
         )
         .unwrap();
         for direction in [OptionType::Call, OptionType::Put] {
-            let a = ArithmeticAveragePriceOption::new(direction, spot, start, start, end, None)
-                .unwrap();
+            let a =
+                ArithmeticAveragePriceOption::new(direction, spot, start, start, end, None, None)
+                    .unwrap();
             let g =
-                GeometricAveragePriceOption::new(direction, spot, start, start, end, None).unwrap();
+                GeometricAveragePriceOption::new(direction, spot, start, start, end, None, None)
+                    .unwrap();
             for price in [
                 engine.price(&dated(&a, &context), &context).unwrap(),
                 engine.price(&dated(&g, &context), &context).unwrap(),
@@ -477,8 +495,16 @@ fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
             }
         }
     }
-    let g =
-        GeometricAveragePriceOption::new(OptionType::Call, 10.0, start, start, end, 100.0).unwrap();
+    let g = GeometricAveragePriceOption::new(
+        OptionType::Call,
+        10.0,
+        start,
+        start,
+        end,
+        100.0,
+        Some(start),
+    )
+    .unwrap();
     let context = market(100.0, 0.2, date(7, 1));
     let actual = engine
         .price_with_greeks(
@@ -536,6 +562,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             averaging,
             end,
             (history != 0.0).then_some(history),
+            Some(start),
         )
         .unwrap();
         let g = GeometricAveragePriceOption::new(
@@ -545,6 +572,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             averaging,
             end,
             (history != 0.0).then_some(history),
+            Some(start),
         )
         .unwrap();
         let context = PricingContext::new(model.clone(), 100.0, valuation).unwrap();
@@ -562,12 +590,27 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
         ));
     }
     let context = PricingContext::new(model, 100.0, end).unwrap();
-    let g = GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 110.0)
-        .unwrap();
+    let g = GeometricAveragePriceOption::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start,
+        end,
+        110.0,
+        Some(start),
+    )
+    .unwrap();
     assert_eq!(engine.price(&dated(&g, &context), &context).unwrap(), 10.0);
-    let affine =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 25.0, start, start, end, 100.0)
-            .unwrap();
+    let affine = ArithmeticAveragePriceOption::new(
+        OptionType::Call,
+        25.0,
+        start,
+        start,
+        end,
+        100.0,
+        Some(start),
+    )
+    .unwrap();
     let context = market(100.0, 0.2, knot);
     let result = engine
         .price_with_greeks(&dated(&affine, &context), &context, GreeksRequest::all())
@@ -694,6 +737,7 @@ fn conditioned_arithmetic_agrees_with_independent_raw_path_statistics() {
             averaging,
             end,
             (history != 0.0).then_some(history),
+            Some(start),
         )
         .unwrap();
         for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
@@ -745,6 +789,7 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
         start,
         start,
         Date::new(2026, 1, 1).unwrap().start_of_day(),
+        None,
         None,
     )
     .unwrap();
@@ -816,6 +861,7 @@ fn arithmetic_validates_interval_drift_without_rejecting_a_finite_payoff() {
         start,
         Date::new(2035, 1, 1).unwrap().start_of_day(),
         None,
+        None,
     )
     .unwrap();
     let context = PricingContext::new(
@@ -848,6 +894,7 @@ fn node_curve_affine_history_preserves_the_fused_accrual_residual() {
         start,
         end,
         1e308,
+        Some(start),
     )
     .unwrap();
     let curve = RateTermStructure::new(start, vec![end], vec![1.0]).unwrap();

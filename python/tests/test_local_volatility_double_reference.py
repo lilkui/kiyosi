@@ -8,6 +8,7 @@ from pathlib import Path
 from kiyosi import instruments as ins
 from kiyosi import pricing
 from support.history import dated as dated_history
+from support.history import history_fields
 from test_local_volatility_structured import END, OBSERVATIONS, START, market
 
 
@@ -25,15 +26,20 @@ def contracts(scheduled):
     for direction in ["call", "put"]:
         for kind in ["in", "out"]:
             result[f"{direction}_{kind}"] = ins.DoubleBarrierOption(
-                **terms, option_type=direction, strike=100, barrier_type=f"knock_{kind}"
+                **history_fields(
+                    **terms,
+                    option_type=direction,
+                    strike=100,
+                    barrier_type=f"knock_{kind}",
+                )
             )
     result["touch_expiry"] = ins.cash_double_touch(
-        **terms, payout=10, settlement_timing="at_expiry"
+        **history_fields(**terms, payout=10, settlement_timing="at_expiry")
     )
     result["touch_hit"] = ins.cash_double_touch(
-        **terms, payout=10, settlement_timing="at_hit"
+        **history_fields(**terms, payout=10, settlement_timing="at_hit")
     )
-    result["no_touch"] = ins.cash_double_no_touch(**terms, payout=10)
+    result["no_touch"] = ins.cash_double_no_touch(**history_fields(**terms, payout=10))
     return result
 
 

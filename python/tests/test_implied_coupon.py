@@ -29,6 +29,7 @@ from kiyosi.pricing import (
     implied_snowball_coupon,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, autocallable_observations, market
 from test_snowball import contract as snowball
@@ -44,7 +45,7 @@ def binary(coupon=0.08, maturity=0.06, **changes):
         ),
     }
     fields.update(changes)
-    return BinarySnowballOption(**fields)
+    return BinarySnowballOption(**history_fields(**fields))
 
 
 class ImpliedCouponTests(unittest.TestCase):
@@ -203,7 +204,12 @@ class ImpliedCouponTests(unittest.TestCase):
         ]
         for note in notes:
             self.assertEqual(note.replace_history(), note)
-            self.assertEqual(note.replace_history(barrier_state=Ellipsis), note)
+            self.assertEqual(
+                note.replace_history(
+                    barrier_state=Ellipsis,
+                ),
+                note,
+            )
             for convention in get_args(CouponQuoteConvention):
                 with self.subTest(note=type(note).__name__, convention=convention):
                     replacement = note.with_quoted_coupon(
@@ -256,7 +262,12 @@ class ImpliedCouponTests(unittest.TestCase):
             phoenix(coupon_rate=Ellipsis, coupon_per_period=0.02),
         ):
             self.assertEqual(note.replace_history(), note)
-            self.assertEqual(note.replace_history(barrier_state=Ellipsis), note)
+            self.assertEqual(
+                note.replace_history(
+                    barrier_state=Ellipsis,
+                ),
+                note,
+            )
             field = (
                 "coupon_rate" if note.coupon_rate is not None else "coupon_per_period"
             )
@@ -481,7 +492,7 @@ class ImpliedCouponTests(unittest.TestCase):
                     )
                 if kind == "TernarySnowballOption":
                     fields.update(minimum_coupon_rate=-0.2)
-                return getattr(instruments, kind)(**fields)
+                return getattr(instruments, kind)(**history_fields(**fields))
             fields = {
                 "coupon_rate": coupon,
                 "observation_clock_time": None
@@ -517,7 +528,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 fields.update(upper_strike=90)
             elif kind == "loss_capped_snowball":
                 fields.update(lower_strike=60)
-            return getattr(instruments, kind)(**fields)
+            return getattr(instruments, kind)(**history_fields(**fields))
 
         kinds = (
             "SnowballOption",
@@ -770,6 +781,7 @@ class ImpliedCouponTests(unittest.TestCase):
             expiry_time=END,
             observations=known.observations,
             barrier_state="no_event",
+            history_time=START,
         )
         coupon = implied_snowball_coupon(
             engine,
@@ -785,7 +797,10 @@ class ImpliedCouponTests(unittest.TestCase):
             ternary,
             phoenix(),
         ):
-            settled = note.replace_history(barrier_state="knocked_out")
+            settled = note.replace_history(
+                barrier_state="knocked_out",
+                history_time=note.history_time or note.effective_time,
+            )
             kwargs = (
                 {}
                 if isinstance(note, PhoenixOption)

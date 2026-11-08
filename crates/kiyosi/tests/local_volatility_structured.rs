@@ -100,6 +100,7 @@ fn constant_surface_matches_accumulator_directions_schedules_and_rate_curves() {
         for direction in [OptionType::Call, OptionType::Put] {
             for schedule in [None, Some(vec![date(2, 3), end]), Some(vec![])] {
                 let option = Accumulator::new(AccumulatorTerms {
+                    history_time: Some(date(1, 1).add_days(-1).unwrap()),
                     knock_out_settled: Some(false),
                     option_type: direction,
                     accumulated_quantity: Some(3.0),
@@ -159,6 +160,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
             snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
                 .then_some(snow.expiry_time.time_of_day());
             snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
+            snow.history_time = Some(snow.effective_time);
             let mut ternary = TernarySnowballTerms::new(
                 0.06,
                 0.01,
@@ -172,6 +174,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
             ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
                 .then_some(ternary.expiry_time.time_of_day());
             ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
+            ternary.history_time = Some(ternary.effective_time);
             let mut phoenix = PhoenixTerms::new(
                 kiyosi::PhoenixCoupon::Annual(0.08),
                 100.0,
@@ -193,6 +196,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
             phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
                 .then_some(phoenix.expiry_time.time_of_day());
             phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
+            phoenix.history_time = Some(phoenix.effective_time);
             parity(&engine, &SnowballOption::new(snow).unwrap(), &local);
             parity(
                 &engine,
@@ -223,6 +227,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     let live = PricingContext::new(short.clone(), 101.0, start).unwrap();
     let settled = PricingContext::new(short, 120.0, start).unwrap();
     let acc = Accumulator::new(AccumulatorTerms {
+        history_time: Some(start.add_days(-1).unwrap()),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -262,7 +267,10 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::default();
     let knocked_out = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
+        .replace_history(
+            Some(AutocallableBarrierState::KnockedOut),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     let later = PricingContext::new(
         LocalVolatilityParameters::new(0.04, 0.01, surface(date(2, 4), true)).unwrap(),
@@ -326,6 +334,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = PhoenixOption::new(terms).unwrap();
     let engine = FiniteDifferenceAutocallableEngine::new(settings()).unwrap();
     let local = context(0.04, 0.01, 90.0, true)
@@ -358,6 +367,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         None
     );
     let acc = Accumulator::new(AccumulatorTerms {
+        history_time: Some(start.add_days(-1).unwrap()),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -490,6 +500,7 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
     let start = date(1, 1);
     let end = date(4, 1);
     let acc = Accumulator::new(AccumulatorTerms {
+        history_time: Some(start.add_days(-1).unwrap()),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -527,6 +538,7 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
         Some((end).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms).unwrap();
     let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
         asset_step_count: 1600,
@@ -557,6 +569,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
     // Frozen QL path means and five-SE + measured time-bias + FD budgets;
     // Python verifies the full evidence in local_volatility_structured.json.
     let acc = Accumulator::new(AccumulatorTerms {
+        history_time: Some(start.add_days(-1).unwrap()),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -615,6 +628,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(snow.expiry_time.time_of_day());
         snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        snow.history_time = Some(snow.effective_time);
         let mut ternary = TernarySnowballTerms::new(
             0.06,
             0.01,
@@ -628,6 +642,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(ternary.expiry_time.time_of_day());
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        ternary.history_time = Some(ternary.effective_time);
         let mut phoenix = PhoenixTerms::new(
             kiyosi::PhoenixCoupon::Annual(0.08),
             100.0,
@@ -649,6 +664,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
             .then_some(phoenix.expiry_time.time_of_day());
         phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        phoenix.history_time = Some(phoenix.effective_time);
         for (price, expected, tolerance) in [
             (
                 engine

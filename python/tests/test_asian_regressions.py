@@ -13,6 +13,7 @@ from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePri
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import implied_volatility, numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 class AsianRegressionTests(unittest.TestCase):
@@ -41,6 +42,9 @@ class AsianRegressionTests(unittest.TestCase):
                                     averaging_start_time=start,
                                     expiry_time=end,
                                     realized_average=50 * scale,
+                                    history_time=(start)
+                                    if 50 * scale is not None
+                                    else None,
                                 )
                                 context = PricingContext(
                                     model_parameters=parameters,
@@ -183,6 +187,7 @@ class AsianRegressionTests(unittest.TestCase):
                         averaging_start_time=start,
                         expiry_time=valuation + timedelta(days=365),
                         realized_average=amount,
+                        history_time=(start) if amount is not None else None,
                     )
                     context = PricingContext(
                         model_parameters=BlackScholesMertonParameters(
@@ -205,6 +210,7 @@ class AsianRegressionTests(unittest.TestCase):
             averaging_start_time=start,
             expiry_time=start + timedelta(days=730),
             realized_average=100,
+            history_time=start,
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -278,6 +284,9 @@ class AsianRegressionTests(unittest.TestCase):
                             else start,
                             expiry_time=end,
                             realized_average=spot if window == 2 else None,
+                            history_time=(start)
+                            if (spot if window == 2 else None) is not None
+                            else None,
                         )
                         actual = (
                             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
@@ -311,12 +320,12 @@ class AsianRegressionTests(unittest.TestCase):
                 for engine, option, expected in (
                     (
                         pricing.AnalyticGeometricAveragePriceEngine(),
-                        GeometricAveragePriceOption(**terms),
+                        GeometricAveragePriceOption(**history_fields(**terms)),
                         geometric,
                     ),
                     (
                         pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
-                        ArithmeticAveragePriceOption(**terms),
+                        ArithmeticAveragePriceOption(**history_fields(**terms)),
                         arithmetic,
                     ),
                 ):
@@ -358,7 +367,7 @@ class AsianRegressionTests(unittest.TestCase):
             for realized in (100, 200, 220):
                 with self.subTest(direction=direction, realized=realized):
                     option = ArithmeticAveragePriceOption(
-                        **terms, realized_average=realized
+                        **history_fields(**terms, realized_average=realized)
                     )
                     quote = engine.price(dated_history(option, context), context)
                     if realized < 200:
@@ -389,7 +398,9 @@ class AsianRegressionTests(unittest.TestCase):
                             )
                         if direction == "put":
                             self.assertEqual(quote, 0)
-            geometric = GeometricAveragePriceOption(**terms, realized_average=200)
+            geometric = GeometricAveragePriceOption(
+                **history_fields(**terms, realized_average=200)
+            )
             geometric_engine = pricing.AnalyticGeometricAveragePriceEngine()
             self.assertAlmostEqual(
                 implied_volatility(
@@ -456,6 +467,9 @@ class AsianRegressionTests(unittest.TestCase):
                                 averaging_start_time=averaging,
                                 expiry_time=end,
                                 realized_average=spot if window == 2 else None,
+                                history_time=(start)
+                                if (spot if window == 2 else None) is not None
+                                else None,
                             )
                             actual = engine.price(
                                 dated_history(option, context), context
@@ -498,6 +512,9 @@ class AsianRegressionTests(unittest.TestCase):
                         ),
                         expiry_time=end,
                         realized_average=1e8 if window == 2 else None,
+                        history_time=(start)
+                        if (1e8 if window == 2 else None) is not None
+                        else None,
                     )
                     actual = (
                         pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
@@ -521,6 +538,7 @@ class AsianRegressionTests(unittest.TestCase):
             averaging_start_time=start,
             expiry_time=end,
             realized_average=1,
+            history_time=start,
         )
         self.assertEqual(
             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
@@ -580,6 +598,9 @@ class AsianRegressionTests(unittest.TestCase):
                                 averaging_start_time=averaging,
                                 expiry_time=end,
                                 realized_average=spot if window == 2 else None,
+                                history_time=(start)
+                                if (spot if window == 2 else None) is not None
+                                else None,
                             )
                             price = pricing.AnalyticGeometricAveragePriceEngine().price(
                                 dated_history(option, context), context
@@ -611,7 +632,10 @@ class AsianRegressionTests(unittest.TestCase):
                         "expiry_time": end,
                     }
                     actual = engine.price(
-                        dated_history(GeometricAveragePriceOption(**terms), context),
+                        dated_history(
+                            GeometricAveragePriceOption(**history_fields(**terms)),
+                            context,
+                        ),
                         context,
                     )
                     expected = 1e14 * math.erf(sigma / (2 * math.sqrt(2)))
@@ -622,7 +646,7 @@ class AsianRegressionTests(unittest.TestCase):
                         engine.price(
                             dated_history(
                                 GeometricAveragePriceOption(
-                                    **terms, realized_average=1e14
+                                    **history_fields(**terms, realized_average=1e14)
                                 ),
                                 context,
                             ),

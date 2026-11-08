@@ -18,6 +18,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from support.custom_calendar import CustomCalendarTests  # noqa: F401
+from support.history import history_fields
 
 
 class CalendarTests(unittest.TestCase):
@@ -349,18 +350,22 @@ class CalendarTests(unittest.TestCase):
             for value in (0, -1, minimum):
                 with self.assertRaises(InvalidInputError) as error:
                     factory(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: value},
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            start_time=start,
+                            end_time=end,
+                            **{field: value},
+                        )
                     )
                 self.assertIs(type(error.exception), InvalidInputError)
                 with self.assertRaises(InvalidInputError) as error:
                     factory(
-                        observation_clock_time=clock_time(),
-                        start_time=end,
-                        end_time=start,
-                        **{field: value},
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            start_time=end,
+                            end_time=start,
+                            **{field: value},
+                        )
                     )
                 self.assertIs(type(error.exception), InvalidInputError)
         for operation in (
@@ -390,41 +395,51 @@ class CalendarTests(unittest.TestCase):
             for value in (Index(), IndexOnly()):
                 self.assertEqual(
                     factory(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: value},
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            start_time=start,
+                            end_time=end,
+                            **{field: value},
+                        )
                     ).times,
                     factory(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: 1},
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            start_time=start,
+                            end_time=end,
+                            **{field: 1},
+                        )
                     ).times,
                 )
             for value in (True, 1.0, 1.5, "1", None):
                 with self.assertRaises(TypeError):
                     factory(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: value},
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            start_time=start,
+                            end_time=end,
+                            **{field: value},
+                        )
                     )
             for value in (-(2**bits) - 1, 2**bits):
                 with self.assertRaises(OverflowError):
                     factory(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: value},
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            start_time=start,
+                            end_time=end,
+                            **{field: value},
+                        )
                     )
             for value in (date(2025, 1, 1), "2025-01-01", True):
                 with self.assertRaises(TypeError):
                     factory(
-                        observation_clock_time=clock_time(),
-                        start_time=value,
-                        end_time=end,
-                        **{field: 1},
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            start_time=value,
+                            end_time=end,
+                            **{field: 1},
+                        )
                     )
         with self.assertRaises(ValueError):
             weekdays_calendar().adjust(start.date(), "modified_following")

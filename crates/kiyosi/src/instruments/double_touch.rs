@@ -7,6 +7,10 @@ use crate::{
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleTouchOptionTerms {
+    /// Dates supplied history; required when any history payload is known.
+    ///
+    /// See the [crate-level history example](crate).
+    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Inclusive effective time.
@@ -38,6 +42,7 @@ impl DoubleTouchOptionTerms {
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
+            history_time: None,
             calendar: TradingCalendar::default(),
             effective_time,
             expiry_time,
@@ -96,6 +101,9 @@ impl DoubleTouchOption {
     ///
     /// # Errors
     ///
+    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
+    /// or a timestamp outside the contract life.
+    ///
     /// Returns [`Error::InvalidInput`] for invalid positive finite payout,
     /// then for at-hit no-touch settlement. Shared monitoring validation then
     /// rejects invalid boundaries, reversed life or invalid schedules.
@@ -115,8 +123,7 @@ impl DoubleTouchOption {
     ///     120.0, start.into())?;
     /// let engine = FiniteDifferenceDoubleTouchEngine::default();
     /// assert!((engine.price(&option, &context)? - 10.0 * (-0.03_f64).exp()).abs() < 1e-12);
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched), None)?
-    ///     .with_history_time(Some(start.add_days(1)?))?;
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched), Some(start.add_days(1)?))?;
     /// assert_eq!(option.touch_state(), None);
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// # Ok(()) }
@@ -148,6 +155,7 @@ impl DoubleTouchOption {
             terms.observation_times,
             terms.touch_state,
             terms.calendar,
+            terms.history_time,
         )?;
         Ok(Self {
             monitoring,
@@ -324,6 +332,12 @@ impl DoubleTouchOption {
         let history_supplied = changes.touch_state.is_some();
         let updated = Self::cash(
             DoubleTouchOptionTerms {
+                history_time: super::replacement_history_time(
+                    self.history_time(),
+                    changes.history_time,
+                    changes.touch_state.is_some()
+                        && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
+                ),
                 calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
                 effective_time: changes.effective_time.unwrap_or(self.effective_time()),
                 expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
@@ -346,11 +360,6 @@ impl DoubleTouchOption {
             history_supplied,
             self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
         )?;
-        let history_time = super::replacement_history_time(
-            self.history_time(),
-            changes.history_time,
-            history_supplied && updated.touch_state().is_none(),
-        );
-        updated.with_history_time(history_time)
+        Ok(updated)
     }
 }

@@ -8,6 +8,7 @@ from kiyosi import instruments as ins
 from kiyosi import market, pricing
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 
@@ -98,25 +99,31 @@ class ExpiryGreekTests(unittest.TestCase):
                 (
                     pricing.AnalyticBarrierEngine(),
                     ins.BarrierOption(
-                        **common, barrier_level=120, barrier_type="up_and_out"
+                        **history_fields(
+                            **common, barrier_level=120, barrier_type="up_and_out"
+                        )
                     ),
                 ),
                 (
                     pricing.AnalyticDoubleBarrierEngine(),
                     ins.DoubleBarrierOption(
-                        **common,
-                        lower_barrier=80,
-                        upper_barrier=120,
-                        barrier_type="knock_out",
+                        **history_fields(
+                            **common,
+                            lower_barrier=80,
+                            upper_barrier=120,
+                            barrier_type="knock_out",
+                        )
                     ),
                 ),
                 (
                     pricing.AnalyticBinaryBarrierEngine(),
                     ins.cash_binary_barrier_option(
-                        **common,
-                        barrier_level=120,
-                        barrier_type="up_and_out",
-                        payout=10,
+                        **history_fields(
+                            **common,
+                            barrier_level=120,
+                            barrier_type="up_and_out",
+                            payout=10,
+                        )
                     ),
                 ),
             ):
@@ -254,10 +261,12 @@ class ExpiryGreekTests(unittest.TestCase):
         option = ins.EuropeanOption(**terms)
         digital = ins.CashOrNothingOption(**terms, payout=10)
         barrier = ins.BarrierOption(
-            **terms,
-            barrier_type="up_and_out",
-            barrier_level=120,
-            touch_state="untouched",
+            **history_fields(
+                **terms,
+                barrier_type="up_and_out",
+                barrier_level=120,
+                touch_state="untouched",
+            )
         )
         cases = [
             (pricing.CoxRossRubinsteinVanillaEngine(), option, 1),
@@ -269,7 +278,7 @@ class ExpiryGreekTests(unittest.TestCase):
             cases.append(
                 (
                     pricing.MonteCarloAsianEngine(path_count=32, seed=42),
-                    kind(**terms, averaging_start_time=end),
+                    kind(**history_fields(**terms, averaging_start_time=end)),
                     1,
                 )
             )
@@ -309,6 +318,7 @@ class ExpiryGreekTests(unittest.TestCase):
             observations=ins.autocallable_observations(
                 [end], [120], knock_out_coupon_rates=[0.08]
             ),
+            history_time=start,
         )
         model = market.BlackScholesMertonParameters(
             risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2

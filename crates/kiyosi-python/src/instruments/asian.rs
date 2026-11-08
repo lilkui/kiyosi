@@ -33,7 +33,7 @@ macro_rules! average_option {
         ///
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
-        ///     Required at pricing whenever history is supplied. Refresh the history
+        ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
         ///     payload and timestamp together.
         ///
         /// Raises
@@ -71,7 +71,7 @@ macro_rules! average_option {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -120,8 +120,8 @@ macro_rules! average_option {
                 expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = history)] realized_average: Option<f64>,
                 #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
             ) -> PyResult<Self> {
-                Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
-                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?, history_time))?))
+                Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
+                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average, history_time))?))
             }
             /// Return a validated replacement without changing this value.
             ///
@@ -136,7 +136,7 @@ macro_rules! average_option {
             ///
             /// history_time : datetime.datetime or None, optional
             ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required at pricing whenever history is supplied. Refresh the history
+            ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
             ///     payload and timestamp together.
             ///
             /// Returns

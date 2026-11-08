@@ -14,6 +14,7 @@ import kiyosi
 from kiyosi import _native, instruments, market, pricing
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 class PackageTests(unittest.TestCase):
@@ -50,7 +51,7 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(configured.replace(**{field: Ellipsis}), configured)
                 updated = configured.replace(**{field: getattr(original, field)})
                 expected = controls | {field: getattr(original, field)}
-                self.assertEqual(updated, factory(**expected))
+                self.assertEqual(updated, factory(**history_fields(**expected)))
                 self.assertEqual(configured, factory(**controls))
                 with self.assertRaises(TypeError):
                     configured.replace(**{field: None})
@@ -61,7 +62,8 @@ class PackageTests(unittest.TestCase):
                     if getattr(original, nullable) is None:
                         cleared = configured.replace(**{nullable: None})
                         self.assertEqual(
-                            cleared, factory(**(controls | {nullable: None}))
+                            cleared,
+                            factory(**history_fields(**(controls | {nullable: None}))),
                         )
 
     def test_engines_compare_by_type_and_configuration(self):
@@ -95,7 +97,9 @@ class PackageTests(unittest.TestCase):
                     else:
                         alternate = value * 2 if value else 1
                     with self.subTest(field=name):
-                        self.assertNotEqual(engine, factory(**{name: alternate}))
+                        self.assertNotEqual(
+                            engine, factory(**history_fields(**{name: alternate}))
+                        )
 
     def test_engine_signature_defaults_can_be_forwarded(self):
         for name in pricing.__all__:
@@ -246,25 +250,33 @@ class PackageTests(unittest.TestCase):
             instruments.CashOrNothingOption(**vanilla, payout=10),
             instruments.AssetOrNothingOption(**vanilla),
             instruments.GeometricAveragePriceOption(
-                **vanilla, averaging_start_time=start, realized_average=None
+                **history_fields(
+                    **vanilla, averaging_start_time=start, realized_average=None
+                )
             ),
             instruments.ArithmeticAveragePriceOption(
-                **vanilla, averaging_start_time=start, realized_average=None
+                **history_fields(
+                    **vanilla, averaging_start_time=start, realized_average=None
+                )
             ),
             instruments.BarrierOption(
-                **vanilla,
-                barrier_type="up_and_out",
-                barrier_level=120,
-                touch_state="untouched",
+                **history_fields(
+                    **vanilla,
+                    barrier_type="up_and_out",
+                    barrier_level=120,
+                    touch_state="untouched",
+                )
             ),
             instruments.RangeAccrualOption(
-                observation_clock_time=clock_time(),
-                **dates,
-                notional=1000,
-                annual_coupon_rate=0.12,
-                lower_bound=95,
-                upper_bound=110,
-                realized_hit_count=3,
+                **history_fields(
+                    observation_clock_time=clock_time(),
+                    **dates,
+                    notional=1000,
+                    annual_coupon_rate=0.12,
+                    lower_bound=95,
+                    upper_bound=110,
+                    realized_hit_count=3,
+                )
             ),
         ]
         for value in values:
@@ -360,7 +372,7 @@ class PackageTests(unittest.TestCase):
             (instruments.EuropeanOption, 0.01),
             (instruments.AmericanOption, 8.0),
         ):
-            option = kind(**terms)
+            option = kind(**history_fields(**terms))
             default = engine.price_with_greeks(
                 dated_history(option, context), context, "delta"
             )
@@ -473,13 +485,15 @@ class PackageTests(unittest.TestCase):
             (
                 pricing.CoxRossRubinsteinBarrierEngine(),
                 instruments.BarrierOption(
-                    **terms, barrier_type="up_and_out", barrier_level=120
+                    **history_fields(
+                        **terms, barrier_type="up_and_out", barrier_level=120
+                    )
                 ),
             ),
             *(
                 (
                     pricing.MonteCarloAsianEngine(path_count=32, seed=42),
-                    kind(**terms, averaging_start_time=start),
+                    kind(**history_fields(**terms, averaging_start_time=start)),
                 )
                 for kind in (
                     instruments.GeometricAveragePriceOption,
@@ -702,12 +716,18 @@ class PackageTests(unittest.TestCase):
                     inspect.Parameter.empty,
                 )
                 with self.assertRaises(TypeError):
-                    cls(**common, **extra)
+                    cls(**history_fields(**common, **extra))
                 with self.assertRaises(TypeError):
                     inspect.signature(cls).bind(**common, **extra)
                 with self.assertRaises(kiyosi.InvalidInputError):
-                    cls(observation_clock_time=None, **common, **extra)
-                note = cls(observation_clock_time=clock_time(), **common, **extra)
+                    cls(
+                        **history_fields(observation_clock_time=None, **common, **extra)
+                    )
+                note = cls(
+                    **history_fields(
+                        observation_clock_time=clock_time(), **common, **extra
+                    )
+                )
                 self.assertEqual(note.knock_in_observation_mode, "every_trading_day")
                 default = (
                     inspect.signature(cls)
@@ -718,37 +738,49 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(
                     note,
                     cls(
-                        observation_clock_time=clock_time(),
-                        **common,
-                        **extra,
-                        knock_in_observation_mode=default,
+                        **history_fields(
+                            observation_clock_time=clock_time(),
+                            **common,
+                            **extra,
+                            knock_in_observation_mode=default,
+                        )
                     ),
                 )
                 expiry_only = cls(
-                    observation_clock_time=None,
-                    **common,
-                    **extra,
-                    knock_in_observation_mode="at_expiry",
+                    **history_fields(
+                        observation_clock_time=None,
+                        **common,
+                        **extra,
+                        knock_in_observation_mode="at_expiry",
+                    )
                 )
                 self.assertNotEqual(note, expiry_only)
                 self.assertIsNone(expiry_only.observation_clock_time)
                 with self.assertRaises(TypeError):
-                    cls(**common, **extra, knock_in_observation_mode="at_expiry")
+                    cls(
+                        **history_fields(
+                            **common, **extra, knock_in_observation_mode="at_expiry"
+                        )
+                    )
                 self.assertEqual(pickle.loads(pickle.dumps(expiry_only)), expiry_only)
                 with self.assertRaises(kiyosi.InvalidInputError):
                     cls(
-                        **common,
-                        **extra,
-                        knock_in_observation_mode="at_expiry",
-                        observation_clock_time=clock_time(),
+                        **history_fields(
+                            **common,
+                            **extra,
+                            knock_in_observation_mode="at_expiry",
+                            observation_clock_time=clock_time(),
+                        )
                     )
                 for invalid in (None, True, "invalid"):
                     with self.assertRaises((TypeError, ValueError)):
                         cls(
-                            observation_clock_time=None,
-                            **common,
-                            **extra,
-                            knock_in_observation_mode=invalid,
+                            **history_fields(
+                                observation_clock_time=None,
+                                **common,
+                                **extra,
+                                knock_in_observation_mode=invalid,
+                            )
                         )
 
     def test_binary_and_touch_constructors_require_explicit_terms(self):

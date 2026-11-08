@@ -28,7 +28,7 @@ macro_rules! autocallable_properties {
             ///
             /// history_time : datetime.datetime or None, optional
             ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required at pricing whenever history is supplied. Refresh the history
+            ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
             ///     payload and timestamp together.
             ///
             /// Returns
@@ -51,16 +51,14 @@ macro_rules! autocallable_properties {
                     .map(crate::conversions::optional_timestamp)
                     .transpose()?;
 
-                let updated = match barrier_state {
-                    Some(value) => {
-                        let state = state(value)?;
-                        let at = state.and(kiyosi::OptionContract::history_time(&self.0));
-                        domain(self.0.replace_history(state, at))?
-                    },
-                    None => self.0.clone(),
-                };
-                let history_time = history_time.unwrap_or(kiyosi::OptionContract::history_time(&updated));
-                Ok(Self(domain(kiyosi::OptionContract::with_history_time(updated, history_time))?))
+                let supplied = barrier_state.is_some();
+                let state = barrier_state.map(state).transpose()?
+                    .unwrap_or(self.0.barrier_state());
+                let at = history_time.unwrap_or_else(|| {
+                    if supplied && state.is_none() { None }
+                    else { kiyosi::OptionContract::history_time(&self.0) }
+                });
+                Ok(Self(domain(self.0.replace_history(state, at))?))
             }
             /// Returns an owned copy of the contract's monitoring calendar.
             #[getter]
@@ -460,7 +458,7 @@ macro_rules! snowball_preset {
         ///
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
-        ///     Required at pricing whenever history is supplied. Refresh the history
+        ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
         ///     payload and timestamp together.
         ///
         /// Returns
@@ -510,7 +508,8 @@ macro_rules! snowball_preset {
             }
             terms.principal_redemption_ratio = principal_redemption_ratio;
             terms.calendar = calendar.0;
-            Ok(SnowballOption(domain(kiyosi::OptionContract::with_history_time(domain(terms.expand($preset))?, history_time))?))
+            terms.history_time = history_time;
+            Ok(SnowballOption(domain(terms.expand($preset))?))
         }
     };
     (@type real) => { "float" };
@@ -693,7 +692,7 @@ times, stages may have no observations, and rates need not decrease."
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -740,7 +739,7 @@ snowball_properties! {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -834,7 +833,8 @@ snowball_properties! {
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
         terms.calendar = calendar.0;
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::SnowballOption::new(terms))?, history_time))?))
+        terms.history_time = history_time;
+        Ok(Self(domain(kiyosi::SnowballOption::new(terms))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -905,7 +905,7 @@ snowball_properties! {
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -939,7 +939,7 @@ snowball_properties! {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -1009,7 +1009,8 @@ snowball_properties! {
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
         terms.calendar = calendar.0;
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::BinarySnowballOption::new(terms))?, history_time))?))
+        terms.history_time = history_time;
+        Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -1058,7 +1059,7 @@ snowball_properties! {
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -1100,7 +1101,7 @@ snowball_properties! {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -1186,7 +1187,8 @@ snowball_properties! {
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
         terms.calendar = calendar.0;
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::TernarySnowballOption::new(terms))?, history_time))?))
+        terms.history_time = history_time;
+        Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -1263,7 +1265,7 @@ snowball_properties! {
 ///
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required at pricing whenever history is supplied. Refresh the history
+///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
 ///     payload and timestamp together.
 ///
 /// Raises
@@ -1323,7 +1325,7 @@ autocallable_properties! {
     ///
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required at pricing whenever history is supplied. Refresh the history
+    ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
     ///     payload and timestamp together.
     ///
     /// Returns
@@ -1435,7 +1437,8 @@ autocallable_properties! {
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
         terms.calendar = calendar.0;
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::PhoenixOption::new(terms))?, history_time))?))
+        terms.history_time = history_time;
+        Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
     },
     /// Returns a note with an explicitly annual or per-period quoted coupon.
     ///
@@ -1546,7 +1549,7 @@ macro_rules! phoenix_preset {
         ///
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
-        ///     Required at pricing whenever history is supplied. Refresh the history
+        ///     Required whenever history is supplied; checked on construction and replacement. Refresh the history
         ///     payload and timestamp together.
         ///
         /// Returns
@@ -1595,7 +1598,8 @@ macro_rules! phoenix_preset {
             }
             terms.principal_redemption_ratio = principal_redemption_ratio;
             terms.calendar = calendar.0;
-            Ok(PhoenixOption(domain(kiyosi::OptionContract::with_history_time(domain(terms.expand($preset))?, history_time))?))
+            terms.history_time = history_time;
+            Ok(PhoenixOption(domain(terms.expand($preset))?))
         }
     };
 }

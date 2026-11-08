@@ -16,6 +16,10 @@ pub enum DoubleBarrierType {
 /// Input terms validated by [`DoubleBarrierOption::new`]; see its example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleBarrierOptionTerms {
+    /// Dates supplied history; required when any history payload is known.
+    ///
+    /// See the [crate-level history example](crate).
+    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
@@ -57,6 +61,7 @@ impl DoubleBarrierOptionTerms {
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
+            history_time: None,
             calendar: TradingCalendar::default(),
             option_type,
             strike,
@@ -115,6 +120,9 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
+    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
+    /// or a timestamp outside the contract life.
+    ///
     /// Returns [`crate::Error::InvalidInput`] unless finite `0 < lower < upper`,
     /// then reuses [`BarrierOption::new`] categories and validation order, including
     /// for at-hit knock-in rebates even if zero.
@@ -151,6 +159,7 @@ impl DoubleBarrierOption {
         lower.observation_mode = terms.observation_mode;
         lower.observation_times = terms.observation_times;
         lower.touch_state = terms.touch_state;
+        lower.history_time = terms.history_time;
         Ok(Self {
             lower: BarrierOption::new(lower)?,
             upper: terms.upper_barrier,
@@ -375,6 +384,12 @@ impl DoubleBarrierOption {
     pub fn replace(&self, changes: DoubleBarrierOptionChanges) -> Result<Self> {
         let history_supplied = changes.touch_state.is_some();
         let updated = Self::new(DoubleBarrierOptionTerms {
+            history_time: super::replacement_history_time(
+                self.history_time(),
+                changes.history_time,
+                changes.touch_state.is_some()
+                    && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
+            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -396,11 +411,6 @@ impl DoubleBarrierOption {
             history_supplied,
             self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
         )?;
-        let history_time = super::replacement_history_time(
-            self.history_time(),
-            changes.history_time,
-            history_supplied && updated.touch_state().is_none(),
-        );
-        updated.with_history_time(history_time)
+        Ok(updated)
     }
 }

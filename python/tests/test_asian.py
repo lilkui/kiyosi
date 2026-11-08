@@ -32,6 +32,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -81,10 +82,15 @@ class AsianTests(unittest.TestCase):
 
     def test_owned_history_replacement_and_native_representation_errors(self):
         for kind, engine_type in PAIRS:
-            option = kind(**terms())
+            option = kind(**history_fields(**terms()))
             self.assertIsNone(option.realized_average)
             self.assertEqual(option.replace_history(), option)
-            updated = option.replace_history(realized_average=Fraction(211, 2))
+            updated = option.replace_history(
+                realized_average=Fraction(211, 2),
+                history_time=(option.history_time or option.effective_time)
+                if Fraction(211, 2) is not None
+                else None,
+            )
             self.assertEqual(updated.realized_average, 105.5)
             for name in terms():
                 self.assertEqual(getattr(option, name), getattr(updated, name))
@@ -99,27 +105,34 @@ class AsianTests(unittest.TestCase):
                 for invalid in (True, False, "100", None, 1 + 0j, object()):
                     if name == "realized_average" and invalid is None:
                         self.assertIsNone(
-                            kind(**terms(realized_average=None)).realized_average
+                            kind(
+                                **history_fields(**terms(realized_average=None))
+                            ).realized_average
                         )
                         continue
                     with (
                         self.subTest(kind=kind, name=name, value=invalid),
                         self.assertRaises(TypeError),
                     ):
-                        kind(**terms(**{name: invalid}))
+                        kind(**history_fields(**terms(**{name: invalid})))
                 with self.assertRaises(OverflowError):
-                    kind(**terms(**{name: 10**400}))
+                    kind(**history_fields(**terms(**{name: 10**400})))
             for name in ("effective_time", "averaging_start_time", "expiry_time"):
                 for invalid in (True, "2025-01-01", datetime(2025, 1, 1).date()):
                     with self.assertRaises(TypeError):
-                        kind(**terms(**{name: invalid}))
+                        kind(**history_fields(**terms(**{name: invalid})))
             with self.assertRaises(ValueError):
-                kind(**terms(option_type="CALL"))
+                kind(**history_fields(**terms(option_type="CALL")))
             with self.assertRaises(TypeError):
                 kind("call", 100, START, START, END)
             for invalid in (True, "100"):
                 with self.assertRaises(TypeError):
-                    option.replace_history(realized_average=invalid)
+                    option.replace_history(
+                        realized_average=invalid,
+                        history_time=(option.history_time or option.effective_time)
+                        if invalid is not None
+                        else None,
+                    )
             with self.assertRaises(TypeError):
                 option.replace_history(strike=101)
             other = PAIRS[1 if kind is GeometricAveragePriceOption else 0][0](**terms())
@@ -172,8 +185,11 @@ class AsianTests(unittest.TestCase):
                     kind,
                     **terms(averaging_start_time=invalid),
                 )
-            original = kind(**terms(averaging_start_time=averaging))
-            seasoned = original.replace_history(realized_average=110)
+            original = kind(**history_fields(**terms(averaging_start_time=averaging)))
+            seasoned = original.replace_history(
+                realized_average=110,
+                history_time=original.history_time or original.effective_time,
+            )
             engine = engine_type()
             for at in (START, averaging):
                 self.assertGreater(
@@ -221,7 +237,11 @@ class AsianTests(unittest.TestCase):
                 10,
             )
             for direction in ("call", "put"):
-                single = kind(**terms(option_type=direction, averaging_start_time=END))
+                single = kind(
+                    **history_fields(
+                        **terms(option_type=direction, averaging_start_time=END)
+                    )
+                )
                 vanilla = EuropeanOption(
                     option_type=direction,
                     strike=100,
@@ -239,14 +259,23 @@ class AsianTests(unittest.TestCase):
                         InvalidInputError,
                         engine.price,
                         dated_history(
-                            single.replace_history(realized_average=110), market(at)
+                            single.replace_history(
+                                realized_average=110,
+                                history_time=single.history_time
+                                or single.effective_time,
+                            ),
+                            market(at),
                         ),
                         market(at),
                     )
 
     def test_greek_requests_stencils_and_solver_controls(self):
         for kind, engine_type in PAIRS:
-            engine, option, context = engine_type(), kind(**terms()), market()
+            engine, option, context = (
+                engine_type(),
+                kind(**history_fields(**terms())),
+                market(),
+            )
             full = engine.price_with_greeks(
                 dated_history(option, context), context, greeks="all"
             )
@@ -290,7 +319,10 @@ class AsianTests(unittest.TestCase):
                 spot_shift=math.ulp(0.0),
             )
             self.assertIsNone(collapsed.delta)
-            seasoned = option.replace_history(realized_average=100)
+            seasoned = option.replace_history(
+                realized_average=100,
+                history_time=option.history_time or option.effective_time,
+            )
             active = market(datetime(2025, 7, 1))
             result = engine.price_with_greeks(
                 dated_history(seasoned, active), active, greeks="all"
@@ -337,7 +369,7 @@ class AsianTests(unittest.TestCase):
             self.assertEqual(context.model_parameters.volatility, 0.2)
 
     def test_arithmetic_solver_prices_only_the_requested_bracket(self):
-        option = ArithmeticAveragePriceOption(**terms())
+        option = ArithmeticAveragePriceOption(**history_fields(**terms()))
         engine = TurnbullWakemanArithmeticAveragePriceEngine()
         quote = engine.price(dated_history(option, market()), market())
         self.assertAlmostEqual(
@@ -365,7 +397,7 @@ class AsianTests(unittest.TestCase):
             delta=1e-12,
         )
         for kind, engine_type in PAIRS:
-            option = kind(**terms(averaging_start_time=END))
+            option = kind(**history_fields(**terms(averaging_start_time=END)))
             self.assertAlmostEqual(
                 engine_type().price(dated_history(option, context), context),
                 expected,
@@ -373,7 +405,7 @@ class AsianTests(unittest.TestCase):
             )
 
     def test_non_finite_small_volatility_moments_preserve_invalid_result(self):
-        option = ArithmeticAveragePriceOption(**terms())
+        option = ArithmeticAveragePriceOption(**history_fields(**terms()))
         for sigma in (1e-6, 0.001):
             self.assert_rejection(
                 ComputationFailureError,
@@ -390,7 +422,7 @@ class AsianTests(unittest.TestCase):
             factors=[math.exp(-0.02 * 182 / 365), math.exp(-0.05)],
         )
         context = market(rate=curve, dividend=0)
-        option = GeometricAveragePriceOption(**terms())
+        option = GeometricAveragePriceOption(**history_fields(**terms()))
         h = 182 / 365
         second = (0.05 - 0.02 * h) / (1 - h)
         drift = 0.02 * (h - h * h / 2) + second * (1 - h) ** 2 / 2 - 0.04 / 4
@@ -415,7 +447,7 @@ class AsianTests(unittest.TestCase):
             delta=1e-11,
         )
         engine = TurnbullWakemanArithmeticAveragePriceEngine()
-        arithmetic = ArithmeticAveragePriceOption(**terms())
+        arithmetic = ArithmeticAveragePriceOption(**history_fields(**terms()))
         self.assert_rejection(
             UnsupportedOperationError,
             engine.price,
@@ -432,13 +464,23 @@ class AsianTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            dated_history(arithmetic.replace_history(realized_average=110), context),
+            dated_history(
+                arithmetic.replace_history(
+                    realized_average=110,
+                    history_time=arithmetic.history_time or arithmetic.effective_time,
+                ),
+                context,
+            ),
             context,
         )
         self.assertEqual(
             engine.price(
                 dated_history(
-                    arithmetic.replace_history(realized_average=110),
+                    arithmetic.replace_history(
+                        realized_average=110,
+                        history_time=arithmetic.history_time
+                        or arithmetic.effective_time,
+                    ),
                     context.replace(valuation_time=END),
                 ),
                 context.replace(valuation_time=END),
@@ -450,7 +492,7 @@ class AsianTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 engine_type().price,
-                dated_history(kind(**terms()), market(rate=short)),
+                dated_history(kind(**history_fields(**terms())), market(rate=short)),
                 market(rate=short),
             )
         dated_flat = RateTermStructure.flat(rate=0.04, reference_time=START)
@@ -476,15 +518,17 @@ class AsianTests(unittest.TestCase):
             inputs = row["inputs"]
             kind, engine_type = PAIRS[0 if inputs["averaging"] == "geometric" else 1]
             option = kind(
-                **terms(
-                    option_type=inputs["option"],
-                    strike=inputs["strike"],
-                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                    averaging_start_time=datetime.fromisoformat(
-                        inputs["averaging_start_time"]
-                    ),
-                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                    realized_average=inputs["realized_average"] or None,
+                **history_fields(
+                    **terms(
+                        option_type=inputs["option"],
+                        strike=inputs["strike"],
+                        effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                        averaging_start_time=datetime.fromisoformat(
+                            inputs["averaging_start_time"]
+                        ),
+                        expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+                        realized_average=inputs["realized_average"] or None,
+                    )
                 )
             )
             context = market(

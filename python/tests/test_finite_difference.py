@@ -35,6 +35,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 from test_binomial import DIGITAL, END, START, VANILLA, contract, market
 
@@ -172,19 +173,23 @@ class FiniteDifferenceTests(unittest.TestCase):
             self.assertEqual(factory(asset_step_count=Index()).asset_step_count, 17)
             for count in (3, 10_001, 2**31 - 1):
                 self.assertEqual(
-                    factory(asset_step_count=count).asset_step_count, count
+                    factory(asset_step_count=count).asset_step_count,
+                    count,
                 )
             for count in (1, 100_001, 2**31 - 1):
-                self.assertEqual(factory(time_step_count=count).time_step_count, count)
+                self.assertEqual(
+                    factory(time_step_count=count).time_step_count,
+                    count,
+                )
             for name, minimum in (("asset_step_count", 3), ("time_step_count", 1)):
                 for bad in (-1, 0, minimum - 1):
                     self.assert_rejection(InvalidInputError, factory, **{name: bad})
                 for bad in (True, False, 1.0, 1.5, "3", None):
                     with self.assertRaises(TypeError):
-                        factory(**{name: bad})
+                        factory(**history_fields(**{name: bad}))
                 for bad in (2**31, -(2**31) - 1):
                     with self.assertRaises(OverflowError):
-                        factory(**{name: bad})
+                        factory(**history_fields(**{name: bad}))
             for bad in (0, -1, math.nan, math.inf):
                 self.assert_rejection(
                     InvalidInputError, factory, asset_upper_boundary=bad
@@ -624,11 +629,17 @@ class FiniteDifferenceTests(unittest.TestCase):
                 else AssetOrNothingOption
             )
             option = kind(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                **({"payout": inputs["payout"]} if kind is CashOrNothingOption else {}),
+                **history_fields(
+                    option_type=inputs["option"],
+                    strike=inputs["strike"],
+                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+                    **(
+                        {"payout": inputs["payout"]}
+                        if kind is CashOrNothingOption
+                        else {}
+                    ),
+                )
             )
             context = market(
                 inputs["spot"],

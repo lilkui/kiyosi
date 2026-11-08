@@ -26,7 +26,7 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
             end,
             vec![AutocallableObservation::snowball(end, 110.0, coupon)?],
         ))?
-        .replace_history(Some(AutocallableBarrierState::NoEvent), None)?
+        .replace_history(Some(AutocallableBarrierState::NoEvent), Some(start))?
         .with_history_time(Some(end))?;
         assert!((engine.price(&note, &context)? - expected).abs() < 1e-12);
     }
@@ -44,7 +44,7 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
         );
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         let note = PhoenixOption::new(terms)?
-            .replace_history(Some(AutocallableBarrierState::NoEvent), None)?
+            .replace_history(Some(AutocallableBarrierState::NoEvent), Some(start))?
             .with_history_time(Some(end))?;
         let context = context.replace(PricingContextChanges {
             spot_price: Some(50.0),
@@ -173,6 +173,7 @@ fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Resu
         BarrierType::UpAndOut,
     );
     terms.touch_state = Some(BarrierTouchState::Touched);
+    terms.history_time = Some(terms.effective_time);
     terms.rebate_timing = RebateTiming::AtHit;
     let settled = BarrierOption::new(terms)?;
     for engine in [
@@ -238,7 +239,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         end,
         (end).time_of_day(),
     ))?
-    .replace_history(Some(0), None)?;
+    .replace_history(Some(0), Some(start))?;
     let at_expiry = context.replace(PricingContextChanges {
         valuation_time: Some(end),
         ..Default::default()
@@ -284,7 +285,12 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         .unwrap();
     assert!((engine.price(&dated(&daily, &context), &context)? - 40.0).abs() < 1e-7);
     assert_eq!(
-        daily.replace_history(0.0, None)?.calendar(),
+        daily
+            .replace_history(
+                0.0,
+                Some(daily.history_time().unwrap_or(daily.effective_time()))
+            )?
+            .calendar(),
         daily.calendar()
     );
 
@@ -302,7 +308,10 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     let daily = note.replace_calendar(TradingCalendar::all_days()).unwrap();
     assert_eq!(
         daily
-            .replace_history(Some(AutocallableBarrierState::NoEvent), None)?
+            .replace_history(
+                Some(AutocallableBarrierState::NoEvent),
+                Some(daily.history_time().unwrap_or(daily.effective_time()))
+            )?
             .calendar(),
         daily.calendar()
     );
@@ -761,13 +770,16 @@ fn asian_history_uses_optional_positive_averages() -> Result<()> {
     )?;
     macro_rules! check {
         ($contract:ident, $engine:expr) => {{
-            let original = $contract::new(OptionType::Call, 100.0, start, start, end, None)?;
+            let original = $contract::new(OptionType::Call, 100.0, start, start, end, None, None)?;
             assert_eq!(original.realized_average(), None);
             assert!(matches!(
                 $engine.price(&dated(&original, &context), &context),
                 Err(Error::InvalidInput(_))
             ));
-            let seasoned = original.replace_history(110.0, None)?;
+            let seasoned = original.replace_history(
+                110.0,
+                Some(original.history_time().unwrap_or(original.effective_time())),
+            )?;
             assert_eq!(seasoned.realized_average(), Some(110.0));
             assert!($engine.price(&dated(&seasoned, &context), &context)? > 0.0);
             assert_eq!(seasoned.replace_history(None, None)?, original);
@@ -780,7 +792,10 @@ fn asian_history_uses_optional_positive_averages() -> Result<()> {
             );
             for invalid in [0.0, -1.0, f64::NAN, f64::INFINITY] {
                 assert!(matches!(
-                    seasoned.replace_history(invalid, None),
+                    seasoned.replace_history(
+                        invalid,
+                        Some(seasoned.history_time().unwrap_or(seasoned.effective_time()))
+                    ),
                     Err(Error::InvalidInput(_))
                 ));
             }
@@ -860,12 +875,20 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
         (end).time_of_day(),
     ))?;
     let settled = option.replace(AccumulatorChanges {
+        history_time: Some(Some(
+            option.history_time().unwrap_or(option.effective_time()),
+        )),
         knock_out_settled: Some(Some(true)),
         ..Default::default()
     })?;
     assert_eq!(option.knock_out_settled(), None);
     assert_eq!(
-        settled.replace_history(3.0, None)?.knock_out_settled(),
+        settled
+            .replace_history(
+                3.0,
+                Some(settled.history_time().unwrap_or(settled.effective_time()))
+            )?
+            .knock_out_settled(),
         Some(true)
     );
     assert_eq!(
@@ -891,18 +914,30 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
         assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);
         assert_eq!(
             engine.price(
-                &dated(&settled.replace_history(3.0, None)?, &context),
+                &dated(
+                    &settled.replace_history(
+                        3.0,
+                        Some(settled.history_time().unwrap_or(settled.effective_time()))
+                    )?,
+                    &context
+                ),
                 &context
             )?,
             0.0
         );
         let active = settled.replace(AccumulatorChanges {
+            history_time: Some(Some(
+                settled.history_time().unwrap_or(settled.effective_time()),
+            )),
             knock_out_settled: Some(Some(false)),
             accumulated_quantity: Some(Some(0.0)),
             ..Default::default()
         })?;
         assert!(engine.price(&dated(&active, &context), &context)? > 0.0);
         let unknown = settled.replace(AccumulatorChanges {
+            history_time: Some(Some(
+                settled.history_time().unwrap_or(settled.effective_time()),
+            )),
             knock_out_settled: Some(Some(false)),
             ..Default::default()
         })?;
@@ -1052,7 +1087,8 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
     )?;
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
-    let asian = GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?;
+    let asian =
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?;
     let barrier = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
         100.0,
@@ -1231,6 +1267,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
         BarrierType::UpAndOut,
     );
     terms.touch_state = Some(BarrierTouchState::Untouched);
+    terms.history_time = Some(terms.effective_time);
     check(
         &CoxRossRubinsteinBarrierEngine::default(),
         &BarrierOption::new(terms.clone())?,
@@ -1257,6 +1294,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
         DoubleBarrierType::KnockOut,
     );
     double.touch_state = Some(BarrierTouchState::Untouched);
+    double.history_time = Some(double.effective_time);
     check(
         &MonteCarloDoubleBarrierEngine::new(sampling)?,
         &DoubleBarrierOption::new(double)?,
@@ -1269,12 +1307,12 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
     )?;
     check(
         &MonteCarloAsianEngine::new(sampling)?,
-        &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?,
+        &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?,
         bsm.clone(),
     )?;
     check(
         &MonteCarloAsianEngine::new(sampling)?,
-        &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?,
+        &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?,
         bsm,
     )?;
     Ok(())
@@ -1491,9 +1529,16 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         (expiry).time_of_day(),
     );
     terms.accumulated_quantity = Some(3.0);
+    terms.history_time = Some(terms.effective_time);
     terms.knock_out_settled = Some(false);
+    terms.history_time = Some(terms.effective_time);
     let accumulator = Accumulator::new(terms)?;
     let settled = accumulator.replace(AccumulatorChanges {
+        history_time: Some(Some(
+            accumulator
+                .history_time()
+                .unwrap_or(accumulator.effective_time()),
+        )),
         knock_out_settled: Some(Some(true)),
         ..Default::default()
     })?;
@@ -1546,8 +1591,12 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         )?,
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = BinarySnowballOption::new(terms)?;
-    let settled = note.replace_history(Some(AutocallableBarrierState::KnockedOut), None)?;
+    let settled = note.replace_history(
+        Some(AutocallableBarrierState::KnockedOut),
+        Some(note.history_time().unwrap_or(note.effective_time())),
+    )?;
     let active_context = context.replace(PricingContextChanges {
         spot_price: Some(100.0),
         ..Default::default()
@@ -1602,6 +1651,9 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
         terms.knock_out_observation_times = times.clone();
         let original = Accumulator::new(terms)?;
         let settled = original.replace(AccumulatorChanges {
+            history_time: Some(Some(
+                original.history_time().unwrap_or(original.effective_time()),
+            )),
             knock_out_settled: Some(Some(true)),
             ..Default::default()
         })?;
@@ -2121,9 +2173,9 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
     let american = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?;
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?;
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?;
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?;
     let mc = MonteCarloAsianEngine::new(MonteCarloSettings {
         path_count: 16,
         seed: Some(42),
@@ -2187,8 +2239,22 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
         valuation_time: Some(end),
         ..Default::default()
     })?;
-    let geometric = geometric.replace_history(110.0, None)?;
-    let arithmetic = arithmetic.replace_history(110.0, None)?;
+    let geometric = geometric.replace_history(
+        110.0,
+        Some(
+            geometric
+                .history_time()
+                .unwrap_or(geometric.effective_time()),
+        ),
+    )?;
+    let arithmetic = arithmetic.replace_history(
+        110.0,
+        Some(
+            arithmetic
+                .history_time()
+                .unwrap_or(arithmetic.effective_time()),
+        ),
+    )?;
     assert_eq!(
         mc.greek_method(&geometric, &terminal)?,
         GreekMethod::Terminal
@@ -2350,14 +2416,19 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
             accumulated_quantity: Some(Some(3.0)),
             knock_out_settled: Some(Some(true)),
         },
-        None,
+        Some(original.history_time().unwrap_or(original.effective_time())),
     )?;
     assert_eq!(settled.accumulated_quantity(), Some(3.0));
     assert_eq!(settled.knock_out_settled(), Some(true));
     assert_eq!(original.accumulated_quantity(), None);
     assert_eq!(original.knock_out_settled(), None);
     assert_eq!(
-        settled.replace_history(4.0, None)?.knock_out_settled(),
+        settled
+            .replace_history(
+                4.0,
+                Some(settled.history_time().unwrap_or(settled.effective_time()))
+            )?
+            .knock_out_settled(),
         Some(true)
     );
     assert_eq!(
@@ -2367,16 +2438,19 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
                     knock_out_settled: Some(Some(false)),
                     ..Default::default()
                 },
-                None
+                Some(settled.history_time().unwrap_or(settled.effective_time()))
             )?
             .accumulated_quantity(),
         Some(3.0)
     );
-    let cleared = settled.replace_history(None, None)?;
+    let cleared = settled.replace_history(None, settled.history_time())?;
     assert_eq!(cleared.accumulated_quantity(), None);
     assert_eq!(cleared.knock_out_settled(), Some(true));
     assert_eq!(
-        settled.replace_history(AccumulatorHistoryChanges::default(), None)?,
+        settled.replace_history(
+            AccumulatorHistoryChanges::default(),
+            Some(settled.history_time().unwrap_or(settled.effective_time()))
+        )?,
         settled
     );
     assert!(matches!(
@@ -2385,7 +2459,7 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
                 accumulated_quantity: Some(Some(-1.0)),
                 knock_out_settled: Some(Some(false))
             },
-            None
+            Some(settled.history_time().unwrap_or(settled.effective_time()))
         ),
         Err(Error::InvalidInput(_))
     ));
@@ -2405,7 +2479,7 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
             accumulated_quantity: Some(Some(0.0)),
             knock_out_settled: Some(Some(false)),
         },
-        None,
+        Some(settled.history_time().unwrap_or(settled.effective_time())),
     )?;
     assert!(
         QuadratureAccumulatorEngine::default().price(&dated(&active, &context), &context)? > 0.0

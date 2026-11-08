@@ -48,9 +48,10 @@ fn samples(settings: MonteCarloSettings) -> Vec<(&'static str, f64, MonteCarloEs
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let asset = DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end).unwrap();
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+            .unwrap();
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
             .unwrap();
     let barrier = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
@@ -159,7 +160,8 @@ fn reported_uncertainty_agrees_with_analytic_prices() {
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let asset = DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end).unwrap();
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+            .unwrap();
     let barrier = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
         100.0,
@@ -261,12 +263,26 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         })
         .unwrap();
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
-    let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, Some(110.0))
-            .unwrap();
-    let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, Some(110.0))
-            .unwrap();
+    let geometric = GeometricAveragePriceOption::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start,
+        end,
+        Some(110.0),
+        Some(start),
+    )
+    .unwrap();
+    let arithmetic = ArithmeticAveragePriceOption::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start,
+        end,
+        Some(110.0),
+        Some(start),
+    )
+    .unwrap();
     let mut barrier = BarrierOptionTerms::new(
         OptionType::Call,
         100.0,
@@ -276,6 +292,7 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         BarrierType::UpAndOut,
     );
     barrier.touch_state = Some(BarrierTouchState::Untouched);
+    barrier.history_time = Some(barrier.effective_time);
     let barrier = BarrierOption::new(barrier).unwrap();
     let mut double = DoubleBarrierOptionTerms::new(
         OptionType::Call,
@@ -287,6 +304,7 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         DoubleBarrierType::KnockOut,
     );
     double.touch_state = Some(BarrierTouchState::Untouched);
+    double.history_time = Some(double.effective_time);
     let double = DoubleBarrierOption::new(double).unwrap();
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         let settings = MonteCarloSettings {
@@ -452,7 +470,7 @@ fn statistics_preserve_scheduled_barrier_prices() {
 fn arithmetic_statistics_support_curves_and_known_history() {
     let (start, end) = dates();
     let option =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
             .unwrap();
     let curve = RateTermStructure::new(start, vec![end], vec![0.95]).unwrap();
     let context = market()
@@ -484,6 +502,9 @@ fn arithmetic_statistics_support_curves_and_known_history() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = option
             .replace(AveragePriceOptionChanges {
+                history_time: Some(Some(
+                    option.history_time().unwrap_or(option.effective_time()),
+                )),
                 option_type: Some(direction),
                 realized_average: Some(Some(1000.0)),
                 ..Default::default()
@@ -579,9 +600,10 @@ fn statistics_preserve_life_history_and_model_rejections() {
     let digital =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+            .unwrap();
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
             .unwrap();
     let single = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
@@ -783,11 +805,11 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
     )?;
     check(
         MonteCarloAsianEngine::new,
-        &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?,
+        &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?,
     )?;
     check(
         MonteCarloAsianEngine::new,
-        &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?,
+        &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?,
     )?;
     check(
         MonteCarloBarrierEngine::new,

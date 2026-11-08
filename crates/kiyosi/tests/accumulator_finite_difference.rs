@@ -8,6 +8,7 @@ fn day(month: u32, date: u32) -> Timestamp {
 }
 fn option(end: Timestamp) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
+        history_time: Some(day(1, 1)),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
@@ -104,8 +105,15 @@ fn trading_midnight_is_observed_once_and_intraday_uses_caller_history() {
     .unwrap();
     for (spot, quantity) in [(90.0, 5.0), (100.0, 4.0), (109.0, 4.0)] {
         let context = market(spot, day(1, 3));
-        let expected =
-            terminal_reference(&option.replace_history(quantity, None).unwrap(), &context);
+        let expected = terminal_reference(
+            &option
+                .replace_history(
+                    quantity,
+                    Some(option.history_time().unwrap_or(option.effective_time())),
+                )
+                .unwrap(),
+            &context,
+        );
         assert!(
             (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 0.001
         );
@@ -187,14 +195,22 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
     );
     for value in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            option.replace_history(value, None).unwrap_err(),
+            option
+                .replace_history(
+                    value,
+                    Some(option.history_time().unwrap_or(option.effective_time()))
+                )
+                .unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
     assert_eq!(option.accumulated_quantity().unwrap(), 3.0);
     assert_eq!(
         option
-            .replace_history(0.25, None)
+            .replace_history(
+                0.25,
+                Some(option.history_time().unwrap_or(option.effective_time()))
+            )
             .unwrap()
             .accumulated_quantity()
             .unwrap(),
@@ -279,7 +295,12 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
         engine
             .price(
                 &dated(
-                    &option.replace_history(f64::MAX, None).unwrap(),
+                    &option
+                        .replace_history(
+                            f64::MAX,
+                            Some(option.history_time().unwrap_or(option.effective_time()))
+                        )
+                        .unwrap(),
                     &market(111.0, day(1, 6))
                 ),
                 &market(111.0, day(1, 6))
@@ -329,7 +350,15 @@ fn daily_layers_converge_to_quadrature_and_quantity_is_affine() {
     let prices = [0.0, 3.0, 6.0].map(|q| {
         engine
             .price(
-                &dated(&option.replace_history(q, None).unwrap(), &context),
+                &dated(
+                    &option
+                        .replace_history(
+                            q,
+                            Some(option.history_time().unwrap_or(option.effective_time())),
+                        )
+                        .unwrap(),
+                    &context,
+                ),
                 &context,
             )
             .unwrap()
@@ -486,6 +515,7 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
     let model = BlackScholesMertonParameters::new(risk, dividend, 0.2).unwrap();
     let context = PricingContext::new(model, 100.0, day(1, 1)).unwrap();
     let option = Accumulator::new(AccumulatorTerms {
+        history_time: Some(Date::new(2024, 12, 31).unwrap().start_of_day()),
         knock_out_settled: Some(false),
         daily_quantity: 0.0,
         accumulated_quantity: Some(2.0),
@@ -558,6 +588,7 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
 #[test]
 fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
     let option = Accumulator::new(AccumulatorTerms {
+        history_time: Some(day(1, 1)),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(f64::MAX),
         ..AccumulatorTerms::new(
@@ -691,6 +722,7 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
     }
     for quantity in [0.0, 3.0] {
         let option = Accumulator::new(AccumulatorTerms {
+            history_time: Some(day(1, 1)),
             knock_out_settled: Some(false),
             daily_quantity: 0.0,
             accumulated_quantity: Some(quantity),

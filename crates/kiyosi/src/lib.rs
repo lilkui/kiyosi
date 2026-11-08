@@ -98,14 +98,17 @@
 //!
 //! # History snapshots
 //!
-//! Supplied history requires [`OptionContract::with_history_time`] before pricing.
+//! Supplied history requires a timestamp on construction and replacement. Set
+//! `history_time` in construction terms, or pass it with an Asian historical average.
+//! [`OptionContract::with_history_time`] replaces an existing timestamp and rejects
+//! clearing it while history remains known.
 //! Its timestamp is validated against the contract life when supplied.
 //! It describes events strictly before that instant. Discrete history can be reused
 //! between observations; unaccounted observations require a fresh snapshot. Continuous
 //! barrier and Asian history require the same instant, except resolved barrier monitoring.
 //! Refresh history and its timestamp together with the contract's `replace` method and
 //! change struct, or use `replace_history` to supply the payload and timestamp together.
-//! Its explicit timestamp argument uses `None` to clear the timestamp.
+//! Its explicit timestamp argument accepts `None` only when all history is cleared.
 //! Numerical time sensitivities freeze observed history
 //! internally while moving hypothetical valuation; caller inputs remain unchanged.
 //!
@@ -118,7 +121,8 @@
 //! let mut terms = RangeAccrualTerms::new(100.0, 0.1, 90.0, 110.0,
 //!     start, end, TimeOfDay::new(15, 0, 0, 0)?);
 //! terms.realized_hit_count = Some(1);
-//! let option = RangeAccrualOption::new(terms)?.with_history_time(Some(at))?;
+//! terms.history_time = Some(at);
+//! let option = RangeAccrualOption::new(terms)?;
 //! let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?, 100.0, at)?;
 //! let price = AnalyticRangeAccrualEngine.price(&option, &context)?;
 //! let later = context.replace(PricingContextChanges {

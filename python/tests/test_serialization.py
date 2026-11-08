@@ -14,6 +14,7 @@ from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
 from support.history import dated as dated_history
+from support.history import history_fields
 
 START, END = datetime(2025, 1, 2), datetime(2025, 1, 10)
 
@@ -91,82 +92,110 @@ def values():
         i.AmericanOption(**vanilla),
         i.CashOrNothingOption(payout=10, **vanilla),
         i.AssetOrNothingOption(**vanilla),
-        i.GeometricAveragePriceOption(averaging_start_time=START, **vanilla),
-        i.ArithmeticAveragePriceOption(averaging_start_time=START, **vanilla),
+        i.GeometricAveragePriceOption(
+            **history_fields(averaging_start_time=START, **vanilla)
+        ),
+        i.ArithmeticAveragePriceOption(
+            **history_fields(averaging_start_time=START, **vanilla)
+        ),
         i.BarrierOption(
-            barrier_level=120,
-            barrier_type="up_and_out",
-            observation_mode="scheduled",
-            observation_times=[END],
-            touch_state="untouched",
-            **vanilla,
+            **history_fields(
+                barrier_level=120,
+                barrier_type="up_and_out",
+                observation_mode="scheduled",
+                observation_times=[END],
+                touch_state="untouched",
+                **vanilla,
+            )
         ),
         i.DoubleBarrierOption(
-            lower_barrier=80, upper_barrier=120, barrier_type="knock_out", **vanilla
+            **history_fields(
+                lower_barrier=80, upper_barrier=120, barrier_type="knock_out", **vanilla
+            )
         ),
         i.RangeAccrualOption(
-            observation_clock_time=clock_time(),
-            notional=100,
-            annual_coupon_rate=0.1,
-            lower_bound=80,
-            upper_bound=120,
-            realized_hit_count=0,
-            **life,
+            **history_fields(
+                observation_clock_time=clock_time(),
+                notional=100,
+                annual_coupon_rate=0.1,
+                lower_bound=80,
+                upper_bound=120,
+                realized_hit_count=0,
+                **life,
+            )
         ),
         i.Accumulator(
-            observation_clock_time=clock_time(),
-            strike=100,
-            knock_out_level=110,
-            daily_quantity=1,
-            acceleration_factor=2,
-            **life,
+            **history_fields(
+                observation_clock_time=clock_time(),
+                strike=100,
+                knock_out_level=110,
+                daily_quantity=1,
+                acceleration_factor=2,
+                **life,
+            )
         ),
         i.Accumulator(
-            knock_out_settled=False,
-            observation_clock_time=clock_time(),
-            strike=100,
-            knock_out_level=110,
-            daily_quantity=1,
-            acceleration_factor=2,
-            accumulated_quantity=3,
-            knock_out_observation_times=[],
-            **life,
+            **history_fields(
+                knock_out_settled=False,
+                observation_clock_time=clock_time(),
+                strike=100,
+                knock_out_level=110,
+                daily_quantity=1,
+                acceleration_factor=2,
+                accumulated_quantity=3,
+                knock_out_observation_times=[],
+                **life,
+            )
         ),
         i.SnowballOption(
-            observation_clock_time=clock_time(),
-            maturity_coupon_rate=0.1,
-            **common,
+            **history_fields(
+                observation_clock_time=clock_time(),
+                maturity_coupon_rate=0.1,
+                **common,
+            )
         ),
         i.PhoenixOption(
-            observation_clock_time=clock_time(),
-            coupon_rate=0.1,
-            **dict(
-                common,
-                observations=[
-                    i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
-                ],
-            ),
+            **history_fields(
+                observation_clock_time=clock_time(),
+                coupon_rate=0.1,
+                **dict(
+                    common,
+                    observations=[
+                        i.AutocallableObservation.phoenix(
+                            END, 110, coupon_barrier_level=0
+                        )
+                    ],
+                ),
+            )
         ),
         i.PhoenixOption(
-            observation_clock_time=clock_time(),
-            coupon_per_period=0.01,
-            **dict(
-                common,
-                observations=[
-                    i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
-                ],
-            ),
+            **history_fields(
+                observation_clock_time=clock_time(),
+                coupon_per_period=0.01,
+                **dict(
+                    common,
+                    observations=[
+                        i.AutocallableObservation.phoenix(
+                            END, 110, coupon_barrier_level=0
+                        )
+                    ],
+                ),
+            )
         ),
         i.BinarySnowballOption(
-            maturity_coupon_rate=0.1, observations=common["observations"], **life
+            **history_fields(
+                maturity_coupon_rate=0.1, observations=common["observations"], **life
+            )
         ),
         i.TernarySnowballOption(
-            observation_clock_time=clock_time(),
-            maturity_coupon_rate=0.1,
-            minimum_coupon_rate=0.02,
-            knock_in_level=80,
-            observations=common["observations"],
-            **life,
+            **history_fields(
+                observation_clock_time=clock_time(),
+                maturity_coupon_rate=0.1,
+                minimum_coupon_rate=0.02,
+                knock_in_level=80,
+                observations=common["observations"],
+                **life,
+            )
         ),
     )
     for factory, cash in (
@@ -174,21 +203,27 @@ def values():
         (i.asset_binary_barrier_option, False),
     ):
         yield factory(
-            barrier_level=120,
-            barrier_type="up_and_out",
-            **vanilla,
-            **({"payout": 10} if cash else {}),
+            **history_fields(
+                barrier_level=120,
+                barrier_type="up_and_out",
+                **vanilla,
+                **({"payout": 10} if cash else {}),
+            )
         )
     for factory, cash in ((i.cash_touch_option, True), (i.asset_touch_option, False)):
         for kind in ("up_and_in", "down_and_out"):
             yield factory(
-                barrier_level=120,
-                barrier_type=kind,
-                **life,
-                **({"payout": 10} if cash else {}),
+                **history_fields(
+                    barrier_level=120,
+                    barrier_type=kind,
+                    **life,
+                    **({"payout": 10} if cash else {}),
+                )
             )
     for factory in (i.cash_double_touch, i.cash_double_no_touch):
-        yield factory(lower_barrier=80, upper_barrier=120, payout=10, **life)
+        yield factory(
+            **history_fields(lower_barrier=80, upper_barrier=120, payout=10, **life)
+        )
 
 
 class SerializationTests(unittest.TestCase):
@@ -435,6 +470,10 @@ class SerializationTests(unittest.TestCase):
                     accumulated_quantity=original.accumulated_quantity,
                     knock_out_settled=original.knock_out_settled,
                     calendar=m.all_days_calendar(),
+                    history_time=(original.history_time or original.effective_time)
+                    if original.accumulated_quantity is not None
+                    or original.knock_out_settled is not None
+                    else None,
                 )
             elif isinstance(
                 original,
@@ -457,6 +496,9 @@ class SerializationTests(unittest.TestCase):
                     else observations,
                     barrier_state=original.barrier_state,
                     calendar=m.all_days_calendar(),
+                    history_time=(original.history_time or original.effective_time)
+                    if original.barrier_state is not None
+                    else None,
                 )
             else:
                 continue
@@ -515,7 +557,7 @@ class SerializationTests(unittest.TestCase):
             ),
         )
         for factory, fields in cases:
-            engine = factory(**fields)
+            engine = factory(**history_fields(**fields))
             restored = pickle.loads(pickle.dumps(engine))
             for name, expected in fields.items():
                 with self.subTest(engine=factory.__name__, field=name):

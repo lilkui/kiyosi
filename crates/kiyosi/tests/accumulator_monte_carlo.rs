@@ -9,6 +9,7 @@ fn day(month: u32, day: u32) -> Timestamp {
 
 fn option(end: Timestamp) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
+        history_time: Some(day(1, 1)),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
@@ -54,6 +55,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let start = Date::new(2024, 12, 31).unwrap().start_of_day();
     let end = day(1, 2);
     let option = Accumulator::new(AccumulatorTerms {
+        history_time: Some(start),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(1.0),
         ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end, (end).time_of_day())
@@ -78,7 +80,12 @@ fn scalar_price_survives_confidence_interval_overflow() {
         .unwrap()
         .price()
         * quantity;
-    let scaled = option.replace_history(quantity, None).unwrap();
+    let scaled = option
+        .replace_history(
+            quantity,
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
+        .unwrap();
     assert!(expected.is_finite() && expected > 0.0);
     assert!(
         (engine.price(&dated(&scaled, &context), &context).unwrap() / expected - 1.0).abs() < 1e-12
@@ -347,7 +354,12 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
             expected
         );
     }
-    let empty = option.replace_history(0.0, None).unwrap();
+    let empty = option
+        .replace_history(
+            0.0,
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
+        .unwrap();
     assert_eq!(
         engine
             .price(
@@ -367,6 +379,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
     let start = day(1, 3);
     let end = day(1, 6);
     let option = Accumulator::new(AccumulatorTerms {
+        history_time: Some(start),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 1e300, 0.0, 2.0, start, end, (end).time_of_day())
@@ -430,7 +443,12 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
-            option.replace_history(f64::MAX, None).unwrap(),
+            option
+                .replace_history(
+                    f64::MAX,
+                    Some(option.history_time().unwrap_or(option.effective_time())),
+                )
+                .unwrap(),
             market(111.0, day(1, 2)),
             (|error| matches!(error, Error::ComputationFailure(_))) as fn(Error) -> bool,
         ),
@@ -563,6 +581,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         }
     }
     let fixed = Accumulator::new(AccumulatorTerms {
+        history_time: Some(day(1, 1)),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -587,7 +606,12 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         (option.clone(), expired, -50.0),
         (fixed.clone(), zero_rates, -30.0),
         (
-            fixed.replace_history(0.0, None).unwrap(),
+            fixed
+                .replace_history(
+                    0.0,
+                    Some(fixed.history_time().unwrap_or(fixed.effective_time())),
+                )
+                .unwrap(),
             market(100.25, day(1, 2)),
             0.0,
         ),
@@ -695,7 +719,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
             accumulated_quantity: Some(Some(0.0)),
             knock_out_settled: Some(Some(false)),
         },
-        None,
+        Some(day(1, 1)),
     )
     .unwrap();
     assert_eq!(

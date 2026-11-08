@@ -29,6 +29,7 @@ from kiyosi.pricing import (
     implied_volatility,
 )
 from support.history import dated as dated_history
+from support.history import history_fields
 
 START = datetime(2025, 1, 6, 9)
 END = datetime(2025, 1, 6, 18)
@@ -89,10 +90,14 @@ class ObservationClockTests(unittest.TestCase):
             NanosecondTime(15),
         ):
             with self.subTest(value=value), self.assertRaises(TypeError):
-                RangeAccrualOption(observation_clock_time=value, **range_terms())
+                RangeAccrualOption(
+                    **history_fields(observation_clock_time=value, **range_terms())
+                )
         with self.assertRaises(TypeError):
-            RangeAccrualOption(**range_terms())
-        note = RangeAccrualOption(observation_clock_time=CLOCK, **range_terms())
+            RangeAccrualOption(**history_fields(**range_terms()))
+        note = RangeAccrualOption(
+            **history_fields(observation_clock_time=CLOCK, **range_terms())
+        )
         self.assertEqual(note.observation_clock_time, CLOCK)
         self.assertEqual(pickle.loads(pickle.dumps(note)), note)
         replacement = note.replace(observation_clock_time=time(14, 30, 1, 999999))
@@ -118,10 +123,14 @@ class ObservationClockTests(unittest.TestCase):
     def test_range_accrual_rejects_empty_schedule_atomically(self):
         with self.assertRaises(InvalidInputError):
             RangeAccrualOption(
-                observation_clock_time=time(15),
-                **(range_terms() | {"effective_time": datetime(2025, 1, 6, 16)}),
+                **history_fields(
+                    observation_clock_time=time(15),
+                    **(range_terms() | {"effective_time": datetime(2025, 1, 6, 16)}),
+                )
             )
-        note = RangeAccrualOption(observation_clock_time=CLOCK, **range_terms())
+        note = RangeAccrualOption(
+            **history_fields(observation_clock_time=CLOCK, **range_terms())
+        )
         with self.assertRaises(InvalidInputError):
             note.replace(observation_clock_time=time(8))
         self.assertEqual(note.observation_clock_time, CLOCK)
@@ -131,9 +140,11 @@ class ObservationClockTests(unittest.TestCase):
         for hour, hits in ((15, None), (16, 1), (18, 1)):
             with self.subTest(hour=hour):
                 note = RangeAccrualOption(
-                    observation_clock_time=time(15),
-                    realized_hit_count=hits,
-                    **range_terms(),
+                    **history_fields(
+                        observation_clock_time=time(15),
+                        realized_hit_count=hits,
+                        **range_terms(),
+                    )
                 )
                 market = context(datetime(2025, 1, 6, hour), rate=0.5).replace(
                     model_parameters=BlackScholesMertonParameters(
@@ -160,7 +171,7 @@ class ObservationClockTests(unittest.TestCase):
             "expiry_time": END,
             "observation_clock_time": time(15),
         }
-        empty = Accumulator(**terms)
+        empty = Accumulator(**history_fields(**terms))
         engine = QuadratureAccumulatorEngine()
         self.assertEqual(
             engine.price(
@@ -170,7 +181,10 @@ class ObservationClockTests(unittest.TestCase):
             0,
         )
         observed = empty.replace(
-            effective_time=START, accumulated_quantity=3, knock_out_settled=False
+            effective_time=START,
+            accumulated_quantity=3,
+            knock_out_settled=False,
+            history_time=empty.history_time or empty.effective_time,
         )
         self.assertEqual(
             engine.price(dated_history(observed, context(END, 105)), context(END, 105)),
@@ -180,9 +194,11 @@ class ObservationClockTests(unittest.TestCase):
 
     def test_daily_knock_in_does_not_observe_off_clock_maturity(self):
         note = SnowballOption(
-            observation_clock_time=time(15),
-            barrier_state="no_event",
-            **snowball_terms(),
+            **history_fields(
+                observation_clock_time=time(15),
+                barrier_state="no_event",
+                **snowball_terms(),
+            )
         )
         expected = 1 + 0.12 * 9 / (365 * 24)
         for engine in (
@@ -261,9 +277,11 @@ class ObservationClockTests(unittest.TestCase):
 
     def test_future_pricing_after_last_observation_does_not_add_maturity_knock_in(self):
         note = SnowballOption(
-            observation_clock_time=time(15),
-            barrier_state="no_event",
-            **snowball_terms(),
+            **history_fields(
+                observation_clock_time=time(15),
+                barrier_state="no_event",
+                **snowball_terms(),
+            )
         )
         at = datetime(2025, 1, 6, 15, 0, 0, 1)
         market = context(at, spot=81, rate=-150).replace(
@@ -287,9 +305,11 @@ class ObservationClockTests(unittest.TestCase):
 
     def test_monitoring_replacement_requires_explicit_clock_changes(self):
         expiry = SnowballOption(
-            observation_clock_time=None,
-            knock_in_observation_mode="at_expiry",
-            **snowball_terms(),
+            **history_fields(
+                observation_clock_time=None,
+                knock_in_observation_mode="at_expiry",
+                **snowball_terms(),
+            )
         )
         self.assertIsNone(expiry.observation_clock_time)
         with self.assertRaises(InvalidInputError):
@@ -312,9 +332,11 @@ class ObservationClockTests(unittest.TestCase):
             )
         with self.assertRaises(InvalidInputError):
             SnowballOption(
-                knock_in_observation_mode="at_expiry",
-                observation_clock_time=CLOCK,
-                **snowball_terms(),
+                **history_fields(
+                    knock_in_observation_mode="at_expiry",
+                    observation_clock_time=CLOCK,
+                    **snowball_terms(),
+                )
             )
         self.assertEqual(daily.observation_clock_time, CLOCK)
 
@@ -322,23 +344,28 @@ class ObservationClockTests(unittest.TestCase):
         self,
     ):
         daily = SnowballOption(
-            observation_clock_time=time(15),
-            barrier_state="no_event",
-            **(
-                snowball_terms()
-                | {
-                    "observations": [
-                        AutocallableObservation.snowball(
-                            datetime(2025, 1, 6, 10), 1000, coupon_rate=0
-                        )
-                    ]
-                }
-            ),
+            **history_fields(
+                observation_clock_time=time(15),
+                barrier_state="no_event",
+                **(
+                    snowball_terms()
+                    | {
+                        "observations": [
+                            AutocallableObservation.snowball(
+                                datetime(2025, 1, 6, 10), 1000, coupon_rate=0
+                            )
+                        ]
+                    }
+                ),
+            )
         )
         expiry = daily.replace(
             knock_in_observation_mode="at_expiry",
             observation_clock_time=None,
             barrier_state=daily.barrier_state,
+            history_time=(daily.history_time or daily.effective_time)
+            if daily.barrier_state is not None
+            else None,
         )
         expected = 1 + 0.12 * 9 / (365 * 24)
         for engine in (

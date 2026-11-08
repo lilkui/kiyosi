@@ -39,6 +39,7 @@ impl Monitoring {
         observation_times: Vec<Timestamp>,
         touch_state: Option<BarrierTouchState>,
         calendar: TradingCalendar,
+        history_time: Option<Timestamp>,
     ) -> Result<Self> {
         if !barrier_level.is_finite() || barrier_level <= 0.0 {
             return Err(Error::InvalidInput(
@@ -52,8 +53,8 @@ impl Monitoring {
         }
         let schedule =
             ObservationSchedule::new(observation_times, effective_time, expiry_time, &calendar)?;
-        Ok(Self {
-            history_time: None,
+        let monitoring = Self {
+            history_time,
             effective_time,
             expiry_time,
             barrier_level,
@@ -62,7 +63,9 @@ impl Monitoring {
             schedule,
             calendar,
             touch_state,
-        })
+        };
+        super::validate_history_snapshot(&monitoring, touch_state.is_some())?;
+        Ok(monitoring)
     }
 
     pub(crate) fn validate_replacement_history(
@@ -265,8 +268,8 @@ impl OptionContract for Monitoring {
         self.history_time
     }
     fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-        crate::instruments::validate_history_time_bounds(&self, time)?;
         self.history_time = time;
+        super::validate_history_snapshot(&self, self.touch_state.is_some())?;
         Ok(self)
     }
 

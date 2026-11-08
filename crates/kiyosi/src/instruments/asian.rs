@@ -211,8 +211,7 @@ macro_rules! average_option {
             /// let start = Date::new(2025, 1, 2)?.start_of_day();
             /// let at = start.add_days(4)?;
             /// let original = GeometricAveragePriceOption::new(OptionType::Call,
-            ///     100.0, start, start, start.add_days(10)?, Some(100.0))?
-            ///     .with_history_time(Some(at))?;
+            ///     100.0, start, start, start.add_days(10)?, Some(100.0), Some(at))?;
             /// let refreshed = original.replace(AveragePriceOptionChanges {
             ///     realized_average: Some(Some(104.0)),
             ///     history_time: Some(Some(at.add_days(1)?)), ..Default::default()
@@ -233,6 +232,15 @@ macro_rules! average_option {
                         .unwrap_or(self.averaging_start_time()),
                     changes.expiry_time.unwrap_or(self.expiry_time()),
                     changes.realized_average.unwrap_or(self.realized_average()),
+                    super::replacement_history_time(
+                        self.history_time(),
+                        changes.history_time,
+                        history_supplied
+                            && changes
+                                .realized_average
+                                .unwrap_or(self.realized_average())
+                                .is_none(),
+                    ),
                 )?;
                 super::validate_history_replacement(
                     self.realized_average().is_some(),
@@ -240,22 +248,19 @@ macro_rules! average_option {
                     self.averaging_start_time() != updated.averaging_start_time(),
                     "realized_average",
                 )?;
-                let history_time = super::replacement_history_time(
-                    self.history_time(),
-                    changes.history_time,
-                    history_supplied && updated.realized_average().is_none(),
-                );
-                updated.with_history_time(history_time)
+                Ok(updated)
             }
             /// Creates an average-price contract with explicit history.
             ///
             /// Use [`DEFAULT_REALIZED_AVERAGE`] before averaging starts. Positive history
             /// is required strictly after the averaging start, checked during pricing.
+            /// A supplied average requires an in-life `history_time` on construction.
             ///
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for invalid strike, nonpositive or non-finite
-            /// supplied history, reversed life times, or averaging outside contract life.
+            /// supplied history, reversed life times, averaging outside contract life,
+            /// undated supplied history or a history timestamp outside contract life.
             /// Diagnostic order is unspecified when several inputs are invalid.
             ///
             /// # Examples
@@ -267,9 +272,9 @@ macro_rules! average_option {
             /// let start = Date::new(2025, 1, 1)?.start_of_day();
             /// let end = Date::new(2026, 1, 1)?.start_of_day();
             /// let geometric = GeometricAveragePriceOption::new(OptionType::Call,
-            ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE)?;
+            ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE, None)?;
             /// let arithmetic = ArithmeticAveragePriceOption::new(OptionType::Put,
-            ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE)?;
+            ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE, None)?;
             /// assert_eq!(geometric.realized_average(), None);
             /// assert_eq!(arithmetic.averaging_start_time(), start);
             /// # Ok(()) }
@@ -281,6 +286,7 @@ macro_rules! average_option {
                 averaging_start_time: Timestamp,
                 expiry_time: Timestamp,
                 realized_average: impl Into<Option<f64>>,
+                history_time: Option<Timestamp>,
             ) -> Result<Self> {
                 Ok(Self(AverageTerms::new(
                     option_type,
@@ -290,11 +296,12 @@ macro_rules! average_option {
                     expiry_time,
                     realized_average.into(),
                 )?))
+                .and_then(|option| option.with_history_time(history_time))
             }
             /// Returns a copy with a replaced average and matching history timestamp.
             ///
             /// Replaces the average and its snapshot timestamp together. Pass `None`
-            /// for the timestamp to clear it; supplied times must lie within the contract life.
+            /// for both fields to clear history; supplied times must lie within the contract life.
             ///
             /// # Errors
             ///
@@ -310,7 +317,7 @@ macro_rules! average_option {
             /// # fn main() -> kiyosi::Result<()> {
             /// let start = Date::new(2025, 1, 1)?.start_of_day();
             /// let original = GeometricAveragePriceOption::new(OptionType::Call,
-            ///     100.0, start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
+            ///     100.0, start, start, Date::new(2026, 1, 1)?.start_of_day(), None, None)?;
             /// let at = start.add_days(30)?;
             /// let seasoned = original.replace_history(105.0, Some(at))?;
             /// assert_eq!(seasoned.realized_average(), Some(105.0));
@@ -361,8 +368,8 @@ macro_rules! average_option {
                 self.0.history_time
             }
             fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-                crate::instruments::validate_history_time_bounds(&self, time)?;
                 self.0.history_time = time;
+                super::validate_history_snapshot(&self, self.realized_average().is_some())?;
                 Ok(self)
             }
 

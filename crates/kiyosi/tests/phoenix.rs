@@ -27,6 +27,7 @@ fn terms() -> PhoenixTerms {
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     terms
 }
 fn market(spot: f64, valuation: Timestamp) -> PricingContext {
@@ -246,7 +247,10 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::NoEvent), None)
+        .replace_history(
+            Some(AutocallableBarrierState::NoEvent),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     assert_eq!(known.observations(), note.observations());
     assert_eq!(note.barrier_state(), None);
@@ -257,7 +261,10 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
             .is_finite()
     );
     let impossible = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
+        .replace_history(
+            Some(AutocallableBarrierState::KnockedOut),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     assert!(matches!(
         engine
@@ -270,6 +277,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     ));
     let mut t = terms();
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
+    t.history_time = Some(t.effective_time);
     assert!(matches!(
         engine
             .price(&dated(&PhoenixOption::new(t).unwrap(), &ctx), &ctx)
@@ -320,7 +328,10 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     assert!(result.has(Greek::Vega));
     assert!(result.has(Greek::Rho));
     let settled = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut), None)
+        .replace_history(
+            Some(AutocallableBarrierState::KnockedOut),
+            Some(note.history_time().unwrap_or(note.effective_time())),
+        )
         .unwrap();
     assert_eq!(
         engine

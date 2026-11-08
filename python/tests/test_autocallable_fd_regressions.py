@@ -23,6 +23,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from support.history import dated as dated_history
+from support.history import history_fields
 
 
 class AutocallableRegressionTests(unittest.TestCase):
@@ -60,6 +61,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     [110, 105],
                     knock_out_coupon_rates=[0.08, 0.08],
                 ),
+                history_time=start,
             )
             expected = price_differences(
                 engine,
@@ -147,33 +149,39 @@ class AutocallableRegressionTests(unittest.TestCase):
         for note, value in (
             (
                 SnowballOption(
-                    observation_clock_time=clock_time(),
-                    **common,
-                    **downside,
-                    maturity_coupon_rate=0,
-                    observations=binary.observations,
+                    **history_fields(
+                        observation_clock_time=clock_time(),
+                        **common,
+                        **downside,
+                        maturity_coupon_rate=0,
+                        observations=binary.observations,
+                    )
                 ),
                 expected_downside,
             ),
             (
                 PhoenixOption(
-                    observation_clock_time=clock_time(),
-                    **common,
-                    **downside,
-                    coupon_rate=0.1,
-                    observations=autocallable_observations(
-                        [end], [100], coupon_barrier_levels=[100]
-                    ),
+                    **history_fields(
+                        observation_clock_time=clock_time(),
+                        **common,
+                        **downside,
+                        coupon_rate=0.1,
+                        observations=autocallable_observations(
+                            [end], [100], coupon_barrier_levels=[100]
+                        ),
+                    )
                 ),
                 expected_downside,
             ),
             (
                 TernarySnowballOption(
-                    observation_clock_time=clock_time(),
-                    **common,
-                    maturity_coupon_rate=0.1,
-                    minimum_coupon_rate=0,
-                    observations=binary.observations,
+                    **history_fields(
+                        observation_clock_time=clock_time(),
+                        **common,
+                        maturity_coupon_rate=0.1,
+                        minimum_coupon_rate=0,
+                        observations=binary.observations,
+                    )
                 ),
                 expected,
             ),
@@ -331,7 +339,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ),
             )
             for kind, terms, engine_type in cases:
-                note = kind(**common, **terms)
+                note = kind(**history_fields(**common, **terms))
                 for scheme in (
                     "explicit_euler",
                     "implicit_euler",
@@ -453,7 +461,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ),
             )
             for kind, terms, engine_type in cases:
-                note = kind(**common, **terms)
+                note = kind(**history_fields(**common, **terms))
                 engines = [
                     (
                         engine_type(
@@ -510,7 +518,10 @@ class AutocallableRegressionTests(unittest.TestCase):
                             ):
                                 alternate_terms["maturity_coupon_rate"] = 0.12
                         alternate_quote = engine.price(
-                            dated_history(kind(**common, **alternate_terms), context),
+                            dated_history(
+                                kind(**history_fields(**common, **alternate_terms)),
+                                context,
+                            ),
                             context,
                         )
 
@@ -636,7 +647,12 @@ class AutocallableRegressionTests(unittest.TestCase):
 
         base = context()
         for option_type, terms in cases:
-            note = option_type(**common, **terms, barrier_state="no_event")
+            note = option_type(
+                **common,
+                **terms,
+                barrier_state="no_event",
+                history_time=base.valuation_time,
+            )
             missing_history = option_type(**common, **terms)
             engines = (
                 pricing.FiniteDifferenceAutocallableEngine(
@@ -756,6 +772,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0]
             ),
+            history_time=start,
         )
         for engine in (pricing.FiniteDifferenceAutocallableEngine(),):
             for time in (
@@ -816,6 +833,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         observations=autocallable_observations(
                             [end], [110], knock_out_coupon_rates=[0.08]
                         ),
+                        history_time=(start) if state is not None else None,
                     )
                     result = engine.price_with_greeks(
                         dated_history(note, context),
@@ -845,35 +863,41 @@ class AutocallableRegressionTests(unittest.TestCase):
             "expiry_time": end,
         }
         snowball = SnowballOption(
-            observation_clock_time=None,
-            **common,
-            maturity_coupon_rate=0.06,
-            initial_spot=100,
-            upper_strike=100,
-            lower_strike=60,
-            observations=autocallable_observations(
-                observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
-            ),
+            **history_fields(
+                observation_clock_time=None,
+                **common,
+                maturity_coupon_rate=0.06,
+                initial_spot=100,
+                upper_strike=100,
+                lower_strike=60,
+                observations=autocallable_observations(
+                    observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
+                ),
+            )
         )
         phoenix = PhoenixOption(
-            observation_clock_time=None,
-            **common,
-            coupon_rate=0.08,
-            initial_spot=100,
-            upper_strike=100,
-            lower_strike=60,
-            observations=autocallable_observations(
-                observation_times, knock_out_levels, coupon_barrier_levels=[0]
-            ),
+            **history_fields(
+                observation_clock_time=None,
+                **common,
+                coupon_rate=0.08,
+                initial_spot=100,
+                upper_strike=100,
+                lower_strike=60,
+                observations=autocallable_observations(
+                    observation_times, knock_out_levels, coupon_barrier_levels=[0]
+                ),
+            )
         )
         ternary = TernarySnowballOption(
-            observation_clock_time=None,
-            **common,
-            maturity_coupon_rate=0.06,
-            minimum_coupon_rate=0.02,
-            observations=autocallable_observations(
-                observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
-            ),
+            **history_fields(
+                observation_clock_time=None,
+                **common,
+                maturity_coupon_rate=0.06,
+                minimum_coupon_rate=0.02,
+                observations=autocallable_observations(
+                    observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
+                ),
+            )
         )
         put_prices = [
             pricing.AnalyticEuropeanEngine().price(
@@ -973,9 +997,11 @@ class AutocallableRegressionTests(unittest.TestCase):
                     engine.price(
                         dated_history(
                             SnowballOption(
-                                observation_clock_time=clock_time(),
-                                **terms,
-                                knock_in_observation_mode="every_trading_day",
+                                **history_fields(
+                                    observation_clock_time=clock_time(),
+                                    **terms,
+                                    knock_in_observation_mode="every_trading_day",
+                                )
                             ),
                             context,
                         ),
@@ -984,9 +1010,11 @@ class AutocallableRegressionTests(unittest.TestCase):
                     engine.price(
                         dated_history(
                             SnowballOption(
-                                observation_clock_time=None,
-                                **terms,
-                                knock_in_observation_mode="at_expiry",
+                                **history_fields(
+                                    observation_clock_time=None,
+                                    **terms,
+                                    knock_in_observation_mode="at_expiry",
+                                )
                             ),
                             context,
                         ),
@@ -1002,9 +1030,11 @@ class AutocallableRegressionTests(unittest.TestCase):
         actual = explicit.price(
             dated_history(
                 SnowballOption(
-                    observation_clock_time=clock_time(),
-                    **terms,
-                    knock_in_observation_mode="every_trading_day",
+                    **history_fields(
+                        observation_clock_time=clock_time(),
+                        **terms,
+                        knock_in_observation_mode="every_trading_day",
+                    )
                 ),
                 context,
             ),
@@ -1018,9 +1048,11 @@ class AutocallableRegressionTests(unittest.TestCase):
         ).price(
             dated_history(
                 SnowballOption(
-                    observation_clock_time=None,
-                    **terms,
-                    knock_in_observation_mode="at_expiry",
+                    **history_fields(
+                        observation_clock_time=None,
+                        **terms,
+                        knock_in_observation_mode="at_expiry",
+                    )
                 ),
                 context,
             ),
@@ -1031,9 +1063,11 @@ class AutocallableRegressionTests(unittest.TestCase):
             explicit.price(
                 dated_history(
                     SnowballOption(
-                        observation_clock_time=None,
-                        **terms,
-                        knock_in_observation_mode="at_expiry",
+                        **history_fields(
+                            observation_clock_time=None,
+                            **terms,
+                            knock_in_observation_mode="at_expiry",
+                        )
                     ),
                     context,
                 ),

@@ -57,6 +57,10 @@ pub enum RebateTiming {
 /// Input terms, validated by [`BarrierOption::new`]. See its example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOptionTerms {
+    /// Dates supplied history; required when any history payload is known.
+    ///
+    /// See the [crate-level history example](crate).
+    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
@@ -98,6 +102,7 @@ impl BarrierOptionTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
+            history_time: None,
             calendar: TradingCalendar::default(),
             option_type,
             strike,
@@ -157,6 +162,9 @@ impl BarrierOption {
     ///
     /// # Errors
     ///
+    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
+    /// or a timestamp outside the contract life.
+    ///
     /// Returns [`Error::InvalidInput`] for invalid level or rebate, reversed
     /// life, incompatible or invalid fixing times, invalid strike, or an at-hit
     /// knock-in rebate. Diagnostic order is unspecified when several inputs are invalid.
@@ -185,6 +193,7 @@ impl BarrierOption {
             terms.observation_times,
             terms.touch_state,
             terms.calendar,
+            terms.history_time,
         )?;
         let vanilla = EuropeanOption::new(
             terms.option_type,
@@ -413,9 +422,10 @@ impl BarrierOption {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let original = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(),
-    ///     120.0, BarrierType::UpAndOut))?.replace_history(Some(BarrierTouchState::Untouched), None)?;
+    ///     100.0, start, Date::new(2026, 1, 1)?.start_of_day(),
+    ///     120.0, BarrierType::UpAndOut))?.replace_history(Some(BarrierTouchState::Untouched), Some(start))?;
     /// let changed = original.replace(BarrierOptionChanges {
     ///     strike: Some(105.0), ..Default::default()
     /// })?;
@@ -427,6 +437,12 @@ impl BarrierOption {
     pub fn replace(&self, changes: BarrierOptionChanges) -> Result<Self> {
         let history_supplied = changes.touch_state.is_some();
         let updated = Self::new(BarrierOptionTerms {
+            history_time: super::replacement_history_time(
+                self.history_time(),
+                changes.history_time,
+                changes.touch_state.is_some()
+                    && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
+            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -447,11 +463,6 @@ impl BarrierOption {
             history_supplied,
             false,
         )?;
-        let history_time = super::replacement_history_time(
-            self.history_time(),
-            changes.history_time,
-            history_supplied && updated.touch_state().is_none(),
-        );
-        updated.with_history_time(history_time)
+        Ok(updated)
     }
 }

@@ -505,7 +505,10 @@ fn solver_replays_request_samples_and_rejects_fixed_cashflows() {
         })
         .unwrap();
     let fixed = option
-        .replace_history(Some(BarrierTouchState::Touched), None)
+        .replace_history(
+            Some(BarrierTouchState::Touched),
+            Some(option.history_time().unwrap_or(option.effective_time())),
+        )
         .unwrap();
     assert!(matches!(
         implied_volatility(
@@ -569,7 +572,10 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 Error::InvalidInput(_)
             ));
             let touched = option
-                .replace_history(Some(BarrierTouchState::Touched), None)
+                .replace_history(
+                    Some(BarrierTouchState::Touched),
+                    Some(option.history_time().unwrap_or(option.effective_time())),
+                )
                 .unwrap();
             assert!(matches!(
                 engine
@@ -590,7 +596,12 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 })
                 .unwrap();
             for history in [BarrierTouchState::Touched, BarrierTouchState::Untouched] {
-                let known = option.replace_history(Some(history), None).unwrap();
+                let known = option
+                    .replace_history(
+                        Some(history),
+                        Some(option.history_time().unwrap_or(option.effective_time())),
+                    )
+                    .unwrap();
                 let result = engine
                     .price_with_greeks(&dated(&known, &expired), &expired, GreeksRequest::all())
                     .unwrap();
@@ -638,7 +649,14 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 })
                 .unwrap();
             let untouched = scheduled
-                .replace_history(Some(BarrierTouchState::Untouched), None)
+                .replace_history(
+                    Some(BarrierTouchState::Untouched),
+                    Some(
+                        scheduled
+                            .history_time()
+                            .unwrap_or(scheduled.effective_time()),
+                    ),
+                )
                 .unwrap();
             assert_eq!(
                 engine.price(&dated(&untouched, &after), &after).unwrap(),

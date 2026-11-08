@@ -52,6 +52,7 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
             let mut terms =
                 BarrierOptionTerms::new(OptionType::Call, 100.0, start, end, 120.0, kind);
             terms.touch_state = Some(history);
+            terms.history_time = Some(terms.effective_time);
             check(
                 &AnalyticBarrierEngine,
                 &BarrierOption::new(terms)?,
@@ -72,6 +73,7 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
                 },
             );
             terms.touch_state = Some(history);
+            terms.history_time = Some(terms.effective_time);
             check(
                 &AnalyticDoubleBarrierEngine,
                 &DoubleBarrierOption::new(terms)?,
@@ -81,6 +83,7 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
             let mut terms =
                 BinaryBarrierTerms::new(OptionType::Call, 100.0, start, end, 120.0, kind);
             terms.touch_state = Some(history);
+            terms.history_time = Some(terms.effective_time);
             check(
                 &AnalyticBinaryBarrierEngine,
                 &BinaryBarrierOption::cash(terms, 10.0)?,
@@ -344,11 +347,12 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
         BarrierType::UpAndOut,
     );
     terms.touch_state = Some(BarrierTouchState::Untouched);
+    terms.history_time = Some(terms.effective_time);
     let barrier = BarrierOption::new(terms)?;
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?;
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?;
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?;
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?;
     macro_rules! check {
         ($engine:expr, $option:expr, $delta:expr) => {{
             let engine = $engine;
@@ -534,6 +538,7 @@ fn terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes() -> 
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms)?;
     for (spot, delta) in [
         (60.0, None),

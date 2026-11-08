@@ -8,6 +8,7 @@ from kiyosi import instruments as ins
 from kiyosi import pricing
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from support.history import dated as dated_history
+from support.history import history_fields
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 SETTINGS = {"path_count": 65536, "seed": 42, "antithetic": True}
@@ -49,7 +50,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         volatility=volatility, direction=direction, kind=kind
                     ):
                         option = ins.BarrierOption(
-                            **common, barrier_level=100, barrier_type=kind
+                            **history_fields(
+                                **common, barrier_level=100, barrier_type=kind
+                            )
                         )
                         self.assertAlmostEqual(
                             single.price(dated_history(option, context), context),
@@ -57,12 +60,14 @@ class MonteCarloThresholdTests(unittest.TestCase):
                             delta=1e-12,
                         )
                         option = ins.DoubleBarrierOption(
-                            **common,
-                            lower_barrier=lower,
-                            upper_barrier=upper,
-                            barrier_type="knock_in"
-                            if kind.endswith("in")
-                            else "knock_out",
+                            **history_fields(
+                                **common,
+                                lower_barrier=lower,
+                                upper_barrier=upper,
+                                barrier_type="knock_in"
+                                if kind.endswith("in")
+                                else "knock_out",
+                            )
                         )
                         self.assertAlmostEqual(
                             double.price(dated_history(option, context), context),
@@ -107,18 +112,20 @@ class MonteCarloThresholdTests(unittest.TestCase):
             context = market(volatility, intraday=True)
             for mode in ("every_trading_day", "at_expiry"):
                 note = ins.TernarySnowballOption(
-                    observation_clock_time=clock_time()
-                    if mode == "every_trading_day"
-                    else None,
-                    **common,
-                    maturity_coupon_rate=0.12,
-                    minimum_coupon_rate=0.02,
-                    knock_in_level=100,
-                    knock_in_observation_mode=mode,
-                    barrier_state="no_event",
-                    observations=ins.autocallable_observations(
-                        [end], [120], knock_out_coupon_rates=[0]
-                    ),
+                    **history_fields(
+                        observation_clock_time=clock_time()
+                        if mode == "every_trading_day"
+                        else None,
+                        **common,
+                        maturity_coupon_rate=0.12,
+                        minimum_coupon_rate=0.02,
+                        knock_in_level=100,
+                        knock_in_observation_mode=mode,
+                        barrier_state="no_event",
+                        observations=ins.autocallable_observations(
+                            [end], [120], knock_out_coupon_rates=[0]
+                        ),
+                    )
                 )
                 with self.subTest(volatility=volatility, mode=mode):
                     self.assertAlmostEqual(
@@ -127,17 +134,19 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         delta=1e-12,
                     )
             note = ins.PhoenixOption(
-                observation_clock_time=None,
-                **common,
-                coupon_per_period=0.12,
-                initial_spot=100,
-                knock_in_level=80,
-                upper_strike=100,
-                lower_strike=100,
-                knock_in_observation_mode="at_expiry",
-                observations=ins.autocallable_observations(
-                    [end], [120], coupon_barrier_levels=[100]
-                ),
+                **history_fields(
+                    observation_clock_time=None,
+                    **common,
+                    coupon_per_period=0.12,
+                    initial_spot=100,
+                    knock_in_level=80,
+                    upper_strike=100,
+                    lower_strike=100,
+                    knock_in_observation_mode="at_expiry",
+                    observations=ins.autocallable_observations(
+                        [end], [120], coupon_barrier_levels=[100]
+                    ),
+                )
             )
             self.assertAlmostEqual(
                 engine.price(dated_history(note, context), context), 1.06, delta=1e-12
@@ -157,14 +166,16 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     "expiry_time": end,
                 }
                 option = ins.Accumulator(
-                    knock_out_settled=False,
-                    observation_clock_time=clock_time(),
-                    **common,
-                    strike=strike,
-                    knock_out_level=100,
-                    daily_quantity=1,
-                    acceleration_factor=1,
-                    accumulated_quantity=1,
+                    **history_fields(
+                        knock_out_settled=False,
+                        observation_clock_time=clock_time(),
+                        **common,
+                        strike=strike,
+                        knock_out_level=100,
+                        daily_quantity=1,
+                        acceleration_factor=1,
+                        accumulated_quantity=1,
+                    )
                 )
                 with self.subTest(volatility=volatility, direction=direction):
                     self.assertAlmostEqual(
@@ -173,14 +184,16 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         delta=1e-12,
                     )
                     option = ins.Accumulator(
-                        knock_out_settled=False,
-                        observation_clock_time=clock_time(),
-                        **common,
-                        strike=100,
-                        knock_out_level=barrier,
-                        daily_quantity=1 / volatility,
-                        acceleration_factor=2,
-                        accumulated_quantity=0,
+                        **history_fields(
+                            knock_out_settled=False,
+                            observation_clock_time=clock_time(),
+                            **common,
+                            strike=100,
+                            knock_out_level=barrier,
+                            daily_quantity=1 / volatility,
+                            acceleration_factor=2,
+                            accumulated_quantity=0,
+                        )
                     )
                     vanilla = ins.EuropeanOption(**common, strike=100)
                     expected = (

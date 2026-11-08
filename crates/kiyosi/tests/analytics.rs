@@ -575,6 +575,7 @@ fn native_greeks_use_defaults_in_shared_trait_adapters() {
         option.effective_time(),
         option.expiry_time(),
         None,
+        None,
     )
     .unwrap();
     check(
@@ -591,6 +592,7 @@ fn native_greeks_use_defaults_in_shared_trait_adapters() {
         option.effective_time(),
         option.effective_time(),
         option.expiry_time(),
+        None,
         None,
     )
     .unwrap();
