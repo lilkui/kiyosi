@@ -314,6 +314,12 @@ class BarrierBinomialTests(unittest.TestCase):
             for name in OTHER_GREEKS:
                 self.assertIsNone(getattr(result, name))
             for name in ("delta", "gamma", *OTHER_GREEKS):
+                if name in OTHER_GREEKS:
+                    with self.assertRaises(UnsupportedOperationError):
+                        engine.price_with_greeks(
+                            dated_history(contract, context), context, name
+                        )
+                    continue
                 selected = engine.price_with_greeks(
                     dated_history(contract, context),
                     context,

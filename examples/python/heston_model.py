@@ -24,18 +24,18 @@ call = EuropeanOption(
     option_type="call", strike=100, effective_time=start, expiry_time=end
 )
 fourier = AnalyticHestonEuropeanEngine()
-result = fourier.price_with_greeks(call, context, greeks=["delta"])
-print(f"欧式看涨 Fourier 积分价：{result.price:.6f}")
+price = fourier.price(call, context)
+print(f"欧式看涨 Fourier 积分价：{price:.6f}")
 
-# Heston 引擎不提供 Greeks；None 需结合 status 区分未请求与不支持。
-print(f"delta：{result.delta}，状态：{result.status('delta')}")
+# Heston 引擎不提供 Greeks；非空请求抛出 UnsupportedOperationError。
+print(f"Greeks 计算方式：{fourier.greek_method(call, context)}")
 fd = FiniteDifferenceHestonVanillaEngine()
 fd_price = fd.price(call, context)
-print(f"欧式看涨二维 FD 价：{fd_price:.6f}，差值：{fd_price - result.price:.6f}")
+print(f"欧式看涨二维 FD 价：{fd_price:.6f}，差值：{fd_price - price:.6f}")
 
 # 此处仅校验示例参数下两个算法在 0.05 价格单位内一致；不是普遍误差保证。
 # 二维 FD 应分别检查现货网格、方差网格、时间步数及两个上边界的收敛。
-assert abs(fd_price - result.price) < 0.05
+assert abs(fd_price - price) < 0.05
 
 put = call.replace(option_type="put")
 american = AmericanOption(

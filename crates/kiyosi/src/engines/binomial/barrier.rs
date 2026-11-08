@@ -83,8 +83,8 @@ impl CoxRossRubinsteinBarrierEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] errors. Empty requests return
-    /// [`Error::InvalidInput`].
+    /// [`Self::price`] errors. Nonempty requests without delta or gamma return
+    /// [`Error::UnsupportedOperation`]; empty requests select price only.
     pub fn price_with_greeks(
         &self,
         option: &BarrierOption,
@@ -104,6 +104,7 @@ impl CoxRossRubinsteinBarrierEngine {
         context.bsm_parameters()?;
         flat_rates(context)?;
         settings.validate()?;
+        request.validate_support(GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(&self, option, context, request, settings).map(
                 |result| {

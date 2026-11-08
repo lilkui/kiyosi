@@ -513,6 +513,10 @@ class BinomialTests(unittest.TestCase):
                         getattr(expected, name) is not None,
                         name == "delta" or (name == "gamma" and steps >= 2),
                     )
+                    if name not in ("delta", "gamma"):
+                        with self.assertRaises(UnsupportedOperationError):
+                            engine.price_with_greeks(option, market(), name)
+                        continue
                     selected = engine.price_with_greeks(
                         option,
                         market(),

@@ -300,7 +300,7 @@ class SerializationTests(unittest.TestCase):
             expiry_time=END,
         )
         unsupported = p.CoxRossRubinsteinDigitalEngine().price_with_greeks(
-            dated_history(digital, context), context, "theta"
+            dated_history(digital, context), context, ["delta", "theta"]
         )
         self.assertEqual(theta.price, unsupported.price)
         self.assertIsNone(theta.theta)

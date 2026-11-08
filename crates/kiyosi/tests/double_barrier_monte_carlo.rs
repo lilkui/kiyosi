@@ -917,11 +917,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
     let price = engine.price(&dated(&option, &tiny), &tiny).unwrap();
     assert_eq!(
         engine
-            .price_with_greeks(
-                &dated(&option, &tiny),
-                &tiny,
-                GreeksRequest::new([Greek::Rho])
-            )
+            .price_with_greeks(&dated(&option, &tiny), &tiny, GreeksRequest::new([]))
             .unwrap()
             .price(),
         price

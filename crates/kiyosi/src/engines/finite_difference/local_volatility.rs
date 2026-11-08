@@ -10,6 +10,7 @@ pub(super) fn validate_request(
 ) -> Result<GreeksRequest> {
     validate_model(context)?;
     Ok(if local_model(context).is_some() {
+        request.validate_support(GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
         GreeksRequest::new(
             [Greek::Delta, Greek::Gamma]
                 .into_iter()

@@ -37,8 +37,7 @@ use pyo3::prelude::*;
 /// endpoints and deterministic rate curves. Fixed-grid completion does not
 /// establish accuracy. Check spatial/time refinement and domain enlargement
 /// separately. Non-finite or materially negative results raise
-/// ComputationFailureError. Requested Greeks are None; requiring an absent
-/// Greek or using an implied-parameter solver raises
+/// ComputationFailureError. Nonempty Greek requests and implied-parameter solvers raise
 /// UnsupportedOperationError. Inputs and settings are immutable; core pricing
 /// releases the GIL and permits concurrent calls with independent state.
 ///
@@ -54,7 +53,7 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// All requested Greeks are unsupported and are None. Bump controls are
+        /// Nonempty Greek requests raise UnsupportedOperationError. Bump controls are
         /// validated but unused; numerical_greeks rejects Heston.
         ///
     ],

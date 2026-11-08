@@ -231,6 +231,12 @@ impl MonteCarloDoubleBarrierEngine {
         request: GreeksRequest,
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        self.validate_applicability(context)?;
+        shifts.validate()?;
+        request.validate_support(GreeksRequest::new([
+            crate::Greek::Delta,
+            crate::Greek::Gamma,
+        ]))?;
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, shifts).map(|result| {
                 result.with_request(
@@ -239,10 +245,7 @@ impl MonteCarloDoubleBarrierEngine {
                 )
             });
         }
-        context.bsm_parameters()?;
-        self.validate_applicability(context)?;
         let settings = shifts;
-        settings.validate()?;
         let result = self
             .engine
             .native(Contract::Double(option), context, request, settings, false)

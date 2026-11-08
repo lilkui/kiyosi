@@ -216,12 +216,13 @@ impl AnalyticHestonEuropeanEngine {
         checked_with_scale(price, scale)
     }
 
-    /// Returns the price with all requested Greeks absent; see [`Self::new`].
+    /// Returns the price for an empty Greek request; see [`Self::new`].
     ///
     /// # Errors
     ///
     /// Checks Heston applicability and propagates
-    /// [`Self::price`] errors. Inputs remain unchanged; valid numerical shifts are unused.
+    /// [`Self::price`] errors. Nonempty requests return [`Error::UnsupportedOperation`].
+    /// Inputs remain unchanged; valid numerical shifts are unused.
     pub fn price_with_greeks(
         &self,
         option: &EuropeanOption,
@@ -231,6 +232,7 @@ impl AnalyticHestonEuropeanEngine {
         let settings = crate::NumericalShiftSettings::default();
         self.validate_applicability(context)?;
         settings.validate()?;
+        request.validate_support(GreeksRequest::new([]))?;
         PricingResult::new(self.price(option, context)?)
             .map(|result| result.with_request(request, GreeksRequest::new([])))
     }

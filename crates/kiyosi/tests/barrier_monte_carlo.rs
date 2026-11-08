@@ -876,11 +876,7 @@ fn rare_hit_samples_retain_scaled_value_and_unrequested_greeks_do_not_fail_price
     let price = engine.price(&dated(&option, &tiny), &tiny).unwrap();
     assert_eq!(
         engine
-            .price_with_greeks(
-                &dated(&option, &tiny),
-                &tiny,
-                GreeksRequest::new([Greek::Rho])
-            )
+            .price_with_greeks(&dated(&option, &tiny), &tiny, GreeksRequest::new([]))
             .unwrap()
             .price(),
         price

@@ -16,6 +16,103 @@ from support.history import history_fields
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_greek_requests_reject_disjoint_support_and_preserve_partial_results(self):
+        start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+        vanilla = ins.EuropeanOption(
+            option_type="call", strike=100, effective_time=start, expiry_time=end
+        )
+        bsm = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=105,
+            valuation_time=start,
+        )
+        heston = bsm.replace(
+            model_parameters=market.HestonParameters(
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                initial_variance=0.04,
+                long_run_variance=0.04,
+                mean_reversion_speed=1.5,
+                vol_of_vol=0.3,
+                correlation=-0.7,
+            )
+        )
+        local = bsm.replace(
+            model_parameters=market.LocalVolatilityParameters(
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                surface=market.LocalVolatilitySurface(
+                    times=[start, end], spots=[80, 120], values=[[0.2, 0.2], [0.2, 0.2]]
+                ),
+            )
+        )
+        fields = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": start,
+            "expiry_time": end,
+        }
+        barrier = ins.BarrierOption(
+            **fields,
+            barrier_level=120,
+            barrier_type="up_and_out",
+            touch_state="untouched",
+            history_time=start,
+        )
+        double = ins.DoubleBarrierOption(
+            **fields,
+            lower_barrier=80,
+            upper_barrier=120,
+            barrier_type="knock_out",
+            touch_state="untouched",
+            history_time=start,
+        )
+        sampling = {"path_count": 128, "seed": 42, "max_active_workers": 1}
+        for engine, instrument, snapshot, partial in (
+            (pricing.AnalyticHestonEuropeanEngine(), vanilla, heston, False),
+            (
+                pricing.FiniteDifferenceHestonVanillaEngine(
+                    asset_step_count=12, variance_step_count=8, time_step_count=8
+                ),
+                vanilla,
+                heston,
+                False,
+            ),
+            (
+                pricing.FiniteDifferenceVanillaEngine(
+                    asset_step_count=40, time_step_count=40
+                ),
+                vanilla,
+                local,
+                True,
+            ),
+            (
+                pricing.CoxRossRubinsteinDigitalEngine(),
+                ins.CashOrNothingOption(**fields, payout=10),
+                bsm,
+                True,
+            ),
+            (pricing.CoxRossRubinsteinBarrierEngine(), barrier, bsm, True),
+            (pricing.MonteCarloBarrierEngine(**sampling), barrier, bsm, True),
+            (pricing.MonteCarloDoubleBarrierEngine(**sampling), double, bsm, True),
+        ):
+            for at in (start, end):
+                with self.subTest(engine=engine, at=at):
+                    context = snapshot.replace(valuation_time=at)
+                    option = dated_history(instrument, context)
+                    with self.assertRaises(UnsupportedOperationError):
+                        engine.price_with_greeks(option, context, "vega")
+                    result = engine.price_with_greeks(option, context, [])
+                    self.assertEqual(result.price, engine.price(option, context))
+                    if partial:
+                        result = engine.price_with_greeks(
+                            option, context, ["delta", "vega"]
+                        )
+                        self.assertEqual(result.status("delta"), "available")
+                        self.assertEqual(result.status("vega"), "unsupported")
+
     def test_autocallable_constructors_require_an_explicit_observation_clock(self):
         import inspect
         from datetime import time
@@ -1649,18 +1746,16 @@ class ApiConsistencyTests(unittest.TestCase):
                 correlation=-0.7,
             )
         )
-        unsupported = pricing.AnalyticHestonEuropeanEngine().price_with_greeks(
-            dated_history(option, heston), heston, "delta"
-        )
-        self.assertEqual(unsupported.status("delta"), "unsupported")
-        self.assertEqual(unsupported.status("gamma"), "not_requested")
+        with self.assertRaises(UnsupportedOperationError):
+            pricing.AnalyticHestonEuropeanEngine().price_with_greeks(
+                option, heston, "delta"
+            )
         from kiyosi import GreekUnavailableError
 
         for value, measure, status in (
             (result, "gamma", "not_requested"),
             (terminal, "delta", "undefined"),
             (collapsed, "delta", "stencil_unavailable"),
-            (unsupported, "delta", "unsupported"),
         ):
             with self.assertRaises(GreekUnavailableError) as caught:
                 value.require(measure)
@@ -1685,7 +1780,7 @@ class ApiConsistencyTests(unittest.TestCase):
         self.assertEqual(partial.status("delta"), "available")
         self.assertEqual(partial.status("vega"), "unsupported")
         self.assertEqual(partial.requested, ("delta", "vega"))
-        for original in (result, terminal, collapsed, unsupported, partial):
+        for original in (result, terminal, collapsed, partial):
             restored = pickle.loads(pickle.dumps(original))
             self.assertEqual(restored.price, original.price)
             self.assertEqual(restored.requested, original.requested)

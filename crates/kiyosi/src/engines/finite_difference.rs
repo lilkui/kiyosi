@@ -904,6 +904,7 @@ macro_rules! vanilla_pricing {
             ) -> Result<PricingResult> {
                 <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
                 shifts.validate()?;
+                local_volatility::validate_request(context, request)?;
                 let engine = Self {
                     settings: self.settings.with_greek_shifts(shifts),
                 };

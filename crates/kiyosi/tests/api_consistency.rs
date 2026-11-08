@@ -4,6 +4,159 @@ use support::dated;
 use kiyosi::*;
 
 #[test]
+fn greek_requests_reject_disjoint_support_and_preserve_partial_results() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_days(365)?;
+    let bsm = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        105.0,
+        start,
+    )?;
+    let heston = PricingContext::new(
+        HestonParameters::new(HestonParameterInputs {
+            risk_free_rate: 0.05.into(),
+            dividend_yield: 0.02.into(),
+            initial_variance: 0.04,
+            long_run_variance: 0.04,
+            mean_reversion_speed: 1.5,
+            vol_of_vol: 0.3,
+            correlation: -0.7,
+        })?,
+        105.0,
+        start,
+    )?;
+    let local = PricingContext::new(
+        LocalVolatilityParameters::new(
+            0.05,
+            0.02,
+            LocalVolatilitySurface::new(
+                vec![start, end],
+                vec![80.0, 120.0],
+                vec![vec![0.2; 2]; 2],
+            )?,
+        )?,
+        105.0,
+        start,
+    )?;
+    let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let barrier = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        120.0,
+        BarrierType::UpAndOut,
+    ))?
+    .replace_history(Some(BarrierTouchState::Untouched), Some(start))?;
+    let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        80.0,
+        120.0,
+        DoubleBarrierType::KnockOut,
+    ))?
+    .replace_history(Some(BarrierTouchState::Untouched), Some(start))?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    macro_rules! check {
+        ($engine:expr, $option:expr, $context:expr, $partial:expr) => {{
+            let engine = $engine;
+            for at in [start, end] {
+                let context = $context.replace(PricingContextChanges {
+                    valuation_time: Some(at),
+                    ..Default::default()
+                })?;
+                let option = dated(&$option, &context);
+                let request = GreeksRequest::new([Greek::Vega]);
+                assert!(matches!(
+                    engine.price_with_greeks(&option, &context, request),
+                    Err(Error::UnsupportedOperation(_))
+                ));
+                assert!(matches!(
+                    PricingEngine::price_with_greeks_with_settings(
+                        &engine,
+                        &option,
+                        &context,
+                        request,
+                        Default::default()
+                    ),
+                    Err(Error::UnsupportedOperation(_))
+                ));
+                assert_eq!(
+                    engine
+                        .price_with_greeks(&option, &context, GreeksRequest::new([]))?
+                        .price(),
+                    engine.price(&option, &context)?
+                );
+                if $partial {
+                    let result = engine.price_with_greeks(
+                        &option,
+                        &context,
+                        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+                    )?;
+                    assert_eq!(result.status(Greek::Vega), GreekStatus::Unsupported);
+                    assert_eq!(result.status(Greek::Delta), GreekStatus::Available);
+                }
+            }
+        }};
+    }
+    check!(
+        AnalyticHestonEuropeanEngine::default(),
+        vanilla,
+        heston,
+        false
+    );
+    check!(
+        FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+            asset_step_count: 12,
+            variance_step_count: 8,
+            time_step_count: 8,
+            ..Default::default()
+        })?,
+        vanilla,
+        heston,
+        false
+    );
+    check!(
+        FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+            asset_step_count: 40,
+            time_step_count: 40,
+            ..Default::default()
+        })?,
+        vanilla,
+        local,
+        true
+    );
+    check!(
+        CoxRossRubinsteinDigitalEngine::default(),
+        digital,
+        bsm,
+        true
+    );
+    check!(
+        CoxRossRubinsteinBarrierEngine::default(),
+        barrier,
+        bsm,
+        true
+    );
+    let sampling = MonteCarloSettings {
+        path_count: 128,
+        seed: Some(42),
+        max_active_workers: 1,
+        ..Default::default()
+    };
+    check!(MonteCarloBarrierEngine::new(sampling)?, barrier, bsm, true);
+    check!(
+        MonteCarloDoubleBarrierEngine::new(sampling)?,
+        double,
+        bsm,
+        true
+    );
+    Ok(())
+}
+
+#[test]
 fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let end = start.add_days(365)?;
@@ -1014,13 +1167,10 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
         ),
         ..Default::default()
     })?;
-    let result = AnalyticHestonEuropeanEngine::default().price_with_greeks(
-        &dated(&option, &heston),
-        &heston,
-        request,
-    )?;
-    assert_eq!(result.status(Greek::Delta), GreekStatus::Unsupported);
-    assert_eq!(result.status(Greek::Gamma), GreekStatus::NotRequested);
+    assert!(matches!(
+        AnalyticHestonEuropeanEngine::default().price_with_greeks(&option, &heston, request),
+        Err(Error::UnsupportedOperation(_))
+    ));
     let custom = PricingResult::new(10.0)?
         .with_greek(Greek::Delta, 0.5)?
         .with_request(

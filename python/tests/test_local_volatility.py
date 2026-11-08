@@ -449,7 +449,6 @@ class LocalVolatilityTests(unittest.TestCase):
                         for request in [
                             "all",
                             ["delta", "vega"],
-                            "theta",
                         ]:
                             result = e.price_with_greeks(
                                 dated_history(contract, c), c, request
@@ -463,7 +462,7 @@ class LocalVolatilityTests(unittest.TestCase):
             baseline = engine().price_with_greeks(
                 dated_history(option(), rolled), rolled, ["delta", "gamma"]
             )
-            for greeks in ["all", ["delta", "vega"], "theta"]:
+            for greeks in ["all", ["delta", "vega"]]:
                 result = engine().price_with_greeks(
                     dated_history(option(), rolled), rolled, greeks
                 )
@@ -471,10 +470,11 @@ class LocalVolatilityTests(unittest.TestCase):
                 self.assertIsNone(result.vega)
                 self.assertIsNone(result.theta)
                 self.assertIsNone(result.speed)
-                if greeks != "theta":
-                    self.assertEqual(result.delta, baseline.delta)
-                else:
-                    self.assertIsNone(result.delta)
+                self.assertEqual(result.delta, baseline.delta)
+            with self.assertRaises(UnsupportedOperationError):
+                engine().price_with_greeks(
+                    dated_history(option(), rolled), rolled, "theta"
+                )
             with self.assertRaises(UnsupportedOperationError):
                 pricing.implied_volatility(
                     engine(),

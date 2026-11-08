@@ -460,8 +460,14 @@ class SupportMatrixTests(unittest.TestCase):
                         engine.price(dated_history(instrument, context), context),
                         expected,
                     )
+                    request = [] if name in HESTON_ENGINES else ["delta"]
+                    if name in HESTON_ENGINES:
+                        with self.assertRaises(UnsupportedOperationError):
+                            engine.price_with_greeks(
+                                dated_history(instrument, context), context, ["delta"]
+                            )
                     result = engine.price_with_greeks(
-                        dated_history(instrument, context), context, ["delta"]
+                        dated_history(instrument, context), context, request
                     )
                     self.assertAlmostEqual(result.price, expected)
                     if name in HESTON_ENGINES:
@@ -470,10 +476,10 @@ class SupportMatrixTests(unittest.TestCase):
                         self.assertAlmostEqual(
                             result.delta, terminal_delta(instrument), delta=1e-10
                         )
-                    self.assertEqual(result.requested, ("delta",))
+                    self.assertEqual(result.requested, tuple(request))
                     self.assertEqual(
                         result.status("delta"),
-                        "unsupported" if name in HESTON_ENGINES else "available",
+                        "not_requested" if name in HESTON_ENGINES else "available",
                     )
                     self.assertEqual(result.status("gamma"), "not_requested")
                     with self.assertRaises(UnsupportedOperationError) as error:

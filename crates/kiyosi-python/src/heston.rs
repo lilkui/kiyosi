@@ -33,7 +33,7 @@ use pyo3::prelude::*;
 /// Zero parameters and violations of the Feller condition (2 * kappa * theta
 /// >= xi**2) are accepted. AnalyticHestonEuropeanEngine prices European
 /// options; FiniteDifferenceHestonVanillaEngine prices European and American
-/// options. Requested Greeks are absent; implied-parameter solvers are
+/// options. Nonempty Greek requests and implied-parameter solvers are
 /// unsupported. Numeric conversion rejects booleans. Replacement validates in
 /// Rust before returning a new owned model; the original is unchanged on
 /// failure.

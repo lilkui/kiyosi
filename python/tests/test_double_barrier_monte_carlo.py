@@ -612,7 +612,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         tiny = market(volatility=1e-200)
         price = engine.price(dated_history(option, tiny), tiny)
         self.assertEqual(
-            engine.price_with_greeks(dated_history(option, tiny), tiny, "rho").price,
+            engine.price_with_greeks(dated_history(option, tiny), tiny, []).price,
             price,
         )
         self.assert_rejection(

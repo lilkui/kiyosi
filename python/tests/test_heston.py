@@ -456,10 +456,16 @@ class HestonTests(unittest.TestCase):
             with self.subTest(instant=instant), self.assertRaises(InvalidInputError):
                 engine.price(option(), context(valuation_time=instant))
         for snapshot in (context(), terminal):
+            with self.assertRaises(UnsupportedOperationError):
+                AnalyticHestonEuropeanEngine().price_with_greeks(
+                    option(), snapshot, "delta"
+                )
             result = AnalyticHestonEuropeanEngine().price_with_greeks(
-                option(), snapshot, "delta"
+                option(), snapshot, []
             )
-            self.assertIsNone(result.delta)
+            self.assertEqual(
+                result.price, AnalyticHestonEuropeanEngine().price(option(), snapshot)
+            )
             with self.assertRaises(UnsupportedOperationError):
                 pricing.implied_volatility(
                     engine, option(), snapshot, 9, lower_bound=0.0, upper_bound=4.0

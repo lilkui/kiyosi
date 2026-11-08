@@ -614,7 +614,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
         price = engine.price(dated_history(contract, context), context)
         self.assertEqual(
             engine.price_with_greeks(
-                dated_history(contract, context), context, "rho"
+                dated_history(contract, context), context, []
             ).price,
             price,
         )
