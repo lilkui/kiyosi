@@ -104,26 +104,10 @@ pub(crate) fn calendar(py: Python<'_>, value: &kiyosi::TradingCalendar) -> PyRes
             dates(open)?
         ));
     }
-    for (name, base) in [
-        ("weekdays", kiyosi::TradingCalendar::weekdays()),
-        ("all_days", kiyosi::TradingCalendar::all_days()),
-        ("sse", kiyosi::TradingCalendar::sse()),
-    ] {
-        let base = crate::error::domain(kiyosi::TradingCalendar::custom(
-            base,
-            vec![],
-            vec![],
-            Some(value.trading_days_per_year()),
-        ))?;
-        if *value == base {
-            return Ok(format!(
-                "TradingCalendar(kind='{name}', trading_days_per_year={})",
-                value.trading_days_per_year()
-            ));
-        }
-    }
-    Err(pyo3::exceptions::PyTypeError::new_err(
-        "predicate calendars have no Python representation",
+    Ok(format!(
+        "TradingCalendar(kind='{}', trading_days_per_year={})",
+        crate::calendar::builtin_name(value)?,
+        value.trading_days_per_year()
     ))
 }
 

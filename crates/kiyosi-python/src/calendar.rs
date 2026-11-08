@@ -259,6 +259,16 @@ pub(crate) fn _calendar_parts<'py>(
             basis,
         ));
     }
+    Ok((
+        builtin_name(&calendar.0)?.into(),
+        None,
+        vec![],
+        vec![],
+        basis,
+    ))
+}
+
+pub(crate) fn builtin_name(calendar: &kiyosi::TradingCalendar) -> PyResult<&'static str> {
     for (name, builtin) in [
         ("weekdays", kiyosi::TradingCalendar::weekdays()),
         ("all_days", kiyosi::TradingCalendar::all_days()),
@@ -268,13 +278,13 @@ pub(crate) fn _calendar_parts<'py>(
             builtin,
             vec![],
             vec![],
-            Some(basis),
+            Some(calendar.trading_days_per_year()),
         ))?;
-        if calendar.0 == adjusted {
-            return Ok((name.into(), None, vec![], vec![], basis));
+        if *calendar == adjusted {
+            return Ok(name);
         }
     }
     Err(pyo3::exceptions::PyTypeError::new_err(
-        "predicate calendars cannot be serialized",
+        "predicate calendars have no Python representation",
     ))
 }
