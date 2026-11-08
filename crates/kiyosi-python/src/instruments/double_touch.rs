@@ -48,6 +48,7 @@ pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
 
 monitoring_properties!(
     DoubleTouchOption,
+    DoubleTouchOptionChanges,
     #[new]
     #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, payout, settlement_timing=kiyosi::SettlementTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]

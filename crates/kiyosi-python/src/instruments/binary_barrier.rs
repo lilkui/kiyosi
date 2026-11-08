@@ -131,9 +131,10 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 pub(crate) struct TouchOption(pub kiyosi::TouchOption);
 
 macro_rules! binary_properties {
-    ($name:ident, $($extra:item),* $(,)?) => {
+    ($name:ident, $changes:ident, $($extra:item),* $(,)?) => {
         monitoring_properties!(
             $name,
+            $changes,
             $($extra,)*
             /// Return positive finite trigger level; equality counts as a touch.
             #[getter]
@@ -162,6 +163,7 @@ macro_rules! binary_properties {
 }
 binary_properties!(
     BinaryBarrierOption,
+    BinaryBarrierOptionChanges,
     #[new]
     #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, payoff_type, payout=None, observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
@@ -332,6 +334,7 @@ binary_properties!(
 );
 binary_properties!(
     TouchOption,
+    TouchOptionChanges,
     #[new]
     #[pyo3(signature = (*, effective_time, expiry_time, barrier_level, barrier_type, payoff_type, payout=None, settlement_timing=kiyosi::SettlementTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]

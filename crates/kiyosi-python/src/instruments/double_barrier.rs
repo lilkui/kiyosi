@@ -60,6 +60,7 @@ pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
 
 monitoring_properties!(
     DoubleBarrierOption,
+    DoubleBarrierOptionChanges,
     /// Return a validated replacement.
     ///
     /// Parameters

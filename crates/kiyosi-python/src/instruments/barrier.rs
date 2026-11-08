@@ -76,6 +76,7 @@ pub(crate) struct BarrierOption(pub kiyosi::BarrierOption);
 
 monitoring_properties!(
     BarrierOption,
+    BarrierOptionChanges,
     /// Return a validated replacement.
     ///
     /// Parameters

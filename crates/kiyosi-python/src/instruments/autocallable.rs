@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 macro_rules! autocallable_properties {
-    ($name:ident, $($extra:item),* $(,)?) => {
+    ($name:ident, $changes:ident, $($extra:item),* $(,)?) => {
         #[pymethods]
         impl $name {
             $($extra)*
@@ -51,17 +51,11 @@ macro_rules! autocallable_properties {
                     .map(crate::conversions::optional_timestamp)
                     .transpose()?;
 
-                let supplied = barrier_state.is_some();
-                let state = barrier_state.map(state).transpose()?
-                    .unwrap_or(self.0.barrier_state());
-                let at = history_time.unwrap_or_else(|| {
-                    if supplied && state.is_none() { None }
-                    else { kiyosi::OptionContract::history_time(&self.0) }
-                });
-                if !supplied {
-                    return domain(kiyosi::OptionContract::with_history_time(self.0.clone(), at)).map(Self);
-                }
-                Ok(Self(domain(self.0.replace_history(state, at))?))
+                Ok(Self(domain(self.0.replace(kiyosi::$changes {
+                    barrier_state: barrier_state.map(state).transpose()?,
+                    history_time,
+                    ..Default::default()
+                }))?))
             }
             /// Return an owned copy of the contract's monitoring calendar.
             #[getter]
@@ -118,9 +112,10 @@ macro_rules! autocallable_properties {
 }
 
 macro_rules! snowball_properties {
-    ($name:ident, $($extra:item),* $(,)?) => {
+    ($name:ident, $changes:ident, $($extra:item),* $(,)?) => {
         autocallable_properties! {
             $name,
+            $changes,
             $($extra,)*
             /// Return a note with the quoted first coupon and preserved coupon spreads.
             ///
@@ -746,6 +741,7 @@ times, stages may have no observations, and rates need not decrease."
 pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
 snowball_properties! {
     SnowballOption,
+    SnowballOptionChanges,
     /// Return a validated replacement.
     ///
     /// Parameters
@@ -946,6 +942,7 @@ snowball_properties! {
 pub(crate) struct BinarySnowballOption(pub kiyosi::BinarySnowballOption);
 snowball_properties! {
     BinarySnowballOption,
+    BinarySnowballOptionChanges,
     /// Return a validated replacement.
     ///
     /// Parameters
@@ -1093,6 +1090,7 @@ snowball_properties! {
 pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
 snowball_properties! {
     TernarySnowballOption,
+    TernarySnowballOptionChanges,
     /// Return a validated replacement.
     ///
     /// Parameters
@@ -1303,6 +1301,7 @@ snowball_properties! {
 pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
+    PhoenixOptionChanges,
     /// Return a validated replacement.
     ///
     /// Parameters

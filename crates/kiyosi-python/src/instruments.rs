@@ -1,5 +1,5 @@
 macro_rules! monitoring_properties {
-    ($name:ident, $($extra:item),* $(,)?) => {
+    ($name:ident, $changes:ident, $($extra:item),* $(,)?) => {
         #[pyo3::pymethods]
         impl $name {
             $($extra)*
@@ -56,17 +56,11 @@ macro_rules! monitoring_properties {
                     .map(crate::conversions::optional_timestamp)
                     .transpose()?;
 
-                let supplied = touch_state.is_some();
-                let state = touch_state.map($crate::instruments::barrier::history).transpose()?
-                    .unwrap_or(self.0.touch_state());
-                let at = history_time.unwrap_or_else(|| {
-                    if supplied && state.is_none() { None }
-                    else { kiyosi::OptionContract::history_time(&self.0) }
-                });
-                if !supplied {
-                    return $crate::error::domain(kiyosi::OptionContract::with_history_time(self.0.clone(), at)).map(Self);
-                }
-                Ok(Self($crate::error::domain(self.0.replace_history(state, at))?))
+                Ok(Self($crate::error::domain(self.0.replace(kiyosi::$changes {
+                    touch_state: touch_state.map($crate::instruments::barrier::history).transpose()?,
+                    history_time,
+                    ..Default::default()
+                }))?))
             }
             /// Return the inclusive contract start.
             #[getter]
