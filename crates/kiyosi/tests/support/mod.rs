@@ -5,10 +5,14 @@ pub fn dated<I: OptionContract + Clone>(instrument: &I, context: &PricingContext
         && context.valuation_time() >= instrument.effective_time()
         && context.valuation_time() <= instrument.expiry_time()
     {
-        instrument
+        match instrument
             .clone()
             .with_history_time(Some(context.valuation_time()))
-            .expect("test history timestamp must be within contract life")
+        {
+            Ok(dated) => dated,
+            Err(kiyosi::Error::UnsupportedOperation(_)) => instrument.clone(),
+            Err(error) => panic!("invalid test history timestamp: {error}"),
+        }
     } else {
         instrument.clone()
     }

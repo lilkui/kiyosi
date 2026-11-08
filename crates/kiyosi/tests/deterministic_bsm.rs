@@ -1,14 +1,14 @@
 use kiyosi::*;
 
+mod support;
+
 fn verify<I: OptionContract + Clone>(
     option: &I,
     context: &PricingContext,
     expected: f64,
     engines: &[&dyn PricingEngine<I>],
 ) -> Result<()> {
-    let dated = option
-        .clone()
-        .with_history_time(Some(context.valuation_time()))?;
+    let dated = support::dated(option, context);
     let option = &dated;
     for engine in engines {
         assert!((engine.price(option, context)? - expected).abs() < 1e-10);

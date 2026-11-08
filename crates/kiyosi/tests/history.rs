@@ -1,6 +1,31 @@
 use kiyosi::*;
 
 #[test]
+fn history_free_contracts_reject_timestamps_instead_of_discarding_them() -> Result<()> {
+    fn check<I: OptionContract + Clone + PartialEq + std::fmt::Debug>(option: &I) -> Result<()> {
+        for time in [option.effective_time(), option.expiry_time().add_days(1)?] {
+            assert!(matches!(
+                option.clone().with_history_time(Some(time)),
+                Err(Error::UnsupportedOperation(_))
+            ));
+        }
+        assert_eq!(option.clone().with_history_time(None)?, *option);
+        Ok(())
+    }
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_days(10)?;
+    check(&EuropeanOption::new(OptionType::Call, 100.0, start, end)?)?;
+    check(&AmericanOption::new(OptionType::Put, 100.0, start, end)?)?;
+    check(&DigitalOption::asset_or_nothing(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+    )?)?;
+    Ok(())
+}
+
+#[test]
 fn history_refresh_updates_payload_and_timestamp_before_pricing() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let at = start.add_days(1)?;
