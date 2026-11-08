@@ -42,6 +42,22 @@ size.
 
 Examples
 --------
+Edit a preset's observation and maturity coupons together:
+
+>>> from datetime import datetime, time
+>>> note = standard_snowball(
+...     coupon_rate=0.12, initial_spot=100, knock_in_level=80, knock_out_level=110,
+...     effective_time=datetime(2025, 1, 2), expiry_time=datetime(2026, 1, 2),
+...     observation_times=[datetime(2026, 1, 2)], observation_clock_time=time(15),
+... )
+>>> edited = note.with_quoted_coupon(
+...     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon",
+... )
+>>> round(edited.knock_out_coupon_rates[0], 6), round(edited.maturity_coupon_rate, 6)
+(0.15, 0.15)
+>>> note.maturity_coupon_rate
+0.12
+
 Refresh a continuous average and its snapshot timestamp together, then price it:
 
 >>> from datetime import datetime

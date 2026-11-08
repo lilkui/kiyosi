@@ -14656,6 +14656,21 @@ def standard_snowball(
     Notes
     -----
     Knock-in is observed on every trading day.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def european_snowball(
@@ -14720,6 +14735,21 @@ def european_snowball(
     Notes
     -----
     Knock-in is observed only at expiry.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def step_down_snowball(
@@ -14789,6 +14819,21 @@ def step_down_snowball(
     Knock-in is observed on every trading day. Decrements apply after each observation; the first uses the initial
     value. Signed coupons and decrements are accepted if all expanded terms
     remain valid.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def both_down_snowball(
@@ -14861,6 +14906,21 @@ def both_down_snowball(
     Knock-in is observed on every trading day. Decrements apply after each observation; the first uses the initial
     value. Signed coupons and decrements are accepted if all expanded terms
     remain valid. Maturity uses the final observation coupon.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def dual_coupon_snowball(
@@ -14928,6 +14988,21 @@ def dual_coupon_snowball(
     Notes
     -----
     Knock-in is observed on every trading day.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def parachute_snowball(
@@ -14995,6 +15070,21 @@ def parachute_snowball(
     Notes
     -----
     Knock-in is observed on every trading day.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def otm_snowball(
@@ -15062,6 +15152,21 @@ def otm_snowball(
     Notes
     -----
     Knock-in is observed on every trading day.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def loss_capped_snowball(
@@ -15129,6 +15234,21 @@ def loss_capped_snowball(
     Notes
     -----
     Knock-in is observed on every trading day.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 class Accumulator:
@@ -15772,6 +15892,21 @@ def early_profit_snowball(
     Knock-in is observed on every trading day. Knock-out uses the observation's stage rate over the whole holding period.
     Maturity uses the final stage rate. Cutoffs need not be observation or trading
     times, stages may have no observations, and rates need not decrease.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def butterfly_snowball(
@@ -15850,6 +15985,21 @@ def butterfly_snowball(
     Knock-in is observed on every trading day. Knock-out uses the observation's stage rate over the whole holding period.
     Maturity uses the final stage rate. Cutoffs need not be observation or trading
     times, stages may have no observations, and rates need not decrease.
+
+    The returned SnowballOption stores observation and maturity coupons separately.
+    To edit its first annual observation coupon while preserving coupon spreads,
+    use the returned note's quoting operation:
+
+    .. code-block:: python
+
+        edited = note.with_quoted_coupon(
+            first_observation_coupon=0.15,
+            quote_convention="shift_maturity_coupon",
+        )
+
+    This convention shifts the maturity coupon by the same amount. Use
+    preserve_maturity_coupon to keep maturity fixed. Replacing only
+    maturity_coupon_rate edits only the maturity coupon.
     """
 
 def _calendar_parts(

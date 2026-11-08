@@ -29,6 +29,14 @@ note = standard_snowball(
     expiry_time=end,
     calendar=calendar,
 )
+
+# Edit observation and maturity coupons together; the original note retains 12%.
+edited = note.with_quoted_coupon(
+    first_observation_coupon=0.15, quote_convention="shift_maturity_coupon"
+)
+assert all(abs(coupon - 0.15) < 1e-14 for coupon in edited.knock_out_coupon_rates)
+assert abs(edited.maturity_coupon_rate - 0.15) < 1e-14
+
 context = PricingContext(
     model_parameters=BlackScholesMertonParameters(
         risk_free_rate=0.02, dividend_yield=0, volatility=0.20

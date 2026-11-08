@@ -510,6 +510,21 @@ macro_rules! snowball_preset {
         /// Notes
         /// -----
         #[doc = concat!("Knock-in is observed ", $monitoring, ".", $notes, "\n")]
+        /// The returned SnowballOption stores observation and maturity coupons separately.
+        /// To edit its first annual observation coupon while preserving coupon spreads,
+        /// use the returned note's quoting operation:
+        ///
+        /// .. code-block:: python
+        ///
+        ///     edited = note.with_quoted_coupon(
+        ///         first_observation_coupon=0.15,
+        ///         quote_convention="shift_maturity_coupon",
+        ///     )
+        ///
+        /// This convention shifts the maturity coupon by the same amount. Use
+        /// preserve_maturity_coupon to keep maturity fixed. Replacing only
+        /// maturity_coupon_rate edits only the maturity coupon.
+        ///
         #[pyfunction]
         #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_times, effective_time, expiry_time, $clock $(= $clock_default)?, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
