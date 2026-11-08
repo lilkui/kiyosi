@@ -95,9 +95,7 @@ macro_rules! monitoring_properties {
             /// Returns an owned schedule, or None for continuous monitoring.
             #[getter]
             fn observation_schedule(&self) -> Option<$crate::schedule::ObservationSchedule> {
-                self.0.observation_times().map(|_| {
-                    $crate::schedule::ObservationSchedule(self.0.observation_schedule().clone())
-                })
+                self.0.observation_schedule().cloned().map($crate::schedule::ObservationSchedule)
             }
             /// Return a copy of the contractual observation times.
             #[getter]

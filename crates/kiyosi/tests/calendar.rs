@@ -32,10 +32,10 @@ fn schedules_retain_calendars_for_contract_composition() -> kiyosi::Result<()> {
     let option = BarrierOption::new(terms)?;
     let updated = option.replace_calendar(TradingCalendar::all_days())?;
     assert_eq!(
-        updated.observation_schedule().calendar(),
+        updated.observation_schedule().unwrap().calendar(),
         updated.calendar()
     );
-    assert_eq!(option.observation_schedule().calendar(), &calendar);
+    assert_eq!(option.observation_schedule().unwrap().calendar(), &calendar);
     for generated in [
         ObservationSchedule::fixed_interval(
             start,
@@ -48,6 +48,78 @@ fn schedules_retain_calendars_for_contract_composition() -> kiyosi::Result<()> {
     ] {
         assert_eq!(generated.calendar(), &calendar);
     }
+    Ok(())
+}
+
+#[test]
+fn barrier_schedule_accessors_distinguish_continuous_and_scheduled_monitoring() -> kiyosi::Result<()>
+{
+    use kiyosi::*;
+    let start = day(2025, 1, 3).start_of_day();
+    let end = day(2025, 1, 4).start_of_day();
+    let calendar = TradingCalendar::all_days();
+    macro_rules! check {
+        ($terms:expr, $constructor:path $(, $payout:expr)?) => {{
+            let mut terms = $terms;
+            terms.calendar = calendar.clone();
+            for times in [None, Some(vec![end])] {
+                terms.observation_times = times.clone();
+                let option = $constructor(terms.clone() $(, $payout)?)?;
+                assert_eq!(option.observation_schedule().map(ObservationSchedule::times), times.as_deref());
+                if let Some(schedule) = option.observation_schedule() {
+                    assert_eq!(schedule.calendar(), &calendar);
+                    terms.observation_times = Some(schedule.times().to_vec());
+                    terms.calendar = schedule.calendar().clone();
+                    assert_eq!($constructor(terms.clone() $(, $payout)?)?, option);
+                }
+            }
+        }};
+    }
+    check!(
+        BarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut
+        ),
+        BarrierOption::new
+    );
+    check!(
+        DoubleBarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            80.0,
+            120.0,
+            DoubleBarrierType::KnockOut
+        ),
+        DoubleBarrierOption::new
+    );
+    check!(
+        BinaryBarrierTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut
+        ),
+        BinaryBarrierOption::cash,
+        10.0
+    );
+    check!(
+        TouchOptionTerms::new(start, end, 120.0, BarrierType::UpAndIn),
+        TouchOption::cash,
+        10.0
+    );
+    check!(
+        DoubleTouchOptionTerms::new(start, end, 80.0, 120.0, DoubleBarrierType::KnockIn),
+        DoubleTouchOption::cash,
+        10.0
+    );
     Ok(())
 }
 

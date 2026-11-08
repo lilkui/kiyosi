@@ -243,8 +243,10 @@ impl DoubleBarrierOption {
     pub fn observation_mode(&self) -> ObservationMode {
         self.lower.observation_mode()
     }
-    /// Borrows schedule storage for the lifetime of the borrow; see [`Self::new`].
-    pub fn observation_schedule(&self) -> &ObservationSchedule {
+    /// Borrows the scheduled observations, or returns `None` for continuous monitoring.
+    ///
+    /// Storage remains valid for the borrow; see [`Self::new`] for construction.
+    pub fn observation_schedule(&self) -> Option<&ObservationSchedule> {
         self.lower.observation_schedule()
     }
     /// Borrows scheduled times, or returns `None` for continuous monitoring.
@@ -277,7 +279,7 @@ impl DoubleBarrierOption {
     }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
         (self.observation_mode() == ObservationMode::Continuous
-            || self.observation_schedule().times().last() == Some(&self.expiry_time()))
+            || self.observation_times().and_then(|times| times.last()) == Some(&self.expiry_time()))
             && match self.option_type() {
                 OptionType::Call => self.strike() >= self.upper,
                 OptionType::Put => self.strike() <= self.lower_barrier(),

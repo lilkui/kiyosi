@@ -501,9 +501,11 @@ macro_rules! monitoring_accessors {
             pub fn observation_mode(&self) -> ObservationMode {
                 self.monitoring.observation_mode()
             }
-            /// Borrows schedule storage for this owner's lifetime; see the cash constructor.
-            pub fn observation_schedule(&self) -> &ObservationSchedule {
-                self.monitoring.observation_schedule()
+            /// Borrows scheduled observations, or returns `None` for continuous monitoring.
+            ///
+            /// Storage remains valid for the borrow; see [`Self::cash`] for construction.
+            pub fn observation_schedule(&self) -> Option<&ObservationSchedule> {
+                (!self.monitoring.continuous()).then(|| self.monitoring.observation_schedule())
             }
             /// Borrows scheduled times, or returns `None` for continuous monitoring.
             ///

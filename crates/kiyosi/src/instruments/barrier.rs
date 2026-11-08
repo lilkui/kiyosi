@@ -290,14 +290,16 @@ impl BarrierOption {
     pub fn observation_mode(&self) -> ObservationMode {
         self.monitoring.observation_mode()
     }
-    /// Borrows schedule storage for the lifetime of the borrow; see [`Self::new`].
-    pub fn observation_schedule(&self) -> &ObservationSchedule {
-        self.monitoring.observation_schedule()
+    /// Borrows the scheduled observations, or returns `None` for continuous monitoring.
+    ///
+    /// Storage remains valid for the borrow; see [`Self::new`] for construction.
+    pub fn observation_schedule(&self) -> Option<&ObservationSchedule> {
+        (!self.monitoring.continuous()).then(|| self.monitoring.observation_schedule())
     }
     /// Borrows scheduled times, or returns `None` for continuous monitoring.
     ///
     /// Storage remains valid for this borrow. See [`Self::observation_schedule`] for
-    /// access to an empty schedule during continuous monitoring and [`Self::replace`] for replacement.
+    /// calendar-preserving schedule access and [`Self::replace`] for replacement.
     pub fn observation_times(&self) -> Option<&[Timestamp]> {
         (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
     }

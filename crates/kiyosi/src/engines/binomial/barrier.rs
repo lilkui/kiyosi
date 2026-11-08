@@ -169,7 +169,7 @@ impl CoxRossRubinsteinBarrierEngine {
             vec![option.observation_mode() == crate::ObservationMode::Continuous; steps + 1];
         if option.observation_mode() == crate::ObservationMode::Scheduled {
             // Integer arithmetic preserves exact microsecond alignment without overflowing i64.
-            for &date in option.observation_schedule().times() {
+            for &date in option.observation_times().unwrap_or(&[]) {
                 let offset = time.micros_until(date);
                 if offset < 0 {
                     continue;

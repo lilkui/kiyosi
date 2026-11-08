@@ -510,8 +510,8 @@ fn scheduled_price(
         }
     }
     let dates: Vec<_> = option
-        .observation_schedule()
-        .times()
+        .observation_times()
+        .unwrap_or(&[])
         .iter()
         .copied()
         .filter(|&date| date > context.valuation_time())
