@@ -88,7 +88,10 @@ class AsianTests(unittest.TestCase):
             self.assertEqual(option.replace_history(), option)
             updated = option.replace_history(
                 realized_average=Fraction(211, 2),
-                history_time=(option.history_time or option.effective_time)
+                history_time=(
+                    option.history_time
+                    or (option.averaging_start_time + timedelta(microseconds=1))
+                )
                 if Fraction(211, 2) is not None
                 else None,
             )
@@ -130,7 +133,10 @@ class AsianTests(unittest.TestCase):
                 with self.assertRaises(TypeError):
                     option.replace_history(
                         realized_average=invalid,
-                        history_time=(option.history_time or option.effective_time)
+                        history_time=(
+                            option.history_time
+                            or (option.averaging_start_time + timedelta(microseconds=1))
+                        )
                         if invalid is not None
                         else None,
                     )
@@ -194,7 +200,8 @@ class AsianTests(unittest.TestCase):
             original = kind(**history_fields(**terms(averaging_start_time=averaging)))
             seasoned = original.replace_history(
                 realized_average=110,
-                history_time=original.history_time or original.effective_time,
+                history_time=original.history_time
+                or (original.averaging_start_time + timedelta(microseconds=1)),
             )
             engine = engine_type()
             for at in (START, averaging):
@@ -263,19 +270,8 @@ class AsianTests(unittest.TestCase):
                             dated_history(vanilla, market(at)), market(at)
                         ),
                     )
-                    self.assert_rejection(
-                        InvalidInputError,
-                        engine.price,
-                        dated_history(
-                            single.replace_history(
-                                realized_average=110,
-                                history_time=single.history_time
-                                or single.effective_time,
-                            ),
-                            market(at),
-                        ),
-                        market(at),
-                    )
+                with self.assertRaises(InvalidInputError):
+                    single.replace_history(realized_average=110, history_time=END)
 
     def test_greek_requests_stencils_and_solver_controls(self):
         for kind, engine_type in PAIRS:
@@ -329,7 +325,8 @@ class AsianTests(unittest.TestCase):
             self.assertIsNone(collapsed.delta)
             seasoned = option.replace_history(
                 realized_average=100,
-                history_time=option.history_time or option.effective_time,
+                history_time=option.history_time
+                or (option.averaging_start_time + timedelta(microseconds=1)),
             )
             active = market(datetime(2025, 7, 1))
             result = engine.price_with_greeks(
@@ -484,7 +481,8 @@ class AsianTests(unittest.TestCase):
             dated_history(
                 arithmetic.replace_history(
                     realized_average=110,
-                    history_time=arithmetic.history_time or arithmetic.effective_time,
+                    history_time=arithmetic.history_time
+                    or (arithmetic.averaging_start_time + timedelta(microseconds=1)),
                 ),
                 context,
             ),
@@ -496,7 +494,9 @@ class AsianTests(unittest.TestCase):
                     arithmetic.replace_history(
                         realized_average=110,
                         history_time=arithmetic.history_time
-                        or arithmetic.effective_time,
+                        or (
+                            arithmetic.averaging_start_time + timedelta(microseconds=1)
+                        ),
                     ),
                     context.replace(valuation_time=END),
                 ),

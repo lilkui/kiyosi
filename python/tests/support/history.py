@@ -1,5 +1,7 @@
 """Date historical fixtures at the valuation each scenario describes."""
 
+from datetime import timedelta
+
 
 def dated(instrument, context):
     if (
@@ -8,6 +10,11 @@ def dated(instrument, context):
         <= context.valuation_time
         <= instrument.expiry_time
     ):
+        if (
+            getattr(instrument, "realized_average", None) is not None
+            and context.valuation_time <= instrument.averaging_start_time
+        ):
+            return instrument
         payloads = {
             name: getattr(instrument, name)
             for name in (
@@ -37,5 +44,9 @@ def history_fields(**fields):
             "knock_out_settled",
         )
     ):
-        fields["history_time"] = fields["effective_time"]
+        fields["history_time"] = (
+            fields["averaging_start_time"] + timedelta(microseconds=1)
+            if fields.get("realized_average") is not None
+            else fields["effective_time"]
+        )
     return fields

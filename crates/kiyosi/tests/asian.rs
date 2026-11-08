@@ -127,7 +127,7 @@ macro_rules! contract_tests {
                             start,
                             end,
                             average,
-                            Some(start)
+                            Some(start.add_micros(1).unwrap())
                         )
                         .unwrap_err(),
                         Error::InvalidInput(_)
@@ -153,13 +153,13 @@ macro_rules! contract_tests {
                     start,
                     end,
                     DEFAULT_REALIZED_AVERAGE,
-                    Some(start),
+                    Some(start.add_micros(1).unwrap()),
                 )
                 .unwrap();
                 let updated = original
                     .replace_history(
                         110.0,
-                        Some(original.history_time().unwrap_or(original.effective_time())),
+                        Some(original.averaging_start_time().add_micros(1).unwrap()),
                     )
                     .unwrap();
                 assert_eq!(updated.option_type(), OptionType::Put);
@@ -172,7 +172,7 @@ macro_rules! contract_tests {
                     original
                         .replace_history(
                             -1.0,
-                            Some(original.history_time().unwrap_or(original.effective_time()))
+                            Some(original.averaging_start_time().add_micros(1).unwrap())
                         )
                         .unwrap_err(),
                     Error::InvalidInput(_)
@@ -189,7 +189,7 @@ macro_rules! contract_tests {
                 let seasoned = original
                     .replace_history(
                         110.0,
-                        Some(original.history_time().unwrap_or(original.effective_time())),
+                        Some(original.averaging_start_time().add_micros(1).unwrap()),
                     )
                     .unwrap();
                 for at in [start, averaging] {
@@ -284,25 +284,8 @@ macro_rules! contract_tests {
                         );
                     }
                     assert!(matches!(
-                        $engine
-                            .price(
-                                &dated(
-                                    &single
-                                        .replace_history(
-                                            110.0,
-                                            Some(
-                                                single
-                                                    .history_time()
-                                                    .unwrap_or(single.effective_time())
-                                            )
-                                        )
-                                        .unwrap(),
-                                    &market(end)
-                                ),
-                                &market(end)
-                            )
-                            .unwrap_err(),
-                        Error::InvalidInput(_)
+                        single.replace_history(110.0, Some(end)),
+                        Err(Error::InvalidInput(_))
                     ));
                 }
             }
@@ -387,7 +370,7 @@ macro_rules! contract_tests {
                 let seasoned = option
                     .replace_history(
                         100.0,
-                        Some(option.history_time().unwrap_or(option.effective_time())),
+                        Some(option.averaging_start_time().add_micros(1).unwrap()),
                     )
                     .unwrap();
                 let middle = market(Date::new(2025, 7, 1).unwrap().start_of_day());
@@ -446,7 +429,7 @@ fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
             averaging,
             end,
             (realized != 0.0).then_some(realized),
-            Some(start),
+            Some(start.add_micros(1).unwrap()),
         )
         .unwrap();
         assert!(
@@ -478,7 +461,7 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
                 start,
                 end,
                 (realized != 0.0).then_some(realized),
-                Some(start),
+                Some(start.add_micros(1).unwrap()),
             )
             .unwrap();
             let quote = engine.price(&dated(&option, &context), &context).unwrap();
@@ -579,14 +562,7 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
             .price(
                 &dated(
                     &arithmetic
-                        .replace_history(
-                            110.0,
-                            Some(
-                                arithmetic
-                                    .history_time()
-                                    .unwrap_or(arithmetic.effective_time())
-                            )
-                        )
+                        .replace_history(110.0, Some(arithmetic.history_time().unwrap_or(end)))
                         .unwrap(),
                     &expired
                 ),
@@ -665,7 +641,7 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
                     averaging,
                     end,
                     (realized != 0.0).then_some(realized),
-                    Some(start),
+                    Some(start.add_micros(1).unwrap()),
                 )
                 .unwrap();
                 let arithmetic = ArithmeticAveragePriceOption::new(
@@ -675,7 +651,7 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
                     averaging,
                     end,
                     (realized != 0.0).then_some(realized),
-                    Some(start),
+                    Some(start.add_micros(1).unwrap()),
                 )
                 .unwrap();
                 for price in [
@@ -771,7 +747,7 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
                 start,
                 end,
                 amount,
-                Some(start),
+                Some(start.add_micros(1).unwrap()),
             )
             .unwrap();
             let actual = engine.price(&dated(&option, &context), &context).unwrap();
@@ -796,7 +772,7 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
                             effective,
                             end,
                             50.0 * scale,
-                            Some(effective),
+                            Some(at),
                         )
                         .unwrap();
                         let context = PricingContext::new(

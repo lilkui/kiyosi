@@ -264,13 +264,14 @@ macro_rules! average_option {
             ///
             /// Use [`DEFAULT_REALIZED_AVERAGE`] before averaging starts. Positive history
             /// is required strictly after the averaging start, checked during pricing.
-            /// A supplied average requires an in-life `history_time` on construction.
+            /// A supplied average requires an in-life `history_time` strictly after averaging starts.
             ///
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for invalid strike, nonpositive or non-finite
             /// supplied history, reversed life times, averaging outside contract life,
-            /// a history timestamp outside contract life. Undated supplied history returns
+            /// a history timestamp outside life or at or before averaging starts with a supplied average.
+            /// Undated supplied history returns
             /// [`Error::MissingHistory`].
             /// Diagnostic order is unspecified when several inputs are invalid.
             ///
@@ -382,6 +383,13 @@ macro_rules! average_option {
                 super::validate_history_redating(&self, time, self.realized_average().is_some())?;
                 self.0.history_time = time;
                 super::validate_history_snapshot(&self, self.realized_average().is_some())?;
+                if self.realized_average().is_some()
+                    && time.is_some_and(|at| at <= self.averaging_start_time())
+                {
+                    return Err(Error::InvalidInput(
+                        "realized average history_time must follow averaging_start_time".into(),
+                    ));
+                }
                 Ok(self)
             }
 

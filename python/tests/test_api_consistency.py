@@ -1068,7 +1068,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     engine.price(dated_history(original, context), context)
                 seasoned = original.replace_history(
                     realized_average=110,
-                    history_time=original.history_time or original.effective_time,
+                    history_time=context.valuation_time,
                 )
                 self.assertEqual(seasoned.realized_average, 110)
                 self.assertGreater(
@@ -2003,7 +2003,7 @@ class GreekMethodTests(unittest.TestCase):
         ):
             option = option.replace_history(
                 realized_average=110,
-                history_time=option.history_time or option.effective_time,
+                history_time=terminal.valuation_time,
             )
             self.assertEqual(engine.greek_method(option, terminal), "terminal")
             self.assertEqual(

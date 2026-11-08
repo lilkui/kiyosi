@@ -42,7 +42,7 @@ class AsianRegressionTests(unittest.TestCase):
                                     averaging_start_time=start,
                                     expiry_time=end,
                                     realized_average=50 * scale,
-                                    history_time=(start)
+                                    history_time=(start + timedelta(microseconds=1))
                                     if 50 * scale is not None
                                     else None,
                                 )
@@ -187,7 +187,9 @@ class AsianRegressionTests(unittest.TestCase):
                         averaging_start_time=start,
                         expiry_time=valuation + timedelta(days=365),
                         realized_average=amount,
-                        history_time=(start) if amount is not None else None,
+                        history_time=(start + timedelta(microseconds=1))
+                        if amount is not None
+                        else None,
                     )
                     context = PricingContext(
                         model_parameters=BlackScholesMertonParameters(
@@ -210,7 +212,7 @@ class AsianRegressionTests(unittest.TestCase):
             averaging_start_time=start,
             expiry_time=start + timedelta(days=730),
             realized_average=100,
-            history_time=start,
+            history_time=start + timedelta(microseconds=1),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -284,7 +286,7 @@ class AsianRegressionTests(unittest.TestCase):
                             else start,
                             expiry_time=end,
                             realized_average=spot if window == 2 else None,
-                            history_time=(start)
+                            history_time=(start + timedelta(microseconds=1))
                             if (spot if window == 2 else None) is not None
                             else None,
                         )
@@ -469,7 +471,7 @@ class AsianRegressionTests(unittest.TestCase):
                                 averaging_start_time=averaging,
                                 expiry_time=end,
                                 realized_average=spot if window == 2 else None,
-                                history_time=(start)
+                                history_time=(start + timedelta(microseconds=1))
                                 if (spot if window == 2 else None) is not None
                                 else None,
                             )
@@ -514,7 +516,7 @@ class AsianRegressionTests(unittest.TestCase):
                         ),
                         expiry_time=end,
                         realized_average=1e8 if window == 2 else None,
-                        history_time=(start)
+                        history_time=(start + timedelta(microseconds=1))
                         if (1e8 if window == 2 else None) is not None
                         else None,
                     )
@@ -540,7 +542,7 @@ class AsianRegressionTests(unittest.TestCase):
             averaging_start_time=start,
             expiry_time=end,
             realized_average=1,
-            history_time=start,
+            history_time=start + timedelta(microseconds=1),
         )
         self.assertEqual(
             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
@@ -600,7 +602,7 @@ class AsianRegressionTests(unittest.TestCase):
                                 averaging_start_time=averaging,
                                 expiry_time=end,
                                 realized_average=spot if window == 2 else None,
-                                history_time=(start)
+                                history_time=(start + timedelta(microseconds=1))
                                 if (spot if window == 2 else None) is not None
                                 else None,
                             )

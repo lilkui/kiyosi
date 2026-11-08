@@ -1424,10 +1424,7 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
             .unwrap();
     let saved = original.clone();
     let known = original
-        .replace_history(
-            Some(100.0),
-            Some(original.history_time().unwrap_or(original.effective_time())),
-        )
+        .replace_history(Some(100.0), Some(start.add_days(2).unwrap()))
         .unwrap();
     assert!(matches!(
         known.replace(AveragePriceOptionChanges {
@@ -1498,10 +1495,7 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
             .unwrap();
     let saved = original.clone();
     let known = original
-        .replace_history(
-            Some(100.0),
-            Some(original.history_time().unwrap_or(original.effective_time())),
-        )
+        .replace_history(Some(100.0), Some(start.add_days(2).unwrap()))
         .unwrap();
     assert!(matches!(
         known.replace(AveragePriceOptionChanges {

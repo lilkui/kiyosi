@@ -122,7 +122,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
                 averaging,
                 end,
                 (history != 0.0).then_some(history),
-                Some(start),
+                Some(start.add_micros(1).unwrap()),
             )
             .unwrap();
             let g = GeometricAveragePriceOption::new(
@@ -132,7 +132,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
                 averaging,
                 end,
                 (history != 0.0).then_some(history),
-                Some(start),
+                Some(start.add_micros(1).unwrap()),
             )
             .unwrap();
             let context = market(100.0, 0.2, valuation);
@@ -343,7 +343,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             averaging,
             end,
             (history != 0.0).then_some(history),
-            Some(start),
+            Some(averaging.add_micros(1).unwrap().min(end)),
         )
         .unwrap();
         let g = GeometricAveragePriceOption::new(
@@ -353,7 +353,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             averaging,
             end,
             (history != 0.0).then_some(history),
-            Some(start),
+            Some(averaging.add_micros(1).unwrap().min(end)),
         )
         .unwrap();
         let context = market(100.0, 0.2, valuation);
@@ -381,7 +381,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             averaging,
             end,
             (history != 0.0).then_some(history),
-            Some(start),
+            Some(averaging.add_micros(1).unwrap().min(end)),
         )
         .unwrap();
         let g = GeometricAveragePriceOption::new(
@@ -391,7 +391,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             averaging,
             end,
             (history != 0.0).then_some(history),
-            Some(start),
+            Some(averaging.add_micros(1).unwrap().min(end)),
         )
         .unwrap();
         let context = market(100.0, 0.2, end);
@@ -502,7 +502,7 @@ fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
         start,
         end,
         100.0,
-        Some(start),
+        Some(start.add_micros(1).unwrap()),
     )
     .unwrap();
     let context = market(100.0, 0.2, date(7, 1));
@@ -562,7 +562,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             averaging,
             end,
             (history != 0.0).then_some(history),
-            Some(start),
+            Some(start.add_micros(1).unwrap()),
         )
         .unwrap();
         let g = GeometricAveragePriceOption::new(
@@ -572,7 +572,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             averaging,
             end,
             (history != 0.0).then_some(history),
-            Some(start),
+            Some(start.add_micros(1).unwrap()),
         )
         .unwrap();
         let context = PricingContext::new(model.clone(), 100.0, valuation).unwrap();
@@ -597,7 +597,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
         start,
         end,
         110.0,
-        Some(start),
+        Some(start.add_micros(1).unwrap()),
     )
     .unwrap();
     assert_eq!(engine.price(&dated(&g, &context), &context).unwrap(), 10.0);
@@ -608,7 +608,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
         start,
         end,
         100.0,
-        Some(start),
+        Some(start.add_micros(1).unwrap()),
     )
     .unwrap();
     let context = market(100.0, 0.2, knot);
@@ -737,7 +737,7 @@ fn conditioned_arithmetic_agrees_with_independent_raw_path_statistics() {
             averaging,
             end,
             (history != 0.0).then_some(history),
-            Some(start),
+            Some(start.add_micros(1).unwrap()),
         )
         .unwrap();
         for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
@@ -890,7 +890,7 @@ fn node_curve_affine_history_preserves_the_fused_accrual_residual() {
         start,
         end,
         1e308,
-        Some(start),
+        Some(start.add_micros(1).unwrap()),
     )
     .unwrap();
     let curve = RateTermStructure::new(start, vec![end], vec![1.0]).unwrap();

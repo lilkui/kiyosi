@@ -446,7 +446,7 @@ fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Res
         start,
         end,
         Some(80.0),
-        Some(start),
+        Some(middle),
     )?;
     verify(
         &arithmetic,
@@ -464,7 +464,7 @@ fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Res
         start,
         end,
         Some(80.0),
-        Some(start),
+        Some(middle),
     )?;
     verify(
         &geometric,

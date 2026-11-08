@@ -43,6 +43,33 @@ def engine(instrument):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_average_snapshots_require_elapsed_averaging_at_construction_and_replacement(
+        self,
+    ):
+        start = datetime(2025, 1, 2)
+        averaging, end = start + timedelta(days=1), start + timedelta(days=10)
+        for cls in (i.GeometricAveragePriceOption, i.ArithmeticAveragePriceOption):
+            fields = {
+                "option_type": "call",
+                "strike": 100,
+                "effective_time": start,
+                "averaging_start_time": averaging,
+                "expiry_time": end,
+            }
+            original = cls(**fields)
+            for at in (start, averaging):
+                with self.subTest(contract=cls.__name__, at=at):
+                    with self.assertRaises(InvalidInputError):
+                        cls(**fields, realized_average=100, history_time=at)
+                    with self.assertRaises(InvalidInputError):
+                        original.replace_history(realized_average=100, history_time=at)
+            at = averaging + timedelta(microseconds=1)
+            seasoned = original.replace_history(realized_average=100, history_time=at)
+            self.assertEqual(seasoned.history_time, at)
+            with self.assertRaises(InvalidInputError):
+                seasoned.replace(averaging_start_time=at, realized_average=100)
+            self.assertIsNone(original.realized_average)
+
     def test_redating_an_average_requires_explicit_history_and_preserves_the_price(
         self,
     ):
@@ -371,7 +398,7 @@ class HistoryTests(unittest.TestCase):
                 with self.assertRaises(MissingHistoryError):
                     selected.price(missing, context())
                 with self.assertRaises(StaleHistoryError):
-                    dated.replace(history_time=dated.effective_time)
+                    dated.replace(history_time=AT - timedelta(microseconds=1))
                 self.assertEqual(original.history_time, AT)
                 self.assertEqual(dated.history_time, AT)
                 self.assertEqual(pickle.loads(pickle.dumps(dated)), dated)

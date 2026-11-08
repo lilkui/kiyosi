@@ -270,7 +270,7 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         start,
         end,
         Some(110.0),
-        Some(start),
+        Some(end),
     )
     .unwrap();
     let arithmetic = ArithmeticAveragePriceOption::new(
@@ -280,7 +280,7 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         start,
         end,
         Some(110.0),
-        Some(start),
+        Some(end),
     )
     .unwrap();
     let mut barrier = BarrierOptionTerms::new(
@@ -501,9 +501,7 @@ fn arithmetic_statistics_support_curves_and_known_history() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = option
             .replace(AveragePriceOptionChanges {
-                history_time: Some(Some(
-                    option.history_time().unwrap_or(option.effective_time()),
-                )),
+                history_time: Some(Some(valuation)),
                 option_type: Some(direction),
                 realized_average: Some(Some(1000.0)),
                 ..Default::default()

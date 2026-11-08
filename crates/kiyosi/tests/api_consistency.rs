@@ -774,10 +774,7 @@ fn asian_history_uses_optional_positive_averages() -> Result<()> {
                 $engine.price(&dated(&original, &context), &context),
                 Err(Error::MissingHistory(_))
             ));
-            let seasoned = original.replace_history(
-                110.0,
-                Some(original.history_time().unwrap_or(original.effective_time())),
-            )?;
+            let seasoned = original.replace_history(110.0, Some(context.valuation_time()))?;
             assert_eq!(seasoned.realized_average(), Some(110.0));
             assert!($engine.price(&dated(&seasoned, &context), &context)? > 0.0);
             assert_eq!(seasoned.replace_history(None, None)?, original);
@@ -2256,22 +2253,8 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
         valuation_time: Some(end),
         ..Default::default()
     })?;
-    let geometric = geometric.replace_history(
-        110.0,
-        Some(
-            geometric
-                .history_time()
-                .unwrap_or(geometric.effective_time()),
-        ),
-    )?;
-    let arithmetic = arithmetic.replace_history(
-        110.0,
-        Some(
-            arithmetic
-                .history_time()
-                .unwrap_or(arithmetic.effective_time()),
-        ),
-    )?;
+    let geometric = geometric.replace_history(110.0, Some(end))?;
+    let arithmetic = arithmetic.replace_history(110.0, Some(end))?;
     assert_eq!(
         mc.greek_method(&geometric, &terminal)?,
         GreekMethod::Terminal

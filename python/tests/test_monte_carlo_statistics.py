@@ -380,12 +380,12 @@ class MonteCarloStatisticsTests(unittest.TestCase):
             if name in ("barrier", "double"):
                 option = original.replace_history(
                     touch_state="untouched",
-                    history_time=original.history_time or original.effective_time,
+                    history_time=snapshot.valuation_time,
                 )
             elif name in ("geometric", "arithmetic"):
                 option = original.replace_history(
                     realized_average=110,
-                    history_time=original.history_time or original.effective_time,
+                    history_time=snapshot.valuation_time,
                 )
             else:
                 option = original
@@ -514,7 +514,7 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                 seasoned = option.replace(
                     option_type=direction,
                     realized_average=1000,
-                    history_time=option.history_time or option.effective_time,
+                    history_time=snapshot.valuation_time,
                 )
                 estimate = sampler.price_with_statistics(
                     dated_history(seasoned, snapshot), snapshot

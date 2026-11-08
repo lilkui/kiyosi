@@ -20,9 +20,21 @@ history!(
     TouchOption => touch_state,
     DoubleTouchOption => touch_state,
     RangeAccrualOption => realized_hit_count,
-    GeometricAveragePriceOption => realized_average,
-    ArithmeticAveragePriceOption => realized_average,
 );
+macro_rules! average_history {
+    ($($name:ty),* $(,)?) => {$(
+        impl DatedHistory for $name {
+            fn at_snapshot(&self, at: Timestamp) -> Result<Self> {
+                if self.realized_average().is_some() && at <= self.averaging_start_time() {
+                    Ok(self.clone())
+                } else {
+                    self.replace_history(self.realized_average(), Some(at))
+                }
+            }
+        }
+    )*};
+}
+average_history!(GeometricAveragePriceOption, ArithmeticAveragePriceOption);
 impl<T: AutocallableTerms> DatedHistory for AutocallableNote<T> {
     fn at_snapshot(&self, at: Timestamp) -> Result<Self> {
         self.replace_history(self.barrier_state(), Some(at))

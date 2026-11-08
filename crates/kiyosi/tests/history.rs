@@ -1,6 +1,52 @@
 use kiyosi::*;
 
 #[test]
+fn average_snapshots_require_elapsed_averaging_at_construction_and_replacement() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let averaging = start.add_days(1)?;
+    let end = start.add_days(10)?;
+    macro_rules! check {
+        ($name:ty) => {{
+            let original =
+                <$name>::new(OptionType::Call, 100.0, start, averaging, end, None, None)?;
+            for at in [start, averaging] {
+                assert!(matches!(
+                    <$name>::new(
+                        OptionType::Call,
+                        100.0,
+                        start,
+                        averaging,
+                        end,
+                        Some(100.0),
+                        Some(at)
+                    ),
+                    Err(Error::InvalidInput(_))
+                ));
+                assert!(matches!(
+                    original.replace_history(100.0, Some(at)),
+                    Err(Error::InvalidInput(_))
+                ));
+            }
+            let at = averaging.add_micros(1)?;
+            let seasoned = original.replace_history(100.0, Some(at))?;
+            assert_eq!(seasoned.history_time(), Some(at));
+            assert!(matches!(
+                seasoned.replace(AveragePriceOptionChanges {
+                    averaging_start_time: Some(at),
+                    realized_average: Some(Some(100.0)),
+                    ..Default::default()
+                }),
+                Err(Error::InvalidInput(_))
+            ));
+            assert_eq!(original.realized_average(), None);
+        }};
+    }
+    check!(GeometricAveragePriceOption);
+    check!(ArithmeticAveragePriceOption);
+    Ok(())
+}
+
+#[test]
 fn redating_an_average_requires_explicit_history_and_preserves_the_price() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let at = start.add_days(4)?;

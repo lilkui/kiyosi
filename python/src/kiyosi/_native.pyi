@@ -9944,6 +9944,7 @@ class GeometricAveragePriceOption:
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; refresh payload and timestamp together.
+        A supplied average requires a timestamp strictly after averaging starts.
 
     Raises
     ------
@@ -10236,6 +10237,7 @@ class ArithmeticAveragePriceOption:
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; refresh payload and timestamp together.
+        A supplied average requires a timestamp strictly after averaging starts.
 
     Raises
     ------
