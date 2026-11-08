@@ -1,3 +1,5 @@
+use pyo3::prelude::*;
+
 macro_rules! engine_methods {
     ($name:ident, $($method:item),* $(,)?) => {
         #[pyo3::pymethods]
@@ -125,13 +127,9 @@ macro_rules! numerical_greeks_methods {
                 #[pyo3(from_py_with = crate::conversions::supplied)] rate_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
                 #[pyo3(from_py_with = crate::conversions::supplied)] time_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
             ) -> pyo3::PyResult<$crate::risk::PricingResult> {
-                let request = $crate::engines::NativeGreeksRequest {
-                    request: $crate::risk::greeks_request(greeks)?,
-                    spot_shift: spot_shift.map(|v| if v.is_none() { Ok(None) } else { crate::conversions::real(v).map(Some) }).transpose()?,
-                    volatility_shift: volatility_shift.map(crate::conversions::optional_real).transpose()?,
-                    rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
-                    time_shift: time_shift.map(|v| if v.is_none() { Ok(None) } else { crate::conversions::duration(v).map(Some) }).transpose()?,
-                };
+                let request = $crate::engines::NativeGreeksRequest::from_python(
+                    greeks, spot_shift, volatility_shift, rate_shift, time_shift,
+                )?;
                 Ok($crate::risk::PricingResult(self.evaluate(py, instrument, context, request)?))
             }
         }
@@ -213,6 +211,34 @@ pub(crate) struct NativeGreeksRequest {
 }
 
 impl NativeGreeksRequest {
+    pub(crate) fn from_python(
+        greeks: &Bound<'_, PyAny>,
+        spot_shift: Option<&Bound<'_, PyAny>>,
+        volatility_shift: Option<&Bound<'_, PyAny>>,
+        rate_shift: Option<&Bound<'_, PyAny>>,
+        time_shift: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            request: crate::risk::greeks_request(greeks)?,
+            spot_shift: spot_shift
+                .map(crate::conversions::optional_real)
+                .transpose()?,
+            volatility_shift: volatility_shift
+                .map(crate::conversions::optional_real)
+                .transpose()?,
+            rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
+            time_shift: time_shift
+                .map(|value| {
+                    if value.is_none() {
+                        Ok(None)
+                    } else {
+                        crate::conversions::duration(value).map(Some)
+                    }
+                })
+                .transpose()?,
+        })
+    }
+
     fn settings(self, defaults: kiyosi::NumericalShiftSettings) -> kiyosi::NumericalShiftSettings {
         kiyosi::NumericalShiftSettings {
             spot_shift: self.spot_shift.unwrap_or(defaults.spot_shift),

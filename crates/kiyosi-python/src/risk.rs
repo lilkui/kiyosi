@@ -303,31 +303,13 @@ pub(crate) fn numerical_greeks(
 ) -> PyResult<PricingResult> {
     let result = crate::registration::evaluate(py, engine, instrument, context, || {
         Ok(crate::engines::NumericalGreeksRequest(
-            crate::engines::NativeGreeksRequest {
-                request: greeks_request(greeks)?,
-                spot_shift: spot_shift
-                    .map(|v| {
-                        if v.is_none() {
-                            Ok(None)
-                        } else {
-                            crate::conversions::real(v).map(Some)
-                        }
-                    })
-                    .transpose()?,
-                volatility_shift: volatility_shift
-                    .map(crate::conversions::optional_real)
-                    .transpose()?,
-                rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
-                time_shift: time_shift
-                    .map(|v| {
-                        if v.is_none() {
-                            Ok(None)
-                        } else {
-                            crate::conversions::duration(v).map(Some)
-                        }
-                    })
-                    .transpose()?,
-            },
+            crate::engines::NativeGreeksRequest::from_python(
+                greeks,
+                spot_shift,
+                volatility_shift,
+                rate_shift,
+                time_shift,
+            )?,
         ))
     })?;
     Ok(PricingResult(result))
