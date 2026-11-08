@@ -41,7 +41,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         &MonteCarloBarrierEngine::new(MonteCarloSettings {
             path_count: 32,
             seed: Some(42),
-            thread_count: 1,
+            max_active_workers: 1,
             ..Default::default()
         })?,
     ] {

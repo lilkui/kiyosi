@@ -37,7 +37,7 @@ print(f"算术平均 Turnbull–Wakeman 近似价：{approximation:.6f}")
 
 # 固定种子可在同一构建中重放随机抽样；使用偶数条反向路径以获得标准误。
 mc = MonteCarloAsianEngine(
-    path_count=16384, step_count=100, seed=42, antithetic=True, thread_count=1
+    path_count=16384, step_count=100, seed=42, antithetic=True, max_active_workers=1
 )
 for name, option in (("几何平均", geometric), ("算术平均", arithmetic)):
     estimate = mc.price_with_statistics(option, context)

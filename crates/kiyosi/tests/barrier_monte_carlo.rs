@@ -54,7 +54,7 @@ fn native_barrier_spot_controls_recover_near_boundary_greeks() -> Result<()> {
     let settings = MonteCarloSettings {
         path_count: 64,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     };
     let single_engine = MonteCarloBarrierEngine::new(settings)?;
@@ -402,13 +402,13 @@ fn threads_do_not_change_samples_even_with_early_exit_and_pairing() {
                 let settings = MonteCarloSettings {
                     path_count: 1024,
                     seed: Some(17),
-                    thread_count: 1,
+                    max_active_workers: 1,
                     sampling,
                     antithetic,
                 };
                 let serial = MonteCarloBarrierEngine::new(settings).unwrap();
                 let parallel = MonteCarloBarrierEngine::new(MonteCarloSettings {
-                    thread_count: 4,
+                    max_active_workers: 4,
                     ..settings
                 })
                 .unwrap();
@@ -708,7 +708,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
             ..Default::default()
         },
         MonteCarloSettings {
-            thread_count: -1,
+            max_active_workers: -1,
             ..Default::default()
         },
         MonteCarloSettings {

@@ -73,7 +73,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let settings = MonteCarloSettings {
         path_count: 2,
         seed: Some(0),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     };
     let engine = MonteCarloAutocallableEngine::new(settings).unwrap();
@@ -174,14 +174,14 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
                     seed: Some(u64::MAX),
                     sampling,
                     antithetic,
-                    thread_count: 1,
+                    max_active_workers: 1,
                 };
                 let serial = MonteCarloAutocallableEngine::new(settings)
                     .unwrap()
                     .price_with_statistics(&dated(&note, &context), &context)
                     .unwrap();
                 let parallel = MonteCarloAutocallableEngine::new(MonteCarloSettings {
-                    thread_count: 3,
+                    max_active_workers: 3,
                     ..settings
                 })
                 .unwrap()
@@ -215,7 +215,7 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
             ..Default::default()
         },
         MonteCarloSettings {
-            thread_count: -1,
+            max_active_workers: -1,
             ..Default::default()
         },
         MonteCarloSettings {

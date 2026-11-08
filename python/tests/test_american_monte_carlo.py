@@ -426,7 +426,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
             with self.subTest(scale=scale, seed=seed):
                 option = contract(strike=100 * scale)
                 context = market(spot=100 * scale)
-                engine = MonteCarloVanillaEngine(seed=seed, thread_count=1)
+                engine = MonteCarloVanillaEngine(seed=seed, max_active_workers=1)
                 result = engine.price_with_greeks(option, context, ["delta", "gamma"])
                 explicit = numerical_greeks(
                     engine, option, context, ["delta", "gamma"], spot_shift=8 * scale
@@ -448,7 +448,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
         for paths in (1024, 16384):
             errors = [
                 MonteCarloVanillaEngine(
-                    path_count=paths, seed=seed, thread_count=1
+                    path_count=paths, seed=seed, max_active_workers=1
                 ).price(option, context)
                 - reference
                 for seed in range(16)
@@ -458,7 +458,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
         self.assertLess(rmse[1], 0.25)
         prices = [
             MonteCarloVanillaEngine(
-                path_count=100000, step_count=steps, seed=42, thread_count=1
+                path_count=100000, step_count=steps, seed=42, max_active_workers=1
             ).price(option, context)
             for steps in (25, 50, 100)
         ]

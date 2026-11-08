@@ -437,13 +437,13 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
                 let settings = MonteCarloSettings {
                     path_count: 1024,
                     seed: Some(17),
-                    thread_count: 1,
+                    max_active_workers: 1,
                     sampling,
                     antithetic,
                 };
                 let serial = MonteCarloDoubleBarrierEngine::new(settings).unwrap();
                 let parallel = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
-                    thread_count: 4,
+                    max_active_workers: 4,
                     ..settings
                 })
                 .unwrap();
@@ -780,7 +780,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
             ..Default::default()
         },
         MonteCarloSettings {
-            thread_count: -1,
+            max_active_workers: -1,
             ..Default::default()
         },
         MonteCarloSettings {

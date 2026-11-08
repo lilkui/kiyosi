@@ -347,8 +347,12 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 "sampling": sampling,
                 "antithetic": paired,
             }
-            serial = pricing.MonteCarloDoubleBarrierEngine(thread_count=1, **settings)
-            parallel = pricing.MonteCarloDoubleBarrierEngine(thread_count=4, **settings)
+            serial = pricing.MonteCarloDoubleBarrierEngine(
+                max_active_workers=1, **settings
+            )
+            parallel = pricing.MonteCarloDoubleBarrierEngine(
+                max_active_workers=4, **settings
+            )
             expected = serial.price_with_greeks(
                 dated_history(option, context), context, greeks="all"
             )
@@ -464,7 +468,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         for name in (
             "path_count",
             "seed",
-            "thread_count",
+            "max_active_workers",
             "sampling",
             "antithetic",
         ):
@@ -472,7 +476,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(engine, name, getattr(engine, name))
         self.assertIn("MonteCarloDoubleBarrierEngine", pricing.__all__)
-        for name in ("path_count", "seed", "thread_count"):
+        for name in ("path_count", "seed", "max_active_workers"):
             for value in (
                 True,
                 False,
@@ -497,7 +501,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         for fields in (
             {"path_count": 0},
             {"path_count": 10000001},
-            {"thread_count": -1},
+            {"max_active_workers": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):
             self.assert_rejection(InvalidInputError, factory, **fields)

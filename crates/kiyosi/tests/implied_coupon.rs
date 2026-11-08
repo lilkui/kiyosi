@@ -7,7 +7,7 @@ use kiyosi::*;
 fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
     let unseeded = MonteCarloAutocallableEngine::new(MonteCarloSettings {
         path_count: 1024,
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     })?;
     let engine = unseeded.with_resolved_seed()?;
@@ -85,7 +85,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
         &MonteCarloAutocallableEngine::new(MonteCarloSettings {
             path_count: 512,
             seed: Some(42),
-            thread_count: 1,
+            max_active_workers: 1,
             ..Default::default()
         })?,
     ] {

@@ -204,7 +204,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
                 MonteCarloSettings {
                     path_count: 32768,
                     seed: Some(42),
-                    thread_count: 1,
+                    max_active_workers: 1,
                     sampling,
                     antithetic,
                 },
@@ -219,7 +219,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
             for threads in [0, 2, 4] {
                 let parallel = MonteCarloVanillaEngine::with_step_count(
                     MonteCarloSettings {
-                        thread_count: threads,
+                        max_active_workers: threads,
                         ..engine.sampling_settings()
                     },
                     engine.step_count(),
@@ -577,7 +577,7 @@ fn automatic_spot_bumps_match_explicit_product_defaults() {
         MonteCarloSettings {
             path_count: 8192,
             seed: Some(42),
-            thread_count: 1,
+            max_active_workers: 1,
             ..Default::default()
         },
         19,

@@ -37,13 +37,13 @@ class CancellationTests(unittest.TestCase):
                             dividend_yield=0.02, volatility=0.2)
                         context = m.PricingContext(model_parameters=model, spot_price=100, valuation_time=start)
                         vanilla = option
-                        replay = p.MonteCarloVanillaEngine(path_count=128, seed=42, thread_count=2)
+                        replay = p.MonteCarloVanillaEngine(path_count=128, seed=42, max_active_workers=2)
                         baseline = replay.price(vanilla, context)
                         if case in ("serial_mc", "parallel_mc", "custom_handler"):
                             option = i.ArithmeticAveragePriceOption(option_type="call", strike=100,
                                 effective_time=start, averaging_start_time=start, expiry_time=end)
                             engine = p.MonteCarloAsianEngine(path_count=10_000_000, step_count=256,
-                                seed=42, thread_count=2 if case == "parallel_mc" else 1)
+                                seed=42, max_active_workers=2 if case == "parallel_mc" else 1)
                         elif case == "tree":
                             option = i.AmericanOption(option_type="put", strike=100,
                                 effective_time=start, expiry_time=end)

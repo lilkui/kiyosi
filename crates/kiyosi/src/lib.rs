@@ -140,7 +140,7 @@
 //! pricing without synchronization.
 //! Mutation requires exclusive Rust access; Python exposes immutable values.
 //! Parallel Monte Carlo calls reuse one library-owned Rayon pool, with per-call
-//! worker caps and request-owned buffers; [`MonteCarloSettings::thread_count`]
+//! worker caps and request-owned buffers; [`MonteCarloSettings::max_active_workers`]
 //! controls participation. Serial calls stay on the calling thread. The pool is
 //! initialized lazily and leaves the application's global Rayon pool unchanged.
 //! Handles returned by [`PricingEngine::prepare_request`] support sequential use

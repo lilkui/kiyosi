@@ -120,7 +120,7 @@ impl MonteCarloVanillaEngine {
         let mut partials: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
             .map(|_| Ok(Vec::new()))
             .collect();
-        run_blocks(&mut partials, self.settings.thread_count, |block| {
+        run_blocks(&mut partials, self.settings.max_active_workers, |block| {
             let mut generator = Pcg32::new(seed, block as u64);
             let mut cursor = sobol
                 .as_ref()

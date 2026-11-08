@@ -68,7 +68,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 2,
         seed: Some(0),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     })
     .unwrap();
@@ -94,7 +94,7 @@ fn simulated_cashflows_match_quadrature_with_sampling_error() {
     let settings = MonteCarloSettings {
         path_count: 32768,
         seed: Some(42),
-        thread_count: 3,
+        max_active_workers: 3,
         ..Default::default()
     };
     let engine = MonteCarloAccumulatorEngine::new(settings).unwrap();
@@ -147,7 +147,7 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
                     sampling,
                     antithetic,
                     seed: Some(u64::MAX),
-                    thread_count: 1,
+                    max_active_workers: 1,
                 };
                 let serial = MonteCarloAccumulatorEngine::new(settings)
                     .unwrap()
@@ -155,7 +155,7 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
                     .unwrap();
                 for threads in [0, 3] {
                     let parallel = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
-                        thread_count: threads,
+                        max_active_workers: threads,
                         ..settings
                     })
                     .unwrap()
@@ -452,7 +452,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             ..Default::default()
         },
         MonteCarloSettings {
-            thread_count: -1,
+            max_active_workers: -1,
             ..Default::default()
         },
         MonteCarloSettings {

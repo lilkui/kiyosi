@@ -243,9 +243,11 @@ class BarrierMonteCarloTests(unittest.TestCase):
                         "sampling": sampling,
                         "antithetic": antithetic,
                     }
-                    serial = pricing.MonteCarloBarrierEngine(thread_count=1, **settings)
+                    serial = pricing.MonteCarloBarrierEngine(
+                        max_active_workers=1, **settings
+                    )
                     parallel = pricing.MonteCarloBarrierEngine(
-                        thread_count=4, **settings
+                        max_active_workers=4, **settings
                     )
                     expected = serial.price_with_greeks(
                         dated_history(contract, context), context, greeks="all"
@@ -372,7 +374,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
         for name in (
             "path_count",
             "seed",
-            "thread_count",
+            "max_active_workers",
             "sampling",
             "antithetic",
         ):
@@ -380,7 +382,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(engine, name, getattr(engine, name))
         self.assertIn("MonteCarloBarrierEngine", pricing.__all__)
-        for name in ("path_count", "seed", "thread_count"):
+        for name in ("path_count", "seed", "max_active_workers"):
             for value in (
                 True,
                 False,
@@ -405,7 +407,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
         for fields in (
             {"path_count": 0},
             {"path_count": 10000001},
-            {"thread_count": -1},
+            {"max_active_workers": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):
             self.assert_rejection(InvalidInputError, factory, **fields)

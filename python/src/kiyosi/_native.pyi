@@ -4416,8 +4416,9 @@ class MonteCarloVanillaEngine:
         unused; see Notes for product-specific use.
     seed : int or None, optional
         Unsigned 64-bit seed, or None (default) to use system entropy.
-    thread_count : int, optional
-        Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+    max_active_workers : int, optional
+        Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+        Does not bound thread creation; parallel calls share a CPU-sized worker pool.
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -4428,7 +4429,7 @@ class MonteCarloVanillaEngine:
     ------
     InvalidInputError
         If paths are outside 1 through 10,000,000, steps outside 1 through
-        10,000, thread_count is negative, or Sobol paths are not a power of two.
+        10,000, max_active_workers is negative, or Sobol paths are not a power of two.
 
     See Also
     --------
@@ -4462,7 +4463,7 @@ class MonteCarloVanillaEngine:
         path_count: SupportsIndex = ...,
         step_count: SupportsIndex = ...,
         seed: SupportsIndex | None = None,
-        thread_count: SupportsIndex = ...,
+        max_active_workers: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -4472,7 +4473,7 @@ class MonteCarloVanillaEngine:
         path_count: SupportsIndex | EllipsisType = ...,
         step_count: SupportsIndex | EllipsisType = ...,
         seed: SupportsIndex | None | EllipsisType = ...,
-        thread_count: SupportsIndex | EllipsisType = ...,
+        max_active_workers: SupportsIndex | EllipsisType = ...,
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
@@ -4494,8 +4495,10 @@ class MonteCarloVanillaEngine:
         """Return the unsigned 64-bit seed, or None for system entropy."""
 
     @property
-    def thread_count(self) -> int:
-        """Return the per-call worker cap; zero selects automatic sizing."""
+    def max_active_workers(self) -> int:
+        """Return the per-call active worker cap; zero selects automatic sizing.
+
+        Parallel calls share a CPU-sized pool; this cap does not bound thread creation."""
 
     @property
     def sampling(self) -> _pricing.MonteCarloSampling:
@@ -4662,8 +4665,9 @@ class MonteCarloDigitalEngine:
         Sobol sampling requires a power of two.
     seed : int or None, optional
         Unsigned 64-bit seed, or None (default) to use system entropy.
-    thread_count : int, optional
-        Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+    max_active_workers : int, optional
+        Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+        Does not bound thread creation; parallel calls share a CPU-sized worker pool.
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -4673,7 +4677,7 @@ class MonteCarloDigitalEngine:
     Raises
     ------
     InvalidInputError
-        If paths are outside 1 through 10,000,000, thread_count is negative,
+        If paths are outside 1 through 10,000,000, max_active_workers is negative,
         or Sobol paths are not a power of two.
 
     See Also
@@ -4703,7 +4707,7 @@ class MonteCarloDigitalEngine:
         *,
         path_count: SupportsIndex = ...,
         seed: SupportsIndex | None = None,
-        thread_count: SupportsIndex = ...,
+        max_active_workers: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -4712,7 +4716,7 @@ class MonteCarloDigitalEngine:
         *,
         path_count: SupportsIndex | EllipsisType = ...,
         seed: SupportsIndex | None | EllipsisType = ...,
-        thread_count: SupportsIndex | EllipsisType = ...,
+        max_active_workers: SupportsIndex | EllipsisType = ...,
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
@@ -4730,8 +4734,10 @@ class MonteCarloDigitalEngine:
         """Return the unsigned 64-bit seed, or None for system entropy."""
 
     @property
-    def thread_count(self) -> int:
-        """Return the per-call worker cap; zero selects automatic sizing."""
+    def max_active_workers(self) -> int:
+        """Return the per-call active worker cap; zero selects automatic sizing.
+
+        Parallel calls share a CPU-sized pool; this cap does not bound thread creation."""
 
     @property
     def sampling(self) -> _pricing.MonteCarloSampling:
@@ -4876,8 +4882,9 @@ class MonteCarloBarrierEngine:
         Sobol sampling requires a power of two.
     seed : int or None, optional
         Unsigned 64-bit seed, or None (default) to use system entropy.
-    thread_count : int, optional
-        Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+    max_active_workers : int, optional
+        Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+        Does not bound thread creation; parallel calls share a CPU-sized worker pool.
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -4887,7 +4894,7 @@ class MonteCarloBarrierEngine:
     Raises
     ------
     InvalidInputError
-        If paths are outside 1 through 10,000,000, thread_count is negative,
+        If paths are outside 1 through 10,000,000, max_active_workers is negative,
         or Sobol paths are not a power of two.
 
     See Also
@@ -4918,7 +4925,7 @@ class MonteCarloBarrierEngine:
         *,
         path_count: SupportsIndex = ...,
         seed: SupportsIndex | None = None,
-        thread_count: SupportsIndex = ...,
+        max_active_workers: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -4927,7 +4934,7 @@ class MonteCarloBarrierEngine:
         *,
         path_count: SupportsIndex | EllipsisType = ...,
         seed: SupportsIndex | None | EllipsisType = ...,
-        thread_count: SupportsIndex | EllipsisType = ...,
+        max_active_workers: SupportsIndex | EllipsisType = ...,
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
@@ -4945,8 +4952,10 @@ class MonteCarloBarrierEngine:
         """Return the unsigned 64-bit seed, or None for system entropy."""
 
     @property
-    def thread_count(self) -> int:
-        """Return the per-call worker cap; zero selects automatic sizing."""
+    def max_active_workers(self) -> int:
+        """Return the per-call active worker cap; zero selects automatic sizing.
+
+        Parallel calls share a CPU-sized pool; this cap does not bound thread creation."""
 
     @property
     def sampling(self) -> _pricing.MonteCarloSampling:
@@ -5087,8 +5096,9 @@ class MonteCarloDoubleBarrierEngine:
         Sobol sampling requires a power of two.
     seed : int or None, optional
         Unsigned 64-bit seed, or None (default) to use system entropy.
-    thread_count : int, optional
-        Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+    max_active_workers : int, optional
+        Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+        Does not bound thread creation; parallel calls share a CPU-sized worker pool.
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -5098,7 +5108,7 @@ class MonteCarloDoubleBarrierEngine:
     Raises
     ------
     InvalidInputError
-        If paths are outside 1 through 10,000,000, thread_count is negative,
+        If paths are outside 1 through 10,000,000, max_active_workers is negative,
         or Sobol paths are not a power of two.
 
     See Also
@@ -5129,7 +5139,7 @@ class MonteCarloDoubleBarrierEngine:
         *,
         path_count: SupportsIndex = ...,
         seed: SupportsIndex | None = None,
-        thread_count: SupportsIndex = ...,
+        max_active_workers: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -5138,7 +5148,7 @@ class MonteCarloDoubleBarrierEngine:
         *,
         path_count: SupportsIndex | EllipsisType = ...,
         seed: SupportsIndex | None | EllipsisType = ...,
-        thread_count: SupportsIndex | EllipsisType = ...,
+        max_active_workers: SupportsIndex | EllipsisType = ...,
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
@@ -5156,8 +5166,10 @@ class MonteCarloDoubleBarrierEngine:
         """Return the unsigned 64-bit seed, or None for system entropy."""
 
     @property
-    def thread_count(self) -> int:
-        """Return the per-call worker cap; zero selects automatic sizing."""
+    def max_active_workers(self) -> int:
+        """Return the per-call active worker cap; zero selects automatic sizing.
+
+        Parallel calls share a CPU-sized pool; this cap does not bound thread creation."""
 
     @property
     def sampling(self) -> _pricing.MonteCarloSampling:
@@ -5298,8 +5310,9 @@ class MonteCarloAutocallableEngine:
         Sobol sampling requires a power of two.
     seed : int or None, optional
         Unsigned 64-bit seed, or None (default) to use system entropy.
-    thread_count : int, optional
-        Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+    max_active_workers : int, optional
+        Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+        Does not bound thread creation; parallel calls share a CPU-sized worker pool.
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -5309,7 +5322,7 @@ class MonteCarloAutocallableEngine:
     Raises
     ------
     InvalidInputError
-        If paths are outside 1 through 10,000,000, thread_count is negative,
+        If paths are outside 1 through 10,000,000, max_active_workers is negative,
         or Sobol paths are not a power of two.
 
     See Also
@@ -5342,7 +5355,7 @@ class MonteCarloAutocallableEngine:
         *,
         path_count: SupportsIndex = ...,
         seed: SupportsIndex | None = None,
-        thread_count: SupportsIndex = ...,
+        max_active_workers: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -5351,7 +5364,7 @@ class MonteCarloAutocallableEngine:
         *,
         path_count: SupportsIndex | EllipsisType = ...,
         seed: SupportsIndex | None | EllipsisType = ...,
-        thread_count: SupportsIndex | EllipsisType = ...,
+        max_active_workers: SupportsIndex | EllipsisType = ...,
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
@@ -5369,8 +5382,10 @@ class MonteCarloAutocallableEngine:
         """Return the unsigned 64-bit seed, or None for system entropy."""
 
     @property
-    def thread_count(self) -> int:
-        """Return the per-call worker cap; zero selects automatic sizing."""
+    def max_active_workers(self) -> int:
+        """Return the per-call active worker cap; zero selects automatic sizing.
+
+        Parallel calls share a CPU-sized pool; this cap does not bound thread creation."""
 
     @property
     def sampling(self) -> _pricing.MonteCarloSampling:
@@ -5530,8 +5545,9 @@ class MonteCarloAccumulatorEngine:
         Sobol sampling requires a power of two.
     seed : int or None, optional
         Unsigned 64-bit seed, or None (default) to use system entropy.
-    thread_count : int, optional
-        Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+    max_active_workers : int, optional
+        Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+        Does not bound thread creation; parallel calls share a CPU-sized worker pool.
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -5541,7 +5557,7 @@ class MonteCarloAccumulatorEngine:
     Raises
     ------
     InvalidInputError
-        If paths are outside 1 through 10,000,000, thread_count is negative,
+        If paths are outside 1 through 10,000,000, max_active_workers is negative,
         or Sobol paths are not a power of two.
 
     See Also
@@ -5571,7 +5587,7 @@ class MonteCarloAccumulatorEngine:
         *,
         path_count: SupportsIndex = ...,
         seed: SupportsIndex | None = None,
-        thread_count: SupportsIndex = ...,
+        max_active_workers: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -5580,7 +5596,7 @@ class MonteCarloAccumulatorEngine:
         *,
         path_count: SupportsIndex | EllipsisType = ...,
         seed: SupportsIndex | None | EllipsisType = ...,
-        thread_count: SupportsIndex | EllipsisType = ...,
+        max_active_workers: SupportsIndex | EllipsisType = ...,
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
@@ -5598,8 +5614,10 @@ class MonteCarloAccumulatorEngine:
         """Return the unsigned 64-bit seed, or None for system entropy."""
 
     @property
-    def thread_count(self) -> int:
-        """Return the per-call worker cap; zero selects automatic sizing."""
+    def max_active_workers(self) -> int:
+        """Return the per-call active worker cap; zero selects automatic sizing.
+
+        Parallel calls share a CPU-sized pool; this cap does not bound thread creation."""
 
     @property
     def sampling(self) -> _pricing.MonteCarloSampling:
@@ -5737,8 +5755,9 @@ class MonteCarloAsianEngine:
         unused; see Notes for product-specific use.
     seed : int or None, optional
         Unsigned 64-bit seed, or None (default) to use system entropy.
-    thread_count : int, optional
-        Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+    max_active_workers : int, optional
+        Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+        Does not bound thread creation; parallel calls share a CPU-sized worker pool.
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -5749,7 +5768,7 @@ class MonteCarloAsianEngine:
     ------
     InvalidInputError
         If paths are outside 1 through 10,000,000, steps outside 2 through
-        10,000, thread_count is negative, or Sobol paths are not a power of two.
+        10,000, max_active_workers is negative, or Sobol paths are not a power of two.
 
     See Also
     --------
@@ -5781,7 +5800,7 @@ class MonteCarloAsianEngine:
         path_count: SupportsIndex = ...,
         step_count: SupportsIndex = ...,
         seed: SupportsIndex | None = None,
-        thread_count: SupportsIndex = ...,
+        max_active_workers: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -5791,7 +5810,7 @@ class MonteCarloAsianEngine:
         path_count: SupportsIndex | EllipsisType = ...,
         step_count: SupportsIndex | EllipsisType = ...,
         seed: SupportsIndex | None | EllipsisType = ...,
-        thread_count: SupportsIndex | EllipsisType = ...,
+        max_active_workers: SupportsIndex | EllipsisType = ...,
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
@@ -5813,8 +5832,10 @@ class MonteCarloAsianEngine:
         """Return the unsigned 64-bit seed, or None for system entropy."""
 
     @property
-    def thread_count(self) -> int:
-        """Return the per-call worker cap; zero selects automatic sizing."""
+    def max_active_workers(self) -> int:
+        """Return the per-call active worker cap; zero selects automatic sizing.
+
+        Parallel calls share a CPU-sized pool; this cap does not bound thread creation."""
 
     @property
     def sampling(self) -> _pricing.MonteCarloSampling:

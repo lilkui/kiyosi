@@ -335,7 +335,7 @@ class SerializationTests(unittest.TestCase):
         self.assertIn("'delta':", repr(result))
         self.assertEqual(repr(pickle.loads(pickle.dumps(result))), repr(result))
         estimate = p.MonteCarloVanillaEngine(
-            path_count=16, seed=42, thread_count=1
+            path_count=16, seed=42, max_active_workers=1
         ).price_with_statistics(dated_history(vanilla, context), context)
         self.assertIn("standard_error=", repr(estimate))
         self.assertEqual(repr(pickle.loads(pickle.dumps(estimate))), repr(estimate))
@@ -499,7 +499,7 @@ class SerializationTests(unittest.TestCase):
                     "path_count": 128,
                     "step_count": 4,
                     "seed": 77,
-                    "thread_count": 1,
+                    "max_active_workers": 1,
                     "sampling": "sobol",
                     "antithetic": True,
                 },

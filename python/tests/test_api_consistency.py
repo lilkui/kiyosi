@@ -112,7 +112,9 @@ class ApiConsistencyTests(unittest.TestCase):
     def test_european_digitals_allow_pre_effective_pricing_greeks_and_solves(self):
         start = datetime(2025, 1, 1)
         effective, expiry = start + timedelta(days=30), start + timedelta(days=365)
-        mc = pricing.MonteCarloDigitalEngine(path_count=128, seed=42, thread_count=1)
+        mc = pricing.MonteCarloDigitalEngine(
+            path_count=128, seed=42, max_active_workers=1
+        )
         fd = pricing.FiniteDifferenceDigitalEngine(
             asset_step_count=200, time_step_count=100
         )
@@ -255,7 +257,9 @@ class ApiConsistencyTests(unittest.TestCase):
             pricing.CoxRossRubinsteinVanillaEngine(),
             pricing.FiniteDifferenceVanillaEngine(),
             pricing.QuadratureVanillaEngine(),
-            pricing.MonteCarloVanillaEngine(path_count=128, seed=42, thread_count=1),
+            pricing.MonteCarloVanillaEngine(
+                path_count=128, seed=42, max_active_workers=1
+            ),
         ]
         for volatility in (0, 0.2):
             model = market.BlackScholesMertonParameters(
@@ -851,7 +855,9 @@ class ApiConsistencyTests(unittest.TestCase):
             pricing.CoxRossRubinsteinVanillaEngine(),
             pricing.QuadratureVanillaEngine(),
             pricing.FiniteDifferenceVanillaEngine(),
-            pricing.MonteCarloVanillaEngine(path_count=512, seed=42, thread_count=1),
+            pricing.MonteCarloVanillaEngine(
+                path_count=512, seed=42, max_active_workers=1
+            ),
         ):
             with self.subTest(engine=type(engine).__name__):
                 self.assertAlmostEqual(
@@ -1561,7 +1567,9 @@ class ApiConsistencyTests(unittest.TestCase):
             pricing.FiniteDifferenceVanillaEngine(
                 asset_step_count=100, time_step_count=100
             ),
-            pricing.MonteCarloVanillaEngine(path_count=4096, seed=42, thread_count=1),
+            pricing.MonteCarloVanillaEngine(
+                path_count=4096, seed=42, max_active_workers=1
+            ),
         ):
             with self.subTest(engine=type(engine).__name__):
                 result = pricing.numerical_greeks(
@@ -1645,7 +1653,7 @@ class GreekShiftValidationTests(unittest.TestCase):
         digital = ins.CashOrNothingOption(
             option_type="call", strike=100, payout=10, **life
         )
-        sampling = {"path_count": 32, "seed": 42, "thread_count": 1}
+        sampling = {"path_count": 32, "seed": 42, "max_active_workers": 1}
         cases = [
             (pricing.AnalyticEuropeanEngine(), vanilla, bsm),
             (pricing.QuadratureVanillaEngine(), vanilla, bsm),
@@ -1749,7 +1757,7 @@ class SettingsDiagnosticTests(unittest.TestCase):
             (pricing.CoxRossRubinsteinVanillaEngine, "step_count", 1_000_001),
             (pricing.MonteCarloVanillaEngine, "path_count", 0),
             (pricing.MonteCarloVanillaEngine, "path_count", 10_000_001),
-            (pricing.MonteCarloVanillaEngine, "thread_count", -1),
+            (pricing.MonteCarloVanillaEngine, "max_active_workers", -1),
             (pricing.FiniteDifferenceVanillaEngine, "asset_step_count", 2),
             (pricing.FiniteDifferenceVanillaEngine, "time_step_count", 0),
             (pricing.FiniteDifferenceVanillaEngine, "asset_upper_boundary", 0.0),
@@ -1812,7 +1820,7 @@ class GreekMethodTests(unittest.TestCase):
         arithmetic = ins.ArithmeticAveragePriceOption(
             option_type="call", strike=100, averaging_start_time=start, **life
         )
-        mc = pricing.MonteCarloAsianEngine(path_count=16, seed=42, thread_count=1)
+        mc = pricing.MonteCarloAsianEngine(path_count=16, seed=42, max_active_workers=1)
         curve = market.RateTermStructure(
             reference_time=start,
             times=[start + timedelta(days=180), end],

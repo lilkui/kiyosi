@@ -58,7 +58,7 @@ inputs for the duration of the call; short analytic calls may retain it.
 Parallel Monte Carlo calls share a library-owned Rayon worker pool and keep
 their own simulation buffers. The pool is sized from available CPUs on first
 use and retained until process exit; it ignores `RAYON_NUM_THREADS` and leaves
-the application's global Rayon pool unchanged. `thread_count` caps workers per
+the application's global Rayon pool unchanged. `max_active_workers` caps workers per
 call without reserving them; one runs on the calling thread and zero selects
 automatic sizing. Worker-creation failures raise `OSError` during pricing;
 failed initialization can be retried by a later call.

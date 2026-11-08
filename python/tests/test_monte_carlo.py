@@ -53,7 +53,7 @@ class MonteCarloTests(unittest.TestCase):
                 default.path_count,
                 default.step_count,
                 default.seed,
-                default.thread_count,
+                default.max_active_workers,
             ),
             (131_072, 50, None, 0),
         )
@@ -61,7 +61,7 @@ class MonteCarloTests(unittest.TestCase):
             ("call", 9.227005508154036),
             ("put", 6.330080627549918),
         ):
-            engine = MonteCarloVanillaEngine(seed=42, thread_count=4)
+            engine = MonteCarloVanillaEngine(seed=42, max_active_workers=4)
             option = contract(direction)
             estimate = engine.price_with_statistics(option, market())
             self.assertEqual(estimate.price, engine.price(option, market()))
@@ -85,7 +85,7 @@ class MonteCarloTests(unittest.TestCase):
                 engine = MonteCarloVanillaEngine(
                     path_count=65_536,
                     seed=42,
-                    thread_count=1,
+                    max_active_workers=1,
                     sampling=sampling,
                     antithetic=antithetic,
                 )
@@ -136,7 +136,7 @@ class MonteCarloTests(unittest.TestCase):
                                     )
 
     def test_strict_representations_and_domain_boundaries(self):
-        for field in ("path_count", "step_count", "thread_count", "seed"):
+        for field in ("path_count", "step_count", "max_active_workers", "seed"):
             for value in (True, False, 1.5, 2.0, Fraction(2, 1), "2", object()):
                 with (
                     self.subTest(field=field, value=value),
@@ -149,7 +149,7 @@ class MonteCarloTests(unittest.TestCase):
         for field, values in (
             ("path_count", (0, -1, 10_000_001)),
             ("step_count", (0, 10_001)),
-            ("thread_count", (-1,)),
+            ("max_active_workers", (-1,)),
         ):
             for value in values:
                 self.assert_rejection(
@@ -166,14 +166,14 @@ class MonteCarloTests(unittest.TestCase):
                     path_count=paths,
                     step_count=steps,
                     seed=2**64 - 1,
-                    thread_count=2**31 - 1,
+                    max_active_workers=2**31 - 1,
                 )
                 self.assertEqual(
                     (
                         engine.path_count,
                         engine.step_count,
                         engine.seed,
-                        engine.thread_count,
+                        engine.max_active_workers,
                     ),
                     (paths, steps, 2**64 - 1, 2**31 - 1),
                 )
@@ -187,7 +187,7 @@ class MonteCarloTests(unittest.TestCase):
         for paths in (1, 2, 255, 256, 257, 511, 512, 513, 769, 1025, 3073, 4097):
             for seed in (0, 42, 2**64 - 1):
                 engine = MonteCarloVanillaEngine(
-                    path_count=paths, seed=seed, thread_count=1
+                    path_count=paths, seed=seed, max_active_workers=1
                 )
                 expected = engine.price_with_statistics(option, context)
                 expected = (
@@ -197,7 +197,7 @@ class MonteCarloTests(unittest.TestCase):
                 )
                 for threads in (0, 2, 4, 2**31 - 1):
                     other = MonteCarloVanillaEngine(
-                        path_count=paths, seed=seed, thread_count=threads
+                        path_count=paths, seed=seed, max_active_workers=threads
                     )
                     actual = other.price_with_statistics(option, context)
                     self.assertEqual(
@@ -227,7 +227,7 @@ class MonteCarloTests(unittest.TestCase):
             for paths in (1, 257, 1025):
                 for seed in (42, 2**64 - 1):
                     engine = MonteCarloVanillaEngine(
-                        path_count=paths, seed=seed, thread_count=4
+                        path_count=paths, seed=seed, max_active_workers=4
                     )
                     context = market(spot=100.25, valuation=datetime(2025, 1, 1, 12))
                     expected = differences(engine, option, context, **shifts)
@@ -252,7 +252,7 @@ class MonteCarloTests(unittest.TestCase):
         self.assertIsNone(engine.seed)
 
     def test_expiry_validation_failures_and_ownership(self):
-        engine = MonteCarloVanillaEngine(path_count=257, seed=42, thread_count=4)
+        engine = MonteCarloVanillaEngine(path_count=257, seed=42, max_active_workers=4)
         option, context = contract(), market()
         quote = engine.price(option, context)
         expiry = market(spot=110, valuation=END)
@@ -367,14 +367,16 @@ class MonteCarloTests(unittest.TestCase):
     def test_implied_volatility_seed_sharing_failures_and_thread_invariance(self):
         option, context = contract(), market()
         for seed in (42, 2**64 - 1):
-            engine = MonteCarloVanillaEngine(path_count=4097, seed=seed, thread_count=1)
+            engine = MonteCarloVanillaEngine(
+                path_count=4097, seed=seed, max_active_workers=1
+            )
             quote = engine.price(option, context)
             bounds = {"lower_bound": 0.1, "upper_bound": 0.4}
             expected = implied_volatility(engine, option, context, quote, **bounds)
             self.assertAlmostEqual(expected, 0.2, delta=1e-8)
             for threads in (0, 2, 4):
                 other = MonteCarloVanillaEngine(
-                    path_count=4097, seed=seed, thread_count=threads
+                    path_count=4097, seed=seed, max_active_workers=threads
                 )
                 self.assertEqual(
                     implied_volatility(other, option, context, quote, **bounds),
@@ -423,7 +425,7 @@ class MonteCarloTests(unittest.TestCase):
                 implied_volatility(engine, option, context, quote, max_iterations=True)
             self.assertEqual(engine.price(option, context), quote)
             self.assertEqual(engine.seed, seed)
-        unseeded = MonteCarloVanillaEngine(path_count=4097, thread_count=4)
+        unseeded = MonteCarloVanillaEngine(path_count=4097, max_active_workers=4)
         with self.assertRaisesRegex(InvalidInputError, "with_resolved_seed"):
             implied_volatility(unseeded, option, context, 9.227005508154036)
         replay = unseeded.with_resolved_seed()
@@ -472,7 +474,9 @@ class MonteCarloTests(unittest.TestCase):
             )
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs)
-            engine = MonteCarloVanillaEngine(**profile["settings"], thread_count=4)
+            engine = MonteCarloVanillaEngine(
+                **profile["settings"], max_active_workers=4
+            )
             # Wide bumps are biased at one-day expiries.
             wrapped = inputs["spot"] == 100 and inputs["expiry_time"] == "2026-01-06"
             names = sorted(reference.keys() - {"price"}) if wrapped else []
@@ -503,7 +507,10 @@ class MonteCarloTests(unittest.TestCase):
             covered, standardized = 0, []
             for seed in range(32):
                 engine = MonteCarloVanillaEngine(
-                    path_count=8192, seed=seed, thread_count=1, antithetic=antithetic
+                    path_count=8192,
+                    seed=seed,
+                    max_active_workers=1,
+                    antithetic=antithetic,
                 )
                 estimate = engine.price_with_statistics(option, context)
                 self.assertAlmostEqual(
@@ -530,14 +537,16 @@ class MonteCarloTests(unittest.TestCase):
 
     def test_concurrent_shared_and_distinct_engines(self):
         option, context = contract("put"), market()
-        engine = MonteCarloVanillaEngine(path_count=4097, seed=42, thread_count=4)
+        engine = MonteCarloVanillaEngine(path_count=4097, seed=42, max_active_workers=4)
         expected = engine.price_with_greeks(option, context, greeks="all")
 
         def compute(index):
             selected = (
                 engine
                 if index % 2
-                else MonteCarloVanillaEngine(path_count=4097, seed=42, thread_count=1)
+                else MonteCarloVanillaEngine(
+                    path_count=4097, seed=42, max_active_workers=1
+                )
             )
             result = selected.price_with_greeks(option, context, greeks="all")
             return result.price, tuple(result.require(name) for name in GREEKS)
@@ -626,7 +635,7 @@ class SamplingTests(unittest.TestCase):
 
         def engine(paths, antithetic):
             return MonteCarloVanillaEngine(
-                path_count=paths, seed=42, antithetic=antithetic, thread_count=1
+                path_count=paths, seed=42, antithetic=antithetic, max_active_workers=1
             )
 
         self.assertEqual(
@@ -670,7 +679,7 @@ class SamplingTests(unittest.TestCase):
                         "sampling": sampling,
                         "antithetic": antithetic,
                     }
-                    engine = MonteCarloVanillaEngine(**settings, thread_count=1)
+                    engine = MonteCarloVanillaEngine(**settings, max_active_workers=1)
                     reference = differences(engine, option, context, **shifts)
                     expected = numerical_greeks(
                         engine, option, context, greeks="all", **shifts
@@ -693,7 +702,7 @@ class SamplingTests(unittest.TestCase):
                     self.assertAlmostEqual(sigma, 0.2, delta=1e-8)
                     for threads in (0, 2, 4):
                         other = MonteCarloVanillaEngine(
-                            **settings, thread_count=threads
+                            **settings, max_active_workers=threads
                         )
                         actual = numerical_greeks(
                             other, option, context, greeks="all", **shifts
@@ -779,7 +788,7 @@ class SamplingTests(unittest.TestCase):
                             seed=seed,
                             sampling=sampling,
                             antithetic=antithetic,
-                            thread_count=1,
+                            max_active_workers=1,
                         )
                         for direction in ("call", "put"):
                             option = contract(direction)
@@ -796,7 +805,7 @@ class SamplingTests(unittest.TestCase):
                                     seed=seed,
                                     sampling=sampling,
                                     antithetic=antithetic,
-                                    thread_count=threads,
+                                    max_active_workers=threads,
                                 ).price_with_statistics(option, market())
                                 self.assertEqual(
                                     (
@@ -874,7 +883,7 @@ class SamplingTests(unittest.TestCase):
                         seed=seed,
                         sampling=sampling,
                         antithetic=antithetic,
-                        thread_count=1,
+                        max_active_workers=1,
                     ).price(contract(), market())
                     for seed in range(16)
                 ]
@@ -953,7 +962,7 @@ class ResolvedSeedTests(unittest.TestCase):
             factory = getattr(pricing, name)
             controls = {
                 "path_count": 64,
-                "thread_count": 1,
+                "max_active_workers": 1,
                 "sampling": "sobol",
                 "antithetic": True,
             }

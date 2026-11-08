@@ -23,7 +23,7 @@ fn settings() -> MonteCarloSettings {
     MonteCarloSettings {
         path_count: 4096,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     }
 }
@@ -102,7 +102,7 @@ fn statistics_preserve_prices_and_report_uncertainty_across_products_and_threads
         };
         let serial = samples(settings);
         let parallel = samples(MonteCarloSettings {
-            thread_count: 4,
+            max_active_workers: 4,
             ..settings
         });
         assert_eq!(serial, parallel);
@@ -739,7 +739,7 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
                     path_count: 256,
                     sampling,
                     seed,
-                    thread_count: 1,
+                    max_active_workers: 1,
                     antithetic: true,
                 };
                 let original = build(settings)?;
@@ -753,7 +753,7 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
                 }
                 let replay = build(MonteCarloSettings {
                     seed: Some(actual),
-                    thread_count: 4,
+                    max_active_workers: 4,
                     ..settings
                 })?;
                 assert_eq!(

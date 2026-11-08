@@ -49,7 +49,7 @@ def binary(coupon=0.08, maturity=0.06, **changes):
 
 class ImpliedCouponTests(unittest.TestCase):
     def test_monte_carlo_coupon_solvers_require_a_replayable_seed(self):
-        unseeded = MonteCarloAutocallableEngine(path_count=1024, thread_count=1)
+        unseeded = MonteCarloAutocallableEngine(path_count=1024, max_active_workers=1)
         engine = unseeded.with_resolved_seed()
         context = market()
         convention = "shift_maturity_coupon"
@@ -91,7 +91,7 @@ class ImpliedCouponTests(unittest.TestCase):
             FiniteDifferenceAutocallableEngine(
                 asset_step_count=200, time_step_count=100
             ),
-            MonteCarloAutocallableEngine(path_count=512, seed=42, thread_count=1),
+            MonteCarloAutocallableEngine(path_count=512, seed=42, max_active_workers=1),
         ):
             for maturity, minimum, anchor in (
                 (0.1, 0.05, 0.1),

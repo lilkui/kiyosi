@@ -40,7 +40,7 @@ fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
         assert!((price - reference).abs() < 0.01, "{price} vs {reference}");
         let changed = MonteCarloAsianEngine::with_step_count(
             MonteCarloSettings {
-                thread_count: 1,
+                max_active_workers: 1,
                 ..settings
             },
             10000,
@@ -228,12 +228,12 @@ fn sampling_exact_counts_threads_and_shared_calls_agree() {
                 seed: Some(42),
                 sampling,
                 antithetic,
-                thread_count: 1,
+                max_active_workers: 1,
             };
             let serial = MonteCarloAsianEngine::with_step_count(settings, 16).unwrap();
             let parallel = MonteCarloAsianEngine::with_step_count(
                 MonteCarloSettings {
-                    thread_count: 4,
+                    max_active_workers: 4,
                     ..settings
                 },
                 16,
@@ -416,7 +416,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             ..Default::default()
         },
         MonteCarloSettings {
-            thread_count: -1,
+            max_active_workers: -1,
             ..Default::default()
         },
         MonteCarloSettings {

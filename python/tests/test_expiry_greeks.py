@@ -349,7 +349,7 @@ class ExpiryGreekTests(unittest.TestCase):
                     pricing.CoxRossRubinsteinVanillaEngine(),
                     pricing.FiniteDifferenceVanillaEngine(),
                     pricing.MonteCarloVanillaEngine(
-                        path_count=32, seed=42, thread_count=1
+                        path_count=32, seed=42, max_active_workers=1
                     ),
                 ):
                     with self.subTest(

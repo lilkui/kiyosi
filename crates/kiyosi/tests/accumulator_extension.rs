@@ -54,7 +54,7 @@ fn engines() -> [Box<dyn PricingEngine<Accumulator>>; 3] {
             MonteCarloAccumulatorEngine::new(MonteCarloSettings {
                 path_count: 32768,
                 seed: Some(42),
-                thread_count: 1,
+                max_active_workers: 1,
                 ..Default::default()
             })
             .unwrap(),
@@ -679,7 +679,7 @@ fn finite_difference_converges_and_monte_carlo_matches_terminal_portfolio() {
     let monte_carlo = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 32768,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     })
     .unwrap();
@@ -733,7 +733,7 @@ fn sparse_multi_day_prices_agree_with_sampling_and_grid_refinement() {
     let monte_carlo = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 65536,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     })
     .unwrap();

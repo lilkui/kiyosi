@@ -53,13 +53,13 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             (
                 engine.path_count,
                 engine.seed,
-                engine.thread_count,
+                engine.max_active_workers,
                 engine.sampling,
                 engine.antithetic,
             ),
             (131072, None, 0, "pseudo_random", False),
         )
-        for field in ("path_count", "thread_count", "seed"):
+        for field in ("path_count", "max_active_workers", "seed"):
             for value, error in (
                 (True, TypeError),
                 (2.5, TypeError),
@@ -74,7 +74,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             MC(sampling="invalid")
         for fields in (
             {"path_count": 0},
-            {"thread_count": -1},
+            {"max_active_workers": -1},
             {"path_count": 31, "sampling": "sobol"},
         ):
             self.assert_rejection(InvalidInputError, lambda fields=fields: MC(**fields))
@@ -149,10 +149,10 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                         "sampling": sampling,
                         "antithetic": antithetic,
                     }
-                    serial = MC(**fields, thread_count=1).price_with_statistics(
+                    serial = MC(**fields, max_active_workers=1).price_with_statistics(
                         dated_history(note, context), context
                     )
-                    engine = MC(**fields, thread_count=3)
+                    engine = MC(**fields, max_active_workers=3)
                     with ThreadPoolExecutor(max_workers=2) as pool:
                         results = list(
                             pool.map(

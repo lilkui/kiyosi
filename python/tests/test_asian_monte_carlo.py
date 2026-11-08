@@ -61,14 +61,14 @@ class AsianMonteCarloTests(unittest.TestCase):
             "path_count",
             "step_count",
             "seed",
-            "thread_count",
+            "max_active_workers",
             "sampling",
             "antithetic",
         ):
             self.assertEqual(getattr(engine, name), getattr(vanilla, name))
         with self.assertRaises(AttributeError):
             engine.seed = 5
-        for name in ("path_count", "step_count", "thread_count", "seed"):
+        for name in ("path_count", "step_count", "max_active_workers", "seed"):
             for value in (True, 2.5):
                 with self.subTest(name=name, value=value), self.assertRaises(TypeError):
                     cls(**{name: value})
@@ -82,7 +82,7 @@ class AsianMonteCarloTests(unittest.TestCase):
             {"path_count": 0},
             {"step_count": 1},
             {"step_count": 10001},
-            {"thread_count": -1},
+            {"max_active_workers": -1},
             {"sampling": "sobol", "path_count": 100},
         ):
             self.assert_rejection(InvalidInputError, cls, **settings)
@@ -281,7 +281,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                 seed=42,
                 sampling=sampling,
                 antithetic=True,
-                thread_count=1,
+                max_active_workers=1,
             )
             parallel = pricing.MonteCarloAsianEngine(
                 path_count=paths,
@@ -289,7 +289,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                 seed=42,
                 sampling=sampling,
                 antithetic=True,
-                thread_count=4,
+                max_active_workers=4,
             )
             for kind in KINDS:
                 instrument = option(kind)

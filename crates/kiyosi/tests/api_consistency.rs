@@ -275,7 +275,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     let sampling = MonteCarloSettings {
         path_count: 32,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     };
     let engine = MonteCarloAccumulatorEngine::new(sampling)?;
@@ -342,7 +342,7 @@ fn constant_node_curves_price_like_scalars_and_keep_coverage() -> Result<()> {
     let sampling = MonteCarloVanillaEngine::new(MonteCarloSettings {
         path_count: 512,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     })?;
     for engine in [
@@ -464,7 +464,7 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
     let mc = MonteCarloDigitalEngine::new(MonteCarloSettings {
         path_count: 128,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     })?;
     let fd = FiniteDifferenceDigitalEngine::new(FiniteDifferenceSettings {
@@ -606,7 +606,7 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
     let monte_carlo = MonteCarloVanillaEngine::new(MonteCarloSettings {
         path_count: 128,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     })?;
     for volatility in [0.0, 0.2] {
@@ -1073,7 +1073,7 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
     let settings = MonteCarloSettings {
         path_count: 1024,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     };
     let request = GreeksRequest::new([Greek::Delta]);
@@ -1228,7 +1228,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
     let sampling = MonteCarloSettings {
         path_count: 32,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     };
     check(
@@ -1739,9 +1739,9 @@ fn settings_diagnostics_identify_invalid_fields() {
             .validate(),
         ),
         (
-            "thread_count",
+            "max_active_workers",
             MonteCarloSettings {
-                thread_count: -1,
+                max_active_workers: -1,
                 ..Default::default()
             }
             .validate(),
@@ -2116,7 +2116,7 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
     let mc = MonteCarloAsianEngine::new(MonteCarloSettings {
         path_count: 16,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     })?;
     check(

@@ -147,19 +147,19 @@ macro_rules! sampling_settings {
             }
 
             #[new]
-            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().$step(),)? seed=None, thread_count=kiyosi::MonteCarloSettings::default().thread_count, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
+            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().$step(),)? seed=None, max_active_workers=kiyosi::MonteCarloSettings::default().max_active_workers, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
             fn new(
                 #[pyo3(from_py_with = integer)] path_count: i32,
                 $(#[pyo3(from_py_with = integer)] $step: i32,)?
                 seed: Option<&Bound<'_, PyAny>>,
-                #[pyo3(from_py_with = integer)] thread_count: i32,
+                #[pyo3(from_py_with = integer)] max_active_workers: i32,
                 #[pyo3(from_py_with = sampling)] sampling: kiyosi::MonteCarloSampling,
                 #[pyo3(from_py_with = boolean)] antithetic: bool,
             ) -> PyResult<Self> {
                 let settings = kiyosi::MonteCarloSettings {
                     path_count,
                     seed: seed.map(|value| integer_index(value)?.extract::<u64>()).transpose()?,
-                    thread_count,
+                    max_active_workers,
                     sampling,
                     antithetic,
                 };
@@ -192,10 +192,12 @@ macro_rules! sampling_settings {
             fn seed(&self) -> Option<u64> {
                 self.0.sampling_settings().seed
             }
-            /// Return the per-call worker cap; zero selects automatic sizing.
+            /// Return the per-call active worker cap; zero selects automatic sizing.
+            ///
+            /// Parallel calls share a CPU-sized pool; this cap does not bound thread creation.
             #[getter]
-            fn thread_count(&self) -> i32 {
-                self.0.sampling_settings().thread_count
+            fn max_active_workers(&self) -> i32 {
+                self.0.sampling_settings().max_active_workers
             }
             /// Return the sampling choice string: pseudo_random or sobol.
             #[getter]
@@ -228,8 +230,9 @@ macro_rules! sampling_settings {
 ///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// thread_count : int, optional
-///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+/// max_active_workers : int, optional
+///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
@@ -240,7 +243,7 @@ macro_rules! sampling_settings {
 /// ------
 /// InvalidInputError
 ///     If paths are outside 1 through 10,000,000, steps outside 1 through
-///     10,000, thread_count is negative, or Sobol paths are not a power of two.
+///     10,000, max_active_workers is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -438,8 +441,9 @@ impl MonteCarloEstimate {
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// thread_count : int, optional
-///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+/// max_active_workers : int, optional
+///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
@@ -449,7 +453,7 @@ impl MonteCarloEstimate {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
 ///     or Sobol paths are not a power of two.
 ///
 /// See Also
@@ -539,8 +543,9 @@ numerical_greeks_methods!(
 ///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// thread_count : int, optional
-///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+/// max_active_workers : int, optional
+///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
@@ -551,7 +556,7 @@ numerical_greeks_methods!(
 /// ------
 /// InvalidInputError
 ///     If paths are outside 1 through 10,000,000, steps outside 2 through
-///     10,000, thread_count is negative, or Sobol paths are not a power of two.
+///     10,000, max_active_workers is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -642,8 +647,9 @@ numerical_greeks_methods!(
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// thread_count : int, optional
-///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+/// max_active_workers : int, optional
+///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
@@ -653,7 +659,7 @@ numerical_greeks_methods!(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
 ///     or Sobol paths are not a power of two.
 ///
 /// See Also
@@ -685,8 +691,9 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// thread_count : int, optional
-///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+/// max_active_workers : int, optional
+///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
@@ -696,7 +703,7 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
 ///     or Sobol paths are not a power of two.
 ///
 /// See Also
@@ -728,8 +735,9 @@ sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barr
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// thread_count : int, optional
-///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+/// max_active_workers : int, optional
+///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
@@ -739,7 +747,7 @@ sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barr
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
 ///     or Sobol paths are not a power of two.
 ///
 /// See Also
@@ -777,8 +785,9 @@ sampling_settings!(
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// thread_count : int, optional
-///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
+/// max_active_workers : int, optional
+///     Nonnegative active worker cap per call: zero (default) is automatic, one is serial.
+///     Does not bound thread creation; parallel calls share a CPU-sized worker pool.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
@@ -788,7 +797,7 @@ sampling_settings!(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     If paths are outside 1 through 10,000,000, max_active_workers is negative,
 ///     or Sobol paths are not a power of two.
 ///
 /// See Also

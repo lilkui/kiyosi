@@ -100,7 +100,7 @@ class SpotShiftDefaultTests(unittest.TestCase):
             valuation_time=start,
         )
         engine = p.MonteCarloVanillaEngine(
-            path_count=8192, step_count=19, seed=42, thread_count=1
+            path_count=8192, step_count=19, seed=42, max_active_workers=1
         )
         result = engine.price_with_greeks(option, context, "gamma")
         explicit = numerical_greeks(engine, option, context, "gamma", spot_shift=8.0)

@@ -61,7 +61,7 @@ pub struct MonteCarloSettings {
     /// One runs on the calling thread. Positive caps are also limited by
     /// available CPUs and simulation blocks.
     /// Parallel calls share a library-owned pool; see [`MonteCarloVanillaEngine`].
-    pub thread_count: i32,
+    pub max_active_workers: i32,
     /// Selects pseudorandom (default) or Sobol sampling; Sobol requires power-of-two paths.
     pub sampling: MonteCarloSampling,
     /// Pairs Z and -Z (default `false`), keeping exact paths and one unpaired path if odd.
@@ -73,7 +73,7 @@ impl Default for MonteCarloSettings {
         Self {
             path_count: 131_072,
             seed: None,
-            thread_count: 0,
+            max_active_workers: 0,
             sampling: MonteCarloSampling::PseudoRandom,
             antithetic: false,
         }
@@ -164,9 +164,9 @@ impl MonteCarloSettings {
                 "path_count must be between 1 and 10000000".into(),
             ));
         }
-        if self.thread_count < 0 {
+        if self.max_active_workers < 0 {
             return Err(Error::InvalidInput(
-                "thread_count must be nonnegative".into(),
+                "max_active_workers must be nonnegative".into(),
             ));
         }
         if self.sampling == MonteCarloSampling::Sobol
@@ -229,7 +229,7 @@ mod tests {
                 MonteCarloSettings {
                     path_count: 4096,
                     seed: Some(42),
-                    thread_count: 2,
+                    max_active_workers: 2,
                     ..Default::default()
                 },
                 1,
@@ -253,7 +253,7 @@ mod tests {
             let settings = MonteCarloSettings {
                 path_count: 256,
                 seed: Some(seed),
-                thread_count: 1,
+                max_active_workers: 1,
                 sampling: MonteCarloSampling::Sobol,
                 antithetic: true,
             };
@@ -266,7 +266,7 @@ mod tests {
     fn unseeded_settings_pin_one_seed_and_preserve_other_controls() {
         let settings = MonteCarloSettings {
             path_count: 256,
-            thread_count: 1,
+            max_active_workers: 1,
             sampling: MonteCarloSampling::Sobol,
             antithetic: true,
             ..Default::default()
@@ -274,7 +274,7 @@ mod tests {
         let seeded = settings.with_resolved_seed().unwrap();
         assert!(seeded.seed.is_some());
         assert_eq!(seeded.path_count, 256);
-        assert_eq!(seeded.thread_count, 1);
+        assert_eq!(seeded.max_active_workers, 1);
         assert_eq!(seeded.sampling, MonteCarloSampling::Sobol);
         assert!(seeded.antithetic);
         assert_eq!(seeded.with_resolved_seed().unwrap(), seeded);
@@ -313,11 +313,11 @@ mod tests {
                     continue;
                 }
                 for antithetic in [false, true] {
-                    for thread_count in [1, 2] {
+                    for max_active_workers in [1, 2] {
                         let settings = MonteCarloSettings {
                             path_count,
                             seed: Some(42),
-                            thread_count,
+                            max_active_workers,
                             sampling,
                             antithetic,
                         };
@@ -373,9 +373,9 @@ mod tests {
             .unwrap();
         external.install(|| {
             let caller = thread::current().id();
-            for thread_count in [0, 2, 4, i32::MAX] {
+            for max_active_workers in [0, 2, 4, i32::MAX] {
                 let mut blocks = vec![(usize::MAX, caller, false); 513];
-                run_blocks(&mut blocks, thread_count, |block| {
+                run_blocks(&mut blocks, max_active_workers, |block| {
                     (
                         block,
                         thread::current().id(),
@@ -390,10 +390,10 @@ mod tests {
                     assert_eq!(worker == caller, available == 1);
                     workers.insert(worker);
                 }
-                let cap = if thread_count == 0 {
+                let cap = if max_active_workers == 0 {
                     available
                 } else {
-                    thread_count as usize
+                    max_active_workers as usize
                 };
                 assert!(workers.len() <= cap.min(available));
             }
@@ -688,7 +688,7 @@ impl MonteCarloVanillaEngine {
     /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine};
     /// # fn main() -> kiyosi::Result<()> {
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-    ///     seed: Some(42), thread_count: 4, ..Default::default()
+    ///     seed: Some(42), max_active_workers: 4, ..Default::default()
     /// })?;
     /// assert_eq!(engine.sampling_settings().path_count, 131_072);
     /// let sobol = MonteCarloVanillaEngine::new(MonteCarloSettings {
@@ -1137,7 +1137,7 @@ fn path_samples<const N: usize>(
         }
         Ok((moments, pairs))
     };
-    run_blocks(&mut partials, settings.thread_count, simulate)?;
+    run_blocks(&mut partials, settings.max_active_workers, simulate)?;
     let mut total = empty;
     let mut pairs = empty;
     for partial in partials {
@@ -1175,14 +1175,14 @@ fn sample_normal(
 )]
 fn run_blocks<T: Send>(
     partials: &mut [T],
-    thread_count: i32,
+    max_active_workers: i32,
     simulate: impl Fn(usize) -> T + Sync,
 ) -> Result<()> {
     let available = thread::available_parallelism().map_or(1, std::num::NonZero::get);
-    let workers = if thread_count == 0 {
+    let workers = if max_active_workers == 0 {
         available
     } else {
-        (thread_count as usize).min(available)
+        (max_active_workers as usize).min(available)
     }
     .min(partials.len());
     if workers <= 1 {

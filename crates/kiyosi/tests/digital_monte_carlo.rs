@@ -59,9 +59,9 @@ fn terminal_prices_and_likelihood_greeks_match_analytic_and_share_draws() {
                         assert!(!actual.has(greek));
                     }
                     assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
-                    for thread_count in [0, 1, 4] {
+                    for max_active_workers in [0, 1, 4] {
                         let other = MonteCarloDigitalEngine::new(MonteCarloSettings {
-                            thread_count,
+                            max_active_workers,
                             ..settings
                         })
                         .unwrap();
@@ -340,9 +340,9 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
             };
             let numeric =
                 numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts).unwrap();
-            for thread_count in [1, 4] {
+            for max_active_workers in [1, 4] {
                 let other = MonteCarloDigitalEngine::new(MonteCarloSettings {
-                    thread_count,
+                    max_active_workers,
                     ..engine.sampling_settings()
                 })
                 .unwrap();
@@ -432,7 +432,7 @@ fn settings_reuse_vanilla_validation_and_cash_sampling_variance() {
             ..Default::default()
         },
         MonteCarloSettings {
-            thread_count: -1,
+            max_active_workers: -1,
             ..Default::default()
         },
         MonteCarloSettings {
@@ -460,7 +460,7 @@ fn settings_reuse_vanilla_validation_and_cash_sampling_variance() {
                 let engine = MonteCarloDigitalEngine::new(MonteCarloSettings {
                     path_count,
                     seed: Some(seed),
-                    thread_count: 1,
+                    max_active_workers: 1,
                     ..Default::default()
                 })
                 .unwrap();

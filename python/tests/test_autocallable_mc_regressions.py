@@ -43,7 +43,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             valuation_time=start,
         )
         engine = pricing.MonteCarloAutocallableEngine(
-            path_count=2, seed=0, thread_count=1
+            path_count=2, seed=0, max_active_workers=1
         )
         self.assertAlmostEqual(
             engine.price(dated_history(note, context), context) / 7.5e307,

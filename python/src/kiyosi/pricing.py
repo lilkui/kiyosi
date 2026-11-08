@@ -318,7 +318,7 @@ Inspect sampling uncertainty for a cash digital using the same market snapshot:
 ...     option_type=option.option_type, strike=option.strike, payout=10,
 ...     effective_time=option.effective_time, expiry_time=option.expiry_time,
 ... )
->>> sampler = MonteCarloDigitalEngine(path_count=4096, seed=42, thread_count=1)
+>>> sampler = MonteCarloDigitalEngine(path_count=4096, seed=42, max_active_workers=1)
 >>> estimate = sampler.price_with_statistics(digital, context)
 >>> estimate.price == sampler.price(digital, context)
 True

@@ -235,7 +235,7 @@ class DeterministicBsmTests(unittest.TestCase):
                 with self.subTest(contract=type(option).__name__, engine=name):
                     engine = getattr(pricing, name)(
                         **(
-                            {"path_count": 16, "seed": 42, "thread_count": 1}
+                            {"path_count": 16, "seed": 42, "max_active_workers": 1}
                             if name.startswith("MonteCarlo")
                             else {}
                         )

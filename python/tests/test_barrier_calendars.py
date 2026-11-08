@@ -41,7 +41,7 @@ class BarrierCalendarTests(unittest.TestCase):
                     pricing.QuadratureBarrierEngine(),
                     pricing.FiniteDifferenceBarrierEngine(),
                     pricing.MonteCarloBarrierEngine(
-                        path_count=32, seed=42, thread_count=1
+                        path_count=32, seed=42, max_active_workers=1
                     ),
                 ],
             ),

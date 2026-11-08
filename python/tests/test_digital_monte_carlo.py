@@ -168,7 +168,7 @@ class DigitalNumericalTests(unittest.TestCase):
                     expected = engine.price_with_greeks(option, market(), greeks="all")
                     for threads in (0, 1, 4):
                         other = pricing.MonteCarloDigitalEngine(
-                            **settings, thread_count=threads
+                            **settings, max_active_workers=threads
                         )
                         for name in ("delta", "gamma", "rho"):
                             actual = other.price_with_greeks(option, market(), name)
@@ -249,7 +249,7 @@ class DigitalNumericalTests(unittest.TestCase):
         for name in (
             "path_count",
             "seed",
-            "thread_count",
+            "max_active_workers",
             "sampling",
             "antithetic",
         ):
@@ -257,7 +257,7 @@ class DigitalNumericalTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(mc, name, getattr(mc, name))
         self.assertIn("MonteCarloDigitalEngine", pricing.__all__)
-        for field in ("path_count", "thread_count", "seed"):
+        for field in ("path_count", "max_active_workers", "seed"):
             for value in (True, 1.5, 2.0, "3", None if field != "seed" else object()):
                 with self.assertRaises(TypeError):
                     pricing.MonteCarloDigitalEngine(**{field: value})
@@ -274,7 +274,7 @@ class DigitalNumericalTests(unittest.TestCase):
         for fields in (
             {"path_count": 0},
             {"path_count": 10000001},
-            {"thread_count": -1},
+            {"max_active_workers": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):
             self.assert_rejection(
@@ -390,7 +390,7 @@ class DigitalNumericalTests(unittest.TestCase):
                             seed=42,
                             sampling=sampling,
                             antithetic=antithetic,
-                            thread_count=threads,
+                            max_active_workers=threads,
                         )
                         self.assertEqual(
                             pricing.implied_volatility(
@@ -538,7 +538,7 @@ class DigitalNumericalTests(unittest.TestCase):
             for paths in (2048, 32768):
                 errors = [
                     pricing.MonteCarloDigitalEngine(
-                        path_count=paths, seed=seed, thread_count=1
+                        path_count=paths, seed=seed, max_active_workers=1
                     ).price(option, market())
                     - expected
                     for seed in range(32)

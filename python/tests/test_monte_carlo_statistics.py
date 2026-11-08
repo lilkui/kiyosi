@@ -60,7 +60,7 @@ def context():
 
 
 def engine(factory, **changes):
-    settings = {"path_count": 4096, "seed": 42, "thread_count": 1, **changes}
+    settings = {"path_count": 4096, "seed": 42, "max_active_workers": 1, **changes}
     if factory is p.MonteCarloAsianEngine:
         settings["step_count"] = 8
     return factory(**settings)
@@ -131,7 +131,7 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                             seed=estimate.seed,
                             sampling=sampling,
                             antithetic=True,
-                            thread_count=4,
+                            max_active_workers=4,
                         )
                         self.assertEqual(
                             replay.price_with_statistics(
@@ -172,7 +172,9 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                     lower, upper = estimate.confidence_interval
                     self.assertLess(lower, estimate.price)
                     self.assertLess(estimate.price, upper)
-                    parallel = engine(factory, thread_count=4, antithetic=antithetic)
+                    parallel = engine(
+                        factory, max_active_workers=4, antithetic=antithetic
+                    )
                     for other in (
                         parallel.price_with_statistics(
                             dated_history(option, snapshot), snapshot

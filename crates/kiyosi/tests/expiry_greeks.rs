@@ -330,7 +330,7 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
     let sampling = MonteCarloSettings {
         path_count: 32,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     };
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
@@ -410,7 +410,7 @@ fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<(
     let sampling = MonteCarloSettings {
         path_count: 32,
         seed: Some(42),
-        thread_count: 1,
+        max_active_workers: 1,
         ..Default::default()
     };
     let european: Vec<Box<dyn PricingEngine<EuropeanOption>>> = vec![

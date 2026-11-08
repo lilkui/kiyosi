@@ -44,7 +44,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             knock_out_settled=note.knock_out_settled,
         )
         context = market(spot=100, valuation=START, volatility=1, rate=0.01, dividend=0)
-        engine = MC(path_count=2, seed=0, thread_count=1)
+        engine = MC(path_count=2, seed=0, max_active_workers=1)
         quantity = 6e307
         expected = (
             engine.price_with_statistics(dated_history(note, context), context).price
@@ -113,13 +113,13 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             (
                 engine.path_count,
                 engine.seed,
-                engine.thread_count,
+                engine.max_active_workers,
                 engine.sampling,
                 engine.antithetic,
             ),
             (131072, None, 0, "pseudo_random", False),
         )
-        for field in ("path_count", "thread_count", "seed"):
+        for field in ("path_count", "max_active_workers", "seed"):
             for value, error in (
                 (True, TypeError),
                 (2.5, TypeError),
@@ -137,7 +137,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         for fields in (
             {"path_count": 0},
             {"path_count": 10000001},
-            {"thread_count": -1},
+            {"max_active_workers": -1},
             {"path_count": 31, "sampling": "sobol"},
         ):
             self.assert_rejection(InvalidInputError, lambda fields=fields: MC(**fields))
@@ -176,10 +176,10 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                         "sampling": sampling,
                         "antithetic": antithetic,
                     }
-                    serial = MC(**fields, thread_count=1).price_with_statistics(
+                    serial = MC(**fields, max_active_workers=1).price_with_statistics(
                         dated_history(note, context), context
                     )
-                    engine = MC(**fields, thread_count=3)
+                    engine = MC(**fields, max_active_workers=3)
                     with ThreadPoolExecutor(max_workers=2) as pool:
                         results = list(
                             pool.map(
