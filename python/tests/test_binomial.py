@@ -166,6 +166,27 @@ def rollback(
 
 
 class BinomialTests(unittest.TestCase):
+    def test_implied_volatility_recovers_zero_and_tiny_carry_quotes(self):
+        for rate, dividend in ((0, 0), (0.05, 0.05), (1e-20, 0)):
+            context = market(rate=rate, dividend=dividend)
+            for kind in (EuropeanOption, CashOrNothingOption):
+                for steps in (1, 256):
+                    with self.subTest(
+                        rate=rate, dividend=dividend, kind=kind, steps=steps
+                    ):
+                        option, engine = contract(kind), engine_for(kind, steps)
+                        quote = engine.price(option, context)
+                        sigma = implied_volatility(engine, option, context, quote)
+                        self.assertAlmostEqual(sigma, 0.2, delta=1e-6)
+                        shifted = context.replace(
+                            model_parameters=context.model_parameters.replace(
+                                volatility=sigma
+                            )
+                        )
+                        self.assertAlmostEqual(
+                            engine.price(option, shifted), quote, delta=1e-8
+                        )
+
     def test_implied_volatility_requires_a_matching_quote(self):
         option = contract(CashOrNothingOption, strike=110)
         context = market(rate=0, dividend=0)

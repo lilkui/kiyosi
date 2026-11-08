@@ -167,8 +167,9 @@ fn prepare_implied(
     let (rate, dividend) = flat_rates(context)?;
     let dt = time_step(option, context, tree)?;
     if dt > 0.0 {
-        // Round into the admissible domain so the endpoint probability stays in [0, 1].
-        let minimum = libm::nextafter(((rate - dividend) * dt).abs() / dt.sqrt(), f64::INFINITY);
+        // The solver checks exact zero separately; positive trials need distinct factors.
+        let width = ((rate - dividend) * dt).abs().max(f64::EPSILON);
+        let minimum = libm::nextafter(width / dt.sqrt(), f64::INFINITY);
         if minimum.is_finite() {
             settings.lower_bound = settings.lower_bound.max(minimum);
         }

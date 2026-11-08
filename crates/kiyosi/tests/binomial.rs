@@ -1,6 +1,47 @@
 use kiyosi::*;
 
 #[test]
+fn implied_volatility_recovers_tree_quotes_with_zero_or_tiny_carry() {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    let digital =
+        DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
+    for (rate, dividend) in [(0.0, 0.0), (0.05, 0.05), (1e-20, 0.0)] {
+        let context = market(100.0, rate, dividend, 0.2);
+        for steps in [1, 256] {
+            let settings = BinomialSettings { step_count: steps };
+            let vanilla = CoxRossRubinsteinVanillaEngine::new(settings).unwrap();
+            let cash = CoxRossRubinsteinDigitalEngine::new(settings).unwrap();
+            for (quote, solved) in [
+                (
+                    vanilla.price(&option, &context).unwrap(),
+                    implied_volatility(
+                        &vanilla,
+                        &option,
+                        &context,
+                        vanilla.price(&option, &context).unwrap(),
+                        Default::default(),
+                    ),
+                ),
+                (
+                    cash.price(&digital, &context).unwrap(),
+                    implied_volatility(
+                        &cash,
+                        &digital,
+                        &context,
+                        cash.price(&digital, &context).unwrap(),
+                        Default::default(),
+                    ),
+                ),
+            ] {
+                let sigma = solved.unwrap();
+                assert!((sigma - 0.2).abs() < 1e-6, "{quote}: {sigma}");
+            }
+        }
+    }
+}
+
+#[test]
 fn implied_volatility_rejects_a_price_jump_without_a_matching_quote() {
     let (start, end) = dates();
     let option = DigitalOption::cash_or_nothing(OptionType::Call, 110.0, 10.0, start, end).unwrap();
