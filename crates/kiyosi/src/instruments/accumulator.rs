@@ -197,11 +197,10 @@ impl Accumulator {
                 dates.clone(),
                 terms.effective_time,
                 terms.expiry_time,
-                &TradingCalendar::all_days(),
+                &terms.calendar,
             )?;
         }
         let option = Self { terms };
-        option.validate_calendar()?;
         super::validate_history_snapshot(
             &option,
             option.accumulated_quantity().is_some() || option.knock_out_settled().is_some(),
@@ -232,19 +231,6 @@ impl Accumulator {
             calendar: Some(calendar),
             ..Default::default()
         })
-    }
-
-    fn validate_calendar(&self) -> Result<()> {
-        if self.knock_out_observation_times().is_some_and(|times| {
-            times
-                .iter()
-                .any(|time| !self.calendar().is_trading_day(time.date()))
-        }) {
-            return Err(Error::InvalidInput(
-                "knock-out observation is not a trading day".into(),
-            ));
-        }
-        Ok(())
     }
 
     /// Borrows the contract's accumulation calendar; see [`Self::replace_calendar`].
