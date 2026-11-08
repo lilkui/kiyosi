@@ -15,6 +15,48 @@ fn market() -> (EuropeanOption, PricingContext) {
 }
 
 #[test]
+fn generic_greek_requests_preserve_native_methods_and_configured_shifts() -> Result<()> {
+    fn evaluate<E: PricingEngine + ?Sized>(
+        engine: &E,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+    ) -> Result<PricingResult> {
+        engine.price_with_greeks(option, context, request)
+    }
+
+    let (option, context) = market();
+    let request = GreeksRequest::new([Greek::Delta, Greek::Rho]);
+    let analytic = AnalyticEuropeanEngine;
+    let fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 100,
+        time_step_count: 100,
+        rate_shift: 0.1,
+        ..Default::default()
+    })?;
+    for (engine, expected) in [
+        (
+            &analytic as &dyn PricingEngine,
+            analytic.price_with_greeks(&option, &context, request)?,
+        ),
+        (
+            &fd as &dyn PricingEngine,
+            fd.price_with_greeks(&option, &context, request)?,
+        ),
+    ] {
+        assert_eq!(evaluate(engine, &option, &context, request)?, expected);
+    }
+    let default_fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        rate_shift: NumericalShiftSettings::default().rate_shift,
+        ..fd.settings()
+    })?;
+    let tuned = evaluate(&fd, &option, &context, request)?.require(Greek::Rho)?;
+    let default = evaluate(&default_fd, &option, &context, request)?.require(Greek::Rho)?;
+    assert!((tuned - default).abs() > 0.1);
+    Ok(())
+}
+
+#[test]
 fn unavailable_greek_errors_preserve_measure_and_status() -> Result<()> {
     let request = GreeksRequest::new([Greek::Vega]);
     let absent = PricingResult::new(10.0)?;

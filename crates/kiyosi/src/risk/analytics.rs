@@ -541,8 +541,7 @@ impl GreekMethod {
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 /// Custom estimators implement [`Self::price_with_greeks_with_settings`]. Generic
-/// callers pass [`Self::greek_settings`] to use configured controls; built-in
-/// engines also expose inherent `price_with_greeks` convenience methods.
+/// callers use [`Self::price_with_greeks`] to retain native estimators and configured controls.
 pub trait PricingEngine<I = EuropeanOption> {
     /// Returns default Greek controls for this engine; see [`NumericalShiftSettings`].
     ///
@@ -552,16 +551,54 @@ pub trait PricingEngine<I = EuropeanOption> {
         NumericalShiftSettings::default()
     }
 
+    /// Returns requested sensitivities using this engine's configured controls.
+    ///
+    /// Delegates to [`Self::price_with_greeks_with_settings`] with [`Self::greek_settings`],
+    /// retaining native estimators through generic engines and trait objects.
+    /// Inputs remain unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price_with_greeks_with_settings`] validation and pricing errors.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{AnalyticEuropeanEngine, BlackScholesMertonParameters, Date,
+    ///     EuropeanOption, Greek, GreeksRequest, OptionType, PricingContext, PricingEngine};
+    ///
+    /// fn delta<E: PricingEngine + ?Sized>(engine: &E, option: &EuropeanOption,
+    ///     context: &PricingContext) -> kiyosi::Result<f64> {
+    ///     engine.price_with_greeks(option, context, GreeksRequest::new([Greek::Delta]))?
+    ///         .require(Greek::Delta)
+    /// }
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(365)?)?;
+    /// let context = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start)?;
+    /// assert!(delta(&AnalyticEuropeanEngine, &option, &context)? > 0.0);
+    /// # Ok(()) }
+    /// ```
+    fn price_with_greeks(
+        &self,
+        option: &I,
+        context: &PricingContext,
+        request: GreeksRequest,
+    ) -> Result<PricingResult>
+    where
+        I: crate::OptionContract,
+    {
+        self.price_with_greeks_with_settings(option, context, request, self.greek_settings(option))
+    }
+
     /// Returns native sensitivities with explicit request-level numerical controls.
     ///
     /// Built-in overrides retain native estimators and apply shifts to numerical
     /// fallbacks, event checks and terminal stencils. Purely analytic measures ignore
-    /// the validated controls. Override this method to implement a custom estimator;
-    /// built-in engines' `price_with_greeks` convenience methods use their configured
-    /// controls. This is the trait's only Greek implementation
-    /// hook. Pass [`Self::greek_settings`] to use configured controls through a
-    /// generic engine or trait object. The default uses scalar differences. Inputs
-    /// remain unchanged.
+    /// the validated controls. Custom estimators override this hook; [`Self::price_with_greeks`]
+    /// supplies configured controls through a generic engine or trait object.
+    /// The default uses scalar differences. Inputs remain unchanged.
     ///
     /// # Errors
     ///
