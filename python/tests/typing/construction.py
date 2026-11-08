@@ -92,6 +92,7 @@ def phoenix_choices() -> None:
             upper_strike=100,
             lower_strike=0,
             knock_in_observation_mode="at_expiry",
+            observation_clock_time=None,
             effective_time=start,
             expiry_time=end,
             observations=observations,

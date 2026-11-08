@@ -639,11 +639,12 @@ class PackageTests(unittest.TestCase):
                 ]
                 self.assertIs(
                     inspect.signature(cls).parameters["observation_clock_time"].default,
-                    None,
+                    inspect.Parameter.empty,
                 )
-                with self.assertRaises(kiyosi.InvalidInputError):
+                with self.assertRaises(TypeError):
                     cls(**common, **extra)
-                inspect.signature(cls).bind(**common, **extra)
+                with self.assertRaises(TypeError):
+                    inspect.signature(cls).bind(**common, **extra)
                 with self.assertRaises(kiyosi.InvalidInputError):
                     cls(observation_clock_time=None, **common, **extra)
                 note = cls(observation_clock_time=clock_time(), **common, **extra)
@@ -671,10 +672,8 @@ class PackageTests(unittest.TestCase):
                 )
                 self.assertNotEqual(note, expiry_only)
                 self.assertIsNone(expiry_only.observation_clock_time)
-                self.assertEqual(
-                    cls(**common, **extra, knock_in_observation_mode="at_expiry"),
-                    expiry_only,
-                )
+                with self.assertRaises(TypeError):
+                    cls(**common, **extra, knock_in_observation_mode="at_expiry")
                 self.assertEqual(pickle.loads(pickle.dumps(expiry_only)), expiry_only)
                 with self.assertRaises(kiyosi.InvalidInputError):
                     cls(
