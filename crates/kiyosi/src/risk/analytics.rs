@@ -348,7 +348,8 @@ pub(crate) fn vanilla_expiry_greeks(
 ///
 /// Scalar numerical requests validate all bump settings before calculation.
 /// Finite-difference engines use their configured shifts for `price_with_greeks`;
-/// other engines use defaults. Monte Carlo barrier engines also
+/// [`crate::AnalyticDigitalEngine::price_with_greeks_with_settings`] accepts explicit
+/// shifts while retaining analytic delta and gamma. Other engines use defaults. Monte Carlo barrier engines also
 /// expose `price_with_greeks_with_spot_shift` for native spot control.
 /// See [`crate::numerical_greeks`] for usage.
 #[derive(Clone, Copy, Debug)]

@@ -52,7 +52,45 @@ impl AnalyticDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
+        self.price_with_greeks_with_settings(option, context, request, Default::default())
+    }
+
+    /// Returns analytic delta/gamma with configurable numerical fallback Greeks.
+    ///
+    /// Before expiry, positive-volatility delta and gamma retain their analytic
+    /// estimator. Settings control the remaining numerical derivatives, zero-volatility
+    /// differences and terminal stencils. See [`Self::price_with_greeks`] for conventions.
+    ///
+    /// # Errors
+    ///
+    /// Validates model applicability, the request and every shift before pricing.
+    /// Propagates [`crate::NumericalShiftSettings::validate`] and [`Self::price`] errors.
+    /// The inputs remain unchanged on success and failure.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// # let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// # let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
+    /// #     start, start.add_days(365)?)?;
+    /// # let context = PricingContext::new(
+    /// #     BlackScholesMertonParameters::new(0.0, 0.0, 0.00005)?, 100.0, start)?;
+    /// let shifts = NumericalShiftSettings { volatility_shift: 0.00001, ..Default::default() };
+    /// let result = AnalyticDigitalEngine.price_with_greeks_with_settings(
+    ///     &option, &context, GreeksRequest::all(), shifts)?;
+    /// assert!(result.require(Greek::Vega)?.is_finite());
+    /// assert!(result.require(Greek::Gamma)? < 0.0);
+    /// # Ok(()) }
+    /// ```
+    pub fn price_with_greeks_with_settings(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;

@@ -9,7 +9,10 @@ estimator and configured controls. Finite-difference engines accept a positive
 ``spot_shift`` at construction to configure native Greek availability checks
 and terminal stencils, including under local volatility. Their ``volatility_shift``,
 ``rate_shift`` and ``time_shift`` constructor controls tune numerical BSM Greeks
-while retaining native spatial delta and gamma. Monte Carlo single- and double-barrier engines accept
+while retaining native spatial delta and gamma. AnalyticDigitalEngine accepts all four
+shift controls on price_with_greeks, preserving analytic delta and gamma at positive
+volatility before expiry while tuning numerical fallback Greeks.
+Monte Carlo single- and double-barrier engines accept
 an optional keyword-only ``spot_shift`` for event checks, at-hit rebate derivatives
 and expiry stencils, retaining their native estimator. Other engines accept no bump arguments. Configure scalar
 finite differences explicitly through ``numerical_greeks(engine, instrument,

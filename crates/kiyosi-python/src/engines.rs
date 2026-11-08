@@ -20,6 +20,7 @@ macro_rules! numerical_greeks_methods {
      |$engine:ident, $py:ident, $option:ident, $context:ident, $request:ident| $body:block,
      [$(#[$extra_doc:meta])*],
      $(@spot_shift $spot_shift:ident,)?
+     $(@shifts $settings:ident [$spot:ident, $volatility:ident, $rate:ident, $time:ident],)?
      $methods:ident!($($args:tt)*)) => {
         $methods! {
             $($args)*,
@@ -64,6 +65,16 @@ macro_rules! numerical_greeks_methods {
                 ///     and expiry stencils; None selects the automatic bump.
                 ///     Retains the native Monte Carlo estimator before expiry.
             )?
+            $(
+                #[doc = concat!(stringify!($spot), " : float or None, optional")]
+                ///     Positive absolute spot bump, or None for automatic selection.
+                /// volatility_shift, rate_shift : float, optional
+                ///     Positive decimal bumps for numerical fallback Greeks; defaults to 0.0001.
+                /// time_shift : datetime.timedelta or None, optional
+                ///     Positive whole-microsecond time bump, or None for automatic selection.
+                ///     Positive-volatility analytic delta and gamma retain their estimator before expiry.
+                #[expect(clippy::too_many_arguments, reason = "explicit Python numerical fallback controls")]
+            )?
             ///
             /// Returns
             /// -------
@@ -80,7 +91,9 @@ macro_rules! numerical_greeks_methods {
             /// TypeError
             ///     If greeks is not a string or iterable of strings.
             $(#[$extra_doc])*
-            #[pyo3(signature = (instrument, context, greeks $(, *, $spot_shift=None)?))]
+            #[pyo3(signature = (instrument, context, greeks $(, *, $spot_shift=None)?
+                $(, *, $spot=None, $volatility=kiyosi::NumericalShiftSettings::default().volatility_shift,
+                    $rate=kiyosi::NumericalShiftSettings::default().rate_shift, $time=None)?))]
             ///
             /// See Also
             /// --------
@@ -93,9 +106,21 @@ macro_rules! numerical_greeks_methods {
                 context: &$crate::market::PricingContext,
                 greeks: &pyo3::Bound<'_, pyo3::PyAny>,
                 $($spot_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,)?
+                $(
+                    $spot: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
+                    #[pyo3(from_py_with = crate::conversions::real)] $volatility: f64,
+                    #[pyo3(from_py_with = crate::conversions::real)] $rate: f64,
+                    $time: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
+                )?
             ) -> pyo3::PyResult<$crate::risk::PricingResult> {
                 let $request = $crate::risk::greeks_request(greeks)?;
                 $(let $spot_shift = $spot_shift.map(crate::conversions::real).transpose()?;)?
+                $(let $settings = kiyosi::NumericalShiftSettings {
+                    spot_shift: $spot.map(crate::conversions::real).transpose()?,
+                    volatility_shift: $volatility,
+                    rate_shift: $rate,
+                    time_shift: $time.map(crate::conversions::duration).transpose()?,
+                };)?
                 let $engine = self;
                 let $py = py;
                 let $option = instrument;

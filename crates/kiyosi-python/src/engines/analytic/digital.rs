@@ -18,10 +18,10 @@ numerical_greeks_methods!(
     DigitalInstrument<'_>,
     |_binding, _py, instrument, context, request| {
         Ok(risk::PricingResult(domain(
-            kiyosi::AnalyticDigitalEngine.price_with_greeks(
+            kiyosi::AnalyticDigitalEngine.price_with_greeks_with_settings(
                 instrument.contract(),
                 &context.0,
-                request),
+                request, settings),
         )?))
     },
     [
@@ -30,9 +30,10 @@ numerical_greeks_methods!(
         /// -----
         /// Delta and gamma are analytic at positive volatility before expiry.
         /// At zero volatility they use scalar differences. Other Greeks use numerical
-        /// differences with engine defaults. At expiry spot Greeks use default
-        /// terminal-payoff stencils. Use numerical_greeks for configurable scalar differences.
+        /// differences with the supplied shifts. At expiry spot Greeks use the supplied
+        /// terminal-payoff stencils. Use numerical_greeks for scalar-only differences.
     ],
+    @shifts settings [spot_shift, volatility_shift, rate_shift, time_shift],
     engine_methods!(
         AnalyticDigitalEngine,
         #[new]

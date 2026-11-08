@@ -1308,6 +1308,73 @@ class ApiConsistencyTests(unittest.TestCase):
             "undefined",
         )
 
+    def test_digital_fallback_shifts_preserve_analytic_spot_greeks(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.00005
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.AnalyticDigitalEngine()
+        for direction, sign in (("call", 1), ("put", -1)):
+            for kind, fields, weight in (
+                (ins.CashOrNothingOption, {"payout": 10}, -5),
+                (ins.AssetOrNothingOption, {}, 50),
+            ):
+                option = kind(
+                    option_type=direction,
+                    strike=100,
+                    effective_time=start,
+                    expiry_time=end,
+                    **fields,
+                )
+                native = engine.price_with_greeks(
+                    option, context, ["delta", "gamma", "vega"]
+                )
+                self.assertEqual(native.status("vega"), "stencil_unavailable")
+                result = engine.price_with_greeks(
+                    option,
+                    context,
+                    ["delta", "gamma", "vega"],
+                    volatility_shift=0.00001,
+                )
+                self.assertEqual(
+                    (result.price, result.delta, result.gamma),
+                    (native.price, native.delta, native.gamma),
+                )
+                expected = (
+                    sign
+                    * weight
+                    * math.exp(-0.5 * 0.000025**2)
+                    / math.sqrt(2 * math.pi)
+                )
+                self.assertAlmostEqual(result.require("vega"), expected, delta=1e-7)
+                self.assertEqual(result.status("rho"), "not_requested")
+        for at in (start, end):
+            for controls in (
+                {"spot_shift": 0},
+                {"volatility_shift": float("nan")},
+                {"rate_shift": -1},
+                {"time_shift": timedelta(0)},
+            ):
+                with (
+                    self.subTest(at=at, controls=controls),
+                    self.assertRaises(InvalidInputError),
+                ):
+                    engine.price_with_greeks(
+                        option, context.replace(valuation_time=at), "delta", **controls
+                    )
+        for controls in (
+            {"spot_shift": True},
+            {"volatility_shift": True},
+            {"rate_shift": True},
+            {"time_shift": 1},
+        ):
+            with self.subTest(controls=controls), self.assertRaises(TypeError):
+                engine.price_with_greeks(option, context, "delta", **controls)
+
     def test_fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = ins.EuropeanOption(

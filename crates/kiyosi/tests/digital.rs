@@ -17,6 +17,92 @@ fn market(spot: f64, rate: f64, dividend: f64, volatility: f64) -> PricingContex
 }
 
 #[test]
+fn configured_fallback_greeks_preserve_analytic_delta_and_gamma() -> Result<()> {
+    let (start, end) = dates();
+    let context = market(100.0, 0.0, 0.0, 0.000_05);
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]);
+    for direction in [OptionType::Call, OptionType::Put] {
+        for (option, weight) in [
+            (
+                DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end)?,
+                -5.0,
+            ),
+            (
+                DigitalOption::asset_or_nothing(direction, 100.0, start, end)?,
+                50.0,
+            ),
+        ] {
+            let native = AnalyticDigitalEngine.price_with_greeks(&option, &context, request)?;
+            assert_eq!(native.status(Greek::Vega), GreekStatus::StencilUnavailable);
+            let result = AnalyticDigitalEngine.price_with_greeks_with_settings(
+                &option,
+                &context,
+                request,
+                NumericalShiftSettings {
+                    volatility_shift: 0.000_01,
+                    ..Default::default()
+                },
+            )?;
+            assert_eq!(result.price(), native.price());
+            for greek in [Greek::Delta, Greek::Gamma] {
+                assert_eq!(result.require(greek)?, native.require(greek)?);
+            }
+            let sign = if direction == OptionType::Call {
+                1.0
+            } else {
+                -1.0
+            };
+            let expected = sign * weight * (-0.5 * 0.000_025_f64.powi(2)).exp()
+                / (2.0 * std::f64::consts::PI).sqrt();
+            assert!((result.require(Greek::Vega)? - expected).abs() < 1e-7);
+            assert_eq!(result.status(Greek::Rho), GreekStatus::NotRequested);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn digital_fallback_controls_validate_even_for_native_and_terminal_requests() -> Result<()> {
+    let (start, end) = dates();
+    let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    for at in [start, end] {
+        let context = market(110.0, 0.0, 0.0, 0.2).replace(PricingContextChanges {
+            valuation_time: Some(at),
+            ..Default::default()
+        })?;
+        for shifts in [
+            NumericalShiftSettings {
+                spot_shift: Some(0.0),
+                ..Default::default()
+            },
+            NumericalShiftSettings {
+                volatility_shift: f64::NAN,
+                ..Default::default()
+            },
+            NumericalShiftSettings {
+                rate_shift: -0.1,
+                ..Default::default()
+            },
+            NumericalShiftSettings {
+                time_shift: Some(std::time::Duration::from_nanos(1)),
+                ..Default::default()
+            },
+        ] {
+            assert!(matches!(
+                AnalyticDigitalEngine.price_with_greeks_with_settings(
+                    &option,
+                    &context,
+                    GreeksRequest::new([Greek::Delta]),
+                    shifts,
+                ),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn cash_and_asset_prices_match_independent_quantlib_values() {
     let (start, end) = dates();
     let context = market(100.0, 0.05, 0.02, 0.2);

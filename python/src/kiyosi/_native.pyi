@@ -1796,6 +1796,11 @@ class AnalyticDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
     ) -> PricingResult:
         """Returns the price and selected sensitivities.
 
@@ -1807,6 +1812,13 @@ class AnalyticDigitalEngine:
             Market snapshot and valuation instant.
         greeks : str or iterable of str
             Greek names or "all" to request every measure; duplicates are ignored.
+        spot_shift : float or None, optional
+            Positive absolute spot bump, or None for automatic selection.
+        volatility_shift, rate_shift : float, optional
+            Positive decimal bumps for numerical fallback Greeks; defaults to 0.0001.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond time bump, or None for automatic selection.
+            Positive-volatility analytic delta and gamma retain their estimator before expiry.
 
         Returns
         -------
@@ -1827,8 +1839,8 @@ class AnalyticDigitalEngine:
         -----
         Delta and gamma are analytic at positive volatility before expiry.
         At zero volatility they use scalar differences. Other Greeks use numerical
-        differences with engine defaults. At expiry spot Greeks use default
-        terminal-payoff stencils. Use numerical_greeks for configurable scalar differences.
+        differences with the supplied shifts. At expiry spot Greeks use the supplied
+        terminal-payoff stencils. Use numerical_greeks for scalar-only differences.
 
         See Also
         --------

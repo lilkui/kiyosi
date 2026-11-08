@@ -559,6 +559,13 @@ class PackageTests(unittest.TestCase):
                                 "MonteCarloBarrierEngine",
                                 "MonteCarloDoubleBarrierEngine",
                             )
+                            else (
+                                "spot_shift",
+                                "volatility_shift",
+                                "rate_shift",
+                                "time_shift",
+                            )
+                            if name == "AnalyticDigitalEngine"
                             else ()
                         ),
                     ),

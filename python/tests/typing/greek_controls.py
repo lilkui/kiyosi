@@ -4,9 +4,15 @@ from datetime import timedelta
 from typing import assert_type
 
 from kiyosi import PricingResult
-from kiyosi.instruments import BarrierOption, DoubleBarrierOption, EuropeanOption
+from kiyosi.instruments import (
+    BarrierOption,
+    CashOrNothingOption,
+    DoubleBarrierOption,
+    EuropeanOption,
+)
 from kiyosi.market import PricingContext
 from kiyosi.pricing import (
+    AnalyticDigitalEngine,
     AnalyticEuropeanEngine,
     AnalyticHestonEuropeanEngine,
     CoxRossRubinsteinVanillaEngine,
@@ -67,11 +73,21 @@ def fd_configured_shifts(option: EuropeanOption, context: PricingContext) -> Non
     engine = FiniteDifferenceVanillaEngine(
         volatility_shift=0.00001, rate_shift=0.0002, time_shift=timedelta(seconds=60)
     )
+
     assert_type(engine.volatility_shift, float)
     assert_type(engine.rate_shift, float)
     assert_type(engine.time_shift, timedelta | None)
     assert_type(
         engine.price_with_greeks(option, context, ["delta", "vega"]), PricingResult
+    )
+
+
+def mixed_digital_shifts(option: CashOrNothingOption, context: PricingContext) -> None:
+    assert_type(
+        AnalyticDigitalEngine().price_with_greeks(
+            option, context, ["delta", "gamma", "vega"], volatility_shift=0.00001
+        ),
+        PricingResult,
     )
 
 
