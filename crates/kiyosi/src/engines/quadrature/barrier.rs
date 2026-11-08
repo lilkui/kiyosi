@@ -110,6 +110,7 @@ impl QuadratureBarrierEngine {
     /// [`Error::InvalidInput`] outside life, for impossible history,
     /// or outside required curve coverage. Unrepresentable grids,
     /// transitions or results return [`Error::ComputationFailure`].
+    /// Exhausted at-hit rebate integration returns [`Error::NonConvergence`].
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         price(option, context, self.settings, None)

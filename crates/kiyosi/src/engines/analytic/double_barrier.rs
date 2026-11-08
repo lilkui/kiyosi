@@ -2,7 +2,9 @@ use crate::DoubleBarrierOption;
 use crate::Timestamp;
 use crate::engines::analytic::barrier::resolved_price_with_state;
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf};
+use crate::numerics::{
+    Sum, adaptive_simpson, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf,
+};
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, ObservationMode, OptionType, PricingContext,
     PricingEngine, PricingResult, RebateTiming, Result,
@@ -491,7 +493,7 @@ impl AbsorbingDistribution {
             let evaluate =
                 |u: f64| Ok((self.log_exit_density(left, width * u, rate)? - scale).exp());
             let values = logs.map(|value| (value - scale).exp());
-            let integral = integrate_exit(
+            let integral = adaptive_simpson(
                 &evaluate,
                 [0.0, 1.0],
                 values,
@@ -506,53 +508,6 @@ impl AbsorbingDistribution {
         }
         checked(result.total())
     }
-}
-#[expect(
-    clippy::float_cmp,
-    reason = "Exact equality detects when subdivision cannot produce a distinct floating-point midpoint."
-)]
-fn integrate_exit(
-    evaluate: &impl Fn(f64) -> Result<f64>,
-    [left, right]: [f64; 2],
-    values: [f64; 3],
-    estimate: f64,
-    tolerance: f64,
-    depth: u32,
-) -> Result<f64> {
-    let center = left + (right - left) / 2.0;
-    let low = evaluate(left + (center - left) / 2.0)?;
-    let high = evaluate(center + (right - center) / 2.0)?;
-    let first = (center - left) * (values[0] + 4.0 * low + values[1]) / 6.0;
-    let second = (right - center) * (values[1] + 4.0 * high + values[2]) / 6.0;
-    let refined = first + second;
-    if !refined.is_finite() {
-        return Err(Error::ComputationFailure(
-            "double-barrier first-exit integral is not representable".into(),
-        ));
-    }
-    if (refined - estimate).abs() <= 15.0 * tolerance || center == left || center == right {
-        return Ok(refined + (refined - estimate) / 15.0);
-    }
-    if depth == 0 {
-        return Err(Error::NonConvergence(
-            "double-barrier first-exit integral did not converge".into(),
-        ));
-    }
-    Ok(integrate_exit(
-        evaluate,
-        [left, center],
-        [values[0], low, values[1]],
-        first,
-        tolerance / 2.0,
-        depth - 1,
-    )? + integrate_exit(
-        evaluate,
-        [center, right],
-        [values[1], high, values[2]],
-        second,
-        tolerance / 2.0,
-        depth - 1,
-    )?)
 }
 fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
     let density = AbsorbingDistribution::new(
@@ -619,36 +574,6 @@ pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn first_exit_integral_exhaustion_reports_non_convergence() {
-        let evaluate = |x: f64| Ok(x.powi(4));
-        let error = integrate_exit(
-            &evaluate,
-            [0.0, 1.0],
-            [0.0, 0.0625, 1.0],
-            1.25 / 6.0,
-            1e-12,
-            0,
-        )
-        .unwrap_err();
-        assert!(matches!(error, Error::NonConvergence(_)));
-    }
-
-    #[test]
-    fn first_exit_integral_preserves_evaluation_failure() {
-        let evaluate = |_: f64| checked(f64::INFINITY);
-        let error = integrate_exit(&evaluate, [0.0, 1.0], [0.0; 3], 0.0, 1e-12, 0).unwrap_err();
-        assert!(matches!(error, Error::ComputationFailure(_)));
-    }
-
-    #[test]
-    fn non_finite_first_exit_integral_is_computation_failure() {
-        let evaluate = |_: f64| Ok(f64::MAX);
-        let error =
-            integrate_exit(&evaluate, [0.0, 1.0], [f64::MAX; 3], 0.0, 1e-12, 0).unwrap_err();
-        assert!(matches!(error, Error::ComputationFailure(_)));
-    }
 
     #[test]
     fn unrepresentable_double_barrier_transition_is_computation_failure() {

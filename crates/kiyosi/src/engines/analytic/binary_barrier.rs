@@ -29,6 +29,7 @@ impl AnalyticBinaryBarrierEngine {
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
     /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
     /// Non-finite results return [`crate::Error::ComputationFailure`].
+    /// Exhausted at-hit payment integration returns [`crate::Error::NonConvergence`].
     ///
     /// # Examples
     ///

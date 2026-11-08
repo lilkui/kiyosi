@@ -5,6 +5,54 @@ use crate::{Error, Result};
 const INF: f64 = f64::INFINITY;
 const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact equality detects when subdivision cannot produce a distinct floating-point midpoint."
+)]
+pub(crate) fn adaptive_simpson(
+    evaluate: &impl Fn(f64) -> Result<f64>,
+    [left, right]: [f64; 2],
+    values: [f64; 3],
+    estimate: f64,
+    tolerance: f64,
+    depth: u32,
+) -> Result<f64> {
+    let center = left + (right - left) / 2.0;
+    let low = evaluate(left + (center - left) / 2.0)?;
+    let high = evaluate(center + (right - center) / 2.0)?;
+    let first = (center - left) * (values[0] + 4.0 * low + values[1]) / 6.0;
+    let second = (right - center) * (values[1] + 4.0 * high + values[2]) / 6.0;
+    let refined = first + second;
+    if !refined.is_finite() {
+        return Err(Error::ComputationFailure(
+            "barrier first-exit integral is not representable".into(),
+        ));
+    }
+    if (refined - estimate).abs() <= 15.0 * tolerance || center == left || center == right {
+        return Ok(refined + (refined - estimate) / 15.0);
+    }
+    if depth == 0 {
+        return Err(Error::NonConvergence(
+            "barrier first-exit integral did not converge".into(),
+        ));
+    }
+    Ok(adaptive_simpson(
+        evaluate,
+        [left, center],
+        [values[0], low, values[1]],
+        first,
+        tolerance / 2.0,
+        depth - 1,
+    )? + adaptive_simpson(
+        evaluate,
+        [center, right],
+        [values[1], high, values[2]],
+        second,
+        tolerance / 2.0,
+        depth - 1,
+    )?)
+}
+
 pub(crate) fn checked(value: f64) -> Result<f64> {
     checked_with_scale(value, 0.0)
 }
@@ -148,6 +196,54 @@ pub(crate) fn log_interval_mass(lower: f64, upper: f64) -> f64 {
         log_normal_cdf(lower)
     };
     high + (-(low - high).exp_m1()).ln()
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+
+    #[test]
+    fn first_exit_integral_meets_accuracy_with_sufficient_depth() {
+        let value = adaptive_simpson(
+            &|x: f64| Ok(x.powi(6)),
+            [0.0, 1.0],
+            [0.0, 0.015_625, 1.0],
+            1.0625 / 6.0,
+            1e-12,
+            20,
+        )
+        .unwrap();
+        assert!((value - 1.0 / 7.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn first_exit_integral_exhaustion_reports_non_convergence() {
+        let error = adaptive_simpson(
+            &|x: f64| Ok(x.powi(6)),
+            [0.0, 1.0],
+            [0.0, 0.015_625, 1.0],
+            1.0625 / 6.0,
+            1e-12,
+            0,
+        )
+        .unwrap_err();
+        assert!(matches!(error, Error::NonConvergence(_)));
+    }
+
+    #[test]
+    fn first_exit_integral_preserves_evaluation_failure() {
+        let evaluate = |_: f64| checked(f64::INFINITY);
+        let error = adaptive_simpson(&evaluate, [0.0, 1.0], [0.0; 3], 0.0, 1e-12, 0).unwrap_err();
+        assert!(matches!(error, Error::ComputationFailure(_)));
+    }
+
+    #[test]
+    fn non_finite_first_exit_integral_is_computation_failure() {
+        let evaluate = |_: f64| Ok(f64::MAX);
+        let error =
+            adaptive_simpson(&evaluate, [0.0, 1.0], [f64::MAX; 3], 0.0, 1e-12, 0).unwrap_err();
+        assert!(matches!(error, Error::ComputationFailure(_)));
+    }
 }
 
 #[cfg(test)]

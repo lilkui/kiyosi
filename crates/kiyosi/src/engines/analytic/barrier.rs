@@ -1,6 +1,6 @@
 use crate::instruments::monitoring::{Monitoring, validate_life};
 use crate::numerics::{
-    checked, checked_with_scale, log_ratio, scaled_cash, scaled_cdf, standardize,
+    adaptive_simpson, checked, checked_with_scale, log_ratio, scaled_cash, scaled_cdf, standardize,
 };
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, OptionType, PricingContext, PricingEngine,
@@ -36,6 +36,7 @@ impl AnalyticBarrierEngine {
     /// schedules. Returns [`Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
     /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
     /// Only rounding-sized negative prices are clipped to zero.
+    /// Exhausted at-hit rebate integration returns [`Error::NonConvergence`].
     ///
     /// # Examples
     ///
@@ -435,14 +436,14 @@ fn integrated_hit_value(
             density(right),
         ];
         let estimate = (right - left) * (samples[0] + 4.0 * samples[1] + samples[2]) / 6.0;
-        integral += integrate(
-            &density,
+        integral += adaptive_simpson(
+            &|value| Ok(density(value)),
             [left, right],
             samples,
             estimate,
             1e-13 * (right - left) / (upper - lower).max(1.0),
             20,
-        );
+        )?;
         left = right;
     }
     if integral == 0.0 {
@@ -452,39 +453,6 @@ fn integrated_hit_value(
         amount,
         peak + (2.0 / std::f64::consts::PI).sqrt().ln() + integral.ln(),
     ))
-}
-fn integrate(
-    density: &impl Fn(f64) -> f64,
-    [left, right]: [f64; 2],
-    samples: [f64; 3],
-    estimate: f64,
-    tolerance: f64,
-    depth: u32,
-) -> f64 {
-    let center = left + (right - left) / 2.0;
-    let low = density(left + (center - left) / 2.0);
-    let high = density(center + (right - center) / 2.0);
-    let first = (center - left) * (samples[0] + 4.0 * low + samples[1]) / 6.0;
-    let last = (right - center) * (samples[1] + 4.0 * high + samples[2]) / 6.0;
-    let refined = first + last;
-    if depth == 0 || (refined - estimate).abs() <= 15.0 * tolerance {
-        return refined + (refined - estimate) / 15.0;
-    }
-    integrate(
-        density,
-        [left, center],
-        [samples[0], low, samples[1]],
-        first,
-        tolerance / 2.0,
-        depth - 1,
-    ) + integrate(
-        density,
-        [center, right],
-        [samples[1], high, samples[2]],
-        last,
-        tolerance / 2.0,
-        depth - 1,
-    )
 }
 
 pub(crate) fn analytic_log_shift(option: &Monitoring, spot: f64, sigma: f64) -> Result<f64> {
