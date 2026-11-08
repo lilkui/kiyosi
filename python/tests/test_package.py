@@ -17,6 +17,53 @@ from support.history import dated as dated_history
 
 
 class PackageTests(unittest.TestCase):
+    def test_engine_replacement_preserves_controls_and_validates_inputs(self):
+        for name in pricing.__all__:
+            if not name.endswith("Engine"):
+                continue
+            factory = getattr(pricing, name)
+            original = factory()
+            controls = {}
+            for field in inspect.signature(factory).parameters:
+                value = getattr(original, field)
+                if field == "time_shift":
+                    alternate = timedelta(seconds=1)
+                elif field == "seed":
+                    alternate = 42
+                elif value is None:
+                    alternate = 1000.0
+                elif isinstance(value, bool):
+                    alternate = not value
+                elif isinstance(value, str):
+                    alternate = {"scheme": "implicit_euler", "sampling": "sobol"}[field]
+                else:
+                    alternate = value * 2 if value else 1
+                controls[field] = alternate
+            configured = factory(**controls)
+            with self.subTest(engine=name):
+                self.assertEqual(configured.replace(), configured)
+                with self.assertRaises(TypeError):
+                    configured.replace(unknown=Ellipsis)
+                if not controls:
+                    continue
+                field = next(iter(controls))
+                self.assertEqual(configured.replace(**{field: Ellipsis}), configured)
+                updated = configured.replace(**{field: getattr(original, field)})
+                expected = controls | {field: getattr(original, field)}
+                self.assertEqual(updated, factory(**expected))
+                self.assertEqual(configured, factory(**controls))
+                with self.assertRaises(TypeError):
+                    configured.replace(**{field: None})
+                with self.assertRaises(kiyosi.InvalidInputError):
+                    configured.replace(**{field: -1})
+                self.assertEqual(pickle.loads(pickle.dumps(updated)), updated)
+                for nullable in controls:
+                    if getattr(original, nullable) is None:
+                        cleared = configured.replace(**{nullable: None})
+                        self.assertEqual(
+                            cleared, factory(**(controls | {nullable: None}))
+                        )
+
     def test_engines_compare_by_type_and_configuration(self):
         factories = [
             getattr(pricing, name)

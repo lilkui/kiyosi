@@ -67,6 +67,9 @@ engine with a concrete seed. Existing seeds and all other controls are preserved
 Save or pickle that returned engine to replay draws within the same build;
 ``seed=None`` selects fresh entropy per request.
 
+Engine ``replace()`` methods return validated independent engines and preserve
+omitted controls. Explicit None clears nullable controls; Ellipsis retains them.
+
 Every Monte Carlo engine exposes ``price_with_statistics`` for its supported
 contracts; vanilla statistics require European options. It returns the same
 seeded price as ``price`` and also computes and validates sampling uncertainty.

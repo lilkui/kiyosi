@@ -1398,6 +1398,12 @@ class AnalyticEuropeanEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: EuropeanOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -1514,6 +1520,18 @@ class AnalyticHestonEuropeanEngine:
         relative_tolerance: _Real = ...,
         max_evaluations: SupportsIndex = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        absolute_tolerance: _Real | EllipsisType = ...,
+        relative_tolerance: _Real | EllipsisType = ...,
+        max_evaluations: SupportsIndex | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def absolute_tolerance(self) -> float:
         """Return the absolute tolerance in price units."""
@@ -1627,6 +1645,12 @@ class BjerksundStenslandVanillaEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: AmericanOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -1716,6 +1740,12 @@ class AnalyticDigitalEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self,
         instrument: CashOrNothingOption | AssetOrNothingOption,
@@ -1828,6 +1858,12 @@ class CoxRossRubinsteinBarrierEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
+    def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def step_count(self) -> int:
         """Return the configured number of binomial time steps."""
@@ -1941,6 +1977,17 @@ class QuadratureBarrierEngine:
         asset_step_count: SupportsIndex = ...,
         integration_standard_deviations: _Real = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        integration_standard_deviations: _Real | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Returns the configured number of spatial intervals."""
@@ -2065,6 +2112,17 @@ class QuadratureDigitalEngine:
         asset_step_count: SupportsIndex = ...,
         integration_standard_deviations: _Real = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        integration_standard_deviations: _Real | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Returns the configured number of spatial intervals."""
@@ -2202,6 +2260,18 @@ class QuadratureVanillaEngine:
         time_step_count: SupportsIndex = ...,
         integration_standard_deviations: _Real = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        integration_standard_deviations: _Real | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Returns the configured number of spatial intervals."""
@@ -2314,6 +2384,12 @@ class CoxRossRubinsteinVanillaEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
+    def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def step_count(self) -> int:
         """Return the configured number of binomial time steps."""
@@ -2425,6 +2501,12 @@ class CoxRossRubinsteinDigitalEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
+    def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def step_count(self) -> int:
         """Return the configured number of binomial time steps."""
@@ -2584,6 +2666,23 @@ class FiniteDifferenceAccumulatorEngine:
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of spatial intervals."""
@@ -2766,6 +2865,23 @@ class FiniteDifferenceBarrierEngine:
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of spatial intervals."""
@@ -2948,6 +3064,23 @@ class FiniteDifferenceDoubleBarrierEngine:
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of spatial intervals."""
@@ -3130,6 +3263,23 @@ class FiniteDifferenceAutocallableEngine:
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of spatial intervals."""
@@ -3332,6 +3482,23 @@ class FiniteDifferenceDoubleTouchEngine:
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of spatial intervals."""
@@ -3514,6 +3681,23 @@ class FiniteDifferenceBinaryBarrierEngine:
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of spatial intervals."""
@@ -3679,6 +3863,20 @@ class FiniteDifferenceHestonVanillaEngine:
         asset_upper_boundary: _Real | None = None,
         variance_upper_boundary: _Real | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        variance_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        variance_upper_boundary: _Real | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of asset intervals."""
@@ -3850,6 +4048,23 @@ class FiniteDifferenceVanillaEngine:
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of spatial intervals."""
@@ -4034,6 +4249,23 @@ class FiniteDifferenceDigitalEngine:
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Return the configured number of spatial intervals."""
@@ -4221,6 +4453,21 @@ class MonteCarloVanillaEngine:
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        path_count: SupportsIndex | EllipsisType = ...,
+        step_count: SupportsIndex | EllipsisType = ...,
+        seed: SupportsIndex | None | EllipsisType = ...,
+        thread_count: SupportsIndex | EllipsisType = ...,
+        sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
+        antithetic: bool | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def path_count(self) -> int:
         """Return the exact number of sampled paths."""
@@ -4446,6 +4693,20 @@ class MonteCarloDigitalEngine:
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        path_count: SupportsIndex | EllipsisType = ...,
+        seed: SupportsIndex | None | EllipsisType = ...,
+        thread_count: SupportsIndex | EllipsisType = ...,
+        sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
+        antithetic: bool | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def path_count(self) -> int:
         """Return the exact number of sampled paths."""
@@ -4646,6 +4907,20 @@ class MonteCarloBarrierEngine:
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        path_count: SupportsIndex | EllipsisType = ...,
+        seed: SupportsIndex | None | EllipsisType = ...,
+        thread_count: SupportsIndex | EllipsisType = ...,
+        sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
+        antithetic: bool | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def path_count(self) -> int:
         """Return the exact number of sampled paths."""
@@ -4842,6 +5117,20 @@ class MonteCarloDoubleBarrierEngine:
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        path_count: SupportsIndex | EllipsisType = ...,
+        seed: SupportsIndex | None | EllipsisType = ...,
+        thread_count: SupportsIndex | EllipsisType = ...,
+        sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
+        antithetic: bool | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def path_count(self) -> int:
         """Return the exact number of sampled paths."""
@@ -5040,6 +5329,20 @@ class MonteCarloAutocallableEngine:
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        path_count: SupportsIndex | EllipsisType = ...,
+        seed: SupportsIndex | None | EllipsisType = ...,
+        thread_count: SupportsIndex | EllipsisType = ...,
+        sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
+        antithetic: bool | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def path_count(self) -> int:
         """Return the exact number of sampled paths."""
@@ -5254,6 +5557,20 @@ class MonteCarloAccumulatorEngine:
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        path_count: SupportsIndex | EllipsisType = ...,
+        seed: SupportsIndex | None | EllipsisType = ...,
+        thread_count: SupportsIndex | EllipsisType = ...,
+        sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
+        antithetic: bool | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def path_count(self) -> int:
         """Return the exact number of sampled paths."""
@@ -5449,6 +5766,21 @@ class MonteCarloAsianEngine:
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        path_count: SupportsIndex | EllipsisType = ...,
+        step_count: SupportsIndex | EllipsisType = ...,
+        seed: SupportsIndex | None | EllipsisType = ...,
+        thread_count: SupportsIndex | EllipsisType = ...,
+        sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
+        antithetic: bool | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def path_count(self) -> int:
         """Return the exact number of sampled paths."""
@@ -7390,6 +7722,12 @@ class AnalyticGeometricAveragePriceEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: GeometricAveragePriceOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -7629,6 +7967,12 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: ArithmeticAveragePriceOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -7944,6 +8288,12 @@ class AnalyticBarrierEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: BarrierOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -8448,6 +8798,12 @@ class AnalyticRangeAccrualEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: RangeAccrualOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -8538,6 +8894,12 @@ class AnalyticDoubleBarrierEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: DoubleBarrierOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -8638,6 +9000,12 @@ class AnalyticDoubleTouchEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: DoubleTouchOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -9439,6 +9807,12 @@ class AnalyticBinaryBarrierEngine:
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
+    def replace(self) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     def greek_method(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
     ) -> _pricing.GreekMethod:
@@ -9878,6 +10252,17 @@ class QuadratureAutocallableEngine:
         asset_step_count: SupportsIndex = ...,
         integration_standard_deviations: _Real = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        integration_standard_deviations: _Real | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Returns the configured number of spatial intervals."""
@@ -12148,6 +12533,17 @@ class QuadratureAccumulatorEngine:
         asset_step_count: SupportsIndex = ...,
         integration_standard_deviations: _Real = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        integration_standard_deviations: _Real | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure."""
+
     @property
     def asset_step_count(self) -> int:
         """Returns the configured number of spatial intervals."""

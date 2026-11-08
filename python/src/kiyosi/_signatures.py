@@ -1,7 +1,7 @@
 """Expose Rust-derived defaults through Python signature introspection."""
 
 from functools import wraps
-from inspect import Signature, isbuiltin, isclass, signature
+from inspect import Parameter, Signature, isbuiltin, isclass, signature
 from types import ModuleType
 from typing import Any
 
@@ -32,6 +32,35 @@ def _wrap(callable: Any, defaults: dict[str, Any]) -> Any:
     return call
 
 
+def _engine_replacement(factory: Any) -> Any:
+    constructor = signature(factory)
+
+    def replace(self: Any, **changes: Any) -> Any:
+        """Return a validated engine; omitted controls or Ellipsis retain their values.
+
+        Explicit None clears nullable controls. Constructor validation applies to
+        supplied controls, and the original engine is preserved on success and failure.
+        """
+        constructor.bind_partial(**changes)
+        controls = {name: getattr(self, name) for name in constructor.parameters}
+        controls.update(
+            (name, value) for name, value in changes.items() if value is not Ellipsis
+        )
+        return factory(**controls)
+
+    replace.__dict__["__signature__"] = constructor.replace(
+        parameters=[
+            Parameter("self", Parameter.POSITIONAL_OR_KEYWORD),
+            *(
+                parameter.replace(default=Ellipsis)
+                for parameter in constructor.parameters.values()
+            ),
+        ],
+        return_annotation=factory,
+    )
+    return replace
+
+
 def install(native: ModuleType) -> None:
     defaults = dict(native._signature_defaults)
     defaults["calendar"] = native.weekdays_calendar()
@@ -58,5 +87,7 @@ def install(native: ModuleType) -> None:
             resolved = _signature(value, constructor_defaults)
             if resolved != original:
                 value.__signature__ = resolved
+            if name.endswith("Engine"):
+                value.replace = _engine_replacement(value)
         elif isbuiltin(value):
             setattr(native, name, _wrap(value, solvers.get(name, defaults)))

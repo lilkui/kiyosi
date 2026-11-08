@@ -73,3 +73,12 @@ def fd_configured_shifts(option: EuropeanOption, context: PricingContext) -> Non
     assert_type(
         engine.price_with_greeks(option, context, ["delta", "vega"]), PricingResult
     )
+
+
+def engine_replacement_types() -> None:
+    engine = MonteCarloVanillaEngine(seed=42)
+    assert_type(engine.replace(path_count=4096), MonteCarloVanillaEngine)
+    assert_type(engine.replace(seed=None), MonteCarloVanillaEngine)
+    assert_type(engine.replace(path_count=...), MonteCarloVanillaEngine)
+    engine.replace(path_count=None)  # ty: ignore[invalid-argument-type]
+    engine.replace(unknown=1)  # ty: ignore[unknown-argument]
