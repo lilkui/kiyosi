@@ -3,7 +3,7 @@ use crate::conversions::{integer, integer_index, python_timestamp, timestamp};
 use crate::error::domain;
 use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyList, PySlice};
+use pyo3::types::{PyBool, PySlice};
 
 /// Ordered observation times with sequence access.
 ///
@@ -30,9 +30,9 @@ use pyo3::types::{PyBool, PyList, PySlice};
 /// its times and calendar. Empty schedules are valid. The times property returns a
 /// copy; iteration retains the schedule owner. Integer indexing accepts
 /// negative indices, rejects bool, and raises IndexError outside the sequence.
-/// Slices return owned lists of timestamps, including reversed slices. Slice
-/// bounds and steps accept integers excluding bool; a zero step raises
-/// ValueError. len(schedule) counts observations.
+/// Slices return independent schedules with the same calendar. Decreasing
+/// selections raise InvalidInputError. Slice bounds and steps accept integers
+/// excluding bool; a zero step raises ValueError. len(schedule) counts observations.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -88,16 +88,22 @@ impl ObservationSchedule {
             let length = isize::try_from(self.0.len())
                 .map_err(|_| PyOverflowError::new_err("schedule is too long to slice"))?;
             let indices = slice.indices(length)?;
-            let result = PyList::empty(py);
+            let mut times = Vec::new();
             let mut position = indices.start;
             for _ in 0..indices.slicelength {
-                result.append(python_timestamp(
-                    py,
-                    self.0.times()[position.unsigned_abs()],
-                )?)?;
+                times.push(self.0.times()[position.unsigned_abs()]);
                 position = position.saturating_add(indices.step);
             }
-            return Ok(result.into_any());
+            let result = match self.0.times().first().zip(self.0.times().last()) {
+                Some((&start, &end)) => domain(kiyosi::ObservationSchedule::new(
+                    times,
+                    start,
+                    end,
+                    self.0.calendar(),
+                ))?,
+                None => self.0.clone(),
+            };
+            return Ok(Py::new(py, Self(result))?.into_bound(py).into_any());
         }
         let index = integer_index(index)?;
         let index = index.extract::<isize>().map_err(|error| {

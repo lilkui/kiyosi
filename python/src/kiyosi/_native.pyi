@@ -1321,9 +1321,9 @@ class ObservationSchedule:
     its times and calendar. Empty schedules are valid. The times property returns a
     copy; iteration retains the schedule owner. Integer indexing accepts
     negative indices, rejects bool, and raises IndexError outside the sequence.
-    Slices return owned lists of timestamps, including reversed slices. Slice
-    bounds and steps accept integers excluding bool; a zero step raises
-    ValueError. len(schedule) counts observations.
+    Slices return independent schedules with the same calendar. Decreasing
+    selections raise InvalidInputError. Slice bounds and steps accept integers
+    excluding bool; a zero step raises ValueError. len(schedule) counts observations.
     """
 
     def __init__(
@@ -1346,7 +1346,7 @@ class ObservationSchedule:
     @overload
     def __getitem__(self, index: SupportsIndex) -> datetime: ...
     @overload
-    def __getitem__(self, index: slice) -> list[datetime]: ...
+    def __getitem__(self, index: slice) -> ObservationSchedule: ...
     def __iter__(self) -> Iterator[datetime]: ...
 
 def fixed_interval_schedule(

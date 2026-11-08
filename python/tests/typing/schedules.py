@@ -30,7 +30,7 @@ def explicit_schedule() -> None:
     assert_type(schedule.calendar, TradingCalendar)
     assert_type(schedule.times, tuple[datetime, ...])
     assert_type(schedule[0], datetime)
-    assert_type(schedule[::-1], list[datetime])
+    assert_type(schedule[:], ObservationSchedule)
 
 
 def contractual_schedules(

@@ -402,7 +402,7 @@ class CalendarTests(unittest.TestCase):
                 _ = schedule[index]
         self.assertEqual(list(schedule), [datetime(2025, 1, i) for i in range(2, 6)])
 
-    def test_schedule_slices_follow_sequence_semantics_and_own_their_results(self):
+    def test_schedule_slices_preserve_order_calendar_and_ownership(self):
         schedule = fixed_interval_schedule(
             observation_clock_time=clock_time(),
             start_time=datetime(2025, 1, 1),
@@ -414,19 +414,25 @@ class CalendarTests(unittest.TestCase):
         for selection in (
             slice(None),
             slice(1, 3),
-            slice(None, None, -1),
             slice(-3, None, 2),
             slice(3, 1),
             slice(-(10**100), 10**100),
             slice(None, None, 10**100),
-            slice(None, None, -(10**100)),
         ):
             with self.subTest(selection=selection):
-                self.assertEqual(schedule[selection], expected[selection])
+                result = schedule[selection]
+                self.assertIsInstance(result, ObservationSchedule)
+                self.assertEqual(list(result), expected[selection])
+                self.assertEqual(result.calendar, schedule.calendar)
         result = schedule[:]
-        result.clear()
+        self.assertIsNot(result, schedule)
+        del result
         self.assertEqual(list(schedule), expected)
-        self.assertEqual(schedule[0:0], [])
+        self.assertEqual(list(schedule[0:0]), [])
+        self.assertEqual(list(schedule[0:0][:]), [])
+        self.assertEqual(list(schedule[:: -(10**100)]), expected[:: -(10**100)])
+        with self.assertRaises(InvalidInputError):
+            _ = schedule[::-1]
         with self.assertRaises(ValueError):
             _ = schedule[::0]
         for selection in (
@@ -437,6 +443,30 @@ class CalendarTests(unittest.TestCase):
         ):
             with self.subTest(selection=selection), self.assertRaises(TypeError):
                 _ = schedule[selection]
+
+    def test_sliced_schedule_preserves_snowball_monitoring_dates(self):
+        from kiyosi.instruments import standard_snowball
+
+        start, end = datetime(2025, 1, 3), datetime(2025, 1, 10)
+        closed = date(2025, 1, 6)
+        calendar = custom_calendar(base=weekdays_calendar(), closed_dates=[closed])
+        schedule = ObservationSchedule(
+            times=[end], start_time=start, end_time=end, calendar=calendar
+        )
+        note = standard_snowball(
+            coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=80,
+            knock_out_level=110,
+            effective_time=start,
+            expiry_time=end,
+            observation_clock_time=clock_time(15),
+            observation_times=schedule[:],
+        )
+        self.assertEqual(note.calendar, calendar)
+        self.assertNotIn(
+            closed, [at.date() for at in note.knock_in_observation_schedule]
+        )
 
     def test_validation_errors_and_order(self):
         start, end = datetime(2025, 1, 1), datetime(2025, 2, 1)
