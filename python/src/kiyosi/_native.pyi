@@ -1854,8 +1854,8 @@ class AnalyticHestonEuropeanEngine:
 
         Notes
         -----
-        All requested Greeks are unsupported and are None. Bump controls are not
-        accepted; numerical_greeks also rejects Heston.
+        All requested Greeks are unsupported and are None. Bump controls are
+        validated but unused; numerical_greeks rejects Heston.
         """
 
 class BjerksundStenslandVanillaEngine:
@@ -5257,8 +5257,8 @@ class FiniteDifferenceHestonVanillaEngine:
 
         Notes
         -----
-        All requested Greeks are unsupported and are None. Bump controls are not
-        accepted; numerical_greeks also rejects Heston.
+        All requested Greeks are unsupported and are None. Bump controls are
+        validated but unused; numerical_greeks rejects Heston.
         """
 
 class FiniteDifferenceVanillaEngine:
