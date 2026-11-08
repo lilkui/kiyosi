@@ -4,6 +4,29 @@ use support::dated;
 use kiyosi::*;
 
 #[test]
+fn public_intraday_arithmetic_crosses_days_and_checks_supported_bounds() -> Result<()> {
+    let at = Timestamp::new(Date::new(2025, 12, 31)?, 23, 58, 0, 123_456)?;
+    let later = at.add_micros(300_000_000)?;
+    assert_eq!(
+        later,
+        Timestamp::new(Date::new(2026, 1, 1)?, 0, 3, 0, 123_456)?
+    );
+    assert_eq!(later.add_micros(-300_000_000)?, at);
+    assert_eq!(at.add_micros(0)?, at);
+    let leap = Timestamp::new(Date::new(2024, 2, 28)?, 23, 59, 59, 999_999)?;
+    assert_eq!(leap.add_micros(1)?, Date::new(2024, 2, 29)?.start_of_day());
+    assert_eq!(leap.add_micros(1)?.add_micros(-1)?, leap);
+    let first = Date::new(-32767, 1, 1)?.start_of_day();
+    let last = Timestamp::new(Date::new(32767, 12, 31)?, 23, 59, 59, 999_999)?;
+    assert_eq!(first.add_micros(1)?.add_micros(-1)?, first);
+    assert_eq!(last.add_micros(-1)?.add_micros(1)?, last);
+    for (at, shift) in [(first, -1), (last, 1), (at, i64::MIN), (at, i64::MAX)] {
+        assert!(matches!(at.add_micros(shift), Err(Error::InvalidInput(_))));
+    }
+    Ok(())
+}
+
+#[test]
 fn public_day_arithmetic_preserves_clocks_and_checks_bounds() -> Result<()> {
     let leap = Date::new(2024, 2, 28)?;
     assert_eq!(leap.add_days(1)?, Date::new(2024, 2, 29)?);

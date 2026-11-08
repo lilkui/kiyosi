@@ -260,7 +260,28 @@ impl Timestamp {
         end.0 - self.0
     }
 
-    pub(crate) fn add_micros(self, micros: i64) -> Result<Self> {
+    /// Shifts this timestamp by a signed number of microseconds.
+    ///
+    /// Crosses calendar-day boundaries while preserving microsecond precision.
+    /// Negative shifts move backward; zero retains the timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if arithmetic overflows or the result is
+    /// outside the supported years -32767 through 32767. The original is unchanged.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, Timestamp};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let at = Timestamp::new(Date::new(2025, 12, 31)?, 23, 58, 0, 123_456)?;
+    /// let later = at.add_micros(5 * 60 * 1_000_000)?;
+    /// assert_eq!(later, Timestamp::new(Date::new(2026, 1, 1)?, 0, 3, 0, 123_456)?);
+    /// assert_eq!(later.add_micros(-5 * 60 * 1_000_000)?, at);
+    /// # Ok(()) }
+    /// ```
+    pub fn add_micros(self, micros: i64) -> Result<Self> {
         let value = self
             .0
             .checked_add(micros)
