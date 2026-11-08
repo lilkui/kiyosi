@@ -150,16 +150,6 @@ impl FiniteDifferenceSettings {
             time_shift: self.time_shift,
         }
     }
-
-    fn with_greek_shifts(self, shifts: NumericalShiftSettings) -> Self {
-        Self {
-            spot_shift: shifts.spot_shift,
-            volatility_shift: shifts.volatility_shift,
-            rate_shift: shifts.rate_shift,
-            time_shift: shifts.time_shift,
-            ..self
-        }
-    }
 }
 
 fn invalid_grid(message: &'static str) -> Error {
@@ -906,19 +896,13 @@ macro_rules! vanilla_pricing {
                 <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
                 shifts.validate()?;
                 local_volatility::validate_request(context, request)?;
-                let engine = Self {
-                    settings: self.settings.with_greek_shifts(shifts),
-                };
-
-                let settings = engine.settings.greek_shifts();
                 if context.valuation_time() == option.expiry_time() {
-                    settings.validate()?;
                     let supported = if local_volatility::local_model(context).is_some() {
                         GreeksRequest::new([Greek::Delta, Greek::Gamma])
                     } else {
                         GreeksRequest::all()
                     };
-                    let result = PricingResult::new(engine.price(option, context)?)?
+                    let result = PricingResult::new(self.price(option, context)?)?
                         .with_request(request, supported);
                     return crate::risk::analytics::vanilla_expiry_greeks(
                         option.option_type(),
@@ -928,30 +912,29 @@ macro_rules! vanilla_pricing {
                     );
                 }
                 if let Some(model) = local_volatility::local_model(context) {
-                    settings.validate()?;
                     let result = local_volatility::price(
                         option,
                         Payoff::vanilla(option.option_type(), option.strike(), $american),
                         context,
                         model,
-                        engine.settings,
+                        self.settings,
                         request,
                     )?;
                     return crate::risk::numerical::expiry_greeks(
                         option,
                         context,
-                        settings,
+                        shifts,
                         result,
-                        |context| engine.price(option, context),
+                        |context| self.price(option, context),
                     );
                 }
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
                 analysis(
                     option,
                     context,
-                    engine.settings,
+                    self.settings,
                     request,
-                    settings,
+                    shifts,
                     |option, context, settings, request, shifts| {
                         native(
                             option,
@@ -960,7 +943,7 @@ macro_rules! vanilla_pricing {
                             settings,
                             request,
                             shifts,
-                            engine.settings.asset_upper_boundary.is_none(),
+                            self.settings.asset_upper_boundary.is_none(),
                         )
                     },
                 )
@@ -1030,26 +1013,12 @@ impl FiniteDifferenceDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = self.settings.greek_shifts();
-        flat_rates(context)?;
-        let payoff = Payoff::digital(option);
-        analysis(
+        <Self as PricingEngine<DigitalOption>>::price_with_greeks_with_settings(
+            self,
             option,
             context,
-            self.settings,
             request,
-            shifts,
-            |option, context, settings, request, shifts| {
-                native(
-                    option,
-                    payoff,
-                    context,
-                    settings,
-                    request,
-                    shifts,
-                    self.settings.asset_upper_boundary.is_none(),
-                )
-            },
+            self.settings.greek_shifts(),
         )
     }
 }
@@ -1094,10 +1063,24 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
-        shifts.validate()?;
-        let engine = Self {
-            settings: self.settings.with_greek_shifts(shifts),
-        };
-        engine.price_with_greeks(option, context, request)
+        let payoff = Payoff::digital(option);
+        analysis(
+            option,
+            context,
+            self.settings,
+            request,
+            shifts,
+            |option, context, settings, request, shifts| {
+                native(
+                    option,
+                    payoff,
+                    context,
+                    settings,
+                    request,
+                    shifts,
+                    self.settings.asset_upper_boundary.is_none(),
+                )
+            },
+        )
     }
 }

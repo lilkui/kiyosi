@@ -114,11 +114,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         <Self as PricingEngine<AutocallableNote<T>>>::validate_applicability(self, context)?;
-        shifts.validate()?;
-        let engine = Self {
-            settings: self.settings.with_greek_shifts(shifts),
-        };
-        engine.price_with_greeks(option, context, request)
+        analysis(option, context, self.settings, request, shifts, native)
     }
 
     fn volatility_affects_price(

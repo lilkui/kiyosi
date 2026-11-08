@@ -102,11 +102,7 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         <Self as PricingEngine<Accumulator>>::validate_applicability(self, context)?;
-        shifts.validate()?;
-        let engine = Self {
-            settings: self.settings.with_greek_shifts(shifts),
-        };
-        engine.price_with_greeks(option, context, request)
+        analysis(option, context, self.settings, request, shifts, native)
     }
 
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {

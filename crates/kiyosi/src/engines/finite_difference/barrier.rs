@@ -108,11 +108,7 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         <Self as PricingEngine<BarrierOption>>::validate_applicability(self, context)?;
-        shifts.validate()?;
-        let engine = Self {
-            settings: self.settings.with_greek_shifts(shifts),
-        };
-        engine.price_with_greeks(option, context, request)
+        analysis(option, context, self.settings, request, shifts)
     }
 
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
@@ -282,11 +278,7 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         <Self as PricingEngine<DoubleBarrierOption>>::validate_applicability(self, context)?;
-        shifts.validate()?;
-        let engine = Self {
-            settings: self.settings.with_greek_shifts(shifts),
-        };
-        engine.price_with_greeks(option, context, request)
+        analysis(option, context, self.settings, request, shifts)
     }
 
     fn volatility_affects_price(

@@ -123,14 +123,8 @@ macro_rules! binary_pricing {
             ) -> Result<PricingResult> {
                 <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
                 shifts.validate()?;
-                let engine = Self {
-                    settings: self.settings.with_greek_shifts(shifts),
-                };
-
-                let shifts = engine.settings.greek_shifts();
-                shifts.validate()?;
                 local_volatility::validate_request(context, request)?;
-                let mut settings = engine.settings;
+                let mut settings = self.settings;
                 if settings.asset_upper_boundary.is_none()
                     && local_volatility::local_model(context).is_none()
                 {
