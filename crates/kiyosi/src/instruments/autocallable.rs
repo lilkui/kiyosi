@@ -1195,13 +1195,6 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
     }
-    fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
-        context
-            .model_parameters()
-            .as_bsm()
-            .is_ok_and(|model| model.volatility() == 0.0)
-            && self.at_spot_discontinuity(context, 0.0)
-    }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         if self.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
             return false;

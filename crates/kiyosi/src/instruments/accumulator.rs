@@ -612,13 +612,6 @@ impl OptionContract for Accumulator {
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
     }
-    fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
-        context
-            .model_parameters()
-            .as_bsm()
-            .is_ok_and(|model| model.volatility() == 0.0)
-            && self.at_spot_discontinuity(context, 0.0)
-    }
     #[expect(
         clippy::float_cmp,
         reason = "An acceleration factor of exactly one removes the strike discontinuity."
