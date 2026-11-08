@@ -3,12 +3,8 @@ macro_rules! analytic_engine {
         analytic_engine!($(#[$doc])* $engine, $option, |_option, _context| false);
     };
     ($(#[$doc:meta])* $engine:ident, $option:ident, |$contract:ident, $market:ident| $short:expr) => {
-        $(#[$doc])*
-        #[pyclass(frozen, eq, module = "kiyosi._native")]
-        #[derive(PartialEq)]
-        pub(crate) struct $engine;
-        numerical_greeks_methods!(
-            PyRef<'_, $option>,
+        analytic_engine!(
+            $(#[$doc])* $engine, $option, |$contract, $market| $short,
             [
                 ///
                 /// Notes
@@ -16,6 +12,19 @@ macro_rules! analytic_engine {
                 /// Before expiry requested Greeks use scalar numerical differences and the
                 /// engine defaults. Use numerical_greeks for configurable scalar differences.
                 ///
+            ]
+        );
+    };
+    ($(#[$doc:meta])* $engine:ident, $option:ident, |$contract:ident, $market:ident| $short:expr,
+     [$(#[$greeks_doc:meta])*]) => {
+        $(#[$doc])*
+        #[pyclass(frozen, eq, module = "kiyosi._native")]
+        #[derive(PartialEq)]
+        pub(crate) struct $engine;
+        numerical_greeks_methods!(
+            PyRef<'_, $option>,
+            [
+                $(#[$greeks_doc])*
             ],
             engine_methods!(
                 $engine,
