@@ -8,7 +8,7 @@ fn date(month: u32, day: u32) -> Timestamp {
 }
 fn terms() -> PhoenixTerms {
     let mut terms = PhoenixTerms::new(
-        0.365,
+        kiyosi::PhoenixCoupon::Annual(0.365),
         100.0,
         80.0,
         100.0,

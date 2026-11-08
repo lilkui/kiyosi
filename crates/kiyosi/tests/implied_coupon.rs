@@ -297,7 +297,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
     );
 
     let note = PhoenixOption::new(PhoenixTerms::new(
-        0.08,
+        kiyosi::PhoenixCoupon::Annual(0.08),
         100.0,
         80.0,
         100.0,
@@ -788,7 +788,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
     let context = market(70.0, date(4, 1));
     let records = autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[90.0])).unwrap();
     let mut terms = PhoenixTerms::new(
-        0.08,
+        kiyosi::PhoenixCoupon::Annual(0.08),
         100.0,
         80.0,
         100.0,

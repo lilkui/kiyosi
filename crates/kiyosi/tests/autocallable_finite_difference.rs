@@ -106,7 +106,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
             .then_some(ternary.expiry_time.time_of_day());
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut phoenix = PhoenixTerms::new(
-            0.08,
+            kiyosi::PhoenixCoupon::Annual(0.08),
             100.0,
             95.0,
             100.0,
@@ -147,7 +147,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
 fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     let end = date(4, 1);
     let mut terms = PhoenixTerms::new(
-        0.08,
+        kiyosi::PhoenixCoupon::Annual(0.08),
         100.0,
         80.0,
         100.0,
@@ -417,7 +417,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     let start = date(1, 1);
     let end = date(4, 1);
     let mut terms = PhoenixTerms::new(
-        0.08,
+        kiyosi::PhoenixCoupon::Annual(0.08),
         100.0,
         80.0,
         100.0,

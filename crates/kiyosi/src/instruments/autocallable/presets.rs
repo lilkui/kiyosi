@@ -392,7 +392,7 @@ impl PhoenixPresetTerms {
             })
             .collect();
         let mut terms = PhoenixTerms::new(
-            0.0,
+            PhoenixCoupon::PerPeriod(self.coupon_per_period),
             self.initial_spot,
             self.knock_in_level,
             self.knock_in_level,
@@ -402,7 +402,6 @@ impl PhoenixPresetTerms {
             observations,
             None,
         );
-        terms.coupon = PhoenixCoupon::PerPeriod(self.coupon_per_period);
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         terms.barrier_state = self.barrier_state;
         terms.calendar = self.calendar;

@@ -126,7 +126,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         );
     }
     let mut terms = PhoenixTerms::new(
-        -1e308,
+        kiyosi::PhoenixCoupon::Annual(-1e308),
         100.0,
         80.0,
         100.0,
@@ -611,7 +611,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             .then_some(ternary.expiry_time.time_of_day());
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut phoenix = PhoenixTerms::new(
-            0.08,
+            kiyosi::PhoenixCoupon::Annual(0.08),
             100.0,
             95.0,
             100.0,

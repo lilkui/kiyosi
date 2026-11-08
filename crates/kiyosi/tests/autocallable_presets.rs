@@ -47,7 +47,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
             input.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let note = input.expand(preset).unwrap();
             let mut expected = PhoenixTerms::new(
-                0.0,
+                PhoenixCoupon::PerPeriod(coupon),
                 100.0,
                 80.0,
                 80.0,
@@ -63,7 +63,6 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
                 .unwrap(),
                 Some((date(4, 1)).time_of_day()),
             );
-            expected.coupon = PhoenixCoupon::PerPeriod(coupon);
             expected.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
             expected.observation_clock_time = None;
             expected.barrier_state = Some(AutocallableBarrierState::NoEvent);

@@ -1415,7 +1415,7 @@ autocallable_properties! {
             )),
         };
         let mut terms = kiyosi::PhoenixTerms::new(
-            0.0,
+            coupon,
             real(initial_spot)?,
             real(knock_in_level)?,
             real(upper_strike)?,
@@ -1425,7 +1425,6 @@ autocallable_properties! {
             records(observations)?,
             observation_clock_time.map(crate::conversions::clock_time).transpose()?,
         );
-        terms.coupon = coupon;
         terms.knock_in_observation_mode = knock_in_observation_mode;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;

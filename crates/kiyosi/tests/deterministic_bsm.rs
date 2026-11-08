@@ -223,7 +223,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         Some((end).time_of_day())
     ))?);
     note!(PhoenixOption::new(PhoenixTerms::new(
-        0.1,
+        kiyosi::PhoenixCoupon::Annual(0.1),
         100.0,
         80.0,
         100.0,

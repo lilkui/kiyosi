@@ -131,7 +131,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             );
         }
         let mut terms = PhoenixTerms::new(
-            0.0,
+            kiyosi::PhoenixCoupon::Annual(0.0),
             100.0,
             80.0,
             100.0,

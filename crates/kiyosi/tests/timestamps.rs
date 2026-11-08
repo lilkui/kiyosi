@@ -976,7 +976,7 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
         coupon: PhoenixCoupon::PerPeriod(0.01),
         knock_in_observation_mode: KnockInObservationMode::AtExpiry,
         ..PhoenixTerms::new(
-            0.0,
+            kiyosi::PhoenixCoupon::Annual(0.0),
             100.0,
             1.0,
             1.0,
@@ -1122,7 +1122,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         Some(vec![expiry])
     );
     let mut phoenix = PhoenixTerms::new(
-        0.1,
+        kiyosi::PhoenixCoupon::Annual(0.1),
         100.0,
         80.0,
         100.0,

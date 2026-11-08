@@ -173,7 +173,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
                 .then_some(ternary.expiry_time.time_of_day());
             ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let mut phoenix = PhoenixTerms::new(
-                0.08,
+                kiyosi::PhoenixCoupon::Annual(0.08),
                 100.0,
                 95.0,
                 100.0,
@@ -313,7 +313,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     let start = date(1, 1);
     let end = date(4, 1);
     let mut terms = PhoenixTerms::new(
-        0.08,
+        kiyosi::PhoenixCoupon::Annual(0.08),
         100.0,
         80.0,
         100.0,
@@ -629,7 +629,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
             .then_some(ternary.expiry_time.time_of_day());
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut phoenix = PhoenixTerms::new(
-            0.08,
+            kiyosi::PhoenixCoupon::Annual(0.08),
             100.0,
             95.0,
             100.0,

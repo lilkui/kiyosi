@@ -410,7 +410,7 @@ pub struct PhoenixTerms {
     pub observations: Vec<AutocallableObservation>,
 }
 impl PhoenixTerms {
-    /// Creates annual-coupon terms with daily monitoring, unknown history and unit principal.
+    /// Creates explicitly typed coupon terms with daily monitoring, unknown history and unit principal.
     ///
     /// Validation occurs in [`PhoenixOption::new`]; see its example.
     #[expect(
@@ -418,7 +418,7 @@ impl PhoenixTerms {
         reason = "explicit contractual input terms"
     )]
     pub fn new(
-        coupon_rate: f64,
+        coupon: PhoenixCoupon,
         initial_spot: f64,
         knock_in_level: f64,
         upper_strike: f64,
@@ -430,7 +430,7 @@ impl PhoenixTerms {
     ) -> Self {
         Self {
             calendar: TradingCalendar::default(),
-            coupon: PhoenixCoupon::Annual(coupon_rate),
+            coupon,
             initial_spot,
             knock_in_level,
             upper_strike,
@@ -817,7 +817,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
-    /// let terms = PhoenixTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
+    /// let terms = PhoenixTerms::new(PhoenixCoupon::Annual(0.08), 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = PhoenixOption::new(terms)?;
     /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent))?

@@ -127,7 +127,7 @@ pub fn implied_snowball_coupon<
 /// # fn main() -> Result<()> {
 /// let start = Date::new(2025, 1, 1)?.start_of_day();
 /// let end = Date::new(2025, 4, 1)?.start_of_day();
-/// let note = PhoenixOption::new(PhoenixTerms::new(0.08, 100.0, 80.0, 100.0, 60.0,
+/// let note = PhoenixOption::new(PhoenixTerms::new(PhoenixCoupon::Annual(0.08), 100.0, 80.0, 100.0, 60.0,
 ///     start, end, autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?)))?;
 /// let market = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
