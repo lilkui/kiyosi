@@ -530,6 +530,8 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// let method = AnalyticEuropeanEngine.greek_method(&option, &context)?;
     /// assert_eq!(method, GreekMethod::Native);
     /// assert!(method.active_controls().is_empty());
+    /// let sampler = MonteCarloVanillaEngine::default();
+    /// assert_eq!(sampler.default_spot_shift(&option, &context), 0.01);
     /// # Ok(()) }
     /// ```
     fn greek_method(&self, option: &I, context: &PricingContext) -> Result<GreekMethod>
@@ -549,8 +551,9 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// Defaults to the smaller of 0.01 spot units and 1% of spot;
     /// American Monte Carlo uses 8% of spot.
     /// Terminal numerical Greeks use the shared capped default.
-    /// See [`NumericalShiftSettings`] for explicit control.
-    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+    /// The instrument selects its family and permits type inference for multi-product engines.
+    /// See [`Self::greek_method`] for an example and [`NumericalShiftSettings`] for explicit control.
+    fn default_spot_shift(&self, _option: &I, context: &PricingContext) -> f64 {
         NumericalShiftSettings::default().spot_shift_at(context.spot_price())
     }
 

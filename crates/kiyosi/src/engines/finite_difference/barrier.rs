@@ -100,7 +100,7 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         ))
     }
 
-    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+    fn default_spot_shift(&self, _option: &BarrierOption, context: &PricingContext) -> f64 {
         self.settings
             .greek_shifts()
             .spot_shift_at(context.spot_price())
@@ -280,7 +280,7 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         ))
     }
 
-    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+    fn default_spot_shift(&self, _option: &DoubleBarrierOption, context: &PricingContext) -> f64 {
         self.settings
             .greek_shifts()
             .spot_shift_at(context.spot_price())

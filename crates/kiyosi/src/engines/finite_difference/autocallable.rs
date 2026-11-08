@@ -106,7 +106,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         ))
     }
 
-    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+    fn default_spot_shift(&self, _option: &AutocallableNote<T>, context: &PricingContext) -> f64 {
         self.settings
             .greek_shifts()
             .spot_shift_at(context.spot_price())

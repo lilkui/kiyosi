@@ -172,7 +172,7 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
             if context.valuation_time() == option.expiry_time() {
                 settings.spot_shift_at(context.spot_price())
             } else {
-                engine.default_spot_shift(context)
+                engine.default_spot_shift(option, context)
             }
         })),
         ..settings

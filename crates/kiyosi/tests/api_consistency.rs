@@ -1663,13 +1663,17 @@ fn spot_shift_fallback_is_distinct_from_engine_resolution() -> Result<()> {
     let settings = NumericalShiftSettings::default();
     assert_eq!(settings.fallback_spot_shift(), 0.01);
     assert_eq!(settings.spot_shift, None);
-    assert_eq!(
-        <MonteCarloVanillaEngine as PricingEngine<AmericanOption>>::default_spot_shift(
-            &MonteCarloVanillaEngine::default(),
-            &context
-        ),
-        8.0
-    );
+    let european = EuropeanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
+    let american = AmericanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
+    let engine = MonteCarloVanillaEngine::default();
+    assert_eq!(engine.default_spot_shift(&european, &context), 0.01);
+    assert_eq!(engine.default_spot_shift(&american, &context), 8.0);
+    let fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        spot_shift: Some(0.5),
+        ..Default::default()
+    })?;
+    assert_eq!(fd.default_spot_shift(&european, &context), 0.5);
+    assert_eq!(fd.default_spot_shift(&american, &context), 0.5);
     assert_eq!(
         NumericalShiftSettings {
             spot_shift: Some(0.5),

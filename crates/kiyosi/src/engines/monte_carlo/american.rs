@@ -229,7 +229,7 @@ impl MonteCarloVanillaEngine {
 }
 
 impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
-    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+    fn default_spot_shift(&self, _option: &AmericanOption, context: &PricingContext) -> f64 {
         Self::default_american_spot_shift(context)
     }
 

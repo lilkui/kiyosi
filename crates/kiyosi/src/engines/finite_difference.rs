@@ -831,7 +831,7 @@ macro_rules! vanilla_pricing {
                 ))
             }
 
-            fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+            fn default_spot_shift(&self, _option: &$option, context: &PricingContext) -> f64 {
                 self.settings
                     .greek_shifts()
                     .spot_shift_at(context.spot_price())
@@ -1039,7 +1039,7 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
         ))
     }
 
-    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+    fn default_spot_shift(&self, _option: &DigitalOption, context: &PricingContext) -> f64 {
         self.settings
             .greek_shifts()
             .spot_shift_at(context.spot_price())

@@ -94,7 +94,7 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         ))
     }
 
-    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+    fn default_spot_shift(&self, _option: &Accumulator, context: &PricingContext) -> f64 {
         self.settings
             .greek_shifts()
             .spot_shift_at(context.spot_price())
