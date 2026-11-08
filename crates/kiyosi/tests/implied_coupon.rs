@@ -703,7 +703,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
             defaults
         )
         .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     assert_eq!(note, binary());
     assert_eq!(context, market(100.0, date(1, 1)));

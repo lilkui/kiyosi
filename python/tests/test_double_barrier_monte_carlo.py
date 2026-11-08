@@ -10,6 +10,7 @@ from itertools import product
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
     pricing,
@@ -402,7 +403,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 later = context.replace(
                     valuation_time=datetime(2025, 1, 1) + timedelta(microseconds=1)
                 )
-                self.assert_rejection(InvalidInputError, engine.price, option, later)
+                self.assert_rejection(MissingHistoryError, engine.price, option, later)
                 touched = option.replace_history(
                     touch_state="touched",
                     history_time=option.history_time or option.effective_time,

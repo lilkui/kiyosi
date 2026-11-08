@@ -47,11 +47,14 @@ fn settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage() -> Re
         AnalyticDoubleTouchEngine.price(&dated(&double, &context), &context)?,
         0.0
     );
-    for value in [
+    assert!(matches!(
         AnalyticBinaryBarrierEngine.price(
             &dated(&binary.replace_history(None, None).unwrap(), &context),
             &context,
         ),
+        Err(Error::MissingHistory(_))
+    ));
+    for value in [
         AnalyticBinaryBarrierEngine.price(
             &dated(
                 &touch.replace(TouchOptionChanges {

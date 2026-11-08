@@ -46,6 +46,9 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`crate::Error::InvalidInput`] for invalid paths, threads or sampling.
     ///
     /// # Examples

@@ -8,7 +8,13 @@ from datetime import datetime
 from functools import partial
 
 import QuantLib as ql
-from kiyosi import InvalidInputError, RootNotBracketedError, UnsupportedOperationError
+from kiyosi import (
+    InvalidInputError,
+    MissingHistoryError,
+    RootNotBracketedError,
+    StaleHistoryError,
+    UnsupportedOperationError,
+)
 from kiyosi import instruments as ins
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -238,7 +244,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             history_time=option.history_time or option.effective_time,
         )
         after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1))
-        self.assert_rejection(InvalidInputError, engine.price, option, after)
+        self.assert_rejection(MissingHistoryError, engine.price, option, after)
         self.assertEqual(engine.price(dated_history(known, after), after), 0)
         self.assertEqual(
             engine.price(
@@ -308,7 +314,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             ctx,
             -1,
         )
-        self.assert_rejection(InvalidInputError, engine.price, touch(), ctx)
+        self.assert_rejection(MissingHistoryError, engine.price, touch(), ctx)
         self.assert_rejection(
             InvalidInputError,
             engine.price,
@@ -319,7 +325,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             market(),
         )
         self.assert_rejection(
-            InvalidInputError, engine.price_with_greeks, option, ctx, []
+            StaleHistoryError, engine.price_with_greeks, option, ctx, []
         )
         self.assert_rejection(
             InvalidInputError,

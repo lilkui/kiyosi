@@ -134,6 +134,9 @@ impl MonteCarloAsianEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Checks inclusive life then history consistency, returning
     /// [`Error::InvalidInput`] for either rejection.
     /// Before expiry geometric contracts require flat curves
@@ -222,6 +225,9 @@ impl MonteCarloAsianEngine {
     /// engines. See [`Self::price`].
     ///
     /// # Errors
+    ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
     ///
     /// Propagates [`Self::price`] errors.
     /// Non-finite requested Greeks return [`Error::ComputationFailure`].

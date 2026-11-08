@@ -589,7 +589,7 @@ fn phoenix_presets_reuse_core_validation_and_history_defaults() {
             &dated(&note, &market(100.0, date(3, 3))),
             &market(100.0, date(3, 3))
         ),
-        Err(Error::InvalidInput(_))
+        Err(Error::MissingHistory(_))
     ));
     let settled = note
         .replace_history(

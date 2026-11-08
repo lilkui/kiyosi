@@ -117,6 +117,9 @@ impl MonteCarloAutocallableEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), inclusive
     /// life ([`crate::Error::InvalidInput`]), trading observations,
     /// prior history and trading expiry using the shared autocallable validation.

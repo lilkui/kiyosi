@@ -159,8 +159,8 @@ impl BarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
-    /// or a timestamp outside the contract life.
+    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
     ///
     /// Returns [`Error::InvalidInput`] for invalid level or rebate, reversed
     /// life, incompatible or invalid fixing times, invalid strike, or an at-hit
@@ -407,7 +407,7 @@ impl BarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///

@@ -93,7 +93,7 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
                 &market(100.0, date(1, 2))
             )
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let known = note
         .replace_history(

@@ -17,8 +17,11 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside contract life or curve coverage,
-    /// for missing or impossible history, clipped domains or unstable explicit steps.
+    /// for impossible history, clipped domains or unstable explicit steps.
     /// Numerical failures return [`Error::ComputationFailure`][crate::Error::ComputationFailure].
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         Ok(native(

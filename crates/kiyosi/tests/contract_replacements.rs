@@ -27,7 +27,7 @@ macro_rules! check_monitoring_switch {
                 observation_times: Some(None),
                 ..Default::default()
             }),
-            Err(Error::InvalidInput(_))
+            Err(Error::StaleHistory(_))
         ));
         let continuous = $scheduled
             .replace($changes {
@@ -87,7 +87,7 @@ fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> 
             daily_quantity: Some(2.0),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     let reactivated = settled.replace(AccumulatorChanges {
         history_time: Some(Some(
@@ -247,7 +247,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
             barrier_level: Some(125.0),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original.replace(BarrierOptionChanges::default()).unwrap(),
@@ -309,7 +309,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
             observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert!(matches!(
         original.replace(BarrierOptionChanges {
@@ -347,7 +347,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
             upper_barrier: Some(125.0),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original
@@ -417,7 +417,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
             observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert!(matches!(
         original.replace(DoubleBarrierOptionChanges {
@@ -455,7 +455,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
             barrier_level: Some(125.0),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original
@@ -524,7 +524,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
             observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert!(matches!(
         original.replace(BinaryBarrierOptionChanges {
@@ -561,7 +561,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
             barrier_level: Some(125.0),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original.replace(TouchOptionChanges::default()).unwrap(),
@@ -627,7 +627,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
             observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert!(matches!(
         original.replace(TouchOptionChanges {
@@ -665,7 +665,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
             upper_barrier: Some(125.0),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original
@@ -729,7 +729,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
             observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert!(matches!(
         original.replace(DoubleTouchOptionChanges {
@@ -767,7 +767,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
             daily_quantity: Some(2.0),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original.replace(AccumulatorChanges::default()).unwrap(),
@@ -861,7 +861,7 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
             lower_bound: Some(85.0),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original
@@ -1434,7 +1434,7 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
             averaging_start_time: Some(start.add_days(1).unwrap()),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original
@@ -1508,7 +1508,7 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
             averaging_start_time: Some(start.add_days(1).unwrap()),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original

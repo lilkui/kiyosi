@@ -321,7 +321,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
                 &market(100.0, date(1, 2))
             )
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let known = note
         .replace_history(

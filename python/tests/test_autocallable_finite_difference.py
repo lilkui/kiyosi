@@ -4,7 +4,11 @@ import math
 import unittest
 from datetime import datetime
 
-from kiyosi import InvalidInputError, UnsupportedOperationError
+from kiyosi import (
+    InvalidInputError,
+    MissingHistoryError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import BinarySnowballOption, autocallable_observations
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine as FD
@@ -242,7 +246,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         )
         later = market(100, datetime(2025, 2, 3))
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             lambda: engine.price(dated_history(missing, later), later),
         )
         self.assertIsNone(missing.barrier_state)

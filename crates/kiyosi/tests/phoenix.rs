@@ -244,7 +244,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     let ctx = market(100.0, date(2, 3));
     assert!(matches!(
         engine.price(&dated(&note, &ctx), &ctx).unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let known = note
         .replace_history(

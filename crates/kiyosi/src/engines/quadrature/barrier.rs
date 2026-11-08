@@ -103,8 +103,11 @@ impl QuadratureBarrierEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves. Returns
-    /// [`Error::InvalidInput`] outside life, for missing or impossible history,
+    /// [`Error::InvalidInput`] outside life, for impossible history,
     /// or outside required curve coverage. Unrepresentable grids,
     /// transitions or results return [`Error::ComputationFailure`].
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {

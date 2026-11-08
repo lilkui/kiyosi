@@ -25,8 +25,11 @@ impl AnalyticDoubleTouchEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves, then
-    /// [`Error::InvalidInput`] outside life, for missing or impossible history,
+    /// [`Error::InvalidInput`] outside life, for impossible history,
     /// or outside required curve coverage. Unresolved scheduled monitoring at positive volatility returns
     /// [`Error::UnsupportedOperation`]. Unrepresentable calculations return
     /// [`Error::ComputationFailure`]; exhausted series or integration limits return
@@ -103,6 +106,9 @@ impl AnalyticDoubleTouchEngine {
     /// omit affected measures.
     ///
     /// # Errors
+    ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
     ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
     ///

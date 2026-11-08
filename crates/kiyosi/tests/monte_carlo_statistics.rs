@@ -678,7 +678,7 @@ fn statistics_preserve_life_history_and_model_rejections() {
         single_engine.price_with_statistics(&dated(&single, &seasoned), &seasoned),
         double_engine.price_with_statistics(&dated(&double, &seasoned), &seasoned),
     ] {
-        assert!(matches!(result, Err(Error::InvalidInput(_))));
+        assert!(matches!(result, Err(Error::MissingHistory(_))));
     }
 }
 

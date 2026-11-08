@@ -567,7 +567,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 .unwrap();
             assert!(matches!(
                 engine.price(&dated(&option, &later), &later).unwrap_err(),
-                Error::InvalidInput(_)
+                Error::MissingHistory(_)
             ));
             let touched = option
                 .replace_history(

@@ -7,7 +7,11 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 import QuantLib as ql
-from kiyosi import InvalidInputError, UnsupportedOperationError
+from kiyosi import (
+    InvalidInputError,
+    MissingHistoryError,
+    UnsupportedOperationError,
+)
 from kiyosi import instruments as ins
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -104,7 +108,7 @@ class BinaryBarrierTests(unittest.TestCase):
                     delta=1e-12,
                 )
                 self.assert_rejection(
-                    InvalidInputError,
+                    MissingHistoryError,
                     lambda option=option: engine.price(
                         dated_history(option, self.context(130, datetime(2025, 1, 2))),
                         self.context(130, datetime(2025, 1, 2)),
@@ -160,7 +164,7 @@ class BinaryBarrierTests(unittest.TestCase):
                 **history_fields(**self.terms(barrier_type=kind), payout=10)
             )
             self.assert_rejection(
-                InvalidInputError,
+                MissingHistoryError,
                 lambda option=option: engine.price(
                     dated_history(option, self.context(130, datetime(2025, 7, 1))),
                     self.context(130, datetime(2025, 7, 1)),
@@ -348,7 +352,7 @@ class BinaryBarrierTests(unittest.TestCase):
             )
             noon = datetime(2025, 1, 2, 12)
             self.assert_rejection(
-                InvalidInputError,
+                MissingHistoryError,
                 lambda option=option, noon=noon: engine.price(
                     dated_history(option, self.context(130, noon)),
                     self.context(130, noon),

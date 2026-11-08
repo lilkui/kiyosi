@@ -23,6 +23,9 @@ impl AnalyticGeometricAveragePriceEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
     /// [`Error::InvalidInput`] outside life or curve coverage,
     /// for inconsistent history, and
@@ -167,6 +170,9 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// See [`AnalyticGeometricAveragePriceEngine::price`] for the market setup.
     ///
     /// # Errors
+    ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
     ///
     /// Reuses geometric life/history errors, then returns
     /// [`Error::UnsupportedOperation`] for nonconstant rate curves before expiry,

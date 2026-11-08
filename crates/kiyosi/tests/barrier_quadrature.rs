@@ -248,7 +248,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
     assert_eq!(result.get(Greek::Rho), Some(0.0));
     assert!(matches!(
         engine.price(&dated(&option, &past), &past).unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let paid = option
         .replace_history(

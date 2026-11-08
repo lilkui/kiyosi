@@ -5,7 +5,12 @@ import unittest
 from datetime import datetime, timedelta
 
 import QuantLib as ql
-from kiyosi import InvalidInputError, RootNotBracketedError, UnsupportedOperationError
+from kiyosi import (
+    InvalidInputError,
+    MissingHistoryError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import BarrierOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -60,7 +65,7 @@ class BarrierTests(unittest.TestCase):
                 dated_history(option, self.context(time=datetime(2025, 1, 2))),
                 self.context(time=datetime(2025, 1, 2)),
             )
-        self.assertIs(type(error.exception), InvalidInputError)
+        self.assertIs(type(error.exception), MissingHistoryError)
         touched = option.replace_history(
             touch_state="touched",
             history_time=option.history_time or option.effective_time,
@@ -258,7 +263,7 @@ class BarrierTests(unittest.TestCase):
         )
         noon = datetime(2025, 1, 2, 12)
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             lambda: engine.price(
                 dated_history(option, self.context(150, noon)), self.context(150, noon)
             ),

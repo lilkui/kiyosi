@@ -15,6 +15,18 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     kiyosi._native,
+    MissingHistoryError,
+    InvalidInputError,
+    "Required history payload or snapshot timestamp is missing."
+);
+pyo3::create_exception!(
+    kiyosi._native,
+    StaleHistoryError,
+    InvalidInputError,
+    "History does not cover the requested valuation or observation terms."
+);
+pyo3::create_exception!(
+    kiyosi._native,
     UnsupportedOperationError,
     KiyosiError,
     "Unsupported pricing combination or unavailable result measure."
@@ -47,6 +59,10 @@ pyo3::create_exception!(
 pub(crate) fn domain<T>(result: kiyosi::Result<T>) -> PyResult<T> {
     result.map_err(|error| match error {
         kiyosi::Error::InvalidInput(message) => InvalidInputError::new_err(message.into_owned()),
+        kiyosi::Error::MissingHistory(message) => {
+            MissingHistoryError::new_err(message.into_owned())
+        }
+        kiyosi::Error::StaleHistory(message) => StaleHistoryError::new_err(message.into_owned()),
         kiyosi::Error::UnsupportedOperation(message) => {
             UnsupportedOperationError::new_err(message.into_owned())
         }

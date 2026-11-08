@@ -6,7 +6,11 @@ from datetime import datetime
 from itertools import product
 
 import QuantLib as ql
-from kiyosi import InvalidInputError, UnsupportedOperationError
+from kiyosi import (
+    InvalidInputError,
+    MissingHistoryError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import DoubleBarrierOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -280,12 +284,12 @@ class DoubleBarrierTests(unittest.TestCase):
                 ):
                     self.assertIsNone(getattr(result, name))
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             lambda: engine.price(dated_history(contract(), later), later),
         )
         microsecond = market(time=datetime(2025, 1, 1, microsecond=1))
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             lambda: engine.price(dated_history(contract(), microsecond), microsecond),
         )
         for kind, spot in product(("knock_in", "knock_out"), (80, 110, 120)):
@@ -374,7 +378,7 @@ class DoubleBarrierTests(unittest.TestCase):
             )
             intraday = market(130, time=datetime(2025, 6, 30, 12))
             self.assert_rejection(
-                InvalidInputError,
+                MissingHistoryError,
                 lambda option=option, intraday=intraday: engine.price(
                     dated_history(option, intraday), intraday
                 ),

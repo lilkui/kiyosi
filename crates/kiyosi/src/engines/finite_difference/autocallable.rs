@@ -21,8 +21,11 @@ impl FiniteDifferenceAutocallableEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or curve coverage, for
-    /// missing or impossible history, clipped
+    /// impossible history, clipped
     /// grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
     pub fn price<T: AutocallableTerms>(

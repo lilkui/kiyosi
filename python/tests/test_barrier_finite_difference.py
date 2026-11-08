@@ -10,6 +10,7 @@ from functools import partial
 import QuantLib as ql
 from kiyosi import (
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
     pricing,
@@ -37,7 +38,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             contract = option()
             expected = engine.price(dated_history(contract, market()), market())
             self.assert_rejection(
-                InvalidInputError,
+                MissingHistoryError,
                 engine.price,
                 contract,
                 market(valuation=START + timedelta(days=1)),

@@ -33,6 +33,9 @@
 //! history require the same instant unless barrier monitoring is resolved. Refresh
 //! payload and timestamp together with `replace_history`; clearing all history
 //! permits clearing its timestamp. Numerical time sensitivities hold history fixed.
+//! Missing payloads or snapshot timestamps return [`Error::MissingHistory`]. History
+//! invalidated by valuation or observation edits returns [`Error::StaleHistory`].
+//! Impossible states and future timestamps return [`Error::InvalidInput`].
 //!
 //! ```rust
 //! use kiyosi::*;
@@ -50,7 +53,7 @@
 //! let later = context.replace(PricingContextChanges {
 //!     valuation_time: Some(at.add_days(1)?), ..Default::default()
 //! })?;
-//! assert!(matches!(AnalyticRangeAccrualEngine.price(&option, &later), Err(Error::InvalidInput(_))));
+//! assert!(matches!(AnalyticRangeAccrualEngine.price(&option, &later), Err(Error::StaleHistory(_))));
 //! let refreshed = option.replace(RangeAccrualOptionChanges {
 //!     realized_hit_count: Some(Some(2)), history_time: Some(Some(later.valuation_time())),
 //!     ..Default::default()

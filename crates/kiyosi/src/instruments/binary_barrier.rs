@@ -116,8 +116,8 @@ impl BinaryBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
-    /// or a timestamp outside the contract life.
+    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
     ///
     /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
     /// barrier, fixing times or calendar compatibility, checked in that order.
@@ -295,8 +295,8 @@ impl TouchOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
-    /// or a timestamp outside the contract life.
+    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
     ///
     /// Returns [`Error::InvalidInput`] for invalid positive payout or barrier,
     /// reversed life, invalid fixings, or at-hit no-touch settlement.
@@ -593,7 +593,7 @@ impl BinaryBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
@@ -674,7 +674,7 @@ impl TouchOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///

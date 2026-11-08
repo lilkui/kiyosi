@@ -24,8 +24,11 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
-    /// for missing or impossible history, invalid grids,
+    /// for impossible history, invalid grids,
     /// or unstable explicit steps. Returns [`Error::ComputationFailure`][crate::Error::ComputationFailure] for
     /// numerical failures.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
@@ -190,6 +193,9 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
     /// for unknown or impossible history, invalid grids,
     /// or unstable explicit steps. Numerical failures return
@@ -206,6 +212,9 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// other requested Greeks are absent.
     ///
     /// # Errors
+    ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
     ///
     /// Validates shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors.

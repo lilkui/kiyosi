@@ -11,6 +11,7 @@ import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
     pricing,
@@ -299,7 +300,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 delta=1e-12,
             )
         self.assert_core_error(
-            InvalidInputError,
+            MissingHistoryError,
             lambda: engine.price(
                 dated_history(contract(), market(time=datetime(2025, 1, 1, 0, 0, 1))),
                 market(time=datetime(2025, 1, 1, 0, 0, 1)),

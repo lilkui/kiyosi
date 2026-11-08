@@ -137,8 +137,8 @@ impl Accumulator {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
-    /// or a timestamp outside the contract life.
+    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
     ///
     /// Returns [`Error::InvalidInput`] for invalid strike, invalid level or
     /// quantities, reversed life times, or unordered/out-of-life knock-out times,
@@ -222,7 +222,7 @@ impl Accumulator {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
@@ -430,7 +430,7 @@ impl Accumulator {
             ));
         }
         if had_knock_out && self.knock_out_settled().is_none() {
-            return Err(Error::InvalidInput(
+            return Err(Error::MissingHistory(
                 "prior knock-out settlement state is required".into(),
             ));
         }
@@ -449,7 +449,7 @@ impl Accumulator {
             && self.knock_out_settled() != Some(true)
             && self.accumulated_quantity().is_none()
         {
-            return Err(Error::InvalidInput(
+            return Err(Error::MissingHistory(
                 "prior accumulated quantity is required".into(),
             ));
         }
@@ -724,7 +724,7 @@ impl Accumulator {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///

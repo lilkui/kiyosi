@@ -37,9 +37,12 @@ impl AnalyticRangeAccrualEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Checks valuation outside contract life, missing or excessive
-    /// prior hits, and required curve coverage, in that order
-    /// ([`Error::InvalidInput`]). Unresolvable curve knots or non-finite
+    /// prior hits, and required curve coverage, in that order. Invalid life, excessive
+    /// hits or missing curve coverage return [`Error::InvalidInput`]. Unresolvable curve knots or non-finite
     /// transitions or prices return [`Error::ComputationFailure`].
     ///
     /// # Examples
@@ -68,12 +71,11 @@ impl AnalyticRangeAccrualEngine {
         let schedule = option.observation_schedule()?;
         let dates = schedule.times();
         let first = dates.partition_point(|date| *date < valuation);
-        if (first != 0 && option.realized_hit_count().is_none())
-            || option.realized_hit_count().unwrap_or(0) as usize > first
-        {
-            return Err(Error::InvalidInput(
-                "missing or excessive prior hits".into(),
-            ));
+        if first != 0 && option.realized_hit_count().is_none() {
+            return Err(Error::MissingHistory("prior hit count is required".into()));
+        }
+        if option.realized_hit_count().unwrap_or(0) as usize > first {
+            return Err(Error::InvalidInput("excessive prior hits".into()));
         }
         crate::instruments::validate_history_time(
             option,

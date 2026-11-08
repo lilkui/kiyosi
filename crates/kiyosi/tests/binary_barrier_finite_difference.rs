@@ -248,7 +248,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                         &context(130.0, tomorrow)
                     )
                     .unwrap_err(),
-                Error::InvalidInput(_)
+                Error::MissingHistory(_)
             ));
             let known = option
                 .replace_history(
@@ -392,7 +392,7 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
         engine(400)
             .price(&dated(&option, &after), &after)
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     assert_eq!(
         engine(400)

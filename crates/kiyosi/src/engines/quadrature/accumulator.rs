@@ -22,6 +22,9 @@ impl QuadratureAccumulatorEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Propagates [`QuadratureSettings::validate`] errors.
     ///
     /// # Examples
@@ -58,8 +61,11 @@ impl QuadratureAccumulatorEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
-    /// and missing or impossible history ([`Error::InvalidInput`]), then required
+    /// and impossible history ([`Error::InvalidInput`]), then required
     /// curve coverage ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
     /// and transitions return [`Error::ComputationFailure`].
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {

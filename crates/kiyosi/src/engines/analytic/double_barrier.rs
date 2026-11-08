@@ -22,8 +22,11 @@ impl AnalyticDoubleBarrierEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unresolved schedules at positive volatility,
-    /// [`Error::InvalidInput`] outside life, for missing or impossible history,
+    /// [`Error::InvalidInput`] outside life, for impossible history,
     /// or outside required curve coverage. Unrepresentable
     /// calculations return [`Error::ComputationFailure`]; series or integration
     /// limits reached without convergence return [`Error::NonConvergence`].
@@ -66,6 +69,9 @@ impl AnalyticDoubleBarrierEngine {
     /// See [`Self::price`] for a construction example.
     ///
     /// # Errors
+    ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
     ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
     pub fn price_with_greeks(

@@ -545,7 +545,7 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
                 &market(100.0, date(1, 2))
             )
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let known = note
         .replace_history(

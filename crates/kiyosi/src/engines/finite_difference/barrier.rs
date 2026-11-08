@@ -20,8 +20,11 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve/surface coverage, for
-    /// missing or impossible history, clipped or
+    /// impossible history, clipped or
     /// degenerate grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
@@ -220,6 +223,9 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
     ///
     /// Reuses [`FiniteDifferenceBarrierEngine::price`] categories and validation timing,
     /// including explicit upper-domain coverage checks when a full-domain grid is needed.

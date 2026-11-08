@@ -58,7 +58,7 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
     ] {
         assert!(matches!(
             engine.price(&dated(&option, &context), &context),
-            Err(Error::InvalidInput(_))
+            Err(Error::MissingHistory(_))
         ));
         assert_eq!(engine.price(&dated(&active, &context), &context)?, 25.0);
         assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);
@@ -992,7 +992,7 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
             .unwrap();
         assert!(matches!(
             engine.price(&dated(&option, &prior), &prior),
-            Err(Error::InvalidInput(_))
+            Err(Error::MissingHistory(_))
         ));
         assert!(
             engine
@@ -1013,7 +1013,7 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
         let expiry = market(100.0, day(1, 7), 0.2, 0.0, 0.0);
         assert!(matches!(
             engine.price(&dated(&option, &expiry), &expiry),
-            Err(Error::InvalidInput(_))
+            Err(Error::MissingHistory(_))
         ));
         assert_eq!(
             engine

@@ -349,7 +349,7 @@ fn scheduled_barriers_use_exact_current_observations_and_strict_history() {
             &dated(&option, &market(time(6, 10, 1), 100.0)),
             &market(time(6, 10, 1), 100.0)
         ),
-        Err(Error::InvalidInput(_))
+        Err(Error::MissingHistory(_))
     ));
     let touched = option
         .replace_history(
@@ -463,7 +463,7 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
                 &dated(&option, &market(time(6, 15, 1), 105.0)),
                 &market(time(6, 15, 1), 105.0)
             ),
-            Err(Error::InvalidInput(_))
+            Err(Error::MissingHistory(_))
         ));
         let single = option
             .replace(AccumulatorChanges {
@@ -509,7 +509,7 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
             &dated(&note, &market(time(6, 15, 1), 100.0)),
             &market(time(6, 15, 1), 100.0)
         ),
-        Err(Error::InvalidInput(_))
+        Err(Error::MissingHistory(_))
     ));
 }
 
@@ -602,7 +602,7 @@ fn daily_clock_controls_current_history_and_does_not_add_expiry_units() -> Resul
                 &dated(&option, &market(time(6, 15, 123_457), 105.0)),
                 &market(time(6, 15, 123_457), 105.0)
             ),
-            Err(Error::InvalidInput(_))
+            Err(Error::MissingHistory(_))
         ));
         let seasoned = option.replace_history(
             AccumulatorHistoryChanges {

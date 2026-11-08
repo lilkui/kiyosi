@@ -11,6 +11,7 @@ import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
     pricing,
@@ -472,7 +473,7 @@ class DoubleTouchTests(unittest.TestCase):
                     delta=1e-12,
                 )
                 self.assert_core_error(
-                    InvalidInputError,
+                    MissingHistoryError,
                     lambda spot=spot, option=option: engine.price(
                         dated_history(option, market(spot, time=later)),
                         market(spot, time=later),
@@ -549,7 +550,7 @@ class DoubleTouchTests(unittest.TestCase):
         )
         after = event + timedelta(seconds=1)
         self.assert_core_error(
-            InvalidInputError,
+            MissingHistoryError,
             lambda: engine.price(
                 dated_history(option, market(130, time=after)), market(130, time=after)
             ),

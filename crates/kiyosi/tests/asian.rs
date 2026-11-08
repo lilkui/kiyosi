@@ -215,7 +215,7 @@ macro_rules! contract_tests {
                         $engine
                             .price(&dated(&original, &market(at)), &market(at))
                             .unwrap_err(),
-                        Error::InvalidInput(_)
+                        Error::MissingHistory(_)
                     ));
                 }
                 for at in [

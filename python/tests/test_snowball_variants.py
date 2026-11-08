@@ -9,6 +9,7 @@ from datetime import time as clock_time
 
 from kiyosi import (
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
     instruments,
@@ -552,7 +553,7 @@ class SnowballVariantTests(unittest.TestCase):
             TernarySnowballOption, knock_in_observation_mode="every_trading_day"
         )
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             engine.price,
             dated_history(daily, market(100, datetime(2025, 1, 2))),
             market(100, datetime(2025, 1, 2)),
@@ -743,7 +744,7 @@ class SnowballVariantTests(unittest.TestCase):
             )
             intraday = datetime(2025, 2, 3, 0, 0, 0, 1)
             self.assert_rejection(
-                InvalidInputError,
+                MissingHistoryError,
                 engine.price,
                 dated_history(
                     note.replace_history(barrier_state=None), market(110, intraday)

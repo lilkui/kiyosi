@@ -46,7 +46,7 @@ fn history_is_strictly_prior_and_boundary_hit_rebates_are_not_paid_twice() {
                 &market(100.0, later)
             )
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let touched = option
         .replace_history(
@@ -347,7 +347,7 @@ fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_f
         AnalyticBarrierEngine
             .price(&dated(&option, &market(150.0, noon)), &market(150.0, noon))
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let untouched = option
         .replace_history(

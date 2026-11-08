@@ -560,7 +560,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                     .unwrap();
                 assert!(matches!(
                     engine.price(&dated(&option, &later), &later).unwrap_err(),
-                    Error::InvalidInput(_)
+                    Error::MissingHistory(_)
                 ));
                 let touched = option
                     .replace_history(

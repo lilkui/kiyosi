@@ -28,7 +28,7 @@ pub(crate) fn validate_history_replacement(
     field: &str,
 ) -> crate::Result<()> {
     if known && !supplied && events_changed {
-        return Err(crate::Error::InvalidInput(
+        return Err(crate::Error::StaleHistory(
             format!("changing historical observation terms requires explicit {field}").into(),
         ));
     }
@@ -52,7 +52,7 @@ pub(crate) fn validate_history_time(
         return Ok(());
     }
     let time = option.history_time().ok_or_else(|| {
-        crate::Error::InvalidInput("supplied history requires history_time".into())
+        crate::Error::MissingHistory("supplied history requires history_time".into())
     })?;
     validate_history_time_bounds(option, Some(time))?;
     let valuation = context.history_anchor.unwrap_or(context.valuation_time());
@@ -65,7 +65,7 @@ pub(crate) fn validate_history_time(
         let before = time.min(valuation);
         let after = time.max(valuation).add_micros(-1)?;
         if continuous || !option.time_stencil_available(context, before, after) {
-            return Err(crate::Error::InvalidInput(
+            return Err(crate::Error::StaleHistory(
                 "history_time does not cover this valuation; replace and date the history".into(),
             ));
         }
@@ -90,7 +90,7 @@ pub(crate) fn validate_history_snapshot(
     known: bool,
 ) -> crate::Result<()> {
     if known && option.history_time().is_none() {
-        return Err(crate::Error::InvalidInput(
+        return Err(crate::Error::MissingHistory(
             "supplied history requires history_time".into(),
         ));
     }

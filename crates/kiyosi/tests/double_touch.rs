@@ -347,7 +347,7 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
                     &dated(&option, &context(spot, later)),
                     &context(spot, later)
                 ),
-                Err(Error::InvalidInput(_))
+                Err(Error::MissingHistory(_))
             ));
             assert_eq!(
                 engine
@@ -440,7 +440,7 @@ fn analytic_schedules_validate_then_resolve_or_reject() {
     let after = context(100.0, Date::new(2025, 7, 1).unwrap().start_of_day());
     assert!(matches!(
         engine.price(&dated(&option, &after), &after),
-        Err(Error::InvalidInput(_))
+        Err(Error::MissingHistory(_))
     ));
     let no_history = option
         .replace_history(
@@ -883,7 +883,7 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
                         &context(spot, later)
                     )
                     .unwrap_err(),
-                Error::InvalidInput(_)
+                Error::MissingHistory(_)
             ));
         }
         let expected = if timing == SettlementTiming::AtHit {
@@ -1035,7 +1035,7 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
                 &context(130.0, after)
             )
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let known = option
         .replace_history(

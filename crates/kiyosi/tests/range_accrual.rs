@@ -563,7 +563,6 @@ fn history_is_strictly_prior_within_contract_life() {
         (day(1), Some(1)),
         (day(2), Some(1)),
         (Timestamp::new(day(2).date(), 12, 0, 0, 0).unwrap(), Some(2)),
-        (day(3), None),
     ] {
         let live = option
             .replace_history(
@@ -578,6 +577,11 @@ fn history_is_strictly_prior_within_contract_life() {
             Error::InvalidInput(_)
         ));
     }
+    let missing = market(day(3), 100.0);
+    assert!(matches!(
+        AnalyticRangeAccrualEngine.price(&option, &missing),
+        Err(Error::MissingHistory(_))
+    ));
     let after = market(Timestamp::new(day(17).date(), 0, 0, 0, 1).unwrap(), 100.0);
     assert!(matches!(
         AnalyticRangeAccrualEngine
@@ -634,7 +638,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
                     &market(day(4), 100.0)
                 )
                 .unwrap_err(),
-            Error::InvalidInput(_)
+            Error::MissingHistory(_)
         ));
     }
     let context = market(day(3), 100.0);
@@ -649,7 +653,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
         AnalyticRangeAccrualEngine
             .price(&dated(&weekend, &context), &context)
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let monday = RangeAccrualOption::new(RangeAccrualTerms {
         calendar: TradingCalendar::all_days(),

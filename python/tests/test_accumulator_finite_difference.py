@@ -10,6 +10,7 @@ from kiyosi import (
     InvalidInputError,
     NonConvergenceError,
     RootNotBracketedError,
+    StaleHistoryError,
     UnsupportedOperationError,
     pricing,
 )
@@ -262,7 +263,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             spot_shift=-1,
         )
         self.assert_rejection(
-            InvalidInputError,
+            StaleHistoryError,
             partial(numerical_greeks, engine),
             option,
             context,

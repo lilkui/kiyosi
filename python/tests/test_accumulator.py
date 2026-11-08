@@ -11,6 +11,7 @@ from itertools import pairwise
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     UnsupportedOperationError,
     pricing,
 )
@@ -242,7 +243,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                         valuation_time=datetime.combine(first, time(12))
                     )
                     self.assert_rejection(
-                        InvalidInputError,
+                        MissingHistoryError,
                         engine.price,
                         dated_history(option, prior),
                         prior,
@@ -264,7 +265,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     )
                     expiry = current.replace(valuation_time=option.expiry_time)
                     self.assert_rejection(
-                        InvalidInputError,
+                        MissingHistoryError,
                         engine.price,
                         dated_history(option, expiry),
                         expiry,

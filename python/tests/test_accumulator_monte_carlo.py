@@ -10,6 +10,7 @@ from datetime import time as clock_time
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
     pricing,
@@ -280,7 +281,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             expiry_time=datetime(2025, 1, 6),
         )
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             lambda: engine.price(
                 dated_history(omitted, market(90, omitted.expiry_time)),
                 market(90, omitted.expiry_time),

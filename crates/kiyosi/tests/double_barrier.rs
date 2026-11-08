@@ -195,7 +195,7 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                         &market(spot, later, 0.2, 0.04, 0.01)
                     )
                     .unwrap_err(),
-                Error::InvalidInput(_)
+                Error::MissingHistory(_)
             ));
             let past = option
                 .replace_history(
@@ -352,7 +352,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
         engine
             .price(&dated(&option, &intraday), &intraday)
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let known = option
         .replace_history(

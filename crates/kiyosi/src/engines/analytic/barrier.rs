@@ -29,9 +29,11 @@ impl AnalyticBarrierEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// schedules. Returns [`Error::InvalidInput`] outside life, for missing or
-    /// impossible history, or outside required curve coverage.
+    /// schedules. Returns [`Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
     /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
     /// Only rounding-sized negative prices are clipped to zero.
     ///

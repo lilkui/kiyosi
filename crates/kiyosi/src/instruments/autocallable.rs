@@ -848,8 +848,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
-    /// or a timestamp outside the contract life.
+    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
     ///
     /// Returns [`Error::InvalidInput`] for invalid numeric terms or
     /// product-incompatible observation fields, reversed life, or empty, unordered
@@ -902,7 +902,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
@@ -1125,7 +1125,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
                 .any(|&event| event < time);
         match self.barrier_state() {
             None if had_out || had_in => {
-                return Err(Error::InvalidInput(
+                return Err(Error::MissingHistory(
                     "prior autocallable state is required".into(),
                 ));
             }
@@ -1573,7 +1573,7 @@ impl SnowballOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
@@ -1684,7 +1684,7 @@ impl PhoenixOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
@@ -1760,7 +1760,7 @@ impl BinarySnowballOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
@@ -1836,7 +1836,7 @@ impl TernarySnowballOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// Returns [`Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///

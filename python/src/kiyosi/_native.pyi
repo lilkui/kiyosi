@@ -20,6 +20,12 @@ class KiyosiError(Exception):
 class InvalidInputError(KiyosiError, ValueError):
     """Invalid parameters, dates, schedules or contract history."""
 
+class MissingHistoryError(InvalidInputError):
+    """Required history payload or snapshot timestamp is missing."""
+
+class StaleHistoryError(InvalidInputError):
+    """History does not cover the requested valuation or observation terms."""
+
 class UnsupportedOperationError(KiyosiError):
     """Unsupported pricing combination or unavailable result measure."""
 

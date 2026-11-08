@@ -387,7 +387,7 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
         engine
             .price(&dated(&unknown, &context), &context)
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     let untouched = unknown
         .replace_history(

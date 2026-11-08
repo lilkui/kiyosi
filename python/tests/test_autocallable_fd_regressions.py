@@ -5,7 +5,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from datetime import time as clock_time
 
-from kiyosi import InvalidInputError, RootNotBracketedError, pricing
+from kiyosi import (
+    InvalidInputError,
+    MissingHistoryError,
+    RootNotBracketedError,
+    pricing,
+)
 from kiyosi.instruments import (
     BinarySnowballOption,
     CashOrNothingOption,
@@ -722,7 +727,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     with self.assertRaises(InvalidInputError):
                         note.replace(calendar=weekdays_calendar())
                     for option, shifted, expected_error in (
-                        (missing_history, base, InvalidInputError),
+                        (missing_history, base, MissingHistoryError),
                     ):
                         with self.assertRaises(expected_error) as error:
                             engine.price_with_greeks(

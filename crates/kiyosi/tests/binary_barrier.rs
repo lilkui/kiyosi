@@ -120,7 +120,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                         &market(130.0, day(2025, 1, 2))
                     )
                     .unwrap_err(),
-                Error::InvalidInput(_)
+                Error::MissingHistory(_)
             ));
             let known = option
                 .replace_history(
@@ -182,7 +182,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                     &market(130.0, day(2025, 7, 1))
                 )
                 .unwrap_err(),
-            Error::InvalidInput(_)
+            Error::MissingHistory(_)
         ));
         let paid = option
             .replace_history(
@@ -224,7 +224,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
                     &market(100.0, day(2025, 1, 3))
                 )
                 .unwrap_err(),
-            Error::InvalidInput(_)
+            Error::MissingHistory(_)
         ));
         t.touch_state = Some(BarrierTouchState::Untouched);
         t.history_time = Some(t.effective_time);

@@ -20,7 +20,9 @@ the caller's context and flags; finite decimal overflow raises ``OverflowError``
 Domain failures raise `KiyosiError` subclasses. `InvalidInputError` also inherits
 ``ValueError``; representation and signature failures use native Python
 exceptions, and operational failures use ``OSError``. Catch exception types;
-messages are diagnostic text. Rust panics are not domain errors, and allocation
+messages are diagnostic text. `MissingHistoryError` and `StaleHistoryError`
+identify absent and outdated history and inherit `InvalidInputError`.
+Rust panics are not domain errors, and allocation
 exhaustion may terminate the process.
 
 Values own their data and expose read-only properties. Collection properties
@@ -52,9 +54,11 @@ from ._native import (
     GreekUnavailableError,
     InvalidInputError,
     KiyosiError,
+    MissingHistoryError,
     NonConvergenceError,
     PricingResult,
     RootNotBracketedError,
+    StaleHistoryError,
     UnsupportedOperationError,
     __version__,
 )
@@ -70,9 +74,11 @@ __all__ = [
     "GreekUnavailableError",
     "InvalidInputError",
     "KiyosiError",
+    "MissingHistoryError",
     "NonConvergenceError",
     "PricingResult",
     "RootNotBracketedError",
+    "StaleHistoryError",
     "UnsupportedOperationError",
     "__version__",
 ]

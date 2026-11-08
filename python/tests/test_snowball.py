@@ -9,6 +9,7 @@ from functools import partial
 
 from kiyosi import (
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
 )
@@ -207,7 +208,7 @@ class SnowballTests(unittest.TestCase):
         engine = QuadratureAutocallableEngine()
         unknown = contract(knock_in_observation_mode="every_trading_day")
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             engine.price,
             dated_history(unknown, market(valuation=datetime(2025, 1, 2))),
             market(valuation=datetime(2025, 1, 2)),
@@ -429,7 +430,7 @@ class SnowballTests(unittest.TestCase):
         )
         past = market(110, datetime(2025, 2, 3, 0, 0, 0, 1))
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             engine.price,
             dated_history(note.replace_history(barrier_state=None), past),
             past,

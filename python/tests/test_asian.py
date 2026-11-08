@@ -11,6 +11,7 @@ import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
 )
@@ -206,7 +207,7 @@ class AsianTests(unittest.TestCase):
                     engine.price(dated_history(seasoned, market(at)), market(at)), 0
                 )
                 self.assert_rejection(
-                    InvalidInputError,
+                    MissingHistoryError,
                     engine.price,
                     dated_history(original, market(at)),
                     market(at),

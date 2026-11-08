@@ -218,7 +218,7 @@ fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Resu
         let missing = settled.replace_history(None, None)?;
         assert!(matches!(
             engine.price(&dated(&missing, &context), &context),
-            Err(Error::InvalidInput(_))
+            Err(Error::MissingHistory(_))
         ));
     }
     Ok(())
@@ -774,7 +774,7 @@ fn asian_history_uses_optional_positive_averages() -> Result<()> {
             assert_eq!(original.realized_average(), None);
             assert!(matches!(
                 $engine.price(&dated(&original, &context), &context),
-                Err(Error::InvalidInput(_))
+                Err(Error::MissingHistory(_))
             ));
             let seasoned = original.replace_history(
                 110.0,
@@ -943,7 +943,7 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
         })?;
         assert!(matches!(
             engine.price(&dated(&unknown, &context), &context),
-            Err(Error::InvalidInput(_))
+            Err(Error::MissingHistory(_))
         ));
         let result =
             engine.price_with_greeks(&dated(&settled, &context), &context, GreeksRequest::all())?;

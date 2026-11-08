@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 from kiyosi import (
     InvalidInputError,
+    MissingHistoryError,
     NonConvergenceError,
     RootNotBracketedError,
     UnsupportedOperationError,
@@ -105,7 +106,9 @@ class AsianMonteCarloTests(unittest.TestCase):
                         )
                     else:
                         self.assert_rejection(
-                            InvalidInputError,
+                            MissingHistoryError
+                            if realized is None
+                            else InvalidInputError,
                             engine.price,
                             dated_history(instrument, context),
                             context,

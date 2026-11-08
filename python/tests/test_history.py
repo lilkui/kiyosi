@@ -5,7 +5,7 @@ import pickle
 import unittest
 from datetime import UTC, datetime, time, timedelta
 
-from kiyosi import InvalidInputError
+from kiyosi import InvalidInputError, MissingHistoryError, StaleHistoryError
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
@@ -293,24 +293,48 @@ class HistoryTests(unittest.TestCase):
         for factory, fields in contract_inputs():
             if "realized_average" in fields:
                 fields["realized_average"] = 100
+            if "observations" in fields:
+                fields["observations"] = [
+                    fields["observations"][0].replace(time=AT - timedelta(days=3)),
+                    *fields["observations"],
+                ]
             with self.subTest(contract=factory.__name__):
                 for omitted in ({}, {"history_time": None}):
-                    with self.assertRaises(InvalidInputError):
+                    with self.assertRaises(MissingHistoryError):
                         factory(**fields, **omitted)
                 original = factory(**fields, history_time=AT)
                 selected = engine(original)
                 dated = original.replace(history_time=AT)
                 self.assertTrue(math.isfinite(selected.price(dated, context())))
+                payloads = {
+                    name: None
+                    for name in (
+                        "touch_state",
+                        "barrier_state",
+                        "realized_average",
+                        "realized_hit_count",
+                        "accumulated_quantity",
+                        "knock_out_settled",
+                    )
+                    if hasattr(dated, name)
+                }
+                missing = dated.replace_history(**payloads)
+                with self.assertRaises(MissingHistoryError):
+                    selected.price(missing, context())
+                stale = dated.replace(history_time=dated.effective_time)
+                with self.assertRaises(StaleHistoryError):
+                    selected.price(stale, context())
                 self.assertEqual(original.history_time, AT)
                 self.assertEqual(dated.history_time, AT)
                 self.assertEqual(pickle.loads(pickle.dumps(dated)), dated)
                 self.assertEqual(dated.replace(), dated)
                 self.assertEqual(dated.replace_history(), dated)
-                with self.assertRaises(InvalidInputError):
+                with self.assertRaises(InvalidInputError) as future:
                     selected.price(
                         dated.replace(history_time=AT + timedelta(microseconds=1)),
                         context(),
                     )
+                self.assertIs(type(future.exception), InvalidInputError)
                 with self.assertRaises(InvalidInputError):
                     selected.price(dated.replace(history_time=None), context())
                 for invalid in (

@@ -10,6 +10,7 @@ from itertools import product
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
     pricing,
@@ -300,7 +301,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     valuation_time=datetime(2025, 1, 1) + timedelta(microseconds=1)
                 )
                 self.assert_rejection(
-                    InvalidInputError,
+                    MissingHistoryError,
                     engine.price,
                     contract,
                     later,

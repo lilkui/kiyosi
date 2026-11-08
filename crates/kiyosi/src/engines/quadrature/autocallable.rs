@@ -74,8 +74,11 @@ impl QuadratureAutocallableEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), then inclusive life,
-    /// missing or impossible prior history, and required curve coverage
+    /// impossible prior history, and required curve coverage
     /// ([`Error::InvalidInput`]), in that order. Non-finite prices or
     /// unrepresentable transitions return [`Error::ComputationFailure`].
     ///

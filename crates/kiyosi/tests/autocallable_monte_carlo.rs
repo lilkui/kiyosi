@@ -416,7 +416,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
                 &market(100.0, date(1, 2))
             )
             .unwrap_err(),
-        Error::InvalidInput(_)
+        Error::MissingHistory(_)
     ));
     terms.barrier_state = Some(AutocallableBarrierState::KnockedOut);
     terms.history_time = Some(terms.effective_time);

@@ -64,20 +64,28 @@ impl AverageTerms {
                 "valuation must be within contract life".into(),
             ));
         }
-        if (valuation > self.averaging_start) != self.realized.is_some() {
+        if valuation > self.averaging_start && self.realized.is_none() {
+            return Err(Error::MissingHistory(
+                "prior realized average is required".into(),
+            ));
+        }
+        if valuation <= self.averaging_start && self.realized.is_some() {
             return Err(Error::InvalidInput(
                 "realized average must match the elapsed averaging period".into(),
             ));
         }
         if self.realized.is_some() {
             let time = self.history_time.ok_or_else(|| {
-                Error::InvalidInput("supplied history requires history_time".into())
+                Error::MissingHistory("supplied history requires history_time".into())
             })?;
-            if time != context.history_anchor.unwrap_or(valuation)
-                || time < self.averaging_start
-                || time > expiry
-            {
+            let anchor = context.history_anchor.unwrap_or(valuation);
+            if time > anchor || time < self.averaging_start || time > expiry {
                 return Err(Error::InvalidInput(
+                    "history_time must match the elapsed averaging period at valuation".into(),
+                ));
+            }
+            if time < anchor {
+                return Err(Error::StaleHistory(
                     "history_time must match the elapsed averaging period at valuation".into(),
                 ));
             }
@@ -193,7 +201,7 @@ macro_rules! average_option {
             ///
             /// # Errors
             ///
-            /// Returns [`Error::InvalidInput`] when historical observation terms change
+            /// Returns [`Error::StaleHistory`] when historical observation terms change
             /// with known history unless the history is explicitly replaced or cleared.
             /// See the [crate-level history contract](crate).
             ///
@@ -260,7 +268,8 @@ macro_rules! average_option {
             ///
             /// Returns [`Error::InvalidInput`] for invalid strike, nonpositive or non-finite
             /// supplied history, reversed life times, averaging outside contract life,
-            /// undated supplied history or a history timestamp outside contract life.
+            /// a history timestamp outside contract life. Undated supplied history returns
+            /// [`Error::MissingHistory`].
             /// Diagnostic order is unspecified when several inputs are invalid.
             ///
             /// # Examples

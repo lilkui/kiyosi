@@ -13,7 +13,7 @@ fn constructors_require_timestamps_for_supplied_history() -> Result<()> {
             terms.$field = $value;
             assert!(matches!(
                 ($construct)(terms.clone()),
-                Err(Error::InvalidInput(_))
+                Err(Error::MissingHistory(_))
             ));
             terms.history_time = Some(at);
             assert_eq!(($construct)(terms)?.history_time(), Some(at));
@@ -137,7 +137,7 @@ fn constructors_require_timestamps_for_supplied_history() -> Result<()> {
             Some(100.0),
             None
         ),
-        Err(Error::InvalidInput(_))
+        Err(Error::MissingHistory(_))
     ));
     assert!(matches!(
         ArithmeticAveragePriceOption::new(
@@ -149,7 +149,7 @@ fn constructors_require_timestamps_for_supplied_history() -> Result<()> {
             Some(100.0),
             None
         ),
-        Err(Error::InvalidInput(_))
+        Err(Error::MissingHistory(_))
     ));
     Ok(())
 }
@@ -275,7 +275,7 @@ fn check<I: OptionContract + Clone>(
 ) -> Result<()> {
     assert!(matches!(
         option.clone().with_history_time(None),
-        Err(Error::InvalidInput(_))
+        Err(Error::MissingHistory(_))
     ));
     let original = option.clone();
     let dated = option.with_history_time(Some(market.valuation_time()))?;
@@ -288,6 +288,17 @@ fn check<I: OptionContract + Clone>(
         Some(market.valuation_time())
     );
     assert!(engine.price(&dated, market)?.is_finite());
+    assert!(matches!(
+        engine.price(&clear(&dated, None)?, market),
+        Err(Error::MissingHistory(_))
+    ));
+    let stale = dated
+        .clone()
+        .with_history_time(Some(dated.effective_time()))?;
+    assert!(matches!(
+        engine.price(&stale, market),
+        Err(Error::StaleHistory(_))
+    ));
     let future = dated
         .clone()
         .with_history_time(Some(market.valuation_time().add_days(1)?))?;
@@ -315,7 +326,7 @@ fn check<I: OptionContract + Clone>(
     }
     assert!(matches!(
         dated.with_history_time(None),
-        Err(Error::InvalidInput(_))
+        Err(Error::MissingHistory(_))
     ));
     Ok(())
 }
@@ -460,7 +471,7 @@ fn dated_history_survives_future_schedule_edits() -> Result<()> {
             observation_times: Some(Some(vec![future, end])),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert_eq!(
         original
@@ -501,7 +512,7 @@ fn dated_history_survives_future_schedule_edits() -> Result<()> {
             observations: Some(vec![original.observations()[1]]),
             ..Default::default()
         }),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     Ok(())
 }
@@ -541,7 +552,7 @@ fn dated_daily_history_survives_future_calendar_edits() -> Result<()> {
     );
     assert!(matches!(
         range.replace_calendar(past.clone()),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     let mut terms = AccumulatorTerms::new(
         100.0,
@@ -563,7 +574,7 @@ fn dated_daily_history_survives_future_calendar_edits() -> Result<()> {
     );
     assert!(matches!(
         accumulator.replace_calendar(past),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     Ok(())
 }
@@ -733,7 +744,10 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
             )
         },
     )?;
-    let records = vec![AutocallableObservation::snowball(end, 110.0, 0.0)?];
+    let records = vec![
+        AutocallableObservation::snowball(at.add_days(-3)?, 110.0, 0.0)?,
+        AutocallableObservation::snowball(end, 110.0, 0.0)?,
+    ];
     let state = Some(AutocallableBarrierState::NoEvent);
     check(
         &QuadratureAutocallableEngine::default(),
@@ -825,7 +839,7 @@ fn discrete_history_reuses_between_events_and_requires_refresh_after_them() -> R
     })?;
     assert!(matches!(
         engine.price(&option, &rolled),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     let refreshed = option.replace_history(Some(2), Some(rolled.valuation_time()))?;
     assert_eq!(engine.price(&refreshed, &rolled)?, price);
@@ -865,7 +879,7 @@ fn continuous_history_rejects_reuse_but_numerical_time_risk_keeps_it_frozen() ->
     })?;
     assert!(matches!(
         engine.price(&option, &rolled),
-        Err(Error::InvalidInput(_))
+        Err(Error::StaleHistory(_))
     ));
     assert!(
         engine

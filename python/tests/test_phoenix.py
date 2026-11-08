@@ -10,6 +10,7 @@ from functools import partial
 
 from kiyosi import (
     InvalidInputError,
+    MissingHistoryError,
     NonConvergenceError,
     RootNotBracketedError,
     UnsupportedOperationError,
@@ -238,7 +239,7 @@ class PhoenixTests(unittest.TestCase):
             knock_in_observation_mode="every_trading_day", barrier_state=None
         )
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             engine.price,
             dated_history(unknown, market(valuation=MIDDLE)),
             market(valuation=MIDDLE),

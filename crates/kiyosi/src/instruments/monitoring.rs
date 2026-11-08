@@ -163,7 +163,7 @@ impl Monitoring {
             return Err(Error::InvalidInput("touch predates monitoring".into()));
         }
         if had && self.touch_state().is_none() {
-            return Err(Error::InvalidInput(
+            return Err(Error::MissingHistory(
                 "prior barrier touch state is required".into(),
             ));
         }

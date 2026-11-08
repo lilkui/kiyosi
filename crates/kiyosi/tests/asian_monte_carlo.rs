@@ -366,7 +366,11 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             engine.price(&dated(&g, &context), &context),
         ] {
             if rejects {
-                assert!(matches!(result.unwrap_err(), Error::InvalidInput(_)));
+                if valuation > averaging && valuation <= end && history == 0.0 {
+                    assert!(matches!(result.unwrap_err(), Error::MissingHistory(_)));
+                } else {
+                    assert!(matches!(result.unwrap_err(), Error::InvalidInput(_)));
+                }
             } else {
                 assert!(result.unwrap() >= 0.0);
             }

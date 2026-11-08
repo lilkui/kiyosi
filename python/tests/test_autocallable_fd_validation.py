@@ -3,7 +3,11 @@
 import unittest
 from datetime import datetime
 
-from kiyosi import InvalidInputError, pricing
+from kiyosi import (
+    InvalidInputError,
+    MissingHistoryError,
+    pricing,
+)
 from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from support.history import dated as dated_history
@@ -47,7 +51,11 @@ class AutocallableValidationTests(unittest.TestCase):
             if history is None:
                 valuations.append(datetime(2025, 1, 3))
             for valuation in valuations:
-                expected = InvalidInputError
+                expected = (
+                    MissingHistoryError
+                    if history is None and valuation == note.expiry_time
+                    else InvalidInputError
+                )
                 context = PricingContext(
                     model_parameters=BlackScholesMertonParameters(
                         risk_free_rate=0.03,

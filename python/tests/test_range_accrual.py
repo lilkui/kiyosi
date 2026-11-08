@@ -10,6 +10,7 @@ from functools import partial
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
 )
@@ -319,7 +320,7 @@ class RangeAccrualTests(unittest.TestCase):
             0,
         )
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             implied_volatility,
             engine,
             dated_history(option, market(START + timedelta(days=3))),
@@ -460,7 +461,7 @@ class RangeAccrualTests(unittest.TestCase):
                 market(valuation),
             )
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             engine.price,
             dated_history(contract(), market(START + timedelta(days=2))),
             market(START + timedelta(days=2)),
@@ -549,7 +550,7 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertIsNotNone(result.charm)
         self.assertIsNotNone(result.color)
         self.assert_rejection(
-            InvalidInputError,
+            MissingHistoryError,
             engine.price,
             dated_history(
                 contract(calendar=weekdays_calendar(), annual_coupon_rate=0),

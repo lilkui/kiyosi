@@ -11,6 +11,7 @@ import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
     pricing,
@@ -109,7 +110,7 @@ class BarrierBinomialTests(unittest.TestCase):
             contract = option()
             expected = engine.price(dated_history(contract, market()), market())
             self.assert_rejection(
-                InvalidInputError,
+                MissingHistoryError,
                 engine.price,
                 dated_history(contract, market(valuation=START + timedelta(days=1))),
                 market(valuation=START + timedelta(days=1)),

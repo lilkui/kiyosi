@@ -23,9 +23,11 @@ impl AnalyticBinaryBarrierEngine {
     ///
     /// # Errors
     ///
+    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
+    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    ///
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for missing or
-    /// impossible history, or outside required curve coverage.
+    /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
     /// Non-finite results return [`crate::Error::ComputationFailure`].
     ///
     /// # Examples

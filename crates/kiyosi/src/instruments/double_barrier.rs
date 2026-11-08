@@ -117,8 +117,8 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] for supplied history without a timestamp,
-    /// or a timestamp outside the contract life.
+    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
     ///
     /// Returns [`crate::Error::InvalidInput`] unless finite `0 < lower < upper`,
     /// then reuses [`BarrierOption::new`] categories and validation order, including
@@ -371,7 +371,7 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] when historical observation terms change
+    /// Returns [`crate::Error::StaleHistory`] when historical observation terms change
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///

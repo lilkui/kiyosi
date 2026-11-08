@@ -848,6 +848,8 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(kiyosi.KiyosiError.__bases__, (Exception,))
         for name in (
             "InvalidInputError",
+            "MissingHistoryError",
+            "StaleHistoryError",
             "UnsupportedOperationError",
             "ComputationFailureError",
             "RootNotBracketedError",
@@ -860,6 +862,8 @@ class PackageTests(unittest.TestCase):
                     exception_type.__bases__,
                     (kiyosi.KiyosiError, ValueError)
                     if name == "InvalidInputError"
+                    else (kiyosi.InvalidInputError,)
+                    if name in ("MissingHistoryError", "StaleHistoryError")
                     else (kiyosi.KiyosiError,),
                 )
                 self.assertEqual(exception_type.__module__, "kiyosi._native")
@@ -984,6 +988,8 @@ class PackageTests(unittest.TestCase):
                         )
         for name in (
             "InvalidInputError",
+            "MissingHistoryError",
+            "StaleHistoryError",
             "UnsupportedOperationError",
             "ComputationFailureError",
             "RootNotBracketedError",
@@ -994,5 +1000,7 @@ class PackageTests(unittest.TestCase):
                 [ast.unparse(base) for base in declarations[name].bases],
                 ["KiyosiError", "ValueError"]
                 if name == "InvalidInputError"
+                else ["InvalidInputError"]
+                if name in ("MissingHistoryError", "StaleHistoryError")
                 else ["KiyosiError"],
             )
