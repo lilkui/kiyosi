@@ -176,8 +176,10 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
     }
     assert!(result.has(Greek::Vega));
     assert!(result.has(Greek::Rho));
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![Date::new(2025, 1, 2).unwrap().start_of_day(), t.expiry_time];
+    t.observation_times = Some(vec![
+        Date::new(2025, 1, 2).unwrap().start_of_day(),
+        t.expiry_time,
+    ]);
     let scheduled = BarrierOption::new(t).unwrap();
     let result = AnalyticBarrierEngine
         .price_with_greeks(
@@ -227,20 +229,20 @@ fn construction_defaults_validation_and_calendar_are_core_semantics() {
         Error::InvalidInput(_)
     ));
     let mut scheduled = t.clone();
-    scheduled.observation_mode = ObservationMode::Scheduled;
+
     for dates in [
         vec![],
         vec![t.expiry_time, t.effective_time],
         vec![t.expiry_time; 2],
         vec![Date::new(2026, 1, 2).unwrap().start_of_day()],
     ] {
-        scheduled.observation_times = dates;
+        scheduled.observation_times = Some(dates);
         assert!(matches!(
             BarrierOption::new(scheduled.clone()).unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
-    scheduled.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
+    scheduled.observation_times = Some(vec![Date::new(2025, 1, 4).unwrap().start_of_day()]);
     assert!(matches!(
         BarrierOption::new(scheduled),
         Err(Error::InvalidInput(_))
@@ -317,9 +319,9 @@ fn expiry_settlement_matrix_includes_equality_and_paid_rebates() {
 #[test]
 fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_fixings() {
     let mut t = terms(BarrierType::UpAndOut);
-    t.observation_mode = ObservationMode::Scheduled;
+
     let fixing = Date::new(2025, 1, 2).unwrap().start_of_day();
-    t.observation_times = vec![fixing];
+    t.observation_times = Some(vec![fixing]);
     t.rebate = 7.0;
     let option = BarrierOption::new(t.clone()).unwrap();
     assert!(matches!(
@@ -514,8 +516,10 @@ fn hit_rebates_match_independent_first_passage_integration_including_negative_ra
 fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
     let mut t = terms(BarrierType::DownAndOut);
     t.barrier_level = 80.0;
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![Date::new(2025, 1, 2).unwrap().start_of_day(), t.expiry_time];
+    t.observation_times = Some(vec![
+        Date::new(2025, 1, 2).unwrap().start_of_day(),
+        t.expiry_time,
+    ]);
     t.touch_state = Some(BarrierTouchState::Untouched);
     t.history_time = Some(t.effective_time);
     let option = BarrierOption::new(t.clone()).unwrap();
@@ -577,13 +581,11 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
     ] {
         let mut t = terms(kind);
         t.barrier_level = level;
-        t.observation_mode = ObservationMode::Scheduled;
-        t.observation_times = vec![t.expiry_time];
+        t.observation_times = Some(vec![t.expiry_time]);
         t.touch_state = Some(BarrierTouchState::Untouched);
         t.history_time = Some(t.effective_time);
         let scheduled = BarrierOption::new(t.clone()).unwrap();
-        t.observation_mode = ObservationMode::Continuous;
-        t.observation_times.clear();
+        t.observation_times = None;
         t.barrier_level *= (sign * 0.582_597_157_939_010_7_f64 * 0.2).exp();
         let continuous = BarrierOption::new(t.clone()).unwrap();
         let context = market(
@@ -865,14 +867,13 @@ fn rare_hit_rebates_survive_tail_scaling_and_cancellation_is_nonnegative() {
 #[test]
 fn contract_calendars_reject_closed_observations_on_construction_and_replacement() {
     let mut t = terms(BarrierType::UpAndOut);
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![t.expiry_time];
+    t.observation_times = Some(vec![t.expiry_time]);
     let option = BarrierOption::new(t.clone()).unwrap();
     let closed = TradingCalendar::new(|_| false, 365).unwrap();
     assert!(matches!(
         option.replace_calendar(closed),
         Err(Error::InvalidInput(_))
     ));
-    t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
+    t.observation_times = Some(vec![Date::new(2025, 1, 4).unwrap().start_of_day()]);
     assert!(matches!(BarrierOption::new(t), Err(Error::InvalidInput(_))));
 }

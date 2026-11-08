@@ -93,7 +93,6 @@ class BarrierTests(unittest.TestCase):
             "option_type",
             "barrier_type",
             "rebate_timing",
-            "observation_mode",
             "touch_state",
         ):
             with self.subTest(field=field), self.assertRaises(ValueError):
@@ -111,18 +110,15 @@ class BarrierTests(unittest.TestCase):
                 {"barrier_type": "up_and_in", "rebate_timing": "at_hit"},
                 InvalidInputError,
             ),
-            ({"observation_mode": "scheduled"}, InvalidInputError),
-            ({"observation_times": [datetime(2025, 1, 2)]}, InvalidInputError),
+            ({"observation_times": []}, InvalidInputError),
             (
                 {
-                    "observation_mode": "scheduled",
                     "observation_times": [datetime(2026, 1, 2)],
                 },
                 InvalidInputError,
             ),
             (
                 {
-                    "observation_mode": "scheduled",
                     "observation_times": [datetime(2025, 1, 2)] * 2,
                 },
                 InvalidInputError,
@@ -233,11 +229,7 @@ class BarrierTests(unittest.TestCase):
         engine = AnalyticBarrierEngine()
         fixing = datetime(2025, 1, 2)
         option = BarrierOption(
-            **history_fields(
-                **self.terms(
-                    observation_mode="scheduled", observation_times=[fixing], rebate=7
-                )
-            )
+            **history_fields(**self.terms(observation_times=[fixing], rebate=7))
         )
         self.assert_rejection(
             UnsupportedOperationError,
@@ -299,7 +291,6 @@ class BarrierTests(unittest.TestCase):
             BarrierOption(
                 **history_fields(
                     **self.terms(
-                        observation_mode="scheduled",
                         observation_times=[datetime(2025, 1, 4)],
                         touch_state="touched",
                     )
@@ -316,7 +307,6 @@ class BarrierTests(unittest.TestCase):
                     **self.terms(
                         barrier_type=kind,
                         barrier_level=level,
-                        observation_mode="scheduled",
                         observation_times=[datetime(2026, 1, 1)],
                         touch_state="untouched",
                     )
@@ -351,7 +341,6 @@ class BarrierTests(unittest.TestCase):
                     **self.terms(
                         barrier_type=kind,
                         barrier_level=level,
-                        observation_mode="scheduled",
                         observation_times=[
                             datetime(2025, 1, 1) + timedelta(days=i)
                             for i in range(1, 366)

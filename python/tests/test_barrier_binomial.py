@@ -84,7 +84,6 @@ class BarrierBinomialTests(unittest.TestCase):
 
     def test_crr_requires_exact_future_observation_alignment(self):
         contract = option(
-            observation_mode="scheduled",
             observation_times=[START + timedelta(days=91), END],
         )
         self.assert_rejection(
@@ -135,7 +134,6 @@ class BarrierBinomialTests(unittest.TestCase):
             terms = {
                 "rebate": 5,
                 "rebate_timing": "at_hit" if kind.endswith("out") else "at_expiry",
-                "observation_mode": "scheduled",
                 "observation_times": [observation],
             }
             contract = option(kind, **terms)
@@ -191,7 +189,6 @@ class BarrierBinomialTests(unittest.TestCase):
                 contract = option(
                     kind,
                     rebate=3,
-                    observation_mode="scheduled",
                     observation_times=dates,
                     touch_state="untouched",
                 )
@@ -258,7 +255,6 @@ class BarrierBinomialTests(unittest.TestCase):
             expiry_time=START + timedelta(days=2),
             barrier_level=101,
             rebate=2,
-            observation_mode="scheduled",
             observation_times=[START + timedelta(days=2)],
         )
         context = market(rate=0, dividend=0)
@@ -333,7 +329,6 @@ class BarrierBinomialTests(unittest.TestCase):
                     kind,
                     rebate=7,
                     rebate_timing=timing,
-                    observation_mode="scheduled",
                     observation_times=[START, START + timedelta(days=1), END],
                 )
                 context = market(spot=level)
@@ -377,7 +372,6 @@ class BarrierBinomialTests(unittest.TestCase):
         contract = option(
             "up_and_out",
             expiry_time=end,
-            observation_mode="scheduled",
             observation_times=[START + timedelta(days=2)],
         )
         engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=7)
@@ -398,7 +392,6 @@ class BarrierBinomialTests(unittest.TestCase):
                     "call" if up else "put",
                     expiry_time=START + timedelta(days=2),
                     barrier_level=100 * math.exp(jump if up else -jump),
-                    observation_mode="scheduled",
                     observation_times=[START + timedelta(days=1)],
                 )
                 # The sole ITM path is knocked out at its first move, including equality.
@@ -444,7 +437,6 @@ class BarrierBinomialTests(unittest.TestCase):
                 )
         with self.assertRaises(InvalidInputError):
             option(
-                observation_mode="scheduled",
                 observation_times=[datetime(2025, 1, 4)],
                 calendar=weekdays_calendar(),
             )

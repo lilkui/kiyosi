@@ -421,7 +421,6 @@ class DeterministicBsmTests(unittest.TestCase):
                         barrier_type="up_and_in",
                         payout=7,
                         settlement_timing="at_hit",
-                        observation_mode="scheduled",
                         observation_times=[end],
                     )
                 ),
@@ -472,7 +471,6 @@ class DeterministicBsmTests(unittest.TestCase):
             delta=1e-10,
         )
         scheduled = continuous.replace(
-            observation_mode="scheduled",
             observation_times=[end],
             touch_state=continuous.touch_state,
             history_time=(continuous.history_time or continuous.effective_time)

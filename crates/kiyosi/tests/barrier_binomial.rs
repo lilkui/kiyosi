@@ -15,8 +15,7 @@ fn barrier_crr_prices_an_expiry_only_observation() {
         101.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_times = vec![end];
+    terms.observation_times = Some(vec![end]);
     terms.rebate = 2.0;
     let option = BarrierOption::new(terms).unwrap();
     let context = PricingContext::new(
@@ -167,8 +166,7 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                             t.barrier_level =
                                 100.0 * (if is_up(kind) { 1.5 * jump } else { -1.5 * jump }).exp();
                             if scheduled {
-                                t.observation_mode = ObservationMode::Scheduled;
-                                t.observation_times = vec![t.expiry_time];
+                                t.observation_times = Some(vec![t.expiry_time]);
                             }
                             let option = BarrierOption::new(BarrierOptionTerms {
                                 calendar: TradingCalendar::all_days(),
@@ -233,8 +231,7 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
         let mut t = terms(kind, 4);
         t.barrier_level = 100.0;
         t.rebate = 2.0;
-        t.observation_mode = ObservationMode::Scheduled;
-        t.observation_times = vec![Date::new(2025, 1, 3).unwrap().start_of_day()];
+        t.observation_times = Some(vec![Date::new(2025, 1, 3).unwrap().start_of_day()]);
         let context = market(
             Timestamp::new(t.effective_time.date(), 12, 0, 0, 0).unwrap(),
             100.0,
@@ -286,8 +283,7 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
             };
             let jump = sigma * (1.0_f64 / 365.0).sqrt();
             t.barrier_level = 100.0 * (if up { jump } else { -jump }).exp();
-            t.observation_mode = ObservationMode::Scheduled;
-            t.observation_times = vec![Date::new(2025, 1, 2).unwrap().start_of_day()];
+            t.observation_times = Some(vec![Date::new(2025, 1, 2).unwrap().start_of_day()]);
             let context = market(t.effective_time, 100.0, 0.04, sigma);
             let option = BarrierOption::new(t).unwrap();
             let engine =
@@ -371,12 +367,11 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     t.barrier_level = 120.0;
     t.rebate = 3.0;
     t.rebate_timing = RebateTiming::AtHit;
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![
+    t.observation_times = Some(vec![
         t.effective_time,
         Date::new(2025, 1, 2).unwrap().start_of_day(),
         t.expiry_time,
-    ];
+    ]);
     let context = market(
         Timestamp::new(t.effective_time.date(), 12, 0, 0, 0).unwrap(),
         100.0,
@@ -494,16 +489,15 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
         let mut t = terms(kind, 10);
         t.barrier_level = 100.0;
         t.rebate = 3.0;
-        t.observation_mode = ObservationMode::Scheduled;
-        t.observation_times = vec![Date::new(2025, 1, 3).unwrap().start_of_day()];
+        t.observation_times = Some(vec![Date::new(2025, 1, 3).unwrap().start_of_day()]);
         let option = BarrierOption::new(t.clone()).unwrap();
         let engine = CoxRossRubinsteinBarrierEngine::default();
         for time in [
-            t.observation_times[0],
-            Timestamp::new(t.observation_times[0].date(), 12, 0, 0, 0).unwrap(),
+            t.observation_times.as_ref().unwrap()[0],
+            Timestamp::new(t.observation_times.as_ref().unwrap()[0].date(), 12, 0, 0, 0).unwrap(),
             t.expiry_time,
         ] {
-            let option = if time > t.observation_times[0] {
+            let option = if time > t.observation_times.as_ref().unwrap()[0] {
                 option
                     .replace_history(
                         Some(BarrierTouchState::Untouched),
@@ -525,13 +519,12 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
             );
             if time == t.expiry_time {
                 assert_eq!(result.get(Greek::Theta), None);
-            } else if time == t.observation_times[0] {
+            } else if time == t.observation_times.as_ref().unwrap()[0] {
                 assert_eq!(result.get(Greek::Delta), None);
                 assert_eq!(result.get(Greek::Gamma), None);
             }
         }
-        t.observation_mode = ObservationMode::Continuous;
-        t.observation_times.clear();
+        t.observation_times = None;
         for history in [BarrierTouchState::Untouched, BarrierTouchState::Touched] {
             t.touch_state = Some(history);
             t.history_time = Some(t.effective_time);

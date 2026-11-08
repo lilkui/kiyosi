@@ -44,8 +44,7 @@ fn prepared_scheduled_prices_match_scalar_after_spot_and_model_changes() {
     .unwrap();
     for kind in KINDS {
         let mut terms = terms(kind, OptionType::Call);
-        terms.observation_mode = ObservationMode::Scheduled;
-        terms.observation_times = vec![day(2, 3), day(5, 1), terms.expiry_time];
+        terms.observation_times = Some(vec![day(2, 3), day(5, 1), terms.expiry_time]);
         let option = BarrierOption::new(terms).unwrap();
         let context = market(0.04);
         let spot = context
@@ -135,8 +134,7 @@ fn expiry_only_observations_use_exact_digital_moments_independent_of_grid() {
     let inside = barrier[1] - 100.0 * barrier[0] + 3.0 * ((-0.04_f64).exp() - barrier[0]);
     for (kind, expected) in [(BarrierType::UpAndOut, out), (BarrierType::UpAndIn, inside)] {
         let mut t = terms(kind, OptionType::Call);
-        t.observation_mode = ObservationMode::Scheduled;
-        t.observation_times = vec![t.expiry_time];
+        t.observation_times = Some(vec![t.expiry_time]);
         t.rebate = 3.0;
         let option = BarrierOption::new(t).unwrap();
         for (steps, extent) in [(4, 0.1), (512, 8.0)] {
@@ -160,8 +158,7 @@ fn early_observation_rebates_discount_at_the_contractual_payment_time() {
         for timing in [RebateTiming::AtHit, RebateTiming::AtExpiry] {
             let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
             t.strike = 1e9;
-            t.observation_mode = ObservationMode::Scheduled;
-            t.observation_times = vec![day(4, 1)];
+            t.observation_times = Some(vec![day(4, 1)]);
             t.rebate = 7.0;
             t.rebate_timing = timing;
             let context = market(rate);
@@ -192,8 +189,7 @@ fn early_observation_rebates_discount_at_the_contractual_payment_time() {
 fn scheduled_space_and_extent_converge_independently() {
     let mut t = terms(BarrierType::DownAndOut, OptionType::Put);
     t.rebate = 1.0;
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![day(4, 1), day(7, 1), day(10, 1)];
+    t.observation_times = Some(vec![day(4, 1), day(7, 1), day(10, 1)]);
     let option = BarrierOption::new(t).unwrap();
     let context = market(0.04);
     let price = |steps, extent| {
@@ -238,8 +234,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
     t.rebate = 3.0;
     t.rebate_timing = RebateTiming::AtHit;
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![observed, t.expiry_time];
+    t.observation_times = Some(vec![observed, t.expiry_time]);
     let option = BarrierOption::new(t.clone()).unwrap();
     assert_eq!(
         engine.price(&dated(&option, &boundary), &boundary).unwrap(),
@@ -273,7 +268,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
         engine.price(&dated(&paid, &context), &context).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    t.observation_times = vec![observed];
+    t.observation_times = Some(vec![observed]);
     t.rebate_timing = RebateTiming::AtExpiry;
     t.touch_state = Some(BarrierTouchState::Untouched);
     t.history_time = Some(t.effective_time);
@@ -322,7 +317,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
             Error::UnsupportedOperation(_)
         ));
     }
-    t.observation_times = vec![day(1, 4)];
+    t.observation_times = Some(vec![day(1, 4)]);
     t.touch_state = Some(BarrierTouchState::Touched);
     t.history_time = Some(t.effective_time);
     assert!(matches!(BarrierOption::new(t), Err(Error::InvalidInput(_))));

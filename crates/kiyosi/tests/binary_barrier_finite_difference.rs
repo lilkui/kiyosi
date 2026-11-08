@@ -147,8 +147,7 @@ fn scheduled_single_expiry_observation_matches_digital_portfolios() {
             };
             for kind in [inside, outside] {
                 let mut terms = TouchOptionTerms::new(start(), end(), level, kind);
-                terms.observation_mode = ObservationMode::Scheduled;
-                terms.observation_times = vec![end()];
+                terms.observation_times = Some(vec![end()]);
                 let option = if asset {
                     TouchOption::asset(terms)
                 } else {
@@ -171,8 +170,7 @@ fn scheduled_single_expiry_observation_matches_digital_portfolios() {
                 for direction in [OptionType::Call, OptionType::Put] {
                     let mut terms =
                         BinaryBarrierTerms::new(direction, 100.0, start(), end(), level, kind);
-                    terms.observation_mode = ObservationMode::Scheduled;
-                    terms.observation_times = vec![end()];
+                    terms.observation_times = Some(vec![end()]);
                     let option = if asset {
                         BinaryBarrierOption::asset(terms)
                     } else {
@@ -365,8 +363,7 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
         })
         .unwrap();
     let mut terms = TouchOptionTerms::new(start(), end(), 120.125, BarrierType::UpAndIn);
-    terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_times = vec![fixing];
+    terms.observation_times = Some(vec![fixing]);
     terms.settlement_timing = SettlementTiming::AtHit;
     let option = TouchOption::cash(terms.clone(), 10.0).unwrap();
     let digital = DigitalOption::cash_or_nothing(
@@ -519,8 +516,7 @@ fn grids_schedules_and_validation_fail_before_mutating_inputs() {
             Error::InvalidInput(_)
         ));
     }
-    terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
+    terms.observation_times = Some(vec![Date::new(2025, 1, 4).unwrap().start_of_day()]);
     terms.touch_state = Some(BarrierTouchState::Touched);
     terms.history_time = Some(terms.effective_time);
     assert!(matches!(
@@ -585,9 +581,8 @@ fn two_fixing_cash_asset_and_settlement_prices_match_independent_integrals() {
             .enumerate()
             {
                 let mut terms = TouchOptionTerms::new(start(), end(), level, kind);
-                terms.observation_mode = ObservationMode::Scheduled;
                 terms.observation_times =
-                    vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end()];
+                    Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end()]);
                 terms.settlement_timing = timing;
                 let option = if asset {
                     TouchOption::asset(terms)

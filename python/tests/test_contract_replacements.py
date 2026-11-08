@@ -24,8 +24,7 @@ def contract_inputs():
             "barrier_type": "up_and_out",
             "rebate": 0,
             "rebate_timing": "at_expiry",
-            "observation_mode": "continuous",
-            "observation_times": [],
+            "observation_times": None,
             "touch_state": "untouched",
         },
     )
@@ -41,8 +40,7 @@ def contract_inputs():
             "barrier_type": "knock_out",
             "rebate": 0,
             "rebate_timing": "at_expiry",
-            "observation_mode": "continuous",
-            "observation_times": [],
+            "observation_times": None,
             "touch_state": "untouched",
         },
     )
@@ -55,8 +53,7 @@ def contract_inputs():
             "expiry_time": END,
             "barrier_level": 120,
             "barrier_type": "up_and_out",
-            "observation_mode": "continuous",
-            "observation_times": [],
+            "observation_times": None,
             "touch_state": "untouched",
             "payout": 10,
         },
@@ -70,8 +67,7 @@ def contract_inputs():
             "expiry_time": END,
             "barrier_level": 120,
             "barrier_type": "up_and_out",
-            "observation_mode": "continuous",
-            "observation_times": [],
+            "observation_times": None,
             "touch_state": "untouched",
         },
     )
@@ -83,8 +79,7 @@ def contract_inputs():
             "barrier_level": 120,
             "barrier_type": "up_and_in",
             "settlement_timing": "at_expiry",
-            "observation_mode": "continuous",
-            "observation_times": [],
+            "observation_times": None,
             "touch_state": "untouched",
             "payout": 10,
         },
@@ -97,8 +92,7 @@ def contract_inputs():
             "barrier_level": 120,
             "barrier_type": "up_and_in",
             "settlement_timing": "at_expiry",
-            "observation_mode": "continuous",
-            "observation_times": [],
+            "observation_times": None,
             "touch_state": "untouched",
         },
     )
@@ -110,8 +104,7 @@ def contract_inputs():
             "lower_barrier": 80,
             "upper_barrier": 120,
             "settlement_timing": "at_expiry",
-            "observation_mode": "continuous",
-            "observation_times": [],
+            "observation_times": None,
             "touch_state": "untouched",
             "payout": 10,
         },
@@ -302,6 +295,7 @@ UPDATES = {
     "realized_average": 105,
 }
 NULLABLE = {
+    "observation_times",
     "history_time",
     "touch_state",
     "barrier_state",
@@ -595,67 +589,42 @@ class ContractReplacementTests(unittest.TestCase):
                     with self.assertRaises(InvalidInputError):
                         original.replace(observation_times=[END])
                     scheduled = original.replace(
-                        observation_mode="scheduled",
                         observation_times=[END],
                         touch_state=original.touch_state,
                     )
                     self.assertEqual(scheduled.observation_times, (END,))
                     self.assertEqual(scheduled.observation_mode, "scheduled")
 
-    def test_monitoring_switch_requires_explicit_times_and_history(self):
+    def test_monitoring_schedule_selects_mode_and_preserves_history_validation(self):
         for original in contracts():
             if not hasattr(original, "observation_mode"):
                 continue
             with self.subTest(contract=type(original).__name__):
                 scheduled = original.replace(
-                    observation_mode="scheduled",
-                    observation_times=[END],
-                    touch_state=original.touch_state,
+                    observation_times=[END], touch_state=original.touch_state
                 )
+                self.assertEqual(scheduled.observation_mode, "scheduled")
+                self.assertEqual(scheduled.observation_times, (END,))
                 self.assertEqual(scheduled.replace(), scheduled)
-                self.assertEqual(
-                    scheduled.replace(observation_mode="scheduled"), scheduled
-                )
+                self.assertEqual(scheduled.replace(observation_times=...), scheduled)
                 with self.assertRaises(InvalidInputError):
-                    scheduled.replace(observation_mode="continuous")
-                for fields in ({}, {"observation_times": ...}):
-                    with self.assertRaises(InvalidInputError):
-                        scheduled.replace(
-                            observation_mode="continuous",
-                            touch_state=scheduled.touch_state,
-                            **fields,
-                        )
-                for fields in ({"observation_times": []},):
-                    continuous = scheduled.replace(
-                        observation_mode="continuous",
-                        touch_state=scheduled.touch_state,
-                        **fields,
-                    )
-                    self.assertEqual(continuous, original)
-                cleared = scheduled.replace(
-                    observation_mode="continuous",
-                    observation_times=[],
-                    touch_state=None,
+                    scheduled.replace(observation_times=[])
+                with self.assertRaises(InvalidInputError):
+                    scheduled.replace(observation_times=None)
+                continuous = scheduled.replace(
+                    observation_times=None, touch_state=scheduled.touch_state
                 )
+                self.assertEqual(continuous, original)
+                self.assertEqual(continuous.observation_mode, "continuous")
+                self.assertIsNone(continuous.observation_times)
+                cleared = scheduled.replace(observation_times=None, touch_state=None)
                 self.assertIsNone(cleared.touch_state)
-                self.assertEqual(cleared.observation_times, ())
                 self.assertEqual(
                     scheduled.replace_history(touch_state=None).replace(
-                        observation_mode="continuous", observation_times=[]
+                        observation_times=None
                     ),
                     cleared,
                 )
-                with self.assertRaises(InvalidInputError):
-                    scheduled.replace(
-                        observation_mode="continuous",
-                        observation_times=[END],
-                        touch_state=scheduled.touch_state,
-                    )
-                with self.assertRaises(InvalidInputError):
-                    scheduled.replace(
-                        observation_times=[], touch_state=scheduled.touch_state
-                    )
-                self.assertEqual(scheduled.observation_mode, "scheduled")
                 self.assertEqual(scheduled.observation_times, (END,))
 
     def test_replaced_sequences_are_owned_and_phoenix_coupon_choices_are_exclusive(

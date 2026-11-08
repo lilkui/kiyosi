@@ -102,7 +102,6 @@ def values():
             **history_fields(
                 barrier_level=120,
                 barrier_type="up_and_out",
-                observation_mode="scheduled",
                 observation_times=[END],
                 touch_state="untouched",
                 **vanilla,

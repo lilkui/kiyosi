@@ -5,69 +5,46 @@ macro_rules! check_monitoring_switch {
         assert_eq!($scheduled.replace($changes::default()).unwrap(), $scheduled);
         assert!(matches!(
             $scheduled.replace($changes {
-                observation_mode: Some(ObservationMode::Continuous),
+                observation_times: Some(Some(vec![])),
                 ..Default::default()
             }),
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
             $scheduled.replace($changes {
-                observation_mode: Some(ObservationMode::Continuous),
-                touch_state: Some($scheduled.touch_state()),
+                observation_times: Some(None),
                 ..Default::default()
             }),
             Err(Error::InvalidInput(_))
         ));
-        {
-            let continuous = $scheduled
-                .replace($changes {
-                    observation_mode: Some(ObservationMode::Continuous),
-                    observation_times: Some(vec![]),
-                    touch_state: Some($scheduled.touch_state()),
-                    ..Default::default()
-                })
-                .unwrap();
-            assert_eq!(continuous, $original);
-        }
+        let continuous = $scheduled
+            .replace($changes {
+                observation_times: Some(None),
+                touch_state: Some($scheduled.touch_state()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(continuous, $original);
         let cleared = $scheduled
             .replace($changes {
-                observation_mode: Some(ObservationMode::Continuous),
-                observation_times: Some(vec![]),
+                observation_times: Some(None),
                 touch_state: Some(None),
                 ..Default::default()
             })
             .unwrap();
         assert_eq!(cleared.touch_state(), None);
-        assert!(cleared.observation_times().is_empty());
+        assert_eq!(cleared.observation_mode(), ObservationMode::Continuous);
         assert_eq!(
             $scheduled
                 .replace_history(None, None)
                 .unwrap()
                 .replace($changes {
-                    observation_mode: Some(ObservationMode::Continuous),
-                    observation_times: Some(vec![]),
+                    observation_times: Some(None),
                     ..Default::default()
                 })
                 .unwrap(),
             cleared
         );
-        assert!(matches!(
-            $scheduled.replace($changes {
-                observation_mode: Some(ObservationMode::Continuous),
-                observation_times: Some($scheduled.observation_times().to_vec()),
-                touch_state: Some($scheduled.touch_state()),
-                ..Default::default()
-            }),
-            Err(Error::InvalidInput(_))
-        ));
-        assert!(matches!(
-            $scheduled.replace($changes {
-                observation_times: Some(vec![]),
-                touch_state: Some($scheduled.touch_state()),
-                ..Default::default()
-            }),
-            Err(Error::InvalidInput(_))
-        ));
         assert_eq!($scheduled.observation_times(), &[$original.expiry_time()]);
     };
 }
@@ -245,8 +222,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
         barrier_type: BarrierType::UpAndOut,
         rebate: 0.0,
         rebate_timing: RebateTiming::AtExpiry,
-        observation_mode: ObservationMode::Continuous,
-        observation_times: vec![],
+        observation_times: None,
         touch_state: Some(BarrierTouchState::Untouched),
     })
     .unwrap();
@@ -305,8 +281,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(cleared.touch_state(), None);
     let scheduled = original
         .replace(BarrierOptionChanges {
-            observation_mode: Some(ObservationMode::Scheduled),
-            observation_times: Some(vec![end]),
+            observation_times: Some(Some(vec![end])),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -316,8 +291,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     check_monitoring_switch!(original, scheduled, BarrierOptionChanges);
     assert!(matches!(
         original.replace(BarrierOptionChanges {
-            observation_times: Some(vec![end]),
-            touch_state: Some(original.touch_state()),
+            observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -348,8 +322,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
         barrier_type: DoubleBarrierType::KnockOut,
         rebate: 0.0,
         rebate_timing: RebateTiming::AtExpiry,
-        observation_mode: ObservationMode::Continuous,
-        observation_times: vec![],
+        observation_times: None,
         touch_state: Some(BarrierTouchState::Untouched),
     })
     .unwrap();
@@ -416,8 +389,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(cleared.touch_state(), None);
     let scheduled = original
         .replace(DoubleBarrierOptionChanges {
-            observation_mode: Some(ObservationMode::Scheduled),
-            observation_times: Some(vec![end]),
+            observation_times: Some(Some(vec![end])),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -427,8 +399,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     check_monitoring_switch!(original, scheduled, DoubleBarrierOptionChanges);
     assert!(matches!(
         original.replace(DoubleBarrierOptionChanges {
-            observation_times: Some(vec![end]),
-            touch_state: Some(original.touch_state()),
+            observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -457,8 +428,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
             expiry_time: end,
             barrier_level: 120.0,
             barrier_type: BarrierType::UpAndOut,
-            observation_mode: ObservationMode::Continuous,
-            observation_times: vec![],
+            observation_times: None,
             touch_state: Some(BarrierTouchState::Untouched),
         },
         10.0,
@@ -526,8 +496,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(updated.payout(), Some(15.0));
     let scheduled = original
         .replace(BinaryBarrierOptionChanges {
-            observation_mode: Some(ObservationMode::Scheduled),
-            observation_times: Some(vec![end]),
+            observation_times: Some(Some(vec![end])),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -537,8 +506,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     check_monitoring_switch!(original, scheduled, BinaryBarrierOptionChanges);
     assert!(matches!(
         original.replace(BinaryBarrierOptionChanges {
-            observation_times: Some(vec![end]),
-            touch_state: Some(original.touch_state()),
+            observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -566,8 +534,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
             barrier_level: 120.0,
             barrier_type: BarrierType::UpAndIn,
             settlement_timing: SettlementTiming::AtExpiry,
-            observation_mode: ObservationMode::Continuous,
-            observation_times: vec![],
+            observation_times: None,
             touch_state: Some(BarrierTouchState::Untouched),
         },
         10.0,
@@ -632,8 +599,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(updated.payout(), Some(15.0));
     let scheduled = original
         .replace(TouchOptionChanges {
-            observation_mode: Some(ObservationMode::Scheduled),
-            observation_times: Some(vec![end]),
+            observation_times: Some(Some(vec![end])),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -643,8 +609,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     check_monitoring_switch!(original, scheduled, TouchOptionChanges);
     assert!(matches!(
         original.replace(TouchOptionChanges {
-            observation_times: Some(vec![end]),
-            touch_state: Some(original.touch_state()),
+            observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -673,8 +638,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
             upper_barrier: 120.0,
             barrier_type: DoubleBarrierType::KnockIn,
             settlement_timing: SettlementTiming::AtExpiry,
-            observation_mode: ObservationMode::Continuous,
-            observation_times: vec![],
+            observation_times: None,
             touch_state: Some(BarrierTouchState::Untouched),
         },
         10.0,
@@ -737,8 +701,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     check_field!(original, DoubleTouchOptionChanges, payout, 15.0);
     let scheduled = original
         .replace(DoubleTouchOptionChanges {
-            observation_mode: Some(ObservationMode::Scheduled),
-            observation_times: Some(vec![end]),
+            observation_times: Some(Some(vec![end])),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -748,8 +711,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     check_monitoring_switch!(original, scheduled, DoubleTouchOptionChanges);
     assert!(matches!(
         original.replace(DoubleTouchOptionChanges {
-            observation_times: Some(vec![end]),
-            touch_state: Some(original.touch_state()),
+            observation_times: Some(Some(vec![end])),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))

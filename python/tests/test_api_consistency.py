@@ -592,7 +592,7 @@ class ApiConsistencyTests(unittest.TestCase):
     def test_contractual_calendars_are_validated_before_pricing(self):
         start, closed, end = (datetime(2025, 1, day) for day in (3, 4, 6))
         life = {"effective_time": start, "expiry_time": end}
-        monitoring = {"observation_mode": "scheduled", "observation_times": [closed]}
+        monitoring = {"observation_times": [closed]}
         single = {"barrier_level": 120, "barrier_type": "up_and_out"}
         vanilla = {"option_type": "call", "strike": 100}
         factories = [

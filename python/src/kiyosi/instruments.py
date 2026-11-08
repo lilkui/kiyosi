@@ -12,6 +12,9 @@ their calendars, defaulting to weekdays. Supply the calendar at construction.
 Explicit observations use exact timestamps; automatic observations require
 ``observation_clock_time``. Daily knock-in and accumulation include the effective
 instant; range accrual observations exclude it. Settlement adds no observation.
+Barrier and touch contracts use ``observation_times=None`` for continuous
+monitoring and a nonempty iterable for scheduled monitoring. Their read-only
+``observation_mode`` property reports the selected mode.
 
 Supplied history requires ``history_time`` and covers events strictly before it.
 Current observations use the current spot. Discrete history can be reused until

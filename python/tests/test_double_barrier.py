@@ -144,7 +144,6 @@ class DoubleBarrierTests(unittest.TestCase):
         for field in (
             "rebate",
             "rebate_timing",
-            "observation_mode",
             "observation_times",
             "touch_state",
         ):
@@ -175,7 +174,6 @@ class DoubleBarrierTests(unittest.TestCase):
             "option_type",
             "barrier_type",
             "rebate_timing",
-            "observation_mode",
             "touch_state",
         ):
             with self.subTest(field=field), self.assertRaises(ValueError):
@@ -199,19 +197,17 @@ class DoubleBarrierTests(unittest.TestCase):
                 {"barrier_type": "knock_in", "rebate_timing": "at_hit"},
                 InvalidInputError,
             ),
-            ({"observation_times": [END]}, InvalidInputError),
-            ({"observation_mode": "scheduled"}, InvalidInputError),
+            ({"observation_times": []}, InvalidInputError),
             (
-                {"observation_mode": "scheduled", "observation_times": [END, END]},
+                {"observation_times": [END, END]},
                 InvalidInputError,
             ),
             (
-                {"observation_mode": "scheduled", "observation_times": [END, START]},
+                {"observation_times": [END, START]},
                 InvalidInputError,
             ),
             (
                 {
-                    "observation_mode": "scheduled",
                     "observation_times": [datetime(2026, 1, 2)],
                 },
                 InvalidInputError,
@@ -236,9 +232,7 @@ class DoubleBarrierTests(unittest.TestCase):
         self.assertEqual(known.replace_history(), known)
         self.assertEqual(known.replace_history(touch_state=None), option)
         self.assertIsNone(option.touch_state)
-        scheduled = contract(
-            observation_mode="scheduled", observation_times=(d for d in [START, END])
-        )
+        scheduled = contract(observation_times=(d for d in [START, END]))
         dates = list(scheduled.observation_times)
         dates.clear()
         self.assertEqual(scheduled.observation_times, (START, END))
@@ -334,7 +328,7 @@ class DoubleBarrierTests(unittest.TestCase):
         engine = AnalyticDoubleBarrierEngine()
         first = datetime(2025, 6, 30)
         for dates in ([first], [first, END]):
-            option = contract(observation_mode="scheduled", observation_times=dates)
+            option = contract(observation_times=dates)
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda option=option: engine.price(
@@ -355,7 +349,6 @@ class DoubleBarrierTests(unittest.TestCase):
             option = contract(
                 barrier_type=kind,
                 rebate=3,
-                observation_mode="scheduled",
                 observation_times=[first],
             )
             self.assertAlmostEqual(
@@ -412,9 +405,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 delta=1e-12,
             )
         with self.assertRaises(InvalidInputError):
-            contract(
-                observation_mode="scheduled", observation_times=[datetime(2025, 7, 5)]
-            )
+            contract(observation_times=[datetime(2025, 7, 5)])
 
     def test_image_spectral_switch_boundary_limits_and_tiny_volatility(self):
         engine = AnalyticDoubleBarrierEngine()
@@ -691,7 +682,6 @@ class DoubleBarrierTests(unittest.TestCase):
         inside = contract(
             expiry_time=datetime(2027, 1, 1),
             barrier_type="knock_in",
-            observation_mode="scheduled",
             observation_times=[START],
             touch_state="untouched",
         )

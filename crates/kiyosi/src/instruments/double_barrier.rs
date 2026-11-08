@@ -40,10 +40,8 @@ pub struct DoubleBarrierOptionTerms {
     pub rebate: f64,
     /// Rebate payment timing, default expiry.
     pub rebate_timing: RebateTiming,
-    /// Monitoring frequency, default continuous.
-    pub observation_mode: ObservationMode,
-    /// Strictly ordered times within life, empty for continuous monitoring.
-    pub observation_times: Vec<Timestamp>,
+    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Prior observations; `None` means unknown, not untouched.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -72,8 +70,7 @@ impl DoubleBarrierOptionTerms {
             barrier_type,
             rebate: BarrierOptionTerms::DEFAULT_REBATE,
             rebate_timing: RebateTiming::default(),
-            observation_mode: ObservationMode::default(),
-            observation_times: Vec::new(),
+            observation_times: None,
             touch_state: None,
         }
     }
@@ -156,7 +153,6 @@ impl DoubleBarrierOption {
         lower.calendar = terms.calendar;
         lower.rebate = terms.rebate;
         lower.rebate_timing = terms.rebate_timing;
-        lower.observation_mode = terms.observation_mode;
         lower.observation_times = terms.observation_times;
         lower.touch_state = terms.touch_state;
         lower.history_time = terms.history_time;
@@ -358,10 +354,8 @@ pub struct DoubleBarrierOptionChanges {
     pub rebate: Option<f64>,
     /// Replaces [`rebate_timing`](DoubleBarrierOptionTerms::rebate_timing).
     pub rebate_timing: Option<RebateTiming>,
-    /// Replaces [`observation_mode`](DoubleBarrierOptionTerms::observation_mode).
-    pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_times`](DoubleBarrierOptionTerms::observation_times).
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Replaces or clears [`observation_times`](DoubleBarrierOptionTerms::observation_times).
+    pub observation_times: Option<Option<Vec<Timestamp>>>,
     /// Replaces [`touch_state`](DoubleBarrierOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
 }
@@ -400,10 +394,10 @@ impl DoubleBarrierOption {
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
             rebate: changes.rebate.unwrap_or(self.rebate()),
             rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
-            observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().to_vec()),
+            observation_times: changes.observation_times.unwrap_or_else(|| {
+                (self.observation_mode() == ObservationMode::Scheduled)
+                    .then(|| self.observation_times().to_vec())
+            }),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         })?;
         self.lower.monitoring.validate_replacement_history(

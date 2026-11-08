@@ -433,7 +433,6 @@ class MonteCarloStatisticsTests(unittest.TestCase):
     def test_statistics_preserve_scheduled_barrier_prices(self):
         for name, factory, original in contracts()[-2:]:
             option = original.replace(
-                observation_mode="scheduled",
                 touch_state=original.touch_state,
                 observation_times=[START + timedelta(days=182), END],
                 history_time=(original.history_time or original.effective_time)

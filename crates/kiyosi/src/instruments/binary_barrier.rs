@@ -56,10 +56,8 @@ pub struct BinaryBarrierTerms {
     pub barrier_level: f64,
     /// Trigger direction and activation behavior.
     pub barrier_type: BarrierType,
-    /// Monitoring frequency, default continuous.
-    pub observation_mode: ObservationMode,
-    /// Ordered fixing times, empty for continuous monitoring.
-    pub observation_times: Vec<Timestamp>,
+    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -84,8 +82,7 @@ impl BinaryBarrierTerms {
             expiry_time,
             barrier_level,
             barrier_type,
-            observation_mode: ObservationMode::default(),
-            observation_times: Vec::new(),
+            observation_times: None,
             touch_state: None,
         }
     }
@@ -95,7 +92,6 @@ impl BinaryBarrierTerms {
             self.expiry_time,
             self.barrier_level,
             self.barrier_type,
-            self.observation_mode,
             self.observation_times,
             self.touch_state,
             self.calendar,
@@ -236,10 +232,8 @@ pub struct TouchOptionTerms {
     pub barrier_type: BarrierType,
     /// Payment timing, default expiry; at-hit requires one-touch.
     pub settlement_timing: SettlementTiming,
-    /// Monitoring frequency, default continuous.
-    pub observation_mode: ObservationMode,
-    /// Ordered fixing times, empty for continuous monitoring.
-    pub observation_times: Vec<Timestamp>,
+    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -261,8 +255,7 @@ impl TouchOptionTerms {
             barrier_level,
             barrier_type,
             settlement_timing: SettlementTiming::default(),
-            observation_mode: ObservationMode::default(),
-            observation_times: Vec::new(),
+            observation_times: None,
             touch_state: None,
         }
     }
@@ -277,7 +270,6 @@ impl TouchOptionTerms {
             self.expiry_time,
             self.barrier_level,
             self.barrier_type,
-            self.observation_mode,
             self.observation_times,
             self.touch_state,
             self.calendar,
@@ -581,10 +573,8 @@ pub struct BinaryBarrierOptionChanges {
     pub barrier_level: Option<f64>,
     /// Replaces [`barrier_type`](BinaryBarrierTerms::barrier_type).
     pub barrier_type: Option<BarrierType>,
-    /// Replaces [`observation_mode`](BinaryBarrierTerms::observation_mode).
-    pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_times`](BinaryBarrierTerms::observation_times).
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Replaces or clears [`observation_times`](BinaryBarrierTerms::observation_times).
+    pub observation_times: Option<Option<Vec<Timestamp>>>,
     /// Replaces [`touch_state`](BinaryBarrierTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces settlement explicitly with cash or the asset.
@@ -624,10 +614,10 @@ impl BinaryBarrierOption {
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
-            observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().to_vec()),
+            observation_times: changes.observation_times.unwrap_or_else(|| {
+                (self.observation_mode() == ObservationMode::Scheduled)
+                    .then(|| self.observation_times().to_vec())
+            }),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         let updated = match changes.payoff.unwrap_or_else(|| {
@@ -665,10 +655,8 @@ pub struct TouchOptionChanges {
     pub barrier_type: Option<BarrierType>,
     /// Replaces [`settlement_timing`](TouchOptionTerms::settlement_timing).
     pub settlement_timing: Option<SettlementTiming>,
-    /// Replaces [`observation_mode`](TouchOptionTerms::observation_mode).
-    pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_times`](TouchOptionTerms::observation_times).
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Replaces or clears [`observation_times`](TouchOptionTerms::observation_times).
+    pub observation_times: Option<Option<Vec<Timestamp>>>,
     /// Replaces [`touch_state`](TouchOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces settlement explicitly with cash or the asset.
@@ -709,10 +697,10 @@ impl TouchOption {
             settlement_timing: changes
                 .settlement_timing
                 .unwrap_or(self.settlement_timing()),
-            observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().to_vec()),
+            observation_times: changes.observation_times.unwrap_or_else(|| {
+                (self.observation_mode() == ObservationMode::Scheduled)
+                    .then(|| self.observation_times().to_vec())
+            }),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         let updated = match changes.payoff.unwrap_or_else(|| {

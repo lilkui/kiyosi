@@ -300,7 +300,7 @@ class DoubleTouchTests(unittest.TestCase):
         self.assertEqual(option.settlement_timing, "at_expiry")
         self.assertEqual(option.observation_mode, "continuous")
         self.assertIsNone(option.touch_state)
-        self.assertEqual(option.observation_times, ())
+        self.assertIsNone(option.observation_times)
         self.assertEqual(option.payout, 1)
         replaced = option.replace_history(
             touch_state="untouched",
@@ -310,9 +310,7 @@ class DoubleTouchTests(unittest.TestCase):
         self.assertIsNone(option.touch_state)
         self.assertEqual(replaced.replace_history(touch_state=None), option)
         dates = [FIRST, END]
-        scheduled = contract(
-            cash_double_no_touch, observation_mode="scheduled", observation_times=dates
-        )
+        scheduled = contract(cash_double_no_touch, observation_times=dates)
         dates.clear()
         copy = list(scheduled.observation_times)
         copy.clear()
@@ -346,11 +344,9 @@ class DoubleTouchTests(unittest.TestCase):
                     {"expiry_time": START - timedelta(days=1)},
                     InvalidInputError,
                 ),
-                ({"observation_mode": "scheduled"}, InvalidInputError),
-                ({"observation_times": [END]}, InvalidInputError),
+                ({"observation_times": []}, InvalidInputError),
                 (
                     {
-                        "observation_mode": "scheduled",
                         "observation_times": [END, FIRST],
                     },
                     InvalidInputError,
@@ -436,7 +432,6 @@ class DoubleTouchTests(unittest.TestCase):
             changes = {
                 "lower_barrier": 80.125,
                 "upper_barrier": 120.125,
-                "observation_mode": "scheduled",
                 "observation_times": dates,
             }
             options = (
@@ -457,7 +452,6 @@ class DoubleTouchTests(unittest.TestCase):
             cash_double_no_touch,
             lower_barrier=80.125,
             upper_barrier=120.125,
-            observation_mode="scheduled",
             observation_times=[END],
         )
         self.assertAlmostEqual(
@@ -544,7 +538,6 @@ class DoubleTouchTests(unittest.TestCase):
         option = contract(
             cash_double_no_touch,
             payout=2,
-            observation_mode="scheduled",
             observation_times=[FIRST],
         )
         event = datetime.combine(FIRST, datetime.min.time())
@@ -588,7 +581,6 @@ class DoubleTouchTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError):
             contract(
                 cash_double_no_touch,
-                observation_mode="scheduled",
                 observation_times=[datetime(2025, 1, 4)],
             )
 
@@ -649,7 +641,6 @@ class DoubleTouchTests(unittest.TestCase):
                 self.assertEqual(boundary.vega, 0)
         scheduled = contract(
             cash_double_no_touch,
-            observation_mode="scheduled",
             observation_times=[FIRST, END],
             touch_state="untouched",
         )
@@ -737,7 +728,6 @@ class DoubleTouchTests(unittest.TestCase):
             fields = {
                 "lower_barrier": 80.125,
                 "upper_barrier": 120.125,
-                "observation_mode": "scheduled",
                 "observation_times": [horizon],
             }
             touched = sum(
@@ -1117,15 +1107,13 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
     def test_analytic_schedules_validate_then_resolve_or_reject(self):
         engine = pricing.AnalyticDoubleTouchEngine()
         for option in (
-            contract(observation_mode="scheduled", observation_times=[FIRST]),
+            contract(observation_times=[FIRST]),
             contract(
-                observation_mode="scheduled",
                 observation_times=[FIRST],
                 settlement_timing="at_hit",
             ),
             contract(
                 cash_double_no_touch,
-                observation_mode="scheduled",
                 observation_times=[FIRST],
             ),
         ):
@@ -1170,9 +1158,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 delta=1e-12,
             )
         with self.assertRaises(InvalidInputError):
-            contract(
-                observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
-            )
+            contract(observation_times=[datetime(2025, 1, 4)])
 
     def test_analytic_node_curves_and_numerical_failures(self):
         engine = pricing.AnalyticDoubleTouchEngine()

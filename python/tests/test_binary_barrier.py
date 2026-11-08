@@ -199,7 +199,6 @@ class BinaryBarrierTests(unittest.TestCase):
             for field in (
                 "option_type",
                 "barrier_type",
-                "observation_mode",
                 "touch_state",
             ):
                 with self.subTest(field=field), self.assertRaises(TypeError):
@@ -212,18 +211,15 @@ class BinaryBarrierTests(unittest.TestCase):
                 ({"strike": 0, "barrier_level": 0}, InvalidInputError),
                 ({"barrier_level": 0}, InvalidInputError),
                 ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
-                ({"observation_mode": "scheduled"}, InvalidInputError),
-                ({"observation_times": [datetime(2025, 1, 2)]}, InvalidInputError),
+                ({"observation_times": []}, InvalidInputError),
                 (
                     {
-                        "observation_mode": "scheduled",
                         "observation_times": [datetime(2026, 1, 2)],
                     },
                     InvalidInputError,
                 ),
                 (
                     {
-                        "observation_mode": "scheduled",
                         "observation_times": [datetime(2025, 1, 2)] * 2,
                     },
                     InvalidInputError,
@@ -256,7 +252,6 @@ class BinaryBarrierTests(unittest.TestCase):
             "payout",
             "barrier_type",
             "settlement_timing",
-            "observation_mode",
             "touch_state",
         ):
             with self.subTest(field=field), self.assertRaises(TypeError):
@@ -264,7 +259,6 @@ class BinaryBarrierTests(unittest.TestCase):
         for field in (
             "barrier_type",
             "settlement_timing",
-            "observation_mode",
             "touch_state",
         ):
             with self.subTest(field=field), self.assertRaises(ValueError):
@@ -322,7 +316,6 @@ class BinaryBarrierTests(unittest.TestCase):
             one = kind == "up_and_in"
             option = self.touch(
                 barrier_type=kind,
-                observation_mode="scheduled",
                 observation_times=(d for d in [fixing]),
             )
             self.assert_rejection(
@@ -381,7 +374,6 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assertAlmostEqual(known.mean_observation_year_fraction, 1 / 365)
         with self.assertRaises(InvalidInputError):
             self.touch(
-                observation_mode="scheduled",
                 observation_times=[datetime(2025, 1, 4)],
                 touch_state="touched",
             )
@@ -493,7 +485,6 @@ class BinaryBarrierTests(unittest.TestCase):
                 )
             self.assertTrue(all(p == result.price for p in prices))
         dense = self.touch(
-            observation_mode="scheduled",
             observation_times=[
                 datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
             ],

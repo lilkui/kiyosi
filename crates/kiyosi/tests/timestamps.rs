@@ -331,8 +331,7 @@ fn scheduled_barriers_use_exact_current_observations_and_strict_history() {
         110.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_times = vec![time(6, 10, 0), time(6, 15, 0)];
+    terms.observation_times = Some(vec![time(6, 10, 0), time(6, 15, 0)]);
     terms.rebate = 7.0;
     terms.rebate_timing = RebateTiming::AtHit;
     let option = BarrierOption::new(terms).unwrap();

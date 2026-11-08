@@ -10470,10 +10470,8 @@ class BarrierOption:
         Nonnegative finite cash rebate; defaults to zero.
     rebate_timing : {'at_hit', 'at_expiry'}, optional
         Payment timing; at-hit rebates are valid only for knock-outs.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Continuous monitoring or observations on the supplied times.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing observation times within the contract life.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None means unknown; untouched means known no
         hit.
@@ -10512,8 +10510,7 @@ class BarrierOption:
         | EllipsisType = ...,
         rebate: _Real | EllipsisType = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
-        observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | EllipsisType = ...,
+        observation_times: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
@@ -10536,11 +10533,9 @@ class BarrierOption:
             Replacement value; omission or Ellipsis retains the current field.
         rebate_timing : {'at_hit', 'at_expiry'}, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observation_mode : {'continuous', 'scheduled'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime], optional
-            Omission retains times; switching to continuous requires an explicitly
-            empty iterable.
+        observation_times : Iterable[datetime.datetime] or None, optional
+            Omission retains monitoring; None selects continuous monitoring.
+            A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
@@ -10575,8 +10570,7 @@ class BarrierOption:
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
         rebate: _Real = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_mode: Literal["continuous", "scheduled"] = ...,
-        observation_times: Iterable[datetime] = ...,
+        observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
@@ -10656,7 +10650,7 @@ class BarrierOption:
         """Return continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -10842,10 +10836,8 @@ class DoubleBarrierOption:
         Nonnegative finite cash rebate; defaults to zero.
     rebate_timing : {'at_hit', 'at_expiry'}, optional
         Payment timing; at-hit rebates are valid only for knock-outs.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Continuous monitoring or observations on the supplied times.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing observation times within the contract life.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None means unknown; untouched means known no
         hit.
@@ -10884,8 +10876,7 @@ class DoubleBarrierOption:
         barrier_type: Literal["knock_in", "knock_out"] | EllipsisType = ...,
         rebate: _Real | EllipsisType = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
-        observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | EllipsisType = ...,
+        observation_times: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
@@ -10908,11 +10899,9 @@ class DoubleBarrierOption:
             Replacement value; omission or Ellipsis retains the current field.
         rebate_timing : {'at_hit', 'at_expiry'}, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observation_mode : {'continuous', 'scheduled'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime], optional
-            Omission retains times; switching to continuous requires an explicitly
-            empty iterable.
+        observation_times : Iterable[datetime.datetime] or None, optional
+            Omission retains monitoring; None selects continuous monitoring.
+            A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
@@ -10948,8 +10937,7 @@ class DoubleBarrierOption:
         barrier_type: Literal["knock_in", "knock_out"],
         rebate: _Real = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_mode: Literal["continuous", "scheduled"] = ...,
-        observation_times: Iterable[datetime] = ...,
+        observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
@@ -11031,7 +11019,7 @@ class DoubleBarrierOption:
         """Return continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -11698,11 +11686,8 @@ class BinaryBarrierOption:
     payout : float or None, optional
         Positive cash amount required for cash settlement; absent for asset
         settlement.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Monitoring frequency; defaults to continuous.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing scheduled times within life; empty for continuous
-        monitoring.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
@@ -11739,8 +11724,7 @@ class BinaryBarrierOption:
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
         payoff_type: Literal["cash"],
         payout: _Real,
-        observation_mode: Literal["continuous", "scheduled"] = ...,
-        observation_times: Iterable[datetime] = ...,
+        observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
@@ -11757,8 +11741,7 @@ class BinaryBarrierOption:
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
         payoff_type: Literal["asset"],
         payout: None = None,
-        observation_mode: Literal["continuous", "scheduled"] = ...,
-        observation_times: Iterable[datetime] = ...,
+        observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
@@ -11777,8 +11760,7 @@ class BinaryBarrierOption:
         barrier_level: _Real | EllipsisType = ...,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
-        observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | EllipsisType = ...,
+        observation_times: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payoff_type: Literal["cash", "asset"] | EllipsisType = ...,
         payout: _Real | None | EllipsisType = ...,
@@ -11799,11 +11781,9 @@ class BinaryBarrierOption:
             Replacement value; omission or Ellipsis retains the current field.
         barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observation_mode : {'continuous', 'scheduled'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime], optional
-            Omission retains times; switching to continuous requires an explicitly
-            empty iterable.
+        observation_times : Iterable[datetime.datetime] or None, optional
+            Omission retains monitoring; None selects continuous monitoring.
+            A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         payoff_type : {'cash', 'asset'}, optional
@@ -11891,7 +11871,7 @@ class BinaryBarrierOption:
         """Return continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -11940,11 +11920,8 @@ class TouchOption:
         settlement.
     settlement_timing : {'at_hit', 'at_expiry'}, optional
         Defaults to expiry; at-hit settlement requires a one-touch.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Monitoring frequency; defaults to continuous.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing scheduled times within life; empty for continuous
-        monitoring.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
@@ -11980,8 +11957,7 @@ class TouchOption:
         payoff_type: Literal["cash"],
         payout: _Real,
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_mode: Literal["continuous", "scheduled"] = ...,
-        observation_times: Iterable[datetime] = ...,
+        observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
@@ -11997,8 +11973,7 @@ class TouchOption:
         payoff_type: Literal["asset"],
         payout: None = None,
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_mode: Literal["continuous", "scheduled"] = ...,
-        observation_times: Iterable[datetime] = ...,
+        observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
@@ -12016,8 +11991,7 @@ class TouchOption:
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
         settlement_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
-        observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | EllipsisType = ...,
+        observation_times: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payoff_type: Literal["cash", "asset"] | EllipsisType = ...,
         payout: _Real | None | EllipsisType = ...,
@@ -12036,11 +12010,9 @@ class TouchOption:
             Replacement value; omission or Ellipsis retains the current field.
         settlement_timing : {'at_hit', 'at_expiry'}, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observation_mode : {'continuous', 'scheduled'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime], optional
-            Omission retains times; switching to continuous requires an explicitly
-            empty iterable.
+        observation_times : Iterable[datetime.datetime] or None, optional
+            Omission retains monitoring; None selects continuous monitoring.
+            A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         payoff_type : {'cash', 'asset'}, optional
@@ -12128,7 +12100,7 @@ class TouchOption:
         """Return continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -12172,8 +12144,7 @@ def cash_binary_barrier_option(
     barrier_level: _Real,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     payout: _Real,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_times: Iterable[datetime] = ...,
+    observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
@@ -12196,10 +12167,8 @@ def cash_binary_barrier_option(
         Trigger direction and knock-in or knock-out behavior.
     payout : float
         Positive finite cash payment.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Continuous monitoring or observations on the supplied times.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing observation times within the contract life.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None means unknown; untouched means known no
         hit.
@@ -12235,8 +12204,7 @@ def asset_binary_barrier_option(
     expiry_time: datetime,
     barrier_level: _Real,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_times: Iterable[datetime] = ...,
+    observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
@@ -12257,10 +12225,8 @@ def asset_binary_barrier_option(
         Positive finite trigger level; equality counts as a touch.
     barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
         Trigger direction and knock-in or knock-out behavior.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Continuous monitoring or observations on the supplied times.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing observation times within the contract life.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None means unknown; untouched means known no
         hit.
@@ -12296,8 +12262,7 @@ def cash_touch_option(
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     payout: _Real,
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_times: Iterable[datetime] = ...,
+    observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
@@ -12319,10 +12284,8 @@ def cash_touch_option(
         Positive finite cash payment.
     settlement_timing : {'at_hit', 'at_expiry'}, optional
         Defaults to expiry. At-hit settlement requires a one-touch contract.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Continuous monitoring or observations on the supplied times.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing observation times within the contract life.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None is unknown; untouched means known no hit.
     calendar : TradingCalendar, optional
@@ -12359,8 +12322,7 @@ def asset_touch_option(
     barrier_level: _Real,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_times: Iterable[datetime] = ...,
+    observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
@@ -12380,10 +12342,8 @@ def asset_touch_option(
 
     settlement_timing : {'at_hit', 'at_expiry'}, optional
         Defaults to expiry. At-hit settlement requires a one-touch contract.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Continuous monitoring or observations on the supplied times.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing observation times within the contract life.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None is unknown; untouched means known no hit.
     calendar : TradingCalendar, optional
@@ -12576,11 +12536,8 @@ class DoubleTouchOption:
         Positive finite cash payment.
     settlement_timing : {'at_hit', 'at_expiry'}, optional
         Defaults to expiry; at-hit settlement requires double one-touch.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Monitoring frequency; defaults to continuous.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing scheduled times within life; empty for continuous
-        monitoring.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
@@ -12617,8 +12574,7 @@ class DoubleTouchOption:
         barrier_type: Literal["knock_in", "knock_out"],
         payout: _Real,
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_mode: Literal["continuous", "scheduled"] = ...,
-        observation_times: Iterable[datetime] = ...,
+        observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar = ...,
         history_time: datetime | None = None,
@@ -12636,8 +12592,7 @@ class DoubleTouchOption:
         upper_barrier: _Real | EllipsisType = ...,
         barrier_type: Literal["knock_in", "knock_out"] | EllipsisType = ...,
         settlement_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
-        observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | EllipsisType = ...,
+        observation_times: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payout: _Real | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
@@ -12655,11 +12610,9 @@ class DoubleTouchOption:
             Replacement value; omission or Ellipsis retains the current field.
         settlement_timing : {'at_hit', 'at_expiry'}, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observation_mode : {'continuous', 'scheduled'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime], optional
-            Omission retains times; switching to continuous requires an explicitly
-            empty iterable.
+        observation_times : Iterable[datetime.datetime] or None, optional
+            Omission retains monitoring; None selects continuous monitoring.
+            A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         payout : float, optional
@@ -12758,7 +12711,7 @@ class DoubleTouchOption:
         """Return continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -12777,8 +12730,7 @@ def cash_double_touch(
     upper_barrier: _Real,
     payout: _Real,
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_times: Iterable[datetime] = ...,
+    observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
@@ -12799,10 +12751,8 @@ def cash_double_touch(
         Positive finite cash payment.
     settlement_timing : {'at_hit', 'at_expiry'}, optional
         At-hit or expiry payment; no-touch contracts settle only at expiry.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Continuous monitoring or observations on the supplied times.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing observation times within the contract life.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None means unknown; untouched means known no
         hit.
@@ -12838,8 +12788,7 @@ def cash_double_no_touch(
     lower_barrier: _Real,
     upper_barrier: _Real,
     payout: _Real,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_times: Iterable[datetime] = ...,
+    observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar = ...,
     history_time: datetime | None = None,
@@ -12858,10 +12807,8 @@ def cash_double_no_touch(
         Finite upper trigger, strictly above the lower trigger.
     payout : float
         Positive finite cash payment.
-    observation_mode : {'continuous', 'scheduled'}, optional
-        Continuous monitoring or observations on the supplied times.
-    observation_times : iterable of datetime.datetime, optional
-        Strictly increasing observation times within the contract life.
+    observation_times : iterable of datetime.datetime or None, optional
+        Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None means unknown; untouched means known no
         hit.
@@ -13516,7 +13463,7 @@ class SnowballOption:
         """Return owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -13991,7 +13938,7 @@ class PhoenixOption:
         """Return owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -14220,7 +14167,7 @@ class BinarySnowballOption:
         """Return owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -14451,7 +14398,7 @@ class TernarySnowballOption:
         """Return owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
+    def observation_times(self) -> tuple[datetime, ...] | None:
         """Return a copy of the contractual observation times."""
 
     @property

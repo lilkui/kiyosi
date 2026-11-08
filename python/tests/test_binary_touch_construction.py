@@ -53,7 +53,6 @@ class BinaryTouchConstructionTests(unittest.TestCase):
         double = {"lower_barrier": 80, "upper_barrier": 120}
         calendar = market.all_days_calendar()
         monitoring = {
-            "observation_mode": "scheduled",
             "observation_times": [end],
             "touch_state": "untouched",
             "calendar": calendar,
@@ -189,7 +188,6 @@ class BinaryTouchConstructionTests(unittest.TestCase):
                 (
                     {
                         "calendar": market.weekdays_calendar(),
-                        "observation_mode": "scheduled",
                         "observation_times": [end],
                     },
                     InvalidInputError,

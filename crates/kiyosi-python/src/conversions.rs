@@ -170,6 +170,16 @@ pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Date> {
     ))
 }
 
+pub(crate) fn optional_timestamps(
+    value: &Bound<'_, PyAny>,
+) -> PyResult<Option<Vec<kiyosi::Timestamp>>> {
+    if value.is_none() {
+        Ok(None)
+    } else {
+        timestamps(value).map(Some)
+    }
+}
+
 pub(crate) fn timestamps(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Timestamp>> {
     value.try_iter()?.map(|item| timestamp(&item?)).collect()
 }

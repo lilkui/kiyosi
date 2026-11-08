@@ -42,8 +42,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 strike=spot,
                 lower_barrier=0.8 * spot,
                 upper_barrier=1.2 * spot,
-                observation_mode=mode,
-                observation_times=[END] if mode == "scheduled" else [],
+                observation_times=[END] if mode == "scheduled" else None,
             )
             context = market(spot, rate=0, dividend=0, volatility=sigma)
             expected = spot * sigma / math.sqrt(math.tau)
@@ -135,7 +134,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 upper_barrier=120.125,
                 rebate=2,
                 rebate_timing=timing,
-                observation_mode="scheduled",
                 observation_times=[FIRST, END] if final else [FIRST],
             )
             expected = first_fixing_reference(
@@ -161,7 +159,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             option = contract(
                 option_type=direction,
                 rebate=2,
-                observation_mode="scheduled",
                 observation_times=[END],
             )
             self.assertAlmostEqual(
@@ -176,7 +173,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     rebate=2,
                     lower_barrier=80.125,
                     upper_barrier=120.125,
-                    observation_mode="scheduled",
                     observation_times=[FIRST, END] if final else [FIRST],
                 )
                 expected = (
@@ -191,9 +187,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     expected,
                     delta=0.025,
                 )
-        option = contract(
-            strike=130, observation_mode="scheduled", observation_times=[FIRST]
-        )
+        option = contract(strike=130, observation_times=[FIRST])
         self.assertGreater(
             engine.price(dated_history(option, market()), market()), 0.01
         )
@@ -336,11 +330,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 option_type="put",
                 rebate=3,
                 rebate_timing="at_hit",
-                **(
-                    {"observation_mode": "scheduled", "observation_times": [FIRST]}
-                    if scheduled
-                    else {}
-                ),
+                **({"observation_times": [FIRST]} if scheduled else {}),
             )
             settings = {
                 "path_count": 1024,
@@ -446,7 +436,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 barrier_type=kind,
                 rebate=7,
                 rebate_timing=timing,
-                observation_mode="scheduled",
                 observation_times=[FIRST],
             )
             on_date = market(120, time=FIRST)
@@ -629,7 +618,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         )
         with self.assertRaises(InvalidInputError):
             contract(
-                observation_mode="scheduled",
                 observation_times=[START + timedelta(days=3)],
             )
         self.assertEqual(engine.price(dated_history(option, context), context), quote)
@@ -675,7 +663,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         fixed = contract(rebate=3, touch_state="touched")
         finished = contract(
             barrier_type="knock_in",
-            observation_mode="scheduled",
             observation_times=[FIRST],
             touch_state="untouched",
         )
@@ -706,7 +693,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         dates = [START + timedelta(days=i) for i in range(1, 21202)]
         option = contract(
             expiry_time=dates[-1] + timedelta(days=1),
-            observation_mode="scheduled",
             observation_times=dates,
             calendar=all_days_calendar(),
         )

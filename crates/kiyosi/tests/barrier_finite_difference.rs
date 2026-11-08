@@ -77,11 +77,10 @@ fn scheduled_events_match_independent_two_fixing_integrals_and_time_convergence(
                 },
             );
             t.barrier_level = if up { 110.125 } else { 90.125 };
-            t.observation_mode = ObservationMode::Scheduled;
-            t.observation_times = vec![
+            t.observation_times = Some(vec![
                 Date::new(2025, 6, 30).unwrap().start_of_day(),
                 t.expiry_time,
-            ];
+            ]);
             t.rebate = 2.0;
             t.rebate_timing = timing;
             let option = BarrierOption::new(t).unwrap();
@@ -372,8 +371,7 @@ fn explicit_stability_uses_the_continuous_domain_and_settings_validate_eagerly()
 fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
     let first = Date::new(2025, 4, 2).unwrap().start_of_day();
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![first, t.expiry_time];
+    t.observation_times = Some(vec![first, t.expiry_time]);
     t.rebate = 7.0;
     let curve = RateTermStructure::new(
         t.effective_time,
@@ -436,13 +434,12 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
 fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
     t.expiry_time = Date::new(2025, 12, 27).unwrap().start_of_day();
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![
+    t.observation_times = Some(vec![
         Date::new(2025, 4, 1).unwrap().start_of_day(),
         Date::new(2025, 6, 30).unwrap().start_of_day(),
         Date::new(2025, 9, 28).unwrap().start_of_day(),
         t.expiry_time,
-    ];
+    ]);
     t.barrier_level = 110.125;
     t.rebate = 2.0;
     let context = market(100.25);
@@ -489,8 +486,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
 #[test]
 fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![t.expiry_time];
+    t.observation_times = Some(vec![t.expiry_time]);
     let option = BarrierOption::new(t).unwrap();
     let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
         spot_shift: None,

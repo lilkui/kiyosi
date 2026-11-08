@@ -82,7 +82,6 @@ class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
                     barrier_type="up_and_out" if up else "down_and_out",
                     rebate=rebate,
                     rebate_timing=timing,
-                    observation_mode="scheduled",
                     observation_times=dates,
                 )
                 engine = pricing.FiniteDifferenceBarrierEngine(

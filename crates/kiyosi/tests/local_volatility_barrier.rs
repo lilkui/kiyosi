@@ -162,10 +162,10 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                         BarrierOptionTerms::new(direction, 100.0, start, end, level, kind);
                     terms.rebate = 2.0;
                     terms.rebate_timing = timing;
-                    terms.observation_mode = mode;
+
                     if mode == ObservationMode::Scheduled {
                         terms.observation_times =
-                            vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end];
+                            Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end]);
                     }
                     let option = BarrierOption::new(terms).unwrap();
                     let expected = single
@@ -187,10 +187,10 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                     );
                     terms.rebate = 2.0;
                     terms.rebate_timing = timing;
-                    terms.observation_mode = mode;
+
                     if mode == ObservationMode::Scheduled {
                         terms.observation_times =
-                            vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end];
+                            Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end]);
                     }
                     let option = DoubleBarrierOption::new(terms).unwrap();
                     let expected = double

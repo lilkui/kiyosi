@@ -38,8 +38,7 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
                 (BarrierType::DownAndOut, 100.0, 120.0),
             ] {
                 let mut terms = BarrierOptionTerms::new(direction, strike, start, end, 100.0, kind);
-                terms.observation_mode = ObservationMode::Scheduled;
-                terms.observation_times = vec![end];
+                terms.observation_times = Some(vec![end]);
                 terms.rebate = 2.0;
                 let option = BarrierOption::new(terms).unwrap();
                 assert!(
@@ -54,8 +53,7 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
                 let mut terms = DoubleBarrierOptionTerms::new(
                     direction, strike, start, end, lower, upper, kind,
                 );
-                terms.observation_mode = ObservationMode::Scheduled;
-                terms.observation_times = vec![end];
+                terms.observation_times = Some(vec![end]);
                 terms.rebate = 2.0;
                 let option = DoubleBarrierOption::new(terms).unwrap();
                 assert!(

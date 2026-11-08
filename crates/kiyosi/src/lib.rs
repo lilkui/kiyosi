@@ -17,6 +17,8 @@
 //! Contract boundaries are inclusive. Calendars classify [`Date`] values without
 //! moving those boundaries. Constructors validate terms and observation calendars;
 //! pricing validates valuation times, model coverage, and required history.
+//! Barrier and touch terms select continuous monitoring with `observation_times: None`
+//! or scheduled monitoring with a nonempty `Some(times)`.
 //! European vanilla and digital options permit pre-effective valuation; other
 //! contracts require valuation within their life.
 //!

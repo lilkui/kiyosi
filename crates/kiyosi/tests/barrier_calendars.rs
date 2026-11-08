@@ -21,8 +21,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         120.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_times = observations.clone();
+    terms.observation_times = Some(observations.clone());
     assert!(matches!(
         BarrierOption::new(terms.clone()),
         Err(Error::InvalidInput(_))
@@ -92,8 +91,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         DoubleBarrierType::KnockOut,
     );
     double.calendar = TradingCalendar::all_days();
-    double.observation_mode = ObservationMode::Scheduled;
-    double.observation_times = observations.clone();
+    double.observation_times = Some(observations.clone());
     check!(
         DoubleBarrierOption::new(double)?,
         FiniteDifferenceDoubleBarrierEngine::default(),
@@ -111,8 +109,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         BarrierType::UpAndOut,
     );
     binary.calendar = TradingCalendar::all_days();
-    binary.observation_mode = ObservationMode::Scheduled;
-    binary.observation_times = observations.clone();
+    binary.observation_times = Some(observations.clone());
     check!(
         BinaryBarrierOption::cash(binary, 10.0)?,
         FiniteDifferenceBinaryBarrierEngine::default(),
@@ -123,8 +120,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     );
     let mut touch = TouchOptionTerms::new(start, expiry, 120.0, BarrierType::UpAndIn);
     touch.calendar = TradingCalendar::all_days();
-    touch.observation_mode = ObservationMode::Scheduled;
-    touch.observation_times = observations.clone();
+    touch.observation_times = Some(observations.clone());
     check!(
         TouchOption::cash(touch, 10.0)?,
         FiniteDifferenceBinaryBarrierEngine::default(),
@@ -136,8 +132,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     let mut double =
         DoubleTouchOptionTerms::new(start, expiry, 80.0, 120.0, DoubleBarrierType::KnockIn);
     double.calendar = TradingCalendar::all_days();
-    double.observation_mode = ObservationMode::Scheduled;
-    double.observation_times = observations;
+    double.observation_times = Some(observations);
     check!(
         DoubleTouchOption::cash(double, 10.0)?,
         FiniteDifferenceDoubleTouchEngine::default(),

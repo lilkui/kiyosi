@@ -188,7 +188,9 @@ pub(crate) fn _repr_previews<'py>(
                 if v.0.calendar() != &kiyosi::TradingCalendar::default() {
                     result.set_item("calendar", calendar(py, v.0.calendar())?)?;
                 }
-                result.set_item("observation_times", times(py, v.0.observation_times())?)?;
+                if v.0.observation_mode() == kiyosi::ObservationMode::Scheduled {
+                    result.set_item("observation_times", times(py, v.0.observation_times())?)?;
+                }
             }
         )+};
     }

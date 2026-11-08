@@ -42,7 +42,6 @@ def option(up, barrier, *, dates=(END,), timing="at_expiry", knock_in=False):
         barrier_type=f"{'up' if up else 'down'}_and_{'in' if knock_in else 'out'}",
         rebate=2,
         rebate_timing=timing,
-        observation_mode="scheduled",
         observation_times=dates,
     )
 
@@ -213,7 +212,6 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                 barrier_level=110,
                 barrier_type="up_and_out",
                 rebate=rebate,
-                observation_mode="scheduled",
                 observation_times=[END],
             )
             return engine.price(contract, market)
@@ -232,7 +230,6 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                 barrier_type="up_and_out" if up else "down_and_out",
                 rebate=2,
                 rebate_timing=timing,
-                observation_mode="scheduled",
                 calendar=all_days_calendar(),
                 observation_times=[
                     START + timedelta(days=i) for i in (90, 180, 270, 360)
@@ -387,7 +384,6 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                 barrier_type="up_and_out" if up else "down_and_out",
                 rebate=2,
                 rebate_timing=timing,
-                observation_mode="scheduled",
                 observation_times=[START + timedelta(days=180), END],
             )
             expected = (

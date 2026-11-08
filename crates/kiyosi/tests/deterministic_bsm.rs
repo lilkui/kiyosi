@@ -371,8 +371,7 @@ fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Res
         ],
     )?;
     let scheduled = continuous.replace(TouchOptionChanges {
-        observation_mode: Some(ObservationMode::Scheduled),
-        observation_times: Some(vec![end]),
+        observation_times: Some(Some(vec![end])),
         ..Default::default()
     })?;
     verify(

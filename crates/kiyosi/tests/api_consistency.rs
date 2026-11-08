@@ -1369,8 +1369,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         120.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_times = vec![closed];
+    terms.observation_times = Some(vec![closed]);
     assert!(matches!(
         BarrierOption::new(terms.clone()),
         Err(Error::InvalidInput(_))

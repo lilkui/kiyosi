@@ -42,7 +42,6 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         "strike": strike,
                         "effective_time": START,
                         "expiry_time": END,
-                        "observation_mode": "scheduled",
                         "observation_times": [END],
                         "rebate": 2,
                     }

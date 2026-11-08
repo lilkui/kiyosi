@@ -90,7 +90,6 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
     );
     assert_eq!(base.rebate, defaults.rebate);
     assert_eq!(base.rebate_timing, defaults.rebate_timing);
-    assert_eq!(base.observation_mode, defaults.observation_mode);
     assert_eq!(base.observation_times, defaults.observation_times);
     assert_eq!(base.touch_state, defaults.touch_state);
     for (lower, upper) in [
@@ -140,23 +139,15 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
         DoubleBarrierOption::new(t).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    for (mode, dates) in [
-        (ObservationMode::Continuous, vec![base.expiry_time]),
-        (ObservationMode::Scheduled, vec![]),
-        (
-            ObservationMode::Scheduled,
-            vec![base.expiry_time, base.expiry_time],
-        ),
-        (
-            ObservationMode::Scheduled,
-            vec![base.expiry_time, base.effective_time],
-        ),
-        (ObservationMode::Scheduled, vec![day(2024, 12, 31)]),
-        (ObservationMode::Scheduled, vec![day(2026, 1, 2)]),
+    for dates in [
+        vec![],
+        vec![base.expiry_time, base.expiry_time],
+        vec![base.expiry_time, base.effective_time],
+        vec![day(2024, 12, 31)],
+        vec![day(2026, 1, 2)],
     ] {
         let mut t = base.clone();
-        t.observation_mode = mode;
-        t.observation_times = dates;
+        t.observation_times = Some(dates);
         assert!(matches!(
             DoubleBarrierOption::new(t).unwrap_err(),
             Error::InvalidInput(_)
@@ -318,8 +309,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
     let first = day(2025, 6, 30);
     let context = market(100.0, day(2025, 1, 1), 0.2, 0.04, 0.01);
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![first];
+    t.observation_times = Some(vec![first]);
     t.rebate = 3.0;
     let option = DoubleBarrierOption::new(t.clone()).unwrap();
     assert_eq!(option.observation_times(), &[first]);
@@ -397,7 +387,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
         .abs()
             < 1e-12
     );
-    t.observation_times = vec![day(2025, 7, 5)];
+    t.observation_times = Some(vec![day(2025, 7, 5)]);
     assert!(matches!(
         DoubleBarrierOption::new(t),
         Err(Error::InvalidInput(_))
@@ -782,8 +772,7 @@ fn settled_zero_rebates_do_not_require_a_representable_discount() {
         0.0
     );
     t.barrier_type = DoubleBarrierType::KnockIn;
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![t.effective_time];
+    t.observation_times = Some(vec![t.effective_time]);
     t.touch_state = Some(BarrierTouchState::Untouched);
     t.history_time = Some(t.effective_time);
     let inside = DoubleBarrierOption::new(t).unwrap();

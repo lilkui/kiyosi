@@ -117,7 +117,6 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     fields = {
                         "barrier_level": 120.125 if up else 79.875,
                         "barrier_type": f"{'up' if up else 'down'}_and_{'in' if kind == 'one_touch' else 'out'}",
-                        "observation_mode": "scheduled",
                         "observation_times": [datetime(2025, 6, 30), END],
                     }
                     if kind == "one_touch":
@@ -153,7 +152,6 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                             "expiry_time": END,
                             "barrier_level": 120.125 if up else 79.875,
                             "barrier_type": f"{'up' if up else 'down'}_and_{'in' if knock_in else 'out'}",
-                            "observation_mode": "scheduled",
                             "observation_times": [datetime(2025, 6, 30), END],
                         }
                         if not asset:
@@ -197,7 +195,6 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 option = touch(
                     ins.asset_touch_option if asset else ins.cash_touch_option,
                     barrier_level=120.125,
-                    observation_mode="scheduled",
                     observation_times=[fixing, END],
                     settlement_timing="at_hit" if at_hit else "at_expiry",
                 )
@@ -219,7 +216,6 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         short = RateTermStructure(reference_time=START, times=[fixing], factors=[0.97])
         ctx = market(rate=short, dividend=short)
         option = touch(
-            observation_mode="scheduled",
             observation_times=[fixing],
             settlement_timing="at_hit",
         )
@@ -235,7 +231,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             AnalyticDigitalEngine().price(dated_history(digital, ctx), ctx),
             delta=0.0004,
         )
-        later_payment = touch(observation_mode="scheduled", observation_times=[fixing])
+        later_payment = touch(observation_times=[fixing])
         self.assert_rejection(InvalidInputError, engine.price, later_payment, ctx)
         known = option.replace_history(
             touch_state="untouched",
@@ -252,7 +248,6 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         no_touch = touch(
             barrier_type="up_and_out",
-            observation_mode="scheduled",
             observation_times=[fixing],
             touch_state="untouched",
         )
@@ -437,9 +432,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 market(),
             )
         with self.assertRaises(InvalidInputError):
-            touch(
-                observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
-            )
+            touch(observation_times=[datetime(2025, 1, 4)])
         with self.assertRaises(TypeError):
             engine.price(dated_history(object(), market()), market())
         with self.assertRaises(TypeError):

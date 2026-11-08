@@ -177,7 +177,6 @@ class HistoryTests(unittest.TestCase):
             with self.subTest(contract=type(original).__name__):
                 if hasattr(original, "touch_state"):
                     original = original.replace(
-                        observation_mode="scheduled",
                         observation_times=[past, original.expiry_time],
                         touch_state=original.touch_state,
                         history_time=AT,

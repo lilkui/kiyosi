@@ -312,9 +312,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             ),
         )
         for bound, inside in ((80, math.inf), (120, 0)):
-            observed = contract(
-                observation_mode="scheduled", observation_times=[START, END], rebate=3
-            )
+            observed = contract(observation_times=[START, END], rebate=3)
             actual = engine.price_with_greeks(
                 dated_history(observed, market(bound)),
                 market(bound),
@@ -324,9 +322,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertIsNone(actual.delta)
             self.assertIsNone(actual.gamma)
             self.assertEqual(actual.vega, 0)
-            future = contract(
-                observation_mode="scheduled", observation_times=[END], rebate=3
-            )
+            future = contract(observation_times=[END], rebate=3)
             just_inside = market(math.nextafter(bound, inside))
             self.assertEqual(
                 engine.price(dated_history(observed, just_inside), just_inside),
@@ -340,7 +336,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             option = contract(
                 barrier_type=kind,
                 rebate=3,
-                observation_mode="scheduled",
                 observation_times=[FIRST],
                 touch_state="untouched",
             )
@@ -375,7 +370,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                         )
                     ),
                 )
-        future = contract(observation_mode="scheduled", observation_times=[END])
+        future = contract(observation_times=[END])
         self.assertAlmostEqual(
             engine.price(dated_history(future, market(125)), market(125)),
             terminal_reference(125, "call", 80, 120, 1, rebate=0),
@@ -394,7 +389,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                     upper_barrier=120.125,
                     rebate=2,
                     rebate_timing=timing,
-                    observation_mode="scheduled",
                     observation_times=dates,
                 )
                 if dates == [END]:
@@ -431,8 +425,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             terms = {
                 "option_type": direction,
                 "rebate": 2,
-                "observation_mode": mode,
-                "observation_times": [FIRST, END] if mode == "scheduled" else [],
+                "observation_times": [FIRST, END] if mode == "scheduled" else None,
             }
             values = [
                 engine.price_with_greeks(
@@ -529,7 +522,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             ),
         )
         scheduled = contract(
-            observation_mode="scheduled",
             observation_times=[FIRST, END],
             touch_state="untouched",
         )
@@ -664,7 +656,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         weekend = datetime(2025, 7, 5)
         with self.assertRaises(InvalidInputError):
-            contract(observation_mode="scheduled", observation_times=[weekend])
+            contract(observation_times=[weekend])
         engine = pricing.FiniteDifferenceDoubleBarrierEngine()
         option, context = contract(), market()
         expected = engine.price(dated_history(option, context), context)
@@ -722,7 +714,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             lower_barrier=lower,
             upper_barrier=upper,
             rebate=2,
-            observation_mode="scheduled",
             observation_times=[END],
         )
         engine = pricing.FiniteDifferenceDoubleBarrierEngine(
@@ -772,7 +763,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 strike=strike,
                 lower_barrier=lower,
                 upper_barrier=upper,
-                observation_mode="scheduled",
                 observation_times=[FIRST],
             )
             for scheme in ("crank_nicolson", "rannacher", "implicit_euler"):
@@ -799,7 +789,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             strike=strike,
             lower_barrier=80.24995,
             upper_barrier=120,
-            observation_mode="scheduled",
             observation_times=[FIRST],
         )
         before = datetime.combine(FIRST, datetime.min.time()) - timedelta(seconds=1)
@@ -984,7 +973,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             instrument = contract(
                 rebate=7,
                 rebate_timing=timing,
-                observation_mode="scheduled",
                 observation_times=[first, END],
             )
             expected = 7 * math.exp(-0.08 * 91 / 365 if timing == "at_hit" else -0.01)

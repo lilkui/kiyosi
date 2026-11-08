@@ -38,8 +38,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 strike=spot,
                 barrier_level=0.8 * spot,
                 expiry_time=end,
-                observation_mode=mode,
-                observation_times=[end] if mode == "scheduled" else [],
+                observation_times=[end] if mode == "scheduled" else None,
             )
             context = market(spot, rate=0, dividend=0, volatility=sigma)
             expected = spot * sigma / math.sqrt(math.tau)
@@ -147,7 +146,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     kind,
                     "put",
                     rebate=2,
-                    observation_mode="scheduled",
                     observation_times=dates,
                 )
                 actual = engine.price_with_greeks(
@@ -168,7 +166,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
         contract = option(
             "up_and_out",
             strike=130,
-            observation_mode="scheduled",
             observation_times=[START + timedelta(days=90)],
         )
         self.assertGreater(
@@ -201,7 +198,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
         observation = START + timedelta(days=180)
         terms = {
             "rebate_timing": "at_hit",
-            "observation_mode": "scheduled",
             "observation_times": [observation],
         }
         with_rebate = option("up_and_out", "put", rebate=10, **terms)
@@ -229,7 +225,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 rebate_timing="at_hit",
                 **(
                     {
-                        "observation_mode": "scheduled",
                         "observation_times": [START + timedelta(days=90), END],
                     }
                     if scheduled
@@ -348,7 +343,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     kind,
                     rebate=7,
                     rebate_timing=timing,
-                    observation_mode="scheduled",
                     observation_times=[observation],
                 )
                 on_date = market(spot=contract.barrier_level, valuation=observation)
@@ -595,7 +589,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
         contract = option(
             "up_and_out",
             expiry_time=dates[-1] + timedelta(days=1),
-            observation_mode="scheduled",
             observation_times=dates,
         )
         engine = pricing.MonteCarloBarrierEngine(
@@ -628,7 +621,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
 
         with self.assertRaises(InvalidInputError):
             option(
-                observation_mode="scheduled",
                 observation_times=[START + timedelta(days=3)],
                 calendar=weekdays_calendar(),
             )

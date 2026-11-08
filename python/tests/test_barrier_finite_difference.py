@@ -62,7 +62,6 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             terms = {
                 "rebate": 5,
                 "rebate_timing": "at_hit" if kind.endswith("out") else "at_expiry",
-                "observation_mode": "scheduled",
                 "observation_times": [observation],
             }
             contract = option(kind, **terms)
@@ -118,7 +117,6 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 contract = option(
                     kind,
                     rebate=3,
-                    observation_mode="scheduled",
                     observation_times=dates,
                     touch_state="untouched",
                 )
@@ -315,7 +313,6 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                         direction,
                         rebate=3,
                         rebate_timing=timing,
-                        observation_mode="scheduled",
                         observation_times=[observation],
                     )
                     with self.subTest(kind=kind, direction=direction, timing=timing):
@@ -328,7 +325,6 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
     def test_scheduled_greeks_solver_and_concurrency(self):
         engine = pricing.FiniteDifferenceBarrierEngine(asset_step_count=256)
         contract = option(
-            observation_mode="scheduled",
             observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
         )
         context = market()
@@ -412,7 +408,6 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 "up_and_out",
                 rebate=7,
                 rebate_timing=timing,
-                observation_mode="scheduled",
                 observation_times=[START + timedelta(days=91), END],
             )
             expected = 7 * math.exp(
@@ -515,9 +510,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         from kiyosi.instruments import CashOrNothingOption
 
         engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
-        contract = option(
-            "up_and_out", observation_mode="scheduled", observation_times=[END]
-        )
+        contract = option("up_and_out", observation_times=[END])
         common = {"option_type": "call", "effective_time": START, "expiry_time": END}
         lower = EuropeanOption(strike=100, **common)
         upper = EuropeanOption(strike=120, **common)
@@ -561,7 +554,6 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         contract = option(
             "up_and_out",
             expiry_time=end,
-            observation_mode="scheduled",
             observation_times=[end],
         )
         engine = pricing.FiniteDifferenceBarrierEngine(

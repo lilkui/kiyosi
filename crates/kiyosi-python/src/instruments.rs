@@ -99,12 +99,15 @@ macro_rules! monitoring_properties {
             fn observation_times<'py>(
                 &self,
                 py: pyo3::Python<'py>,
-            ) -> pyo3::PyResult<Vec<pyo3::Bound<'py, pyo3::types::PyAny>>> {
+            ) -> pyo3::PyResult<Option<Vec<pyo3::Bound<'py, pyo3::types::PyAny>>>> {
+                if self.0.observation_mode() == kiyosi::ObservationMode::Continuous {
+                    return Ok(None);
+                }
                 self.0
                     .observation_times()
                     .iter()
                     .map(|&d| $crate::conversions::python_timestamp(py, d))
-                    .collect()
+                    .collect::<pyo3::PyResult<Vec<_>>>().map(Some)
             }
             /// Return strictly prior touch history, or None if unknown.
             #[getter]

@@ -35,8 +35,7 @@ impl Monitoring {
         expiry_time: Timestamp,
         barrier_level: f64,
         barrier_type: BarrierType,
-        observation_mode: ObservationMode,
-        observation_times: Vec<Timestamp>,
+        observation_times: Option<Vec<Timestamp>>,
         touch_state: Option<BarrierTouchState>,
         calendar: TradingCalendar,
         history_time: Option<Timestamp>,
@@ -46,13 +45,22 @@ impl Monitoring {
                 "barrier level must be finite and positive".into(),
             ));
         }
-        if (observation_mode == ObservationMode::Continuous) != observation_times.is_empty() {
+        if observation_times.as_ref().is_some_and(Vec::is_empty) {
             return Err(Error::InvalidInput(
-                "monitoring mode and dates disagree".into(),
+                "scheduled monitoring requires nonempty observation_times".into(),
             ));
         }
-        let schedule =
-            ObservationSchedule::new(observation_times, effective_time, expiry_time, &calendar)?;
+        let observation_mode = if observation_times.is_some() {
+            ObservationMode::Scheduled
+        } else {
+            ObservationMode::Continuous
+        };
+        let schedule = ObservationSchedule::new(
+            observation_times.unwrap_or_default(),
+            effective_time,
+            expiry_time,
+            &calendar,
+        )?;
         let monitoring = Self {
             history_time,
             effective_time,

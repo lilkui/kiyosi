@@ -207,8 +207,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
     let fixing = day(2025, 1, 2);
     for kind in [BarrierType::UpAndIn, BarrierType::UpAndOut] {
         let mut t = touch(kind);
-        t.observation_mode = ObservationMode::Scheduled;
-        t.observation_times = vec![fixing];
+        t.observation_times = Some(vec![fixing]);
         let unknown = TouchOption::cash(t.clone(), 10.0).unwrap();
         assert!(
             engine
@@ -267,8 +266,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
             Error::InvalidInput(_)
         ));
         let mut b = terms(kind);
-        b.observation_mode = ObservationMode::Scheduled;
-        b.observation_times = vec![fixing];
+        b.observation_times = Some(vec![fixing]);
         b.touch_state = Some(BarrierTouchState::Untouched);
         b.history_time = Some(b.effective_time);
         let binary = BinaryBarrierOption::cash(b, 10.0).unwrap();
@@ -292,8 +290,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
         ));
     }
     let mut t = touch(BarrierType::UpAndIn);
-    t.observation_mode = ObservationMode::Scheduled;
-    t.observation_times = vec![fixing];
+    t.observation_times = Some(vec![fixing]);
     assert!(matches!(
         engine
             .price(
@@ -306,7 +303,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    t.observation_times = vec![day(2025, 1, 4), t.expiry_time];
+    t.observation_times = Some(vec![day(2025, 1, 4), t.expiry_time]);
     assert!(matches!(
         TouchOption::cash(t, 10.0),
         Err(Error::InvalidInput(_))
@@ -349,7 +346,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         ));
     }
     let mut invalid = touch(BarrierType::UpAndIn);
-    invalid.observation_mode = ObservationMode::Scheduled;
+    invalid.observation_times = Some(vec![]);
     assert!(matches!(
         TouchOption::asset(invalid).unwrap_err(),
         Error::InvalidInput(_)
@@ -507,13 +504,12 @@ fn first_hit_and_scheduled_prices_retain_scaled_tails() {
         ] {
             let mut t = touch(kind);
             t.barrier_level = 170.0 * scale;
-            t.observation_mode = ObservationMode::Scheduled;
-            t.observation_times = vec![
+            t.observation_times = Some(vec![
                 day(2025, 4, 1),
                 day(2025, 7, 1),
                 day(2025, 10, 1),
                 t.expiry_time,
-            ];
+            ]);
             let context = PricingContext::new(
                 BlackScholesMertonParameters::new(0.0, 0.0, 1.0).unwrap(),
                 100.0 * scale,
@@ -795,8 +791,7 @@ fn settled_binaries_delegate_extreme_digital_prices_and_strict_strike_boundaries
                 });
                 t.option_type = direction;
                 t.barrier_level = 50.0;
-                t.observation_mode = ObservationMode::Scheduled;
-                t.observation_times = vec![t.effective_time];
+                t.observation_times = Some(vec![t.effective_time]);
                 t.touch_state = Some(history);
                 t.history_time = Some(t.effective_time);
                 for sigma in [1e155, 0.5] {

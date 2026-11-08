@@ -440,13 +440,12 @@ fn dated_history_survives_future_schedule_edits() -> Result<()> {
         120.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_times = vec![past, end];
+    terms.observation_times = Some(vec![past, end]);
     terms.touch_state = Some(BarrierTouchState::Untouched);
     terms.history_time = Some(at);
     let original = BarrierOption::new(terms)?.with_history_time(Some(at))?;
     let updated = original.replace(BarrierOptionChanges {
-        observation_times: Some(vec![past, at, future, end]),
+        observation_times: Some(Some(vec![past, at, future, end])),
         ..Default::default()
     })?;
     assert_eq!(updated.observation_times(), &[past, at, future, end]);
@@ -455,7 +454,7 @@ fn dated_history_survives_future_schedule_edits() -> Result<()> {
     assert_eq!(original.observation_times(), &[past, end]);
     assert!(matches!(
         original.replace(BarrierOptionChanges {
-            observation_times: Some(vec![future, end]),
+            observation_times: Some(Some(vec![future, end])),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))

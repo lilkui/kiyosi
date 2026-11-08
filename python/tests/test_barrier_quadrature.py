@@ -44,7 +44,6 @@ class BarrierQuadratureTests(unittest.TestCase):
                     strike=1e9,
                     rebate=7,
                     rebate_timing=timing,
-                    observation_mode="scheduled",
                     observation_times=[observation],
                 )
                 time = 90 / 365
@@ -94,7 +93,6 @@ class BarrierQuadratureTests(unittest.TestCase):
             terms = {
                 "rebate": 5,
                 "rebate_timing": "at_hit" if kind.endswith("out") else "at_expiry",
-                "observation_mode": "scheduled",
                 "observation_times": [observation],
             }
             contract = option(kind, **terms)
@@ -150,7 +148,6 @@ class BarrierQuadratureTests(unittest.TestCase):
                 contract = option(
                     kind,
                     rebate=3,
-                    observation_mode="scheduled",
                     observation_times=dates,
                     touch_state="untouched",
                 )
@@ -373,7 +370,6 @@ class BarrierQuadratureTests(unittest.TestCase):
                         direction,
                         rebate=3,
                         rebate_timing=timing,
-                        observation_mode="scheduled",
                         observation_times=[observation],
                     )
                     with self.subTest(kind=kind, direction=direction, timing=timing):
@@ -404,7 +400,6 @@ class BarrierQuadratureTests(unittest.TestCase):
                 kind,
                 strike=1e9,
                 rebate=7,
-                observation_mode="scheduled",
                 observation_times=[
                     START + timedelta(days=91),
                     START + timedelta(days=273),
@@ -508,7 +503,6 @@ class BarrierQuadratureTests(unittest.TestCase):
                 self.assert_rejection(UnsupportedOperationError, operation, *args)
         with self.assertRaises(InvalidInputError):
             option(
-                observation_mode="scheduled",
                 observation_times=[datetime(2025, 1, 4)],
                 touch_state="touched",
                 calendar=weekdays_calendar(),
@@ -523,9 +517,7 @@ class BarrierQuadratureTests(unittest.TestCase):
         huge_grid = pricing.QuadratureBarrierEngine(
             integration_standard_deviations=1e308
         )
-        scheduled = option(
-            observation_mode="scheduled", observation_times=[START + timedelta(days=91)]
-        )
+        scheduled = option(observation_times=[START + timedelta(days=91)])
         self.assert_rejection(
             ComputationFailureError,
             huge_grid.price,
@@ -536,7 +528,6 @@ class BarrierQuadratureTests(unittest.TestCase):
     def test_scheduled_greeks_solver_and_concurrency(self):
         engine = pricing.QuadratureBarrierEngine(asset_step_count=256)
         contract = option(
-            observation_mode="scheduled",
             observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
         )
         context = market()

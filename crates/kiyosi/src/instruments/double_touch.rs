@@ -25,10 +25,8 @@ pub struct DoubleTouchOptionTerms {
     pub barrier_type: DoubleBarrierType,
     /// Payment timing, default expiry; at-hit requires one-touch.
     pub settlement_timing: SettlementTiming,
-    /// Monitoring frequency, default continuous.
-    pub observation_mode: ObservationMode,
-    /// Ordered fixing times within life, empty for continuous monitoring.
-    pub observation_times: Vec<Timestamp>,
+    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -50,8 +48,7 @@ impl DoubleTouchOptionTerms {
             upper_barrier,
             barrier_type,
             settlement_timing: SettlementTiming::default(),
-            observation_mode: ObservationMode::default(),
-            observation_times: Vec::new(),
+            observation_times: None,
             touch_state: None,
         }
     }
@@ -151,7 +148,6 @@ impl DoubleTouchOption {
             } else {
                 BarrierType::DownAndOut
             },
-            terms.observation_mode,
             terms.observation_times,
             terms.touch_state,
             terms.calendar,
@@ -302,10 +298,8 @@ pub struct DoubleTouchOptionChanges {
     pub barrier_type: Option<DoubleBarrierType>,
     /// Replaces [`settlement_timing`](DoubleTouchOptionTerms::settlement_timing).
     pub settlement_timing: Option<SettlementTiming>,
-    /// Replaces [`observation_mode`](DoubleTouchOptionTerms::observation_mode).
-    pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_times`](DoubleTouchOptionTerms::observation_times).
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Replaces or clears [`observation_times`](DoubleTouchOptionTerms::observation_times).
+    pub observation_times: Option<Option<Vec<Timestamp>>>,
     /// Replaces [`touch_state`](DoubleTouchOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces [`payout`](DoubleTouchOption::payout).
@@ -346,10 +340,10 @@ impl DoubleTouchOption {
                 settlement_timing: changes
                     .settlement_timing
                     .unwrap_or(self.settlement_timing()),
-                observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-                observation_times: changes
-                    .observation_times
-                    .unwrap_or_else(|| self.observation_times().to_vec()),
+                observation_times: changes.observation_times.unwrap_or_else(|| {
+                    (self.observation_mode() == ObservationMode::Scheduled)
+                        .then(|| self.observation_times().to_vec())
+                }),
                 touch_state: changes.touch_state.unwrap_or(self.touch_state()),
             },
             changes.payout.unwrap_or(self.payout()),

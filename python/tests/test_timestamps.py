@@ -460,7 +460,6 @@ class TimestampTests(unittest.TestCase):
             expiry_time=time(6, 16),
             barrier_level=110,
             barrier_type="up_and_out",
-            observation_mode="scheduled",
             observation_times=[time(6, 10), time(6, 10, 1), time(6, 15)],
         )
         self.assertEqual(
@@ -478,7 +477,6 @@ class TimestampTests(unittest.TestCase):
             expiry_time=time(6, 16),
             barrier_level=110,
             barrier_type="up_and_out",
-            observation_mode="scheduled",
             observation_times=[time(6, 10), time(6, 15)],
             rebate=7,
             rebate_timing="at_hit",

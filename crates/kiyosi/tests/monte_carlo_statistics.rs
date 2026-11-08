@@ -436,8 +436,7 @@ fn statistics_preserve_scheduled_barrier_prices() {
         120.0,
         BarrierType::UpAndOut,
     );
-    single.observation_mode = ObservationMode::Scheduled;
-    single.observation_times = vec![start.add_days(182).unwrap(), end];
+    single.observation_times = Some(vec![start.add_days(182).unwrap(), end]);
     let mut double = DoubleBarrierOptionTerms::new(
         OptionType::Call,
         100.0,
@@ -447,7 +446,7 @@ fn statistics_preserve_scheduled_barrier_prices() {
         120.0,
         DoubleBarrierType::KnockOut,
     );
-    double.observation_mode = ObservationMode::Scheduled;
+
     double
         .observation_times
         .clone_from(&single.observation_times);

@@ -24,7 +24,6 @@ class BarrierCalendarTests(unittest.TestCase):
         common = {
             "effective_time": start,
             "expiry_time": end,
-            "observation_mode": "scheduled",
             "observation_times": [datetime(2025, 1, 4), end],
         }
         cases = [

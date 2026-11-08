@@ -29,13 +29,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     )?;
     defaults.set_item("rebate", kiyosi::BarrierOptionTerms::DEFAULT_REBATE)?;
     defaults.set_item(
-        "observation_mode",
-        match kiyosi::ObservationMode::default() {
-            kiyosi::ObservationMode::Continuous => "continuous",
-            kiyosi::ObservationMode::Scheduled => "scheduled",
-        },
-    )?;
-    defaults.set_item(
         "rebate_timing",
         match kiyosi::RebateTiming::default() {
             kiyosi::RebateTiming::AtHit => "at_hit",
