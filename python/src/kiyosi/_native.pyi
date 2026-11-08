@@ -38,6 +38,33 @@ class RootNotBracketedError(KiyosiError):
 class NonConvergenceError(KiyosiError):
     """Iteration or integration limit reached without convergence."""
 
+def configure_monte_carlo_pool(*, max_workers: SupportsIndex) -> None:
+    """Cap the process-wide Monte Carlo pool before its first parallel request.
+
+    Parameters
+    ----------
+    max_workers : int
+        Positive maximum worker count, limited further by available CPUs.
+
+    Raises
+    ------
+    InvalidInputError
+        If max_workers is nonpositive.
+    UnsupportedOperationError
+        If a different cap is supplied after pool initialization.
+    TypeError
+        If max_workers is a bool or does not support integer indexing.
+    OverflowError
+        If max_workers is outside the signed 32-bit integer range.
+
+    Notes
+    -----
+    Creates no threads. The default pool size is available CPU parallelism.
+    Configure each process before submitting parallel pricing work. Repeating
+    the configured cap is valid; failed configuration leaves it unchanged.
+    Engine max_active_workers caps active work per request within this pool.
+    """
+
 def implied_snowball_coupon(
     engine: QuadratureAutocallableEngine
     | FiniteDifferenceAutocallableEngine
@@ -5818,7 +5845,7 @@ class MonteCarloVanillaEngine:
     max_active_workers : int, optional
         Nonnegative active worker cap per call: zero (default) is automatic,
         one is serial. Does not bound thread creation; parallel calls share a
-        CPU-sized worker pool.
+        worker pool, bounded by configure_monte_carlo_pool().
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -5897,7 +5924,7 @@ class MonteCarloVanillaEngine:
         max_active_workers : int, optional
             Nonnegative active worker cap per call: zero (default) is automatic,
             one is serial. Does not bound thread creation; parallel calls share a
-            CPU-sized worker pool.
+            worker pool, bounded by configure_monte_carlo_pool().
         sampling : MonteCarloSampling, optional
             Sampling method; defaults to pseudo_random.
         antithetic : bool, optional
@@ -6173,7 +6200,7 @@ class MonteCarloDigitalEngine:
     max_active_workers : int, optional
         Nonnegative active worker cap per call: zero (default) is automatic,
         one is serial. Does not bound thread creation; parallel calls share a
-        CPU-sized worker pool.
+        worker pool, bounded by configure_monte_carlo_pool().
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -6243,7 +6270,7 @@ class MonteCarloDigitalEngine:
         max_active_workers : int, optional
             Nonnegative active worker cap per call: zero (default) is automatic,
             one is serial. Does not bound thread creation; parallel calls share a
-            CPU-sized worker pool.
+            worker pool, bounded by configure_monte_carlo_pool().
         sampling : MonteCarloSampling, optional
             Sampling method; defaults to pseudo_random.
         antithetic : bool, optional
@@ -6498,7 +6525,7 @@ class MonteCarloBarrierEngine:
     max_active_workers : int, optional
         Nonnegative active worker cap per call: zero (default) is automatic,
         one is serial. Does not bound thread creation; parallel calls share a
-        CPU-sized worker pool.
+        worker pool, bounded by configure_monte_carlo_pool().
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -6568,7 +6595,7 @@ class MonteCarloBarrierEngine:
         max_active_workers : int, optional
             Nonnegative active worker cap per call: zero (default) is automatic,
             one is serial. Does not bound thread creation; parallel calls share a
-            CPU-sized worker pool.
+            worker pool, bounded by configure_monte_carlo_pool().
         sampling : MonteCarloSampling, optional
             Sampling method; defaults to pseudo_random.
         antithetic : bool, optional
@@ -6810,7 +6837,7 @@ class MonteCarloDoubleBarrierEngine:
     max_active_workers : int, optional
         Nonnegative active worker cap per call: zero (default) is automatic,
         one is serial. Does not bound thread creation; parallel calls share a
-        CPU-sized worker pool.
+        worker pool, bounded by configure_monte_carlo_pool().
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -6880,7 +6907,7 @@ class MonteCarloDoubleBarrierEngine:
         max_active_workers : int, optional
             Nonnegative active worker cap per call: zero (default) is automatic,
             one is serial. Does not bound thread creation; parallel calls share a
-            CPU-sized worker pool.
+            worker pool, bounded by configure_monte_carlo_pool().
         sampling : MonteCarloSampling, optional
             Sampling method; defaults to pseudo_random.
         antithetic : bool, optional
@@ -7122,7 +7149,7 @@ class MonteCarloAutocallableEngine:
     max_active_workers : int, optional
         Nonnegative active worker cap per call: zero (default) is automatic,
         one is serial. Does not bound thread creation; parallel calls share a
-        CPU-sized worker pool.
+        worker pool, bounded by configure_monte_carlo_pool().
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -7194,7 +7221,7 @@ class MonteCarloAutocallableEngine:
         max_active_workers : int, optional
             Nonnegative active worker cap per call: zero (default) is automatic,
             one is serial. Does not bound thread creation; parallel calls share a
-            CPU-sized worker pool.
+            worker pool, bounded by configure_monte_carlo_pool().
         sampling : MonteCarloSampling, optional
             Sampling method; defaults to pseudo_random.
         antithetic : bool, optional
@@ -7466,7 +7493,7 @@ class MonteCarloAccumulatorEngine:
     max_active_workers : int, optional
         Nonnegative active worker cap per call: zero (default) is automatic,
         one is serial. Does not bound thread creation; parallel calls share a
-        CPU-sized worker pool.
+        worker pool, bounded by configure_monte_carlo_pool().
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -7535,7 +7562,7 @@ class MonteCarloAccumulatorEngine:
         max_active_workers : int, optional
             Nonnegative active worker cap per call: zero (default) is automatic,
             one is serial. Does not bound thread creation; parallel calls share a
-            CPU-sized worker pool.
+            worker pool, bounded by configure_monte_carlo_pool().
         sampling : MonteCarloSampling, optional
             Sampling method; defaults to pseudo_random.
         antithetic : bool, optional
@@ -7780,7 +7807,7 @@ class MonteCarloAsianEngine:
     max_active_workers : int, optional
         Nonnegative active worker cap per call: zero (default) is automatic,
         one is serial. Does not bound thread creation; parallel calls share a
-        CPU-sized worker pool.
+        worker pool, bounded by configure_monte_carlo_pool().
     sampling : MonteCarloSampling, optional
         Sampling method; defaults to pseudo_random.
     antithetic : bool, optional
@@ -7857,7 +7884,7 @@ class MonteCarloAsianEngine:
         max_active_workers : int, optional
             Nonnegative active worker cap per call: zero (default) is automatic,
             one is serial. Does not bound thread creation; parallel calls share a
-            CPU-sized worker pool.
+            worker pool, bounded by configure_monte_carlo_pool().
         sampling : MonteCarloSampling, optional
             Sampling method; defaults to pseudo_random.
         antithetic : bool, optional

@@ -32,7 +32,9 @@ validated constructors; use the same Kiyosi version in each process.
 Shared and distinct instances support concurrent reads and pricing. Long calls
 release the GIL; short analytic calls may retain it. Parallel Monte Carlo calls
 share a library-owned worker pool, sized on first use, with per-call buffers and
-worker caps. It ignores ``RAYON_NUM_THREADS``. Worker-creation failures raise
+worker caps. Set its process-wide size cap with
+``kiyosi.pricing.configure_monte_carlo_pool(max_workers=...)`` before the first
+parallel request. It ignores ``RAYON_NUM_THREADS``. Worker-creation failures raise
 ``OSError`` and initialization can be retried. Use multiprocessing's ``spawn``
 start method; a pool inherited through ``fork`` is unusable.
 

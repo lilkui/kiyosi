@@ -2,6 +2,9 @@
 
 import importlib
 import math
+import subprocess
+import sys
+import textwrap
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -35,6 +38,51 @@ def contract(direction="call", strike=100):
 
 
 class MonteCarloTests(unittest.TestCase):
+    def test_process_pool_configuration_preserves_seeded_prices(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                textwrap.dedent("""
+                from datetime import datetime
+                from kiyosi import InvalidInputError
+                from kiyosi.instruments import EuropeanOption
+                from kiyosi.market import BlackScholesMertonParameters, PricingContext
+                from kiyosi.pricing import MonteCarloVanillaEngine, configure_monte_carlo_pool
+
+                for invalid, error in ((0, InvalidInputError), (-1, InvalidInputError),
+                                       (True, TypeError), (1.5, TypeError), (2**31, OverflowError)):
+                    try:
+                        configure_monte_carlo_pool(max_workers=invalid)
+                    except error:
+                        pass
+                    else:
+                        raise AssertionError((invalid, error))
+                class Workers:
+                    def __index__(self):
+                        return 2
+                configure_monte_carlo_pool(max_workers=Workers())
+                start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+                option = EuropeanOption(option_type="call", strike=100,
+                    effective_time=start, expiry_time=end)
+                context = PricingContext(model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2),
+                    spot_price=100, valuation_time=start)
+                serial = MonteCarloVanillaEngine(path_count=1024, seed=42, max_active_workers=1)
+                parallel = serial.replace(max_active_workers=4)
+                expected = serial.price(option, context)
+                assert parallel.price(option, context) == expected
+                configure_monte_carlo_pool(max_workers=2)
+                assert parallel.price(option, context) == expected
+            """),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def assert_rejection(self, expected, operation, *args, **kwargs):
         with self.assertRaises(expected) as error:
             operation(*args, **kwargs)

@@ -60,7 +60,8 @@ pub struct MonteCarloSettings {
     ///
     /// One runs on the calling thread. Positive caps are also limited by
     /// available CPUs and simulation blocks.
-    /// Parallel calls share a library-owned pool; see [`MonteCarloVanillaEngine`].
+    /// Parallel calls share a library-owned pool. This cap limits active work,
+    /// not pool creation; [`configure_monte_carlo_pool`] caps created workers.
     pub max_active_workers: i32,
     /// Selects pseudorandom (default) or Sobol sampling; Sobol requires power-of-two paths.
     pub sampling: MonteCarloSampling,
@@ -305,6 +306,34 @@ mod tests {
     }
 
     #[test]
+    fn pool_configuration_bounds_created_workers_and_preserves_initialized_state() {
+        let mut state = WorkerPool::default();
+        for invalid in [0, -1] {
+            assert!(matches!(
+                state.configure(invalid),
+                Err(Error::InvalidInput(_))
+            ));
+            assert_eq!(state.max_workers, None);
+        }
+        state.configure(4).unwrap();
+        state.configure(2).unwrap();
+        let pool = state.get(8).unwrap();
+        assert_eq!(pool.current_num_threads(), 2);
+        assert!(Arc::ptr_eq(&pool, &state.get(16).unwrap()));
+        state.configure(2).unwrap();
+        assert!(matches!(
+            state.configure(3),
+            Err(Error::UnsupportedOperation(_))
+        ));
+        assert!(matches!(state.configure(0), Err(Error::InvalidInput(_))));
+        assert_eq!(state.max_workers, Some(2));
+        assert!(Arc::ptr_eq(&pool, &state.get(8).unwrap()));
+        let mut state = WorkerPool::default();
+        state.configure(4).unwrap();
+        assert_eq!(state.get(2).unwrap().current_num_threads(), 2);
+    }
+
+    #[test]
     #[expect(clippy::cast_sign_loss, reason = "test counts are nonnegative.")]
     fn statistics_mode_preserves_samples_and_mean_reductions() {
         for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
@@ -469,6 +498,7 @@ mod tests {
 /// Shared and distinct instances permit concurrent calls without mutation;
 /// every call owns its buffers. Parallel calls reuse a library-owned Rayon pool,
 /// sized from available CPU parallelism on first use and retained until process exit.
+/// [`configure_monte_carlo_pool`] caps its size before initialization.
 /// Concurrent calls share these workers; a per-call cap does not reserve workers.
 /// Neither the application's global Rayon pool nor `RAYON_NUM_THREADS` configures
 /// this pool. Serial calls run on the calling thread without initializing the pool.
@@ -1223,22 +1253,83 @@ fn run_blocks<T: Send>(
     })
 }
 
-fn worker_pool(available: usize) -> Result<Arc<rayon::ThreadPool>> {
-    static POOL: Mutex<Option<Arc<rayon::ThreadPool>>> = Mutex::new(None);
-    let mut shared = POOL
+#[derive(Default)]
+struct WorkerPool {
+    max_workers: Option<usize>,
+    pool: Option<Arc<rayon::ThreadPool>>,
+}
+
+static WORKER_POOL: Mutex<WorkerPool> = Mutex::new(WorkerPool {
+    max_workers: None,
+    pool: None,
+});
+
+/// Caps the process-wide Monte Carlo pool before its first parallel request.
+///
+/// Creates no threads. The pool uses at most `max_workers` and available CPU
+/// parallelism; the default uses available CPU parallelism. Per-request
+/// [`MonteCarloSettings::max_active_workers`] limits active work within this pool.
+/// Configuration is synchronized with initialization. Before initialization the
+/// cap can be replaced; afterward only repeating the configured cap succeeds.
+/// Failed configuration leaves both the cap and pool unchanged.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] for a nonpositive cap and
+/// [`Error::UnsupportedOperation`] when changing an initialized pool's cap.
+///
+/// # Examples
+///
+/// Configure each process at startup, before submitting pricing work:
+///
+/// ```no_run
+/// # fn main() -> kiyosi::Result<()> {
+/// kiyosi::configure_monte_carlo_pool(2)?;
+/// # Ok(()) }
+/// ```
+pub fn configure_monte_carlo_pool(max_workers: i32) -> Result<()> {
+    WORKER_POOL
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(pool) = &*shared {
-        return Ok(Arc::clone(pool));
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .configure(max_workers)
+}
+
+impl WorkerPool {
+    fn configure(&mut self, max_workers: i32) -> Result<()> {
+        let max_workers = usize::try_from(max_workers)
+            .ok()
+            .filter(|&count| count > 0)
+            .ok_or_else(|| Error::InvalidInput("max_workers must be positive".into()))?;
+        if self.pool.is_some() && self.max_workers != Some(max_workers) {
+            return Err(Error::UnsupportedOperation(
+                "configure the Monte Carlo pool before its first parallel request".into(),
+            ));
+        }
+        self.max_workers = Some(max_workers);
+        Ok(())
     }
-    let pool = Arc::new(build_pool(available, |worker| {
-        thread::Builder::new()
-            .name("kiyosi-monte-carlo".into())
-            .spawn(move || worker.run())
-            .map(|_| ())
-    })?);
-    *shared = Some(Arc::clone(&pool));
-    Ok(pool)
+
+    fn get(&mut self, available: usize) -> Result<Arc<rayon::ThreadPool>> {
+        if let Some(pool) = &self.pool {
+            return Ok(Arc::clone(pool));
+        }
+        let workers = self.max_workers.map_or(available, |cap| cap.min(available));
+        let pool = Arc::new(build_pool(workers, |worker| {
+            thread::Builder::new()
+                .name("kiyosi-monte-carlo".into())
+                .spawn(move || worker.run())
+                .map(|_| ())
+        })?);
+        self.pool = Some(Arc::clone(&pool));
+        Ok(pool)
+    }
+}
+
+fn worker_pool(available: usize) -> Result<Arc<rayon::ThreadPool>> {
+    WORKER_POOL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(available)
 }
 
 fn build_pool(

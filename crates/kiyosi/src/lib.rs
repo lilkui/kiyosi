@@ -65,7 +65,8 @@
 //! Distinct and shared instances support concurrent reads and pricing. Mutation
 //! requires exclusive Rust access. Parallel Monte Carlo calls share a library-owned
 //! Rayon pool with per-call buffers and worker caps; serial calls use the calling
-//! thread. The pool leaves the application's global Rayon pool unchanged.
+//! thread. [`configure_monte_carlo_pool`] caps created workers before initialization.
+//! The pool leaves the application's global Rayon pool unchanged.
 //! [`PricingEngine::prepare_request`] handles support sequential use on the calling
 //! thread and need not be `Send` or `Sync`; concurrent requests prepare their own.
 //! Custom calendar predicates must return stable answers throughout the calendar's
@@ -140,7 +141,7 @@ pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,
     MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloDoubleBarrierEngine,
     MonteCarloEstimate, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
-    MonteCarloUncertaintyStatus, MonteCarloVanillaEngine,
+    MonteCarloUncertaintyStatus, MonteCarloVanillaEngine, configure_monte_carlo_pool,
 };
 pub use engines::quadrature::{
     QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,

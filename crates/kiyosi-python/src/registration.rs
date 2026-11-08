@@ -224,6 +224,10 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         module
     )?)?;
     module.add_class::<engines::monte_carlo::MonteCarloEstimate>()?;
+    module.add_function(wrap_pyfunction!(
+        engines::monte_carlo::configure_monte_carlo_pool,
+        module
+    )?)?;
     module.add_class::<BlackScholesMertonParameters>()?;
     module.add_class::<crate::heston::HestonParameters>()?;
     module.add_class::<crate::local_volatility::LocalVolatilitySurface>()?;
