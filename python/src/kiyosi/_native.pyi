@@ -13614,7 +13614,7 @@ class SnowballOption:
         """Return owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...] | None:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -14088,7 +14088,7 @@ class PhoenixOption:
         """Return owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...] | None:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -14317,7 +14317,7 @@ class BinarySnowballOption:
         """Return owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...] | None:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Return a copy of the contractual observation times."""
 
     @property
@@ -14547,7 +14547,7 @@ class TernarySnowballOption:
         """Return owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> tuple[datetime, ...] | None:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Return a copy of the contractual observation times."""
 
     @property
