@@ -77,12 +77,6 @@ numerical_greeks_methods!(
         fn step_count(&self) -> i32 {
             self.0.settings().step_count
         },
-        fn __repr__(&self) -> String {
-            format!(
-                "CoxRossRubinsteinVanillaEngine(step_count={})",
-                self.step_count()
-            )
-        },
         /// Return the price.
         ///
         /// Parameters
@@ -163,10 +157,6 @@ macro_rules! binomial_engine {
                 #[getter]
                 fn step_count(&self) -> i32 {
                     self.0.settings().step_count
-                },
-
-                fn __repr__(&self) -> String {
-                    format!("{}(step_count={})", stringify!($name), self.step_count())
                 },
 
                 /// Return the price.

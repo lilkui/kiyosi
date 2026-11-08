@@ -85,19 +85,6 @@ macro_rules! quadrature_engine {
                 fn integration_standard_deviations(&self) -> f64 {
                     self.0.settings().integration_standard_deviations
                 },
-                fn __repr__(&self) -> String {
-                    format!(
-                        concat!(
-                            stringify!($name),
-                            "(asset_step_count={}",
-                            $(concat!(", ", stringify!($time), "={}"),)?
-                            ", integration_standard_deviations={})"
-                        ),
-                        self.asset_step_count(),
-                        $(self.$time(),)?
-                        self.integration_standard_deviations()
-                    )
-                },
                 /// Return the price.
                 ///
                 /// Parameters
