@@ -244,6 +244,21 @@ impl MonteCarloDoubleBarrierEngine {
 }
 
 impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
+    fn price_with_seed(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+    ) -> Result<(f64, Option<u64>)> {
+        context.bsm_parameters()?;
+        let (result, _, seed) = self.engine.native(
+            Contract::Double(option),
+            context,
+            GreeksRequest::new([]),
+            Default::default(),
+            false,
+        )?;
+        Ok((result.price(), seed))
+    }
     fn greek_method(
         &self,
         option: &DoubleBarrierOption,

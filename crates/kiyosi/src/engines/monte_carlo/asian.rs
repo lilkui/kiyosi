@@ -426,7 +426,11 @@ impl MonteCarloAsianEngine {
                 |normals| p.arithmetic(normals, lead > 0.0, &interval_drifts, request),
             )?
         };
-        Ok((result(means, request)?, standard_error, Some(seed)))
+        Ok((
+            result(means, request)?.with_seed(Some(seed)),
+            standard_error,
+            Some(seed),
+        ))
     }
 }
 
@@ -511,6 +515,16 @@ fn result(means: [f64; 3], request: GreeksRequest) -> Result<PricingResult> {
 }
 
 impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
+    fn price_with_seed(
+        &self,
+        option: &GeometricAveragePriceOption,
+        context: &PricingContext,
+    ) -> Result<(f64, Option<u64>)> {
+        context.bsm_parameters()?;
+        let (result, _, seed) =
+            self.native(&option.0, context, true, GreeksRequest::new([]), false)?;
+        Ok((result.price(), seed))
+    }
     fn greek_method(
         &self,
         option: &GeometricAveragePriceOption,
@@ -594,6 +608,16 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
 }
 
 impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
+    fn price_with_seed(
+        &self,
+        option: &ArithmeticAveragePriceOption,
+        context: &PricingContext,
+    ) -> Result<(f64, Option<u64>)> {
+        context.bsm_parameters()?;
+        let (result, _, seed) =
+            self.native(&option.0, context, false, GreeksRequest::new([]), false)?;
+        Ok((result.price(), seed))
+    }
     fn greek_method(
         &self,
         option: &ArithmeticAveragePriceOption,

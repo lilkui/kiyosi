@@ -169,7 +169,9 @@ applicability without pricing or sampling; pricing validates life and history.
 Use ``numerical_greeks`` for configurable scalar differences. This can provide
 measures beyond native engine coverage; Heston and local volatility are
 unsupported by the scalar helper. Monte Carlo draws are pinned within each
-numerical request.
+numerical request. ``PricingResult.seed`` records the simulation seed used by native
+and numerical Greek requests, or None without sampling. Retain the seed and the
+same engine controls and inputs to replay within the same build.
 
 Numerical bump controls are keyword-only and discoverable through
 ``inspect.signature(numerical_greeks)``. ``spot_shift=None`` selects the smaller

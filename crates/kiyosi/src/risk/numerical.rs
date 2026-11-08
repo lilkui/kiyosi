@@ -181,11 +181,16 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     if let Some(prepared) = &prepared {
         prepared.validate_applicability(context)?;
     }
+    let seed = std::cell::Cell::new(None);
     let native = |context: &PricingContext, _| {
-        PricingResult::new(match &prepared {
-            Some(prepared) => prepared.price(option, context)?,
-            None => engine.price(option, context)?,
-        })
+        let (price, used_seed) = match &prepared {
+            Some(prepared) => prepared.price_with_seed(option, context)?,
+            None => engine.price_with_seed(option, context)?,
+        };
+        if used_seed.is_some() {
+            seed.set(used_seed);
+        }
+        PricingResult::new(price)
     };
     complete_greeks(
         option,
@@ -196,6 +201,7 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         native(context, request)?,
         native,
     )
+    .map(|result| result.with_seed(seed.get()))
 }
 
 #[expect(

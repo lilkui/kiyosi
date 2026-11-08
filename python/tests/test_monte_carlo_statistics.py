@@ -66,41 +66,91 @@ def engine(factory, **changes):
     return factory(**settings)
 
 
+def seed_cases():
+    return (
+        *contracts(),
+        (
+            "vanilla",
+            p.MonteCarloVanillaEngine,
+            i.EuropeanOption(option_type="call", strike=100, **LIFE),
+        ),
+        (
+            "snowball",
+            p.MonteCarloAutocallableEngine,
+            i.standard_snowball(
+                coupon_rate=0.1,
+                initial_spot=100,
+                knock_in_level=80,
+                knock_out_level=110,
+                observation_times=[END],
+                observation_clock_time=time(),
+                **LIFE,
+            ),
+        ),
+        (
+            "accumulator",
+            p.MonteCarloAccumulatorEngine,
+            i.Accumulator(
+                strike=100,
+                knock_out_level=120,
+                daily_quantity=1,
+                acceleration_factor=2,
+                observation_clock_time=time(),
+                **LIFE,
+            ),
+        ),
+    )
+
+
 class MonteCarloStatisticsTests(unittest.TestCase):
-    def test_reported_seeds_replay_unseeded_and_configured_estimates(self):
+    def test_greek_seeds_replay_native_numerical_and_pickled_results(self):
+        snapshot = context()
         cases = (
-            *contracts(),
+            *seed_cases(),
             (
-                "vanilla",
+                "american",
                 p.MonteCarloVanillaEngine,
-                i.EuropeanOption(option_type="call", strike=100, **LIFE),
-            ),
-            (
-                "snowball",
-                p.MonteCarloAutocallableEngine,
-                i.standard_snowball(
-                    coupon_rate=0.1,
-                    initial_spot=100,
-                    knock_in_level=80,
-                    knock_out_level=110,
-                    observation_times=[END],
-                    observation_clock_time=time(),
-                    **LIFE,
-                ),
-            ),
-            (
-                "accumulator",
-                p.MonteCarloAccumulatorEngine,
-                i.Accumulator(
-                    strike=100,
-                    knock_out_level=120,
-                    daily_quantity=1,
-                    acceleration_factor=2,
-                    observation_clock_time=time(),
-                    **LIFE,
-                ),
+                i.AmericanOption(option_type="put", strike=100, **LIFE),
             ),
         )
+        for name, factory, option in cases:
+            option = dated_history(option, snapshot)
+            sampler = engine(factory, path_count=32, seed=None)
+            for numerical in (False, True):
+                with self.subTest(product=name, numerical=numerical):
+                    calculate = (
+                        (
+                            lambda e, option=option: p.numerical_greeks(
+                                e, option, snapshot, "delta"
+                            )
+                        )
+                        if numerical
+                        else (
+                            lambda e, option=option: e.price_with_greeks(
+                                option, snapshot, "delta"
+                            )
+                        )
+                    )
+                    result = calculate(sampler)
+                    self.assertIsNotNone(result.seed)
+                    self.assertIsNone(sampler.seed)
+                    self.assertEqual(
+                        calculate(sampler.replace(seed=result.seed)), result
+                    )
+                    self.assertEqual(pickle.loads(pickle.dumps(result)), result)
+                    self.assertEqual(
+                        sampler.replace(seed=result.seed).price(option, snapshot),
+                        result.price,
+                    )
+            deterministic = snapshot.replace(
+                model_parameters=snapshot.model_parameters.replace(volatility=0)
+            )
+            self.assertIsNone(
+                sampler.price_with_greeks(option, deterministic, "delta").seed
+            )
+
+    def test_reported_seeds_replay_unseeded_and_configured_estimates(self):
+        cases = seed_cases()
         snapshot = context()
         deterministic = snapshot.replace(
             model_parameters=snapshot.model_parameters.replace(volatility=0)

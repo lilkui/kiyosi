@@ -44,7 +44,7 @@ impl MonteCarloVanillaEngine {
         option: &AmericanOption,
         context: &PricingContext,
         terminal_only: bool,
-    ) -> Result<f64> {
+    ) -> Result<(f64, Option<u64>)> {
         let model = context.bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;
         let rate = model.flat_risk_free_rate()?;
@@ -54,7 +54,8 @@ impl MonteCarloVanillaEngine {
                 option,
                 crate::engines::Payoff::vanilla(option.option_type(), option.strike(), true),
                 context,
-            );
+            )
+            .map(|price| (price, None));
         }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
@@ -72,7 +73,7 @@ impl MonteCarloVanillaEngine {
         let immediate = payoff(context.spot_price());
         let time = valuation.years_until(expiry);
         if time == 0.0 {
-            return Ok(immediate);
+            return Ok((immediate, None));
         }
         if self.step_count < 2 {
             return Err(Error::InvalidInput(
@@ -84,7 +85,12 @@ impl MonteCarloVanillaEngine {
             && dividend <= 0.0
             && rate >= 0.0
         {
-            return Ok(self.price(option.vanilla(), context)?.max(immediate));
+            let (price, seed) = <Self as PricingEngine<EuropeanOption>>::price_with_seed(
+                self,
+                option.vanilla(),
+                context,
+            )?;
+            return Ok((price.max(immediate), seed));
         }
         let intervals = self.step_count as usize;
         let paths = self.settings.path_count as usize;
@@ -224,11 +230,22 @@ impl MonteCarloVanillaEngine {
         for cash in cash_flows {
             mean.add(cash, false);
         }
-        Ok(scaled_value(mean.scale, mean.mean, -rate * dt)?.max(immediate))
+        Ok((
+            scaled_value(mean.scale, mean.mean, -rate * dt)?.max(immediate),
+            Some(seed),
+        ))
     }
 }
 
 impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
+    fn price_with_seed(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+    ) -> Result<(f64, Option<u64>)> {
+        context.bsm_parameters()?;
+        self.american_price(option, context, true)
+    }
     fn default_spot_shift(&self, _option: &AmericanOption, context: &PricingContext) -> f64 {
         Self::default_american_spot_shift(context)
     }
@@ -254,7 +271,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
 
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
-        self.american_price(option, context, true)
+        Ok(self.american_price(option, context, true)?.0)
     }
 
     fn price_with_greeks(
@@ -292,7 +309,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             ..*self
         };
         let native = |context: &PricingContext, requested: GreeksRequest| {
-            let mut result = PricingResult::new(engine.price(option, context)?)?;
+            let (price, seed) = engine.american_price(option, context, true)?;
+            let mut result = PricingResult::new(price)?.with_seed(seed);
             let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
             let dividend = context.bsm_parameters()?.flat_dividend_yield()?;
             for (greek, value) in [(Greek::Rho, rate), (Greek::DividendRho, dividend)] {
@@ -326,7 +344,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                         model_parameters: Some(model.into()),
                         ..Default::default()
                     })?;
-                    engine.american_price(option, &shifted, false)
+                    Ok::<_, Error>(engine.american_price(option, &shifted, false)?.0)
                 };
                 result.set(
                     requested,
@@ -456,10 +474,12 @@ mod tests {
                 }
                 let up = engine
                     .american_price(&option, &context(dividend + shift), false)
-                    .unwrap();
+                    .unwrap()
+                    .0;
                 let down = engine
                     .american_price(&option, &context(dividend - shift), false)
-                    .unwrap();
+                    .unwrap()
+                    .0;
                 assert!(
                     (result.require(Greek::DividendRho).unwrap() - (up - down) / (2.0 * shift))
                         .abs()

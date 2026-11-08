@@ -826,3 +826,69 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
     )?;
     Ok(())
 }
+
+#[test]
+fn greek_results_retain_seeds_for_native_and_scalar_replay() -> Result<()> {
+    fn check<I: OptionContract, E: PricingEngine<I>>(
+        option: &I,
+        factory: impl Fn(Option<u64>) -> Result<E>,
+    ) -> Result<()> {
+        let context = market();
+        let request = GreeksRequest::new([Greek::Delta]);
+        let calculate = |engine: &E, numerical| {
+            if numerical {
+                numerical_greeks(engine, option, &context, request, Default::default())
+            } else {
+                engine.price_with_greeks(option, &context, request)
+            }
+        };
+        for numerical in [false, true] {
+            let result = calculate(&factory(None)?, numerical)?;
+            assert!(result.seed().is_some());
+            let replay = factory(result.seed())?;
+            assert_eq!(calculate(&replay, numerical)?, result);
+            assert_eq!(replay.price(option, &context)?, result.price());
+        }
+        let deterministic = context.replace(PricingContextChanges {
+            model_parameters: Some(BlackScholesMertonParameters::new(0.05, 0.02, 0.0)?.into()),
+            ..Default::default()
+        })?;
+        assert_eq!(
+            factory(None)?
+                .price_with_greeks(option, &deterministic, request)?
+                .seed(),
+            None
+        );
+        Ok(())
+    }
+    let (start, end) = dates();
+    let settings = |seed| MonteCarloSettings {
+        path_count: 32,
+        seed,
+        ..settings()
+    };
+    check(
+        &EuropeanOption::new(OptionType::Call, 100.0, start, end)?,
+        |seed| MonteCarloVanillaEngine::new(settings(seed)),
+    )?;
+    check(
+        &AmericanOption::new(OptionType::Put, 100.0, start, end)?,
+        |seed| MonteCarloVanillaEngine::with_step_count(settings(seed), 4),
+    )?;
+    check(
+        &DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?,
+        |seed| MonteCarloDigitalEngine::new(settings(seed)),
+    )?;
+    check(
+        &BarrierOption::new(BarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut,
+        ))?,
+        |seed| MonteCarloBarrierEngine::new(settings(seed)),
+    )?;
+    Ok(())
+}

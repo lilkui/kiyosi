@@ -284,11 +284,20 @@ impl MonteCarloDigitalEngine {
         if request.has(Greek::Gamma) {
             result.set(request, Greek::Gamma, means[2])?;
         }
-        Ok((result, standard_error, Some(seed)))
+        Ok((result.with_seed(Some(seed)), standard_error, Some(seed)))
     }
 }
 
 impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
+    fn price_with_seed(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+    ) -> Result<(f64, Option<u64>)> {
+        context.bsm_parameters()?;
+        let (result, _, seed) = self.native(option, context, GreeksRequest::new([]), false)?;
+        Ok((result.price(), seed))
+    }
     fn greek_method(
         &self,
         option: &DigitalOption,

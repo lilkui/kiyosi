@@ -306,6 +306,15 @@ impl MonteCarloAutocallableEngine {
 }
 
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAutocallableEngine {
+    fn price_with_seed(
+        &self,
+        option: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> Result<(f64, Option<u64>)> {
+        context.bsm_parameters()?;
+        let (sample, _, _, seed) = self.sample(option, context, false)?;
+        Ok((scaled_value(sample.scale, sample.mean, 0.0)?, seed))
+    }
     fn price_with_statistics(
         &self,
         option: &AutocallableNote<T>,

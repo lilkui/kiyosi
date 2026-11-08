@@ -154,12 +154,26 @@ impl GreekStatus {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PricingResult {
     price: f64,
+    seed: Option<u64>,
     values: [Option<f64>; Greek::ALL.len()],
     requested: GreeksRequest,
     supported: GreeksRequest,
     unavailable_stencils: GreeksRequest,
 }
 impl PricingResult {
+    /// Returns the simulation seed used by this request, or `None` without sampling.
+    ///
+    /// Replay with the same inputs, engine controls and build. See
+    /// [`crate::MonteCarloVanillaEngine::with_resolved_seed`] for seed configuration.
+    pub fn seed(&self) -> Option<u64> {
+        self.seed
+    }
+    /// Attaches the seed used by a sampling request; see [`Self::seed`].
+    #[must_use]
+    pub fn with_seed(mut self, seed: Option<u64>) -> Self {
+        self.seed = seed;
+        self
+    }
     /// Returns the finite price; see [`crate::AnalyticEuropeanEngine`].
     pub fn price(&self) -> f64 {
         self.price
@@ -294,6 +308,7 @@ impl PricingResult {
         }
         Ok(Self {
             price,
+            seed: None,
             values: [None; Greek::ALL.len()],
             requested: GreeksRequest::new([]),
             supported: GreeksRequest::all(),
@@ -635,6 +650,19 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// or numerical failures. Recoverable operational errors retain the implementation's
     /// contract. See [`crate::AnalyticDigitalEngine::price`] for an example.
     fn price(&self, option: &I, context: &PricingContext) -> Result<f64>;
+
+    /// Returns a scalar price and the seed used, or `None` without sampling.
+    ///
+    /// Numerical requests use this hook to retain replay metadata without computing
+    /// sampling uncertainty. The default delegates to [`Self::price`] without a seed.
+    /// See [`crate::MonteCarloVanillaEngine::with_resolved_seed`] for replay examples.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price`] errors without changing the inputs.
+    fn price_with_seed(&self, option: &I, context: &PricingContext) -> Result<(f64, Option<u64>)> {
+        Ok((self.price(option, context)?, None))
+    }
 
     /// Returns a price with sampling uncertainty when the engine provides an estimator.
     ///

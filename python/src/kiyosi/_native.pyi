@@ -6012,6 +6012,10 @@ class PricingResult:
     def __eq__(self, other: object) -> bool: ...
     def __new__(cls, _token: Never, /) -> Self: ...
     @property
+    def seed(self) -> int | None:
+        """Return the simulation seed used by this request, or None without sampling."""
+
+    @property
     def price(self) -> float:
         """Return the finite price in contract payment units."""
 
@@ -12967,6 +12971,7 @@ def _pricing_result(
     requested: Iterable[Greek] | None = None,
     supported: Iterable[Greek] | None = None,
     unavailable_stencils: Iterable[Greek] | None = None,
+    seed: SupportsIndex | None = None,
 ) -> PricingResult: ...
 def _monte_carlo_estimate(
     *,

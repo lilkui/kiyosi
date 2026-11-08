@@ -125,6 +125,7 @@ def _reduce(
             _native._pricing_result,
             {
                 "price": value.price,
+                "seed": value.seed,
                 "requested": value.requested,
                 "supported": value.supported,
                 "unavailable_stencils": [

@@ -47,6 +47,11 @@ pub(crate) struct PricingResult(pub kiyosi::PricingResult);
 
 #[pymethods]
 impl PricingResult {
+    /// Return the simulation seed used by this request, or None without sampling.
+    #[getter]
+    fn seed(&self) -> Option<u64> {
+        self.0.seed()
+    }
     /// Return the finite price in contract payment units.
     #[getter]
     fn price(&self) -> f64 {
@@ -170,13 +175,14 @@ pub(crate) use coupon::{implied_phoenix_coupon, implied_snowball_coupon};
 pub(crate) use implied::implied_volatility;
 
 #[pyfunction]
-#[pyo3(signature = (price, greeks, *, requested=None, supported=None, unavailable_stencils=None))]
+#[pyo3(signature = (price, greeks, *, requested=None, supported=None, unavailable_stencils=None, seed=None))]
 pub(crate) fn _pricing_result(
     price: &Bound<'_, PyAny>,
     greeks: &Bound<'_, pyo3::types::PyDict>,
     requested: Option<&Bound<'_, PyAny>>,
     supported: Option<&Bound<'_, PyAny>>,
     unavailable_stencils: Option<&Bound<'_, PyAny>>,
+    seed: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PricingResult> {
     let mut result = domain(kiyosi::PricingResult::new(crate::conversions::real(price)?))?;
     for (name, value) in greeks.iter() {
@@ -197,7 +203,11 @@ pub(crate) fn _pricing_result(
     Ok(PricingResult(
         result
             .with_request(requested, supported)
-            .with_unavailable_stencils(unavailable),
+            .with_unavailable_stencils(unavailable)
+            .with_seed(
+                seed.map(|value| crate::conversions::integer_index(value)?.extract::<u64>())
+                    .transpose()?,
+            ),
     ))
 }
 

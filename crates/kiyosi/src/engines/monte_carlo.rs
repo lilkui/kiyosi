@@ -977,6 +977,15 @@ impl MonteCarloVanillaEngine {
 }
 
 impl PricingEngine for MonteCarloVanillaEngine {
+    fn price_with_seed(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+    ) -> Result<(f64, Option<u64>)> {
+        context.bsm_parameters()?;
+        let (sample, _, discount, seed) = self.sample(option, context, false)?;
+        Ok((scaled_value(sample.scale, sample.mean, discount)?, seed))
+    }
     fn price_with_statistics(
         &self,
         option: &EuropeanOption,

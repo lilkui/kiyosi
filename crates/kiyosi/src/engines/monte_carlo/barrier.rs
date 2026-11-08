@@ -580,11 +580,26 @@ impl MonteCarloBarrierEngine {
         let mut result = PricingResult::new(values[0])?;
         result.set(request, Greek::Delta, values[1])?;
         result.set(request, Greek::Gamma, values[2])?;
-        Ok((result, error, Some(seed)))
+        Ok((result.with_seed(Some(seed)), error, Some(seed)))
     }
 }
 
 impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
+    fn price_with_seed(
+        &self,
+        option: &BarrierOption,
+        context: &PricingContext,
+    ) -> Result<(f64, Option<u64>)> {
+        context.bsm_parameters()?;
+        let (result, _, seed) = self.native(
+            Contract::Single(option),
+            context,
+            GreeksRequest::new([]),
+            Default::default(),
+            false,
+        )?;
+        Ok((result.price(), seed))
+    }
     fn greek_method(
         &self,
         option: &BarrierOption,
