@@ -29,7 +29,8 @@ pub(crate) fn validate_history_replacement(
 ) -> crate::Result<()> {
     if known && !supplied && events_changed {
         return Err(crate::Error::StaleHistory(
-            format!("changing historical observation terms requires explicit {field}").into(),
+            format!("changing historical observations or history_time requires explicit {field}")
+                .into(),
         ));
     }
     Ok(())
@@ -40,6 +41,20 @@ pub(crate) fn historical_times(
     history_time: Option<crate::Timestamp>,
 ) -> &[crate::Timestamp] {
     &times[..history_time.map_or(times.len(), |at| times.partition_point(|&time| time < at))]
+}
+
+pub(crate) fn validate_history_redating(
+    option: &impl crate::OptionContract,
+    time: Option<crate::Timestamp>,
+    known: bool,
+) -> crate::Result<()> {
+    validate_history_time_bounds(option, time)?;
+    validate_history_replacement(
+        known,
+        false,
+        option.history_time().is_some() && time.is_some() && option.history_time() != time,
+        "history payload",
+    )
 }
 
 pub(crate) fn validate_history_time(

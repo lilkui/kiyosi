@@ -276,6 +276,7 @@ impl OptionContract for RangeAccrualOption {
         self.terms.history_time
     }
     fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+        super::validate_history_redating(&self, time, self.realized_hit_count().is_some())?;
         self.terms.history_time = time;
         super::validate_history_snapshot(&self, self.realized_hit_count().is_some())?;
         Ok(self)
@@ -414,7 +415,8 @@ impl RangeAccrualOption {
         super::validate_history_replacement(
             self.realized_hit_count().is_some(),
             history_supplied,
-            self.terms.history_time.is_none() && self.expiry_time() != updated.expiry_time()
+            (updated.history_time().is_some() && self.history_time() != updated.history_time())
+                || self.terms.history_time.is_none() && self.expiry_time() != updated.expiry_time()
                 || (
                     self.lower_bound(),
                     self.upper_bound(),

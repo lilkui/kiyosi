@@ -13,7 +13,7 @@ fn context(spot: f64) -> Result<PricingContext> {
 
 #[test]
 fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
-    fn check<I: OptionContract + Clone>(
+    fn check<I: support::DatedHistory>(
         engine: &impl PricingEngine<I>,
         option: &I,
         context: &PricingContext,

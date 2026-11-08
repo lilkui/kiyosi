@@ -26,8 +26,7 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
             end,
             vec![AutocallableObservation::snowball(end, 110.0, coupon)?],
         ))?
-        .replace_history(Some(AutocallableBarrierState::NoEvent), Some(start))?
-        .with_history_time(Some(end))?;
+        .replace_history(Some(AutocallableBarrierState::NoEvent), Some(end))?;
         assert!((engine.price(&note, &context)? - expected).abs() < 1e-12);
     }
     for (barrier, expected) in [(0.0, 1.03), (90.0, 1.0)] {
@@ -44,8 +43,7 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
         );
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         let note = PhoenixOption::new(terms)?
-            .replace_history(Some(AutocallableBarrierState::NoEvent), Some(start))?
-            .with_history_time(Some(end))?;
+            .replace_history(Some(AutocallableBarrierState::NoEvent), Some(end))?;
         let context = context.replace(PricingContextChanges {
             spot_price: Some(50.0),
             ..Default::default()
@@ -1191,7 +1189,7 @@ fn double_touch_barrier_type_roundtrips_through_replacement() -> Result<()> {
 
 #[test]
 fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Result<()> {
-    fn check<I: OptionContract + Clone>(
+    fn check<I: support::DatedHistory>(
         engine: &impl PricingEngine<I>,
         option: &I,
         model: impl Into<ModelParameters>,
@@ -2140,7 +2138,7 @@ fn greek_methods_report_estimators_and_active_controls() -> Result<()> {
 
 #[test]
 fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Result<()> {
-    fn check<I: OptionContract + Clone>(
+    fn check<I: support::DatedHistory>(
         engine: &impl PricingEngine<I>,
         option: &I,
         context: &PricingContext,

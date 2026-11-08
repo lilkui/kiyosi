@@ -24,6 +24,8 @@ Current observations use the current spot. Discrete history can be reused until
 the next observation; continuous barrier and Asian history require the same
 instant unless monitoring is resolved. Refresh payload and timestamp together
 with ``replace_history``. Numerical time sensitivities hold history fixed.
+Changing a dated snapshot's timestamp requires explicitly supplying its history
+payloads, even when their values stay the same.
 
 ``replace`` returns a validated copy. Omission or Ellipsis retains a field;
 ``None`` clears nullable fields. Changes affecting past observations require an

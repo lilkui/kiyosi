@@ -2,7 +2,7 @@ use kiyosi::*;
 
 mod support;
 
-fn verify<I: OptionContract + Clone>(
+fn verify<I: support::DatedHistory>(
     option: &I,
     context: &PricingContext,
     expected: f64,

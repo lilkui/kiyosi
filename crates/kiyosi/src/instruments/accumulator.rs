@@ -607,6 +607,11 @@ impl OptionContract for Accumulator {
         self.terms.history_time
     }
     fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+        super::validate_history_redating(
+            &self,
+            time,
+            self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
+        )?;
         self.terms.history_time = time;
         super::validate_history_snapshot(
             &self,
@@ -775,7 +780,8 @@ impl Accumulator {
         super::validate_history_replacement(
             self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
             history_supplied,
-            self.terms.history_time.is_none() && self.expiry_time() != updated.expiry_time()
+            (updated.history_time().is_some() && self.history_time() != updated.history_time())
+                || self.terms.history_time.is_none() && self.expiry_time() != updated.expiry_time()
                 || (
                     self.option_type(),
                     self.knock_out_level(),

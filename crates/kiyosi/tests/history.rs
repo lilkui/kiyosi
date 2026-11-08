@@ -1,6 +1,40 @@
 use kiyosi::*;
 
 #[test]
+fn redating_an_average_requires_explicit_history_and_preserves_the_price() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let at = start.add_days(4)?;
+    let later = start.add_days(18)?;
+    let option = ArithmeticAveragePriceOption::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start,
+        start.add_days(32)?,
+        Some(100.0),
+        Some(at),
+    )?;
+    assert!(matches!(
+        option.replace(AveragePriceOptionChanges {
+            history_time: Some(Some(later)),
+            ..Default::default()
+        }),
+        Err(Error::StaleHistory(_))
+    ));
+    let refreshed = option.replace_history((4.0 * 100.0 + 14.0 * 120.0) / 18.0, Some(later))?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?,
+        120.0,
+        later,
+    )?;
+    let price = TurnbullWakemanArithmeticAveragePriceEngine.price(&refreshed, &context)?;
+    assert!((price - 17.5).abs() < 1e-12);
+    assert_eq!(option.history_time(), Some(at));
+    assert_eq!(option.realized_average(), Some(100.0));
+    Ok(())
+}
+
+#[test]
 fn constructors_require_timestamps_for_supplied_history() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let at = start.add_days(4)?;
@@ -292,20 +326,12 @@ fn check<I: OptionContract + Clone>(
         engine.price(&clear(&dated, None)?, market),
         Err(Error::MissingHistory(_))
     ));
-    let stale = dated
-        .clone()
-        .with_history_time(Some(dated.effective_time()))?;
-    assert!(matches!(
-        engine.price(&stale, market),
-        Err(Error::StaleHistory(_))
-    ));
-    let future = dated
-        .clone()
-        .with_history_time(Some(market.valuation_time().add_days(1)?))?;
-    assert!(matches!(
-        engine.price(&future, market),
-        Err(Error::InvalidInput(_))
-    ));
+    for time in [dated.effective_time(), market.valuation_time().add_days(1)?] {
+        assert!(matches!(
+            dated.clone().with_history_time(Some(time)),
+            Err(Error::StaleHistory(_))
+        ));
+    }
     for invalid in [
         dated.effective_time().add_days(-1)?,
         dated.expiry_time().add_days(1)?,
@@ -317,10 +343,7 @@ fn check<I: OptionContract + Clone>(
     }
     for boundary in [dated.effective_time(), dated.expiry_time()] {
         assert_eq!(
-            dated
-                .clone()
-                .with_history_time(Some(boundary))?
-                .history_time(),
+            clear(&dated, Some(boundary))?.history_time(),
             Some(boundary)
         );
     }
@@ -884,9 +907,7 @@ fn continuous_history_rejects_reuse_but_numerical_time_risk_keeps_it_frozen() ->
     assert!(
         engine
             .price(
-                &option
-                    .clone()
-                    .with_history_time(Some(rolled.valuation_time()))?,
+                &option.replace_history(100.0, Some(rolled.valuation_time()))?,
                 &rolled
             )?
             .is_finite()
@@ -912,11 +933,23 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
     );
     terms.knock_out_settled = Some(true);
     terms.history_time = Some(at);
-    let settled = Accumulator::new(terms)?.with_history_time(Some(start))?;
+    let settled = Accumulator::new(terms)?.replace_history(
+        AccumulatorHistoryChanges {
+            knock_out_settled: Some(Some(true)),
+            accumulated_quantity: Some(None),
+        },
+        Some(start),
+    )?;
     let engine = QuadratureAccumulatorEngine::default();
     assert!(matches!(
         engine.price(
-            &settled.clone().with_history_time(Some(at.add_days(1)?))?,
+            &settled.replace_history(
+                AccumulatorHistoryChanges {
+                    knock_out_settled: Some(Some(true)),
+                    accumulated_quantity: Some(settled.accumulated_quantity())
+                },
+                Some(at.add_days(1)?)
+            )?,
             &market
         ),
         Err(Error::InvalidInput(_))
@@ -926,7 +959,16 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
-        engine.price(&settled.with_history_time(Some(at))?, &market)?,
+        engine.price(
+            &settled.replace_history(
+                AccumulatorHistoryChanges {
+                    knock_out_settled: Some(Some(true)),
+                    accumulated_quantity: Some(settled.accumulated_quantity())
+                },
+                Some(at)
+            )?,
+            &market
+        )?,
         0.0
     );
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
@@ -946,7 +988,10 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
-        engine.price(&note.with_history_time(Some(at))?, &market)?,
+        engine.price(
+            &note.replace_history(note.barrier_state(), Some(at))?,
+            &market
+        )?,
         0.0
     );
     Ok(())

@@ -63,6 +63,9 @@ macro_rules! monitoring_properties {
                     if supplied && state.is_none() { None }
                     else { kiyosi::OptionContract::history_time(&self.0) }
                 });
+                if !supplied {
+                    return $crate::error::domain(kiyosi::OptionContract::with_history_time(self.0.clone(), at)).map(Self);
+                }
                 Ok(Self($crate::error::domain(self.0.replace_history(state, at))?))
             }
             /// Return the inclusive contract start.

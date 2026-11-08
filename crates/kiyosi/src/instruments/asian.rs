@@ -253,7 +253,9 @@ macro_rules! average_option {
                 super::validate_history_replacement(
                     self.realized_average().is_some(),
                     history_supplied,
-                    self.averaging_start_time() != updated.averaging_start_time(),
+                    (updated.history_time().is_some()
+                        && self.history_time() != updated.history_time())
+                        || self.averaging_start_time() != updated.averaging_start_time(),
                     "realized_average",
                 )?;
                 Ok(updated)
@@ -377,6 +379,7 @@ macro_rules! average_option {
                 self.0.history_time
             }
             fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+                super::validate_history_redating(&self, time, self.realized_average().is_some())?;
                 self.0.history_time = time;
                 super::validate_history_snapshot(&self, self.realized_average().is_some())?;
                 Ok(self)

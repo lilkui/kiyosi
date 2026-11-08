@@ -43,6 +43,34 @@ def engine(instrument):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_redating_an_average_requires_explicit_history_and_preserves_the_price(
+        self,
+    ):
+        start = datetime(2025, 1, 2)
+        at, later = start + timedelta(days=4), start + timedelta(days=18)
+        option = i.ArithmeticAveragePriceOption(
+            option_type="call",
+            strike=100,
+            effective_time=start,
+            averaging_start_time=start,
+            expiry_time=start + timedelta(days=32),
+            realized_average=100,
+            history_time=at,
+        )
+        for method in (option.replace, option.replace_history):
+            with self.assertRaises(StaleHistoryError):
+                method(history_time=later)
+        refreshed = option.replace_history(
+            realized_average=(4 * 100 + 14 * 120) / 18,
+            history_time=later,
+        )
+        market = context(later, volatility=0).replace(spot_price=120)
+        self.assertAlmostEqual(
+            engine(option).price(refreshed, market), 17.5, delta=1e-12
+        )
+        self.assertEqual(option.history_time, at)
+        self.assertEqual(option.realized_average, 100)
+
     def test_clearing_history_clears_only_implicit_timestamps_in_every_family(self):
         names = (
             "touch_state",
@@ -269,9 +297,24 @@ class HistoryTests(unittest.TestCase):
             selected.price(option, context())
         with self.assertRaises(InvalidInputError):
             selected.price(
-                option.replace(history_time=AT + timedelta(days=1)), context()
+                option.replace_history(
+                    knock_out_settled=True,
+                    accumulated_quantity=option.accumulated_quantity,
+                    history_time=AT + timedelta(days=1),
+                ),
+                context(),
             )
-        self.assertEqual(selected.price(option.replace(history_time=AT), context()), 0)
+        self.assertEqual(
+            selected.price(
+                option.replace_history(
+                    knock_out_settled=True,
+                    accumulated_quantity=option.accumulated_quantity,
+                    history_time=AT,
+                ),
+                context(),
+            ),
+            0,
+        )
         note = i.BinarySnowballOption(
             maturity_coupon_rate=0.1,
             effective_time=start,
@@ -287,7 +330,13 @@ class HistoryTests(unittest.TestCase):
         selected = engine(note)
         with self.assertRaises(InvalidInputError):
             selected.price(note, context())
-        self.assertEqual(selected.price(note.replace(history_time=AT), context()), 0)
+        self.assertEqual(
+            selected.price(
+                note.replace_history(barrier_state=note.barrier_state, history_time=AT),
+                context(),
+            ),
+            0,
+        )
 
     def test_every_path_dependent_family_requires_dated_history(self):
         for factory, fields in contract_inputs():
@@ -321,20 +370,16 @@ class HistoryTests(unittest.TestCase):
                 missing = dated.replace_history(**payloads)
                 with self.assertRaises(MissingHistoryError):
                     selected.price(missing, context())
-                stale = dated.replace(history_time=dated.effective_time)
                 with self.assertRaises(StaleHistoryError):
-                    selected.price(stale, context())
+                    dated.replace(history_time=dated.effective_time)
                 self.assertEqual(original.history_time, AT)
                 self.assertEqual(dated.history_time, AT)
                 self.assertEqual(pickle.loads(pickle.dumps(dated)), dated)
                 self.assertEqual(dated.replace(), dated)
                 self.assertEqual(dated.replace_history(), dated)
-                with self.assertRaises(InvalidInputError) as future:
-                    selected.price(
-                        dated.replace(history_time=AT + timedelta(microseconds=1)),
-                        context(),
-                    )
-                self.assertIs(type(future.exception), InvalidInputError)
+                for method in (dated.replace, dated.replace_history):
+                    with self.assertRaises(StaleHistoryError):
+                        method(history_time=AT + timedelta(microseconds=1))
                 with self.assertRaises(InvalidInputError):
                     selected.price(dated.replace(history_time=None), context())
                 for invalid in (
@@ -347,7 +392,8 @@ class HistoryTests(unittest.TestCase):
                         dated.replace_history(history_time=invalid)
                 for boundary in (original.effective_time, original.expiry_time):
                     self.assertEqual(
-                        dated.replace(history_time=boundary).history_time, boundary
+                        dated.replace(**payloads, history_time=boundary).history_time,
+                        boundary,
                     )
                 self.assertEqual(dated.history_time, AT)
                 for bad in (True, AT.date(), AT.replace(tzinfo=UTC)):
@@ -459,7 +505,9 @@ class HistoryTests(unittest.TestCase):
             self.assertTrue(
                 math.isfinite(
                     selected.price(
-                        option.replace_history(history_time=rolled.valuation_time),
+                        option.replace_history(
+                            realized_average=100, history_time=rolled.valuation_time
+                        ),
                         rolled,
                     )
                 )

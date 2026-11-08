@@ -57,6 +57,9 @@ macro_rules! autocallable_properties {
                     if supplied && state.is_none() { None }
                     else { kiyosi::OptionContract::history_time(&self.0) }
                 });
+                if !supplied {
+                    return domain(kiyosi::OptionContract::with_history_time(self.0.clone(), at)).map(Self);
+                }
                 Ok(Self(domain(self.0.replace_history(state, at))?))
             }
             /// Return an owned copy of the contract's monitoring calendar.

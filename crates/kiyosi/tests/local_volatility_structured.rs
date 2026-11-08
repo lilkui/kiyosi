@@ -48,7 +48,7 @@ fn request() -> GreeksRequest {
     GreeksRequest::new([Greek::Delta, Greek::Gamma])
 }
 
-fn parity<I: OptionContract + Clone, E: PricingEngine<I>>(
+fn parity<I: support::DatedHistory, E: PricingEngine<I>>(
     engine: &E,
     option: &I,
     local: &PricingContext,
@@ -465,7 +465,7 @@ fn early_surface_knots_survive_autocallable_time_refinement() {
     assert!((actual - expected).abs() < 1e-5, "{actual} != {expected}");
 }
 
-fn fixed_surface_derivatives<I: OptionContract + Clone, E: PricingEngine<I>>(
+fn fixed_surface_derivatives<I: support::DatedHistory, E: PricingEngine<I>>(
     engine: &E,
     option: &I,
     local: &PricingContext,

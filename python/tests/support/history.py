@@ -8,7 +8,19 @@ def dated(instrument, context):
         <= context.valuation_time
         <= instrument.expiry_time
     ):
-        return instrument.replace(history_time=context.valuation_time)
+        payloads = {
+            name: getattr(instrument, name)
+            for name in (
+                "touch_state",
+                "barrier_state",
+                "realized_average",
+                "realized_hit_count",
+                "accumulated_quantity",
+                "knock_out_settled",
+            )
+            if hasattr(instrument, name)
+        }
+        return instrument.replace(**payloads, history_time=context.valuation_time)
     return instrument
 
 

@@ -146,6 +146,8 @@ pub trait OptionContract {
     /// observations is rejected; continuously accumulated history requires the same instant.
     /// Dates after valuation are rejected at pricing. Contracts without history reject
     /// a supplied timestamp; clearing with `None` retains their value.
+    /// Changing a dated snapshot with known history requires its payload through
+    /// the contract's `replace_history` method; repeating its timestamp is valid.
     /// See the [crate-level history example](crate).
     ///
     /// # Errors
@@ -153,6 +155,7 @@ pub trait OptionContract {
     /// Returns [`Error::UnsupportedOperation`] for a supplied timestamp when history
     /// is unsupported, [`Error::InvalidInput`] for a supported timestamp outside life,
     /// or [`Error::MissingHistory`] for clearing the timestamp while history remains known.
+    /// Returns [`Error::StaleHistory`] when redating known history without its payload.
     fn with_history_time(self, time: Option<Timestamp>) -> Result<Self>
     where
         Self: Sized,

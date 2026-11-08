@@ -925,7 +925,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         super::validate_history_replacement(
             self.barrier_state().is_some(),
             supplied,
-            self.history_time().is_none() && old.expiry_time != new.expiry_time
+            (updated.history_time().is_some() && self.history_time() != updated.history_time())
+                || self.history_time().is_none() && old.expiry_time != new.expiry_time
                 || (old.effective_time, knock_in(&old)) != (new.effective_time, knock_in(&new))
                 || old.daily_knock_in()
                     && old.calendar != new.calendar
@@ -1182,6 +1183,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         self.view().history_time
     }
     fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+        super::validate_history_redating(&self, time, self.barrier_state().is_some())?;
         self.0.set_history_time(time);
         super::validate_history_snapshot(&self, self.barrier_state().is_some())?;
         Ok(self)

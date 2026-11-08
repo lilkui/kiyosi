@@ -33,6 +33,7 @@
 //! history require the same instant unless barrier monitoring is resolved. Refresh
 //! payload and timestamp together with `replace_history`; clearing all history
 //! permits clearing its timestamp. Numerical time sensitivities hold history fixed.
+//! Changing a dated snapshot's timestamp requires explicitly supplying its history payloads.
 //! Missing payloads or snapshot timestamps return [`Error::MissingHistory`]. History
 //! invalidated by valuation or observation edits returns [`Error::StaleHistory`].
 //! Impossible states and future timestamps return [`Error::InvalidInput`].

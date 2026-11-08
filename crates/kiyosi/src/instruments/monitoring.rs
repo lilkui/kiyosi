@@ -85,7 +85,8 @@ impl Monitoring {
         super::validate_history_replacement(
             self.touch_state.is_some(),
             supplied,
-            upper_changed
+            (updated.history_time.is_some() && self.history_time != updated.history_time)
+                || upper_changed
                 || self.history_time.is_none() && self.expiry_time != updated.expiry_time
                 || (
                     self.effective_time,
@@ -276,6 +277,7 @@ impl OptionContract for Monitoring {
         self.history_time
     }
     fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+        super::validate_history_redating(&self, time, self.touch_state.is_some())?;
         self.history_time = time;
         super::validate_history_snapshot(&self, self.touch_state.is_some())?;
         Ok(self)

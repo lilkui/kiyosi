@@ -28,7 +28,7 @@ fn settings() -> MonteCarloSettings {
     }
 }
 
-fn sample<I: OptionContract + Clone>(
+fn sample<I: support::DatedHistory>(
     engine: &impl PricingEngine<I>,
     option: &I,
 ) -> (f64, MonteCarloEstimate) {
@@ -745,7 +745,7 @@ fn generic_statistics_keep_existing_monte_carlo_estimators_available() {
 
 #[test]
 fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
-    fn check<I: OptionContract + Clone, E: PricingEngine<I>>(
+    fn check<I: support::DatedHistory, E: PricingEngine<I>>(
         build: impl Fn(MonteCarloSettings) -> Result<E>,
         option: &I,
     ) -> Result<()> {
