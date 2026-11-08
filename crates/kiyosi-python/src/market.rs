@@ -3,7 +3,7 @@ use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
-/// Immutable rate term structure with log-linear discount factors.
+/// Rate term structure with log-linear discount factors.
 ///
 /// Parameters
 /// ----------
@@ -273,7 +273,7 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
     }
 }
 
-/// Immutable Black-Scholes-Merton (BSM) model parameters.
+/// Black-Scholes-Merton (BSM) model parameters.
 ///
 /// Parameters
 /// ----------
@@ -308,7 +308,7 @@ impl BlackScholesMertonParameters {
             real(volatility)?,
         ))?))
     }
-    /// Return a validated replacement without changing this value.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -375,7 +375,7 @@ impl BlackScholesMertonParameters {
     }
 }
 
-/// Immutable market snapshot for one valuation instant.
+/// Market snapshot for one valuation instant.
 ///
 /// Parameters
 /// ----------
@@ -411,7 +411,7 @@ impl PricingContext {
             timestamp(valuation_time)?,
         ))?))
     }
-    /// Return a validated replacement without changing this value.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------

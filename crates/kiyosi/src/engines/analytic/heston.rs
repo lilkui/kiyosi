@@ -92,7 +92,7 @@ impl AnalyticHestonEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`HestonIntegrationSettings::validate`] errors without changing inputs.
+    /// Propagates [`HestonIntegrationSettings::validate`] errors.
     ///
     /// # Examples
     ///

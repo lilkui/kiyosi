@@ -89,7 +89,7 @@ impl Accumulator {
             .transpose()
     }
 
-    /// Returns a validated replacement without changing this contract.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -255,7 +255,7 @@ impl Accumulator {
             history_time,
         ))?))
     }
-    /// Return a validated replacement without changing this value.
+    /// Returns a validated replacement.
     ///
     /// Clearing the final history payload clears an omitted history_time.
     /// An explicitly supplied history_time is validated and retained.

@@ -16,7 +16,7 @@ macro_rules! quadrature_engine {
     };
     ($(#[$doc:meta])* $name:ident, $instrument:ty,
      $with:path, $settings:ident $(, $time:ident)? $(,)?) => {
-        /// Flat-rate quadrature pricing with immutable integration settings.
+        /// Flat-rate quadrature pricing.
         ///
         /// Parameters
         /// ----------
@@ -95,7 +95,7 @@ macro_rules! quadrature_engine {
                         self.integration_standard_deviations()
                     )
                 },
-                /// Returns the price without changing the instrument or context.
+                /// Returns the price.
                 ///
                 /// Parameters
                 /// ----------

@@ -52,7 +52,7 @@ macro_rules! sampling_settings {
             sampling_settings!(
                 $engine,
                 [],
-                /// Return the price without changing the instrument or context.
+                /// Returns the price.
                 ///
                 /// Parameters
                 /// ----------
@@ -300,7 +300,7 @@ numerical_greeks_methods!(
     sampling_settings!(
         MonteCarloVanillaEngine,
         [step_count],
-        /// Return the price without changing the instrument or context.
+        /// Returns the price.
         ///
         /// Parameters
         /// ----------
@@ -435,7 +435,7 @@ numerical_greeks_methods!(
     sampling_settings!(
         MonteCarloDigitalEngine,
         [],
-        /// Return the price without changing the instrument or context.
+        /// Returns the price.
         ///
         /// Parameters
         /// ----------
@@ -531,7 +531,7 @@ numerical_greeks_methods!(
     sampling_settings!(
         MonteCarloAsianEngine,
         [step_count],
-        /// Return the price without changing the instrument or context.
+        /// Returns the price.
         ///
         /// Parameters
         /// ----------

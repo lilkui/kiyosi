@@ -96,7 +96,7 @@ monitoring_properties!(
             .map(Self)
         })
     },
-    /// Returns a validated replacement without changing this contract.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------

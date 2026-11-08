@@ -177,7 +177,7 @@ def implied_phoenix_coupon(
     Pricing failures propagate. Trials use affine interpolation, then bisection."""
 
 class EuropeanOption:
-    """European vanilla option with a positive strike.
+    """European vanilla option.
 
     Parameters
     ----------
@@ -217,7 +217,7 @@ class EuropeanOption:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> EuropeanOption:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -291,7 +291,7 @@ class AmericanOption:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> AmericanOption:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -369,7 +369,7 @@ class CashOrNothingOption:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> CashOrNothingOption:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -449,7 +449,7 @@ class AssetOrNothingOption:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> AssetOrNothingOption:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -489,7 +489,7 @@ class AssetOrNothingOption:
         """Return inclusive expiry time."""
 
 class RateTermStructure:
-    """Immutable rate term structure with log-linear discount factors.
+    """Rate term structure with log-linear discount factors.
 
     Parameters
     ----------
@@ -693,7 +693,7 @@ class RateTermStructure:
             If the shift or resulting rates are non-finite."""
 
 class BlackScholesMertonParameters:
-    """Immutable Black-Scholes-Merton (BSM) model parameters.
+    """Black-Scholes-Merton (BSM) model parameters.
 
     Parameters
     ----------
@@ -724,7 +724,7 @@ class BlackScholesMertonParameters:
         dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
         volatility: _Real | EllipsisType = ...,
     ) -> BlackScholesMertonParameters:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -772,7 +772,7 @@ class BlackScholesMertonParameters:
         """Return nonnegative finite annualized volatility in decimal units."""
 
 class HestonParameters:
-    """Immutable Heston stochastic-volatility parameters under the risk-neutral measure.
+    """Heston stochastic-volatility parameters under the risk-neutral measure.
 
     Parameters
     ----------
@@ -892,7 +892,7 @@ class HestonParameters:
         """Return the correlation between the asset and variance Brownian motions."""
 
 class LocalVolatilitySurface:
-    """Immutable local-volatility table, with rows=time and columns=absolute spot.
+    """Local-volatility table indexed by time (rows) and absolute spot (columns).
 
     Parameters
     ----------
@@ -961,7 +961,7 @@ class LocalVolatilitySurface:
             If time is outside coverage or spot is nonpositive or non-finite."""
 
 class LocalVolatilityParameters:
-    """Immutable local-volatility parameters with owned rate curves and surface.
+    """Local-volatility model parameters.
 
     Parameters
     ----------
@@ -1041,7 +1041,7 @@ class LocalVolatilityParameters:
         """Return an owned copy of the dividend curve."""
 
 class TradingCalendar:
-    """Immutable trading calendar with a fixed annualization basis.
+    """Trading calendar with a fixed annualization basis.
 
     Notes
     -----
@@ -1189,7 +1189,7 @@ def custom_calendar(
         If a date is both open and closed, or the annualization basis is nonpositive."""
 
 class ObservationSchedule:
-    """Immutable ordered observation times with sequence access.
+    """Ordered observation times with sequence access.
 
     Parameters
     ----------
@@ -1319,7 +1319,7 @@ def monthly_schedule(
     merges collisions and stops before crossing `end_time`; `end_time` need not appear."""
 
 class PricingContext:
-    """Immutable market snapshot for one valuation instant.
+    """Market snapshot for one valuation instant.
 
     Parameters
     ----------
@@ -1356,7 +1356,7 @@ class PricingContext:
         spot_price: _Real | EllipsisType = ...,
         valuation_time: datetime | EllipsisType = ...,
     ) -> PricingContext:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -1427,7 +1427,7 @@ class AnalyticEuropeanEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -1577,7 +1577,7 @@ class AnalyticHestonEuropeanEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -1694,7 +1694,7 @@ class BjerksundStenslandVanillaEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: AmericanOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -1807,7 +1807,7 @@ class AnalyticDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -1931,7 +1931,7 @@ class CoxRossRubinsteinBarrierEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -2006,7 +2006,7 @@ class CoxRossRubinsteinBarrierEngine:
         stencils. Use numerical_greeks for configurable scalar differences."""
 
 class QuadratureBarrierEngine:
-    """Flat-rate quadrature pricing with immutable integration settings.
+    """Flat-rate quadrature pricing.
 
     Parameters
     ----------
@@ -2069,7 +2069,7 @@ class QuadratureBarrierEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -2142,7 +2142,7 @@ class QuadratureBarrierEngine:
         engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class QuadratureDigitalEngine:
-    """Flat-rate quadrature pricing with immutable integration settings.
+    """Flat-rate quadrature pricing.
 
     Parameters
     ----------
@@ -2222,7 +2222,7 @@ class QuadratureDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
     ) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -2295,7 +2295,7 @@ class QuadratureDigitalEngine:
         engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class QuadratureVanillaEngine:
-    """Flat-rate quadrature pricing with immutable integration settings.
+    """Flat-rate quadrature pricing.
 
     Parameters
     ----------
@@ -2379,7 +2379,7 @@ class QuadratureVanillaEngine:
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
     ) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -2499,7 +2499,7 @@ class CoxRossRubinsteinVanillaEngine:
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -2632,7 +2632,7 @@ class CoxRossRubinsteinDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -2707,7 +2707,7 @@ class CoxRossRubinsteinDigitalEngine:
         stencils. Use numerical_greeks for configurable scalar differences."""
 
 class FiniteDifferenceAccumulatorEngine:
-    """Finite-difference pricing with immutable grid settings.
+    """Finite-difference pricing.
 
     Parameters
     ----------
@@ -2838,7 +2838,7 @@ class FiniteDifferenceAccumulatorEngine:
         """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -2916,7 +2916,7 @@ class FiniteDifferenceAccumulatorEngine:
         for configurable scalar differences under BSM."""
 
 class FiniteDifferenceBarrierEngine:
-    """Finite-difference pricing with immutable grid settings.
+    """Finite-difference pricing.
 
     Parameters
     ----------
@@ -3047,7 +3047,7 @@ class FiniteDifferenceBarrierEngine:
         """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -3125,7 +3125,7 @@ class FiniteDifferenceBarrierEngine:
         for configurable scalar differences under BSM."""
 
 class FiniteDifferenceDoubleBarrierEngine:
-    """Finite-difference pricing with immutable grid settings.
+    """Finite-difference pricing.
 
     Parameters
     ----------
@@ -3256,7 +3256,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -3334,7 +3334,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         for configurable scalar differences under BSM."""
 
 class FiniteDifferenceAutocallableEngine:
-    """Finite-difference pricing with immutable grid settings.
+    """Finite-difference pricing.
 
     Parameters
     ----------
@@ -3482,7 +3482,7 @@ class FiniteDifferenceAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -3563,7 +3563,7 @@ class FiniteDifferenceAutocallableEngine:
         for configurable scalar differences under BSM."""
 
 class FiniteDifferenceDoubleTouchEngine:
-    """Finite-difference pricing with immutable grid settings.
+    """Finite-difference pricing.
 
     Parameters
     ----------
@@ -3694,7 +3694,7 @@ class FiniteDifferenceDoubleTouchEngine:
         """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -3772,7 +3772,7 @@ class FiniteDifferenceDoubleTouchEngine:
         for configurable scalar differences under BSM."""
 
 class FiniteDifferenceBinaryBarrierEngine:
-    """Finite-difference pricing with immutable grid settings.
+    """Finite-difference pricing.
 
     Parameters
     ----------
@@ -3905,7 +3905,7 @@ class FiniteDifferenceBinaryBarrierEngine:
     def price(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -4082,7 +4082,7 @@ class FiniteDifferenceHestonVanillaEngine:
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
     ) -> float:
-        """Return the price without changing inputs.
+        """Returns the price.
 
         Parameters
         ----------
@@ -4159,7 +4159,7 @@ class FiniteDifferenceHestonVanillaEngine:
         not accepted; numerical_greeks also rejects Heston."""
 
 class FiniteDifferenceVanillaEngine:
-    """Finite-difference pricing with immutable grid settings.
+    """Finite-difference pricing.
 
     Parameters
     ----------
@@ -4292,7 +4292,7 @@ class FiniteDifferenceVanillaEngine:
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -4370,7 +4370,7 @@ class FiniteDifferenceVanillaEngine:
         for configurable scalar differences under BSM."""
 
 class FiniteDifferenceDigitalEngine:
-    """Finite-difference pricing with immutable grid settings.
+    """Finite-difference pricing.
 
     Parameters
     ----------
@@ -4509,7 +4509,7 @@ class FiniteDifferenceDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -4742,7 +4742,7 @@ class MonteCarloVanillaEngine:
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -5026,7 +5026,7 @@ class MonteCarloDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -5277,7 +5277,7 @@ class MonteCarloBarrierEngine:
         request and propagate without a partial result, as for price()."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -5526,7 +5526,7 @@ class MonteCarloDoubleBarrierEngine:
         request and propagate without a partial result, as for price()."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -5799,7 +5799,7 @@ class MonteCarloAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -6055,7 +6055,7 @@ class MonteCarloAccumulatorEngine:
         request and propagate without a partial result, as for price()."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -6324,7 +6324,7 @@ class MonteCarloAsianEngine:
         instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
         context: PricingContext,
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -8075,7 +8075,7 @@ def numerical_greeks(
         within the request, matching the Rust numerical_greeks operation."""
 
 class GeometricAveragePriceOption:
-    """Continuously monitored average-price Asian option with explicit history.
+    """Continuously monitored average-price Asian option.
 
     Parameters
     ----------
@@ -8119,7 +8119,7 @@ class GeometricAveragePriceOption:
         realized_average: _Real | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -8170,7 +8170,7 @@ class GeometricAveragePriceOption:
         realized_average: _Real | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -8256,7 +8256,7 @@ class AnalyticGeometricAveragePriceEngine:
     def price(
         self, instrument: GeometricAveragePriceOption, context: PricingContext
     ) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -8329,7 +8329,7 @@ class AnalyticGeometricAveragePriceEngine:
         engine defaults. Use numerical_greeks for configurable scalar differences."""
 
 class ArithmeticAveragePriceOption:
-    """Continuously monitored average-price Asian option with explicit history.
+    """Continuously monitored average-price Asian option.
 
     Parameters
     ----------
@@ -8373,7 +8373,7 @@ class ArithmeticAveragePriceOption:
         realized_average: _Real | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -8424,7 +8424,7 @@ class ArithmeticAveragePriceOption:
         realized_average: _Real | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -8511,7 +8511,7 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
     def price(
         self, instrument: ArithmeticAveragePriceOption, context: PricingContext
     ) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -8652,7 +8652,7 @@ class BarrierOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -8722,7 +8722,7 @@ class BarrierOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -8840,7 +8840,7 @@ class AnalyticBarrierEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -8983,7 +8983,7 @@ class DoubleBarrierOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -9056,7 +9056,7 @@ class DoubleBarrierOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -9213,7 +9213,7 @@ class RangeAccrualOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -9271,7 +9271,7 @@ class RangeAccrualOption:
         realized_hit_count: SupportsIndex | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -9360,7 +9360,7 @@ class AnalyticRangeAccrualEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: RangeAccrualOption, context: PricingContext) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -9466,7 +9466,7 @@ class AnalyticDoubleBarrierEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -9582,7 +9582,7 @@ class AnalyticDoubleTouchEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -9759,7 +9759,7 @@ class BinaryBarrierOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -9812,7 +9812,7 @@ class BinaryBarrierOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -9997,7 +9997,7 @@ class TouchOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -10048,7 +10048,7 @@ class TouchOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -10401,7 +10401,7 @@ class AnalyticBinaryBarrierEngine:
     def price(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
     ) -> float:
-        """Return the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -10555,7 +10555,7 @@ class DoubleTouchOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -10606,7 +10606,7 @@ class DoubleTouchOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -10796,7 +10796,7 @@ def cash_double_no_touch(
     expiry."""
 
 class QuadratureAutocallableEngine:
-    """Flat-rate quadrature pricing with immutable integration settings.
+    """Flat-rate quadrature pricing.
 
     Parameters
     ----------
@@ -10884,7 +10884,7 @@ class QuadratureAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
     ) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------
@@ -11207,7 +11207,7 @@ class SnowballOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -11307,7 +11307,7 @@ class SnowballOption:
         | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> SnowballOption:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -11513,7 +11513,7 @@ class PhoenixOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -11589,7 +11589,7 @@ class PhoenixOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -11665,7 +11665,7 @@ class PhoenixOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -11766,7 +11766,7 @@ class PhoenixOption:
         | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> PhoenixOption:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -11915,7 +11915,7 @@ class BinarySnowballOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -11997,7 +11997,7 @@ class BinarySnowballOption:
         | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> BinarySnowballOption:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -12139,7 +12139,7 @@ class TernarySnowballOption:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -12233,7 +12233,7 @@ class TernarySnowballOption:
         | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> TernarySnowballOption:
-        """Returns a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -12951,7 +12951,7 @@ class Accumulator:
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Returns a validated replacement without changing this contract.
+        """Returns a validated replacement.
 
         Parameters
         ----------
@@ -13059,7 +13059,7 @@ class Accumulator:
         knock_out_settled: bool | None | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement without changing this value.
+        """Returns a validated replacement.
 
         Clearing the final history payload clears an omitted history_time.
         An explicitly supplied history_time is validated and retained.
@@ -13095,7 +13095,7 @@ class Accumulator:
         """Returns an owned copy of the contract's observation calendar."""
 
 class QuadratureAccumulatorEngine:
-    """Flat-rate quadrature pricing with immutable integration settings.
+    """Flat-rate quadrature pricing.
 
     Parameters
     ----------
@@ -13158,7 +13158,7 @@ class QuadratureAccumulatorEngine:
         request-level controls; omitted controls retain the engine's settings."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
-        """Returns the price without changing the instrument or context.
+        """Returns the price.
 
         Parameters
         ----------

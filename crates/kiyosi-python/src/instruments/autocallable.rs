@@ -15,7 +15,7 @@ macro_rules! autocallable_properties {
                 kiyosi::OptionContract::history_time(&self.0).map(|time| crate::conversions::python_timestamp(py, time)).transpose()
             }
 
-            /// Returns a validated replacement without changing this value.
+            /// Returns a validated replacement.
             ///
             /// Clearing the final history payload clears an omitted history_time.
             /// An explicitly supplied history_time is validated and retained.
@@ -706,7 +706,7 @@ times, stages may have no observations, and rates need not decrease."
 pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
 snowball_properties! {
     SnowballOption,
-    /// Returns a validated replacement without changing this contract.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -918,7 +918,7 @@ snowball_properties! {
 pub(crate) struct BinarySnowballOption(pub kiyosi::BinarySnowballOption);
 snowball_properties! {
     BinarySnowballOption,
-    /// Returns a validated replacement without changing this contract.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -1072,7 +1072,7 @@ snowball_properties! {
 pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
 snowball_properties! {
     TernarySnowballOption,
-    /// Returns a validated replacement without changing this contract.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -1288,7 +1288,7 @@ snowball_properties! {
 pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
-    /// Returns a validated replacement without changing this contract.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------

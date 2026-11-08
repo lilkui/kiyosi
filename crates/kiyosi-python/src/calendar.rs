@@ -4,7 +4,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
-/// Immutable trading calendar with a fixed annualization basis.
+/// Trading calendar with a fixed annualization basis.
 ///
 /// Notes
 /// -----

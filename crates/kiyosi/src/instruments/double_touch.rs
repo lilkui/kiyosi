@@ -204,11 +204,11 @@ impl DoubleTouchOption {
     pub fn observation_mode(&self) -> ObservationMode {
         self.monitoring.observation_mode()
     }
-    /// Borrows immutable schedule storage for this owner's lifetime; see [`Self::cash`].
+    /// Borrows schedule storage for this owner's lifetime; see [`Self::cash`].
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.monitoring.observation_schedule()
     }
-    /// Borrows immutable times for this owner's lifetime; see [`Self::cash`].
+    /// Borrows times for this owner's lifetime; see [`Self::cash`].
     pub fn observation_times(&self) -> &[Timestamp] {
         self.monitoring.observation_times()
     }
@@ -218,7 +218,6 @@ impl DoubleTouchOption {
     }
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::cash`].
     ///
-    /// Preserves validated monitoring terms without reconstructing the contract.
     /// The original value remains unchanged.
     /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
     ///

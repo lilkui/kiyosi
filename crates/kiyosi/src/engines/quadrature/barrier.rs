@@ -64,7 +64,7 @@ impl QuadratureBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`QuadratureSettings::validate`] errors without changing inputs.
+    /// Propagates [`QuadratureSettings::validate`] errors.
     ///
     /// # Examples
     ///

@@ -1,6 +1,6 @@
 use crate::{Error, Result, TimeOfDay, Timestamp, TradingCalendar};
 
-/// Owns immutable, strictly ordered observation times.
+/// Owns strictly ordered observation times.
 ///
 /// Accessors borrow storage for the lifetime of the borrow; shared reads are safe.
 /// See [`Self::fixed_interval`] for construction.

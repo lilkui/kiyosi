@@ -81,7 +81,7 @@ impl DoubleBarrierOptionTerms {
 
 /// Owns two ordered boundaries sharing monitoring and strictly prior history.
 ///
-/// Immutable shared pricing and replacement are safe under the crate concurrency contract.
+/// Shared pricing and replacement are safe under the crate concurrency contract.
 /// See [`Self::new`] and [`Self::replace_history`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleBarrierOption {
@@ -247,11 +247,11 @@ impl DoubleBarrierOption {
     pub fn observation_mode(&self) -> ObservationMode {
         self.lower.observation_mode()
     }
-    /// Borrows immutable schedule storage for the lifetime of the borrow; see [`Self::new`].
+    /// Borrows schedule storage for the lifetime of the borrow; see [`Self::new`].
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.lower.observation_schedule()
     }
-    /// Borrows immutable times for the lifetime of the borrow; see [`Self::new`].
+    /// Borrows times for the lifetime of the borrow; see [`Self::new`].
     pub fn observation_times(&self) -> &[Timestamp] {
         self.lower.observation_times()
     }

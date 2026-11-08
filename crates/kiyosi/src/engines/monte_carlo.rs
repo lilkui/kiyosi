@@ -139,7 +139,7 @@ impl MonteCarloSettings {
         Ok(u64::from_ne_bytes(bytes))
     }
 
-    /// Validates sampling controls without constructing an engine or drawing randomness.
+    /// Validates sampling controls without drawing randomness.
     ///
     /// # Errors
     ///

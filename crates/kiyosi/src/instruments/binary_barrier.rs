@@ -445,7 +445,7 @@ macro_rules! monitoring_accessors {
             pub fn observation_mode(&self) -> ObservationMode {
                 self.monitoring.observation_mode()
             }
-            /// Borrows immutable schedule storage for this owner's lifetime; see the cash constructor.
+            /// Borrows schedule storage for this owner's lifetime; see the cash constructor.
             pub fn observation_schedule(&self) -> &ObservationSchedule {
                 self.monitoring.observation_schedule()
             }

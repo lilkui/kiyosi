@@ -20,7 +20,7 @@ use crate::{
 /// Preserves cash and asset payments below the spatial grid, including zero-lower-strike losses.
 /// Extends the spatial domain for forward drift and the backward movement of event boundaries.
 /// Spatial resolution and integration extent require separate convergence checks.
-/// Owns immutable settings; shared and distinct instances support concurrent pricing.
+/// Shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureAutocallableEngine {
@@ -31,7 +31,7 @@ impl QuadratureAutocallableEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`QuadratureSettings::validate`] errors without changing inputs.
+    /// Propagates [`QuadratureSettings::validate`] errors.
     ///
     /// # Examples
     ///

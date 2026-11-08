@@ -250,7 +250,7 @@ macro_rules! average_option {
                 )?;
                 Ok(updated)
             }
-            /// Creates an average-price contract with explicit history.
+            /// Creates an average-price contract.
             ///
             /// Use [`DEFAULT_REALIZED_AVERAGE`] before averaging starts. Positive history
             /// is required strictly after the averaging start, checked during pricing.

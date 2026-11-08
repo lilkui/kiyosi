@@ -23,7 +23,7 @@ impl Default for BinomialSettings {
 }
 
 impl BinomialSettings {
-    /// Validates the step count without constructing an engine.
+    /// Validates the step count.
     ///
     /// # Errors
     ///
@@ -85,7 +85,7 @@ impl CoxRossRubinsteinVanillaEngine {
         self.settings
     }
 
-    /// Prices a supported vanilla contract without changing inputs.
+    /// Prices a supported vanilla contract.
     ///
     /// See [`Self::price_with_greeks`] for an example.
     ///

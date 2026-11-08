@@ -1,6 +1,6 @@
 use crate::{Error, Result, Timestamp, error::finite};
 
-/// Owns an immutable term structure of continuously compounded rates.
+/// Owns a term structure of continuously compounded rates.
 ///
 /// Uses the Actual/365 Fixed day-count convention and log-linear interpolation
 /// of discount factors, starting from an implicit factor of one at the reference

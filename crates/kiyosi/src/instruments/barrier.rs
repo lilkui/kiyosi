@@ -121,7 +121,7 @@ impl BarrierOptionTerms {
 
 /// Owns validated single-barrier vanilla terms and strictly prior history.
 ///
-/// Immutable shared reads and pricing are safe; replacement never mutates the original.
+/// Shared reads and pricing are safe; replacement never mutates the original.
 /// See [`Self::new`] and [`Self::replace_history`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOption {
@@ -294,7 +294,7 @@ impl BarrierOption {
     pub fn observation_mode(&self) -> ObservationMode {
         self.monitoring.observation_mode()
     }
-    /// Borrows immutable schedule storage for the lifetime of the borrow; see [`Self::new`].
+    /// Borrows schedule storage for the lifetime of the borrow; see [`Self::new`].
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.monitoring.observation_schedule()
     }

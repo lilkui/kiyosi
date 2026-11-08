@@ -2,7 +2,7 @@ use crate::conversions::{direction, python_timestamp, real, supplied, timestamp}
 use crate::error::domain;
 use pyo3::prelude::*;
 
-/// European vanilla option with a positive strike.
+/// European vanilla option.
 ///
 /// Parameters
 /// ----------
@@ -48,7 +48,7 @@ impl EuropeanOption {
         ))?))
     }
 
-    /// Return a validated replacement without changing this value.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------

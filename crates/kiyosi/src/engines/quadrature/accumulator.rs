@@ -11,7 +11,7 @@ use crate::{
 
 /// Prices accumulators and decumulators using affine layers and Gaussian integration.
 ///
-/// Owns immutable settings; shared and distinct instances support concurrent pricing.
+/// Shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureAccumulatorEngine {
@@ -22,7 +22,7 @@ impl QuadratureAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`QuadratureSettings::validate`] errors without changing inputs.
+    /// Propagates [`QuadratureSettings::validate`] errors.
     ///
     /// # Examples
     ///

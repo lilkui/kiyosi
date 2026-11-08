@@ -14,7 +14,7 @@ macro_rules! monitoring_properties {
             fn calendar(&self) -> $crate::calendar::TradingCalendar {
                 $crate::calendar::TradingCalendar(self.0.calendar().clone())
             }
-            /// Returns a validated replacement without changing this value.
+            /// Returns a validated replacement.
             ///
             /// Clearing the final history payload clears an omitted history_time.
             /// An explicitly supplied history_time is validated and retained.

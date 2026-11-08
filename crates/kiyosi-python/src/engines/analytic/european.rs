@@ -28,7 +28,7 @@ numerical_greeks_methods!(
         fn new() -> Self {
             Self
         },
-        /// Return the price without changing the instrument or context.
+        /// Returns the price.
         ///
         /// Parameters
         /// ----------

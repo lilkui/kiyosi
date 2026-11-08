@@ -30,7 +30,7 @@ macro_rules! fd_engine {
         fd_engine!($name, $instrument, with_contract);
     };
     ($name:ident, $instrument:ty, $with:path $(,)?) => {
-        /// Finite-difference pricing with immutable grid settings.
+        /// Finite-difference pricing.
         ///
         /// Parameters
         /// ----------
@@ -170,7 +170,7 @@ macro_rules! fd_engine {
                 fn time_shift<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, pyo3::types::PyDelta>>> {
                     self.0.settings().time_shift.map(|value| crate::conversions::python_duration(py, value)).transpose()
                 },
-                /// Return the price without changing the instrument or context.
+                /// Returns the price.
                 ///
                 /// Parameters
                 /// ----------

@@ -186,7 +186,7 @@ pub struct LocalVolatilityParameterChanges {
 }
 
 impl LocalVolatilityParameters {
-    /// Returns a validated replacement without changing this model.
+    /// Returns a validated replacement.
     ///
     /// See [`Self::new`] for construction and units.
     ///
@@ -211,7 +211,7 @@ impl LocalVolatilityParameters {
     ///
     /// Returns [`Error::InvalidInput`] for non-finite scalar rates, validating
     /// the risk-free rate before the dividend yield. Coverage is checked by
-    /// [`crate::PricingContext`] and pricing, without changing the inputs.
+    /// [`crate::PricingContext`] and pricing.
     ///
     /// # Examples
     ///

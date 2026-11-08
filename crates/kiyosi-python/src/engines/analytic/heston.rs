@@ -80,7 +80,7 @@ numerical_greeks_methods!(
         fn max_evaluations(&self) -> usize {
             self.0.settings().max_evaluations
         },
-        /// Return the price without changing the instrument or context.
+        /// Returns the price.
         ///
         /// Parameters
         /// ----------

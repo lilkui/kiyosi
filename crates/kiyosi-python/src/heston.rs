@@ -3,7 +3,7 @@ use crate::error::domain;
 use crate::market::{RateTermStructure, rate};
 use pyo3::prelude::*;
 
-/// Immutable Heston stochastic-volatility parameters under the risk-neutral measure.
+/// Heston stochastic-volatility parameters under the risk-neutral measure.
 ///
 /// Parameters
 /// ----------

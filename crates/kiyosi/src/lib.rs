@@ -20,7 +20,7 @@
 //! applicability and [`PricingEngine::price_with_statistics`] for generic access.
 //! Contract constructors validate terms and contractual calendar compatibility; pricing validates
 //! valuation dates and required prior history. All built-in
-//! contracts support validated immutable `replace` operations; omitted terms and
+//! contracts support validated `replace` operations; omitted terms and
 //! history remain unchanged when their observation terms are retained. Known history
 //! with a timestamp is retained when schedule, expiry or calendar edits affect only
 //! events at or after that timestamp.

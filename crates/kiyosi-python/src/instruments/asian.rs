@@ -12,7 +12,7 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<f64>> {
 
 macro_rules! average_option {
     ($name:ident) => {
-        /// Continuously monitored average-price Asian option with explicit history.
+        /// Continuously monitored average-price Asian option.
         ///
         /// Parameters
         /// ----------
@@ -52,7 +52,7 @@ macro_rules! average_option {
                 kiyosi::OptionContract::history_time(&self.0).map(|time| crate::conversions::python_timestamp(py, time)).transpose()
             }
 
-    /// Returns a validated replacement without changing this contract.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------
@@ -123,7 +123,7 @@ macro_rules! average_option {
                 Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
                     timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average, history_time))?))
             }
-            /// Return a validated replacement without changing this value.
+            /// Returns a validated replacement.
             ///
             /// Clearing the final history payload clears an omitted history_time.
             /// An explicitly supplied history_time is validated and retained.

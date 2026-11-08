@@ -3,7 +3,7 @@ use crate::error::domain;
 use crate::market::{RateTermStructure, rate};
 use pyo3::prelude::*;
 
-/// Immutable local-volatility table, with rows=time and columns=absolute spot.
+/// Local-volatility table indexed by time (rows) and absolute spot (columns).
 ///
 /// Parameters
 /// ----------
@@ -107,7 +107,7 @@ impl LocalVolatilitySurface {
     }
 }
 
-/// Immutable local-volatility parameters with owned rate curves and surface.
+/// Local-volatility model parameters.
 ///
 /// Parameters
 /// ----------

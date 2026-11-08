@@ -286,7 +286,7 @@ impl PricingResult {
             status: self.status(greek),
         })
     }
-    /// Borrows immutable Greek storage in [`Greek::ALL`] order.
+    /// Borrows Greek storage in [`Greek::ALL`] order.
     pub fn values(&self) -> &[Option<f64>; Greek::ALL.len()] {
         &self.values
     }
@@ -682,7 +682,7 @@ pub trait PricingEngine<I = EuropeanOption> {
         Ok(None)
     }
 
-    /// Prices a supported contract without changing the inputs.
+    /// Prices a supported contract.
     ///
     /// # Errors
     ///
@@ -699,7 +699,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     ///
     /// # Errors
     ///
-    /// Propagates [`Self::price`] errors without changing the inputs.
+    /// Propagates [`Self::price`] errors.
     fn price_with_seed(&self, option: &I, context: &PricingContext) -> Result<(f64, Option<u64>)> {
         Ok((self.price(option, context)?, None))
     }

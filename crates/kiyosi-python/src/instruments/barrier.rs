@@ -85,7 +85,7 @@ pub(crate) struct BarrierOption(pub kiyosi::BarrierOption);
 
 monitoring_properties!(
     BarrierOption,
-    /// Returns a validated replacement without changing this contract.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------

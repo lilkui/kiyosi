@@ -303,7 +303,7 @@ impl Accumulator {
     }
     /// Borrows explicit knock-out times, or returns `None` for daily observation.
     ///
-    /// The immutable slice remains valid for the borrow's lifetime; owning
+    /// The slice remains valid for the borrow's lifetime; owning
     /// replacements do not mutate this contract. See [`Self::new`] for an example.
     pub fn knock_out_observation_times(&self) -> Option<&[Timestamp]> {
         self.terms.knock_out_observation_times.as_deref()

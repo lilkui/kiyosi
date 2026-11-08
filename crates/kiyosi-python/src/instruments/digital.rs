@@ -20,7 +20,7 @@ macro_rules! digital_option {
                     real(strike)?, $(real($payout)?,)? timestamp(effective_time)?, timestamp(expiry_time)?) )?))
             }
 
-            /// Return a validated replacement without changing this value.
+            /// Returns a validated replacement.
             ///
             /// Parameters
             /// ----------

@@ -42,7 +42,7 @@ impl AmericanOption {
         ))?))
     }
 
-    /// Return a validated replacement without changing this value.
+    /// Returns a validated replacement.
     ///
     /// Parameters
     /// ----------

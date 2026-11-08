@@ -19,7 +19,7 @@ macro_rules! analytic_engine {
                 fn new() -> Self {
                     Self
                 },
-                /// Returns the price without changing the instrument or context.
+                /// Returns the price.
                 ///
                 /// Parameters
                 /// ----------

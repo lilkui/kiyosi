@@ -102,7 +102,7 @@ numerical_greeks_methods!(
         fn variance_upper_boundary(&self) -> Option<f64> {
             self.0.settings().variance_upper_boundary
         },
-        /// Return the price without changing inputs.
+        /// Returns the price.
         ///
         /// Parameters
         /// ----------

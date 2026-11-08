@@ -5,7 +5,7 @@ use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyList, PySlice};
 
-/// Immutable ordered observation times with sequence access.
+/// Ordered observation times with sequence access.
 ///
 /// Parameters
 /// ----------

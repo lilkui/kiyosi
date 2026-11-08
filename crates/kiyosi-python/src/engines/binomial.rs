@@ -80,7 +80,7 @@ numerical_greeks_methods!(
                 self.step_count()
             )
         },
-        /// Return the price without changing the instrument or context.
+        /// Returns the price.
         ///
         /// Parameters
         /// ----------
@@ -164,7 +164,7 @@ macro_rules! binomial_engine {
                     format!("{}(step_count={})", stringify!($name), self.step_count())
                 },
 
-                /// Return the price without changing the instrument or context.
+                /// Returns the price.
                 ///
                 /// Parameters
                 /// ----------

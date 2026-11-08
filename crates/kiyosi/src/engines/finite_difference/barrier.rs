@@ -46,7 +46,7 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// Leaves other local-volatility Greeks absent. Validates shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
-    /// Inputs and immutable engine settings remain unchanged on success and failure.
+    /// Inputs and engine settings remain unchanged on success and failure.
     ///
     /// # Examples
     ///

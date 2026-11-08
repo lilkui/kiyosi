@@ -147,7 +147,7 @@ impl AutocallableObservation {
         Ok(record)
     }
 
-    /// Returns a validated replacement without changing this observation.
+    /// Returns a validated replacement.
     ///
     /// # Errors
     ///
@@ -830,7 +830,7 @@ impl sealed::Terms for TernarySnowballTerms {
     }
 }
 
-/// Owns validated terms and immutable observations for a supported autocallable.
+/// Owns validated terms and observations for a supported autocallable.
 ///
 /// `principal_redemption_ratio` sets the principal payment per original unit of
 /// notional independently of coupons and downside losses. Position sizing multiplies
@@ -982,7 +982,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     pub fn terms(&self) -> &T {
         &self.0
     }
-    /// Borrows immutable observation storage for this owner's lifetime; see [`Self::new`].
+    /// Borrows observation storage for this owner's lifetime; see [`Self::new`].
     pub fn observations(&self) -> &[AutocallableObservation] {
         self.view().observations
     }

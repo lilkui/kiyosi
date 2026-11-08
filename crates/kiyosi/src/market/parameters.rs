@@ -197,7 +197,7 @@ impl From<crate::HestonParameters> for ModelParameters {
     }
 }
 impl ModelParameters {
-    /// Borrows Heston parameters without changing the model; see [`crate::HestonParameters::new`].
+    /// Borrows Heston parameters; see [`crate::HestonParameters::new`].
     ///
     /// # Errors
     ///
@@ -210,7 +210,7 @@ impl ModelParameters {
             )),
         }
     }
-    /// Borrows BSM parameters without changing the model.
+    /// Borrows BSM parameters.
     ///
     /// See [`BlackScholesMertonParameters::new`] for a BSM example.
     ///

@@ -109,7 +109,7 @@ impl Default for FiniteDifferenceSettings {
 }
 
 impl FiniteDifferenceSettings {
-    /// Validates context-independent grid controls without constructing an engine.
+    /// Validates context-independent grid controls.
     ///
     /// # Errors
     ///
@@ -679,7 +679,7 @@ macro_rules! engine_settings {
     ($engine:ident, $description:literal) => {
         #[doc = $description]
         ///
-        /// Owns immutable settings; distinct and shared instances support concurrent pricing.
+        /// Distinct and shared instances support concurrent pricing.
         ///
         /// See [`Self::price_with_greeks`] for usage.
         #[derive(Clone, Copy, Debug, Default, PartialEq)]

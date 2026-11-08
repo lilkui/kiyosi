@@ -71,8 +71,8 @@ impl QuadratureVanillaSettings {
 /// Time, space and extent require separate convergence checks; fixed-grid
 /// completion provides no error estimate. Numerical Greeks, especially higher
 /// derivatives near exercise boundaries, also require bump convergence checks.
-/// Owns immutable settings; distinct and shared instances support concurrent
-/// pricing with request-local working storage. See [`Self::new`] for usage.
+/// Distinct and shared instances support concurrent pricing with request-local working storage.
+/// See [`Self::new`] for usage.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureVanillaEngine {
     settings: QuadratureVanillaSettings,
@@ -83,7 +83,7 @@ impl QuadratureVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`QuadratureVanillaSettings::validate`] errors without changing inputs.
+    /// Propagates [`QuadratureVanillaSettings::validate`] errors.
     ///
     /// # Examples
     ///

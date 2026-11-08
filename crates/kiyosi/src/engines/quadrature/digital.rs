@@ -16,8 +16,8 @@ use crate::{
 /// completion provides no error estimate. Numerical Greeks also require bump
 /// convergence checks, especially higher derivatives and short maturities.
 ///
-/// Owns immutable settings; distinct and shared instances support concurrent
-/// pricing without shared working storage. See [`Self::new`] for usage.
+/// Distinct and shared instances support concurrent pricing without shared working storage.
+/// See [`Self::new`] for usage.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureDigitalEngine {
     settings: QuadratureSettings,
@@ -28,7 +28,7 @@ impl QuadratureDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`QuadratureSettings::validate`] errors without changing inputs.
+    /// Propagates [`QuadratureSettings::validate`] errors.
     ///
     /// # Examples
     ///

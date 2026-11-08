@@ -49,7 +49,7 @@ impl HestonFiniteDifferenceSettings {
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] for insufficient counts or nonpositive or
-    /// non-finite explicit bounds, without changing inputs.
+    /// non-finite explicit bounds.
     pub fn validate(&self) -> Result<()> {
         for (name, count, minimum) in [
             ("asset_step_count", self.asset_step_count, 3),
