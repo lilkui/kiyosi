@@ -42,7 +42,7 @@ class VanillaQuadratureTests(unittest.TestCase):
         self.assertEqual(
             repr(engine),
             "QuadratureVanillaEngine(asset_step_count=512, time_step_count=200, "
-            "integration_standard_deviations=8)",
+            "integration_standard_deviations=8.0)",
         )
         for field in ("asset_step_count", "time_step_count"):
             for value, error in (

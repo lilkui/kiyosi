@@ -42,7 +42,7 @@ class DigitalQuadratureTests(unittest.TestCase):
         self.assertEqual(
             repr(engine),
             "QuadratureDigitalEngine(asset_step_count=512, "
-            "integration_standard_deviations=8)",
+            "integration_standard_deviations=8.0)",
         )
         for value, error in (
             (True, TypeError),
