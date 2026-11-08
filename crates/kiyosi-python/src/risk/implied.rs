@@ -23,7 +23,7 @@ use pyo3::prelude::*;
 ///     Positive finite absolute price residual tolerance; defaults to 1e-8.
 /// parameter_tolerance : float, optional
 ///     Positive finite bracket-width tolerance in decimal units; defaults to
-///     1e-8. Either tolerance can stop iteration.
+///     1e-8. Bracket convergence without a price match raises NonConvergenceError.
 /// max_iterations : int, optional
 ///     Positive iteration budget; defaults to 100.
 ///
@@ -41,7 +41,7 @@ use pyo3::prelude::*;
 /// RootNotBracketedError
 ///     If the supplied endpoints do not bracket the target.
 /// NonConvergenceError
-///     If the iteration budget is exhausted.
+///     If the iteration budget is exhausted or the bracket converges without a price match.
 /// ComputationFailureError
 ///     If a price, residual or numerical evaluation is non-finite.
 ///

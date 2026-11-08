@@ -74,7 +74,7 @@ def implied_snowball_coupon(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in the contract's coupon units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
         Endpoint and affine-interpolation evaluations do not use this budget.
@@ -94,7 +94,7 @@ def implied_snowball_coupon(
         If the supplied endpoints do not bracket the target.
         Also raised when the bracket has no nondegenerate interval in the valid domain.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -140,7 +140,7 @@ def implied_phoenix_coupon(
         Positive finite price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in coupon units; defaults to 1e-8.
-        Either tolerance can stop iteration.
+        Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget, default 100; endpoint and affine evaluations are extra.
 
@@ -160,7 +160,7 @@ def implied_phoenix_coupon(
     RootNotBracketedError
         If endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -5761,7 +5761,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -5779,7 +5779,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -5828,7 +5828,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -5846,7 +5846,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -5890,7 +5890,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -5908,7 +5908,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -5954,7 +5954,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -5972,7 +5972,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6016,7 +6016,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6034,7 +6034,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6082,7 +6082,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6100,7 +6100,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6144,7 +6144,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6162,7 +6162,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6206,7 +6206,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6224,7 +6224,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6268,7 +6268,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6286,7 +6286,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6334,7 +6334,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6352,7 +6352,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6396,7 +6396,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6414,7 +6414,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6460,7 +6460,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6478,7 +6478,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 
@@ -6522,7 +6522,7 @@ def implied_volatility(
         Positive finite absolute price residual tolerance; defaults to 1e-8.
     parameter_tolerance : float, optional
         Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Either tolerance can stop iteration.
+        1e-8. Bracket convergence without a price match raises NonConvergenceError.
     max_iterations : int, optional
         Positive iteration budget; defaults to 100.
 
@@ -6540,7 +6540,7 @@ def implied_volatility(
     RootNotBracketedError
         If the supplied endpoints do not bracket the target.
     NonConvergenceError
-        If the iteration budget is exhausted.
+        If the iteration budget is exhausted or the bracket converges without a price match.
     ComputationFailureError
         If a price, residual or numerical evaluation is non-finite.
 

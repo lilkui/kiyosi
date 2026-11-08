@@ -1,5 +1,27 @@
 use kiyosi::*;
 
+#[test]
+fn implied_volatility_rejects_a_price_jump_without_a_matching_quote() {
+    let (start, end) = dates();
+    let option = DigitalOption::cash_or_nothing(OptionType::Call, 110.0, 10.0, start, end).unwrap();
+    let context = market(100.0, 0.0, 0.0, 0.2);
+    let engine = CoxRossRubinsteinDigitalEngine::new(BinomialSettings { step_count: 1 }).unwrap();
+    assert!(matches!(
+        implied_volatility(
+            &engine,
+            &option,
+            &context,
+            1.0,
+            ImpliedVolatilitySettings {
+                lower_bound: 0.01,
+                upper_bound: 0.2,
+                ..Default::default()
+            }
+        ),
+        Err(Error::NonConvergence(_))
+    ));
+}
+
 fn dates() -> (Timestamp, Timestamp) {
     (
         Date::new(2025, 1, 1).unwrap().start_of_day(),

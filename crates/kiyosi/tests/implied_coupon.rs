@@ -584,7 +584,10 @@ fn custom_engine_failures_and_bisection_use_stable_categories() {
         max_iterations: 1,
         ..s
     };
-    assert_eq!(solve(&nonlinear, 0.3, interval_only).unwrap(), 1.0);
+    assert!(matches!(
+        solve(&nonlinear, 0.3, interval_only),
+        Err(Error::NonConvergence(_))
+    ));
     let interior_nan = Curve(|c| if c > 0.0 && c < 2.0 { f64::NAN } else { c });
     assert!(matches!(
         solve(&interior_nan, 0.3, s).unwrap_err(),

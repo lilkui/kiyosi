@@ -5,7 +5,8 @@ use crate::{
 
 /// Configures a nonnegative volatility bracket and convergence tolerances.
 ///
-/// Either tolerance stops iteration; see [`implied_volatility`] for usage.
+/// Success requires the price tolerance; a collapsed bracket without a price match
+/// returns [`Error::NonConvergence`]. See [`implied_volatility`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct ImpliedVolatilitySettings {
     /// Sets the nonnegative lower volatility bound (default zero).
@@ -45,7 +46,7 @@ impl Default for ImpliedVolatilitySettings {
 /// Returns [`Error::InvalidInput`] for invalid settings or non-finite quotes,
 /// [`Error::UnsupportedOperation`] for volatility-independent payoffs, [`Error::RootNotBracketed`]
 /// for same-sign endpoint residuals or a bracket outside the tree domain,
-/// [`Error::NonConvergence`] on exhaustion,
+/// [`Error::NonConvergence`] on exhaustion or bracket convergence without a price match,
 /// or [`Error::ComputationFailure`] for non-finite evaluations. Engine errors propagate.
 ///
 /// # Examples
@@ -198,8 +199,13 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
             bisected = false;
         }
         let residual = evaluate(trial)?;
-        if residual.abs() <= s.price_tolerance || (b - a).abs() <= s.parameter_tolerance {
+        if residual.abs() <= s.price_tolerance {
             return Ok(trial);
+        }
+        if (b - a).abs() <= s.parameter_tolerance {
+            return Err(Error::NonConvergence(
+                "volatility bracket converged without matching the observed price".into(),
+            ));
         }
         d = c;
         c = b;

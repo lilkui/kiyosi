@@ -12,6 +12,7 @@ import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    NonConvergenceError,
     RootNotBracketedError,
     UnsupportedOperationError,
 )
@@ -165,6 +166,15 @@ def rollback(
 
 
 class BinomialTests(unittest.TestCase):
+    def test_implied_volatility_requires_a_matching_quote(self):
+        option = contract(CashOrNothingOption, strike=110)
+        context = market(rate=0, dividend=0)
+        engine = CoxRossRubinsteinDigitalEngine(step_count=1)
+        with self.assertRaises(NonConvergenceError):
+            implied_volatility(
+                engine, option, context, 1, lower_bound=0.01, upper_bound=0.2
+            )
+
     def test_one_step_speed_respects_automatic_and_explicit_spot_bumps(self):
         engine = engine_for(EuropeanOption, 1)
         option = contract(EuropeanOption, strike=0.015)

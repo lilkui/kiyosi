@@ -16,7 +16,8 @@ pub enum CouponQuoteConvention {
 
 /// Sets finite signed coupon bounds and convergence controls in the contract's units.
 ///
-/// Either tolerance stops bisection; endpoint and interpolation evaluations do
+/// Success requires the price tolerance; a collapsed bracket without a price match
+/// returns [`Error::NonConvergence`]. Endpoint and interpolation evaluations do
 /// not count toward the iteration limit. See [`implied_phoenix_coupon`] for an example.
 #[derive(Clone, Copy, Debug)]
 pub struct ImpliedCouponSettings {
@@ -60,7 +61,7 @@ impl Default for ImpliedCouponSettings {
 /// A bracket with no nondegenerate interval in the valid coupon domain also
 /// returns [`Error::RootNotBracketed`].
 /// Non-finite scalar prices or residuals return [`Error::ComputationFailure`];
-/// exhausted bisection returns [`Error::NonConvergence`].
+/// exhausted bisection or bracket convergence without a price match returns [`Error::NonConvergence`].
 ///
 /// # Examples
 ///
@@ -280,8 +281,13 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
             0.5 * lo + 0.5 * hi
         };
         let value = residual(price(mid)?)?;
-        if value.abs() <= s.price_tolerance || hi - lo <= s.parameter_tolerance {
+        if value.abs() <= s.price_tolerance {
             return Ok(mid);
+        }
+        if hi - lo <= s.parameter_tolerance {
+            return Err(Error::NonConvergence(
+                "coupon bracket converged without matching the observed price".into(),
+            ));
         }
         if (flo < 0.0) == (value < 0.0) {
             lo = mid;

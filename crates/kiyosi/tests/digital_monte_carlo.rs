@@ -398,9 +398,11 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
             upper_bound: 0.3,
             ..Default::default()
         },
-    )
-    .unwrap();
-    assert!((0.1..0.3).contains(&solved));
+    );
+    assert!(matches!(
+        solved,
+        Err(Error::NonConvergence(_) | Error::RootNotBracketed(_))
+    ));
     assert_eq!(unseeded.sampling_settings().seed, None);
 }
 

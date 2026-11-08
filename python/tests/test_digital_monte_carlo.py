@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
+    NonConvergenceError,
     RootNotBracketedError,
     UnsupportedOperationError,
     pricing,
@@ -355,16 +356,24 @@ class DigitalNumericalTests(unittest.TestCase):
                         antithetic=antithetic,
                     )
                     quote = engine.price(option, context)
+                    bounds = {
+                        "lower_bound": 0.19999999 if asset else 0.1,
+                        "upper_bound": 0.20000001 if asset else 0.22,
+                        "parameter_tolerance": 1e-12,
+                    }
                     sigma = pricing.implied_volatility(
-                        engine,
-                        option,
-                        context,
-                        quote,
-                        lower_bound=0.1,
-                        upper_bound=0.22,
+                        engine, option, context, quote, **bounds
                     )
-                    # Asset payoffs can select a nearby root across sampled payoff jumps.
+                    # Restrict asset brackets to a price-continuous neighborhood of the quote.
                     self.assertAlmostEqual(sigma, 0.2, delta=0.002 if asset else 0.001)
+                    repriced = context.replace(
+                        model_parameters=context.model_parameters.replace(
+                            volatility=sigma
+                        )
+                    )
+                    self.assertAlmostEqual(
+                        engine.price(option, repriced), quote, delta=1e-8
+                    )
                     self.assert_rejection(
                         RootNotBracketedError,
                         pricing.implied_volatility,
@@ -385,12 +394,7 @@ class DigitalNumericalTests(unittest.TestCase):
                         )
                         self.assertEqual(
                             pricing.implied_volatility(
-                                other,
-                                option,
-                                context,
-                                quote,
-                                lower_bound=0.1,
-                                upper_bound=0.22,
+                                other, option, context, quote, **bounds
                             ),
                             sigma,
                         )
@@ -404,15 +408,15 @@ class DigitalNumericalTests(unittest.TestCase):
                     self.assertEqual(context.model_parameters.volatility, 0.2)
         unseeded = pricing.MonteCarloDigitalEngine(path_count=4096)
         option = next(options())[0]
-        sigma = pricing.implied_volatility(
-            unseeded,
-            option,
-            market(),
-            4.945810910532236,
-            lower_bound=0.1,
-            upper_bound=0.3,
-        )
-        self.assertTrue(0.1 < sigma < 0.3)
+        with self.assertRaises((NonConvergenceError, RootNotBracketedError)):
+            pricing.implied_volatility(
+                unseeded,
+                option,
+                market(),
+                4.945810910532236,
+                lower_bound=0.1,
+                upper_bound=0.3,
+            )
         self.assertIsNone(unseeded.seed)
 
     def test_scaled_payoffs_discounting_and_selected_overflow(self):
