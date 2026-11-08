@@ -268,6 +268,10 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         context.bsm_parameters()?;
         self.engine.validate_applicability(context)
     }
+    fn validate_solver_seed(&self) -> Result<()> {
+        self.sampling_settings().validate_solver_seed()
+    }
+
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DoubleBarrierOption> + '_>>> {
         let settings = self.sampling_settings();
         if settings.seed.is_some() {

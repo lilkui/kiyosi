@@ -780,8 +780,19 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
     .unwrap();
     assert!((0.5..0.65).contains(&result.require(Greek::Delta).unwrap()));
     assert!((18.0..28.0).contains(&result.require(Greek::Vega).unwrap()));
+    assert!(matches!(
+        implied_volatility(
+            &engine,
+            &dated(&option, &context),
+            &context,
+            5.25,
+            Default::default()
+        ),
+        Err(Error::InvalidInput(_))
+    ));
+    let replay = engine.with_resolved_seed().unwrap();
     let sigma = implied_volatility(
-        &engine,
+        &replay,
         &dated(&option, &context),
         &context,
         5.25,
@@ -793,6 +804,8 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
     )
     .unwrap();
     assert!((0.1..0.4).contains(&sigma));
+    let repriced = market(100.0, sigma, start);
+    assert!((replay.price(&dated(&option, &repriced), &repriced).unwrap() - 5.25).abs() <= 1e-8);
     assert_eq!(engine.sampling_settings().seed, None);
 }
 

@@ -388,8 +388,18 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
         ..Default::default()
     })
     .unwrap();
+    assert!(matches!(
+        implied_volatility(
+            &unseeded,
+            &option,
+            &context,
+            4.945_810_910_532_236,
+            Default::default()
+        ),
+        Err(Error::InvalidInput(_))
+    ));
     let solved = implied_volatility(
-        &unseeded,
+        &unseeded.with_resolved_seed().unwrap(),
         &option,
         &context,
         4.945_810_910_532_236,

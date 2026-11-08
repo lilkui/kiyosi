@@ -48,6 +48,42 @@ def binary(coupon=0.08, maturity=0.06, **changes):
 
 
 class ImpliedCouponTests(unittest.TestCase):
+    def test_monte_carlo_coupon_solvers_require_a_replayable_seed(self):
+        unseeded = MonteCarloAutocallableEngine(path_count=1024, thread_count=1)
+        engine = unseeded.with_resolved_seed()
+        context = market()
+        convention = "shift_maturity_coupon"
+        note = binary()
+        target = engine.price(
+            note.with_quoted_coupon(0.12, quote_convention=convention), context
+        )
+        with self.assertRaisesRegex(InvalidInputError, "with_resolved_seed"):
+            implied_snowball_coupon(
+                unseeded, note, context, target, quote_convention=convention
+            )
+        solved = implied_snowball_coupon(
+            engine, note, context, target, quote_convention=convention
+        )
+        self.assertAlmostEqual(solved, 0.12, delta=1e-8)
+        self.assertAlmostEqual(
+            engine.price(
+                note.with_quoted_coupon(solved, quote_convention=convention), context
+            ),
+            target,
+            delta=1e-8,
+        )
+        for note in (phoenix(), phoenix().replace(coupon_per_period=0.02)):
+            note = dated_history(note, context)
+            target = engine.price(note, context)
+            with self.assertRaisesRegex(InvalidInputError, "with_resolved_seed"):
+                implied_phoenix_coupon(unseeded, note, context, target)
+            quote = implied_phoenix_coupon(engine, note, context, target)
+            self.assertAlmostEqual(
+                engine.price(note.replace(**quote), context), target, delta=1e-8
+            )
+        self.assertIsNotNone(engine.seed)
+        self.assertIsNone(unseeded.seed)
+
     def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(self):
         context = market()
         for engine in (

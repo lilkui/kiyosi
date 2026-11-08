@@ -573,6 +573,21 @@ pub trait PricingEngine<I = EuropeanOption> {
         Ok(())
     }
 
+    /// Checks that a solver's random draws can be replayed by the caller.
+    ///
+    /// Deterministic engines accept the default. Monte Carlo engines require a
+    /// configured seed; call their `with_resolved_seed` method before solving and
+    /// retain the returned engine for repricing. Numerical Greeks may still resolve
+    /// a request-local seed. See [`crate::implied_volatility`] for solver usage.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for an unseeded built-in Monte Carlo engine.
+    /// Custom engines retain their own replayability requirements.
+    fn validate_solver_seed(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// Prepares request-local state for numerical Greeks and implied-parameter solvers.
     ///
     /// Returns `None` when this engine already evaluates one consistent price

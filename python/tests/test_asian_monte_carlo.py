@@ -534,8 +534,16 @@ class AsianMonteCarloTests(unittest.TestCase):
             )
             self.assertEqual(engine.seed, 42)
             unseeded = pricing.MonteCarloAsianEngine(path_count=4096, step_count=16)
-            solved = pricing.implied_volatility(
+            self.assert_rejection(
+                InvalidInputError,
+                pricing.implied_volatility,
                 unseeded,
+                dated_history(instrument, context),
+                context,
+                quote,
+            )
+            solved = pricing.implied_volatility(
+                unseeded.with_resolved_seed(),
                 dated_history(instrument, context),
                 context,
                 quote,

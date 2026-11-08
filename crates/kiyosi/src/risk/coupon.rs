@@ -52,6 +52,9 @@ impl Default for ImpliedCouponSettings {
 /// Tries affine interpolation, verifies its residual, then bisects if needed.
 /// Inputs remain unchanged; custom engines retain their own concurrency contract.
 ///
+/// Monte Carlo engines require an explicit seed; retain the engine returned by
+/// `with_resolved_seed` for solving and repricing the quote.
+///
 /// # Errors
 ///
 /// Checks settings and finite observed price ([`Error::InvalidInput`])
@@ -116,6 +119,9 @@ pub fn implied_snowball_coupon<
 /// Bounds and parameter tolerance use the contract's coupon units. The returned
 /// [`PhoenixCoupon`] retains the annual or per-period convention, including FCN/DCN presets.
 /// Apply it with [`PhoenixOption::replace`] and [`crate::PhoenixOptionChanges::coupon`].
+///
+/// Monte Carlo engines require an explicit seed; retain the engine returned by
+/// `with_resolved_seed` for solving and repricing the quote.
 ///
 /// # Errors
 ///
@@ -206,6 +212,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
             ));
         }
     }
+    engine.validate_solver_seed()?;
     if let Some(prepared) = engine.prepare_request()? {
         return solve(
             prepared.as_ref(),

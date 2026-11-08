@@ -331,7 +331,7 @@ class DigitalNumericalTests(unittest.TestCase):
         for option, asset in options():
             for spot in (math.nextafter(100, 0), 100, math.nextafter(100, 101)):
                 context = market(spot=spot, valuation=END)
-                engine = pricing.MonteCarloDigitalEngine(path_count=1)
+                engine = pricing.MonteCarloDigitalEngine(path_count=1, seed=42)
                 result = engine.price_with_greeks(option, context, greeks="all")
                 pays = spot > 100 if option.option_type == "call" else spot < 100
                 self.assertEqual(result.price, (spot if asset else 10) if pays else 0)
@@ -408,9 +408,17 @@ class DigitalNumericalTests(unittest.TestCase):
                     self.assertEqual(context.model_parameters.volatility, 0.2)
         unseeded = pricing.MonteCarloDigitalEngine(path_count=4096)
         option = next(options())[0]
+        self.assert_rejection(
+            InvalidInputError,
+            pricing.implied_volatility,
+            unseeded,
+            option,
+            market(),
+            4.945810910532236,
+        )
         with self.assertRaises((NonConvergenceError, RootNotBracketedError)):
             pricing.implied_volatility(
-                unseeded,
+                unseeded.with_resolved_seed(),
                 option,
                 market(),
                 4.945810910532236,

@@ -114,6 +114,15 @@ impl From<MonteCarloSettings> for MonteCarloGridSettings {
 }
 
 impl MonteCarloSettings {
+    fn validate_solver_seed(self) -> Result<()> {
+        if self.seed.is_none() {
+            return Err(Error::InvalidInput(
+                "implied-parameter solvers require an explicit seed; call with_resolved_seed() before solving".into(),
+            ));
+        }
+        Ok(())
+    }
+
     fn with_resolved_seed(self) -> Result<Self> {
         Ok(Self {
             seed: Some(self.resolved_seed()?),
@@ -981,6 +990,10 @@ impl PricingEngine for MonteCarloVanillaEngine {
         context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
+    fn validate_solver_seed(&self) -> Result<()> {
+        self.sampling_settings().validate_solver_seed()
+    }
+
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);

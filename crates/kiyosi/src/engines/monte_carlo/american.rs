@@ -238,6 +238,10 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         <Self as PricingEngine<EuropeanOption>>::validate_applicability(self, context)
     }
 
+    fn validate_solver_seed(&self) -> Result<()> {
+        self.sampling_settings().validate_solver_seed()
+    }
+
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AmericanOption> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);

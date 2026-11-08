@@ -17,7 +17,7 @@ use crate::{
 /// so early termination never shifts later draws. Sampling and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances permit concurrent calls with request-owned buffers and shared workers.
-/// Greeks and implied-volatility solvers pin one request-local seed; solver
+/// Greeks pin one request-local seed; implied-volatility solvers require an explicit seed. Solver
 /// tolerances constrain the sampled curve, not its statistical error.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -296,6 +296,10 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
         context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
+    fn validate_solver_seed(&self) -> Result<()> {
+        self.sampling_settings().validate_solver_seed()
+    }
+
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<Accumulator> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);

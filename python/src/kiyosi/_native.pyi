@@ -100,7 +100,7 @@ def implied_snowball_coupon(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Snowballs shift all observation coupons relative to the first one,
     including past observations. The maturity convention controls the final
@@ -166,8 +166,8 @@ def implied_phoenix_coupon(
 
     Notes
     -----
-    Replaces the conditional coupon, preserving its units. Monte Carlo solves pin
-    a seed per request; tolerances constrain the sampled curve, not sampling error.
+    Replaces the conditional coupon, preserving its units. Monte Carlo solves require
+    an explicit seed; call with_resolved_seed() first; tolerances constrain the sampled curve, not sampling error.
     Pricing failures propagate. Trials use affine interpolation, then bisection."""
 
 class EuropeanOption:
@@ -4439,8 +4439,9 @@ class MonteCarloVanillaEngine:
     -----
     Fixed seeds reproduce results across thread counts in the same build.
     Calls own their samples and share a library-owned Rayon pool. A worker cap
-    does not reserve workers. Greeks and solves pin a seed per
-    request; solver tolerances do not measure sampling error.
+    does not reserve workers. Greeks pin a seed per request. Solves require
+    an explicit seed; call with_resolved_seed() first. Solver tolerances
+    do not measure sampling error.
     European pricing samples the exact terminal distribution and ignores
     step_count. Near-strike payoffs preserve small movements even when the
     terminal spot rounds to the strike. American pricing uses least-squares
@@ -4684,8 +4685,9 @@ class MonteCarloDigitalEngine:
     -----
     Fixed seeds reproduce results across thread counts in the same build.
     Calls own their samples and share a library-owned Rayon pool. A worker cap
-    does not reserve workers. Greeks and solves pin a seed per
-    request; solver tolerances do not measure sampling error.
+    does not reserve workers. Greeks pin a seed per request. Solves require
+    an explicit seed; call with_resolved_seed() first. Solver tolerances
+    do not measure sampling error.
     Only likelihood-ratio delta and gamma are returned; other requested Greeks are absent."""
 
     def with_resolved_seed(self) -> Self:
@@ -4896,8 +4898,9 @@ class MonteCarloBarrierEngine:
     -----
     Fixed seeds reproduce results across thread counts in the same build.
     Calls own their samples and share a library-owned Rayon pool. A worker cap
-    does not reserve workers. Greeks and solves pin a seed per
-    request; solver tolerances do not measure sampling error.
+    does not reserve workers. Greeks pin a seed per request. Solves require
+    an explicit seed; call with_resolved_seed() first. Solver tolerances
+    do not measure sampling error.
     Monitoring uses continuous survival or the original fixing dates.
     Near-strike payoffs retain movements even when terminal spot rounds to strike.
     Only delta and gamma are returned."""
@@ -5106,8 +5109,9 @@ class MonteCarloDoubleBarrierEngine:
     -----
     Fixed seeds reproduce results across thread counts in the same build.
     Calls own their samples and share a library-owned Rayon pool. A worker cap
-    does not reserve workers. Greeks and solves pin a seed per
-    request; solver tolerances do not measure sampling error.
+    does not reserve workers. Greeks pin a seed per request. Solves require
+    an explicit seed; call with_resolved_seed() first. Solver tolerances
+    do not measure sampling error.
     Monitoring uses continuous survival or the original fixing dates.
     Near-strike payoffs retain movements even when terminal spot rounds to strike.
     Only delta and gamma are returned."""
@@ -5319,8 +5323,9 @@ class MonteCarloAutocallableEngine:
     -----
     Fixed seeds reproduce results across thread counts in the same build.
     Calls own their samples and share a library-owned Rayon pool. A worker cap
-    does not reserve workers. Greeks and solves pin a seed per
-    request; solver tolerances do not measure sampling error.
+    does not reserve workers. Greeks pin a seed per request. Solves require
+    an explicit seed; call with_resolved_seed() first. Solver tolerances
+    do not measure sampling error.
     Simulation uses trading days when knock-in matters, or observation
     dates and expiry otherwise."""
 
@@ -5547,8 +5552,9 @@ class MonteCarloAccumulatorEngine:
     -----
     Fixed seeds reproduce results across thread counts in the same build.
     Calls own their samples and share a library-owned Rayon pool. A worker cap
-    does not reserve workers. Greeks and solves pin a seed per
-    request; solver tolerances do not measure sampling error.
+    does not reserve workers. Greeks pin a seed per request. Solves require
+    an explicit seed; call with_resolved_seed() first. Solver tolerances
+    do not measure sampling error.
     Simulation uses the future trading dates. A current knock-out settles
     before any purchase."""
 
@@ -5754,8 +5760,9 @@ class MonteCarloAsianEngine:
     -----
     Fixed seeds reproduce results across thread counts in the same build.
     Calls own their samples and share a library-owned Rayon pool. A worker cap
-    does not reserve workers. Greeks and solves pin a seed per
-    request; solver tolerances do not measure sampling error.
+    does not reserve workers. Greeks pin a seed per request. Solves require
+    an explicit seed; call with_resolved_seed() first. Solver tolerances
+    do not measure sampling error.
     Geometric averages and single fixings sample exact distributions.
     Arithmetic averages use step_count trapezoidal intervals with the first
     interval integrated conditionally."""
@@ -6129,7 +6136,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6196,7 +6203,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6258,7 +6265,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6322,7 +6329,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6384,7 +6391,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6450,7 +6457,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6512,7 +6519,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6574,7 +6581,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6636,7 +6643,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6702,7 +6709,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6764,7 +6771,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6828,7 +6835,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""
@@ -6890,7 +6897,7 @@ def implied_volatility(
 
     Notes
     -----
-    Pricing failures propagate. Monte Carlo solves pin one seed per request;
+    Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
     tolerances constrain the sampled price curve, not its sampling error.
     Digital prices can have several volatility roots. The supplied bracket
     selects a root; CRR engines restrict it to their admissible tree domain."""

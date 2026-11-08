@@ -370,6 +370,8 @@ class SupportMatrixTests(unittest.TestCase):
         for instrument, supported, expected in self.cases:
             for name in supported:
                 engine = self.engines[name]
+                if name.startswith("MonteCarlo"):
+                    engine = engine.with_resolved_seed()
                 context = self.context_for(name)
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     self.assertAlmostEqual(

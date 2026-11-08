@@ -611,6 +611,10 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
+    fn validate_solver_seed(&self) -> Result<()> {
+        self.sampling_settings().validate_solver_seed()
+    }
+
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);

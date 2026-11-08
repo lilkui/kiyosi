@@ -1223,6 +1223,8 @@ class ApiConsistencyTests(unittest.TestCase):
             pricing.MonteCarloAccumulatorEngine,
         ):
             engine = factory()
+            if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
+                engine = engine.with_resolved_seed()
             with self.subTest(engine=factory.__name__):
                 self.assertEqual(
                     engine.price(dated_history(settled, context), context), 0

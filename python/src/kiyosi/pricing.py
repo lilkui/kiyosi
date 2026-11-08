@@ -68,7 +68,10 @@ across thread counts in the same build. Sobol estimates omit sampling error.
 Call ``engine.with_resolved_seed()`` before pricing to obtain an independent
 engine with a concrete seed. Existing seeds and all other controls are preserved.
 Save or pickle that returned engine to replay draws within the same build;
-``seed=None`` selects fresh entropy per request.
+``seed=None`` selects fresh entropy per pricing or Greek request.
+Implied-parameter solvers require a concrete seed and raise InvalidInputError
+for unseeded Monte Carlo engines. Call ``with_resolved_seed()`` before solving
+and retain that engine to reprice the returned quote.
 
 Engine ``replace()`` methods return validated independent engines and preserve
 omitted controls. Explicit None clears nullable controls; Ellipsis retains them.

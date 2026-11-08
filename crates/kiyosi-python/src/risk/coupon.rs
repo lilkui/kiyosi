@@ -62,7 +62,7 @@ use pyo3::types::PyDict;
 ///
 /// Notes
 /// -----
-/// Pricing failures propagate. Monte Carlo solves pin one seed per request;
+/// Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
 /// tolerances constrain the sampled price curve, not its sampling error.
 /// Snowballs shift all observation coupons relative to the first one,
 /// including past observations. The maturity convention controls the final
@@ -147,8 +147,8 @@ pub(crate) fn implied_snowball_coupon(
 ///
 /// Notes
 /// -----
-/// Replaces the conditional coupon, preserving its units. Monte Carlo solves pin
-/// a seed per request; tolerances constrain the sampled curve, not sampling error.
+/// Replaces the conditional coupon, preserving its units. Monte Carlo solves require
+/// an explicit seed; call with_resolved_seed() first; tolerances constrain the sampled curve, not sampling error.
 /// Pricing failures propagate. Trials use affine interpolation, then bisection.
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]

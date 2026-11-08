@@ -40,10 +40,13 @@ impl Default for ImpliedVolatilitySettings {
 /// one of several roots or fail to bracket a quote attainable elsewhere.
 /// A zero lower bound checks the exact deterministic price. CRR engines then
 /// intersect positive-volatility trials with the tree's admissible range.
+/// Monte Carlo engines require an explicit seed. Retain the engine returned by
+/// `with_resolved_seed` to replay the solved price curve; solver tolerances do not
+/// measure sampling error.
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidInput`] for invalid settings or non-finite quotes,
+/// Returns [`Error::InvalidInput`] for invalid settings, non-finite quotes or an unseeded Monte Carlo engine,
 /// [`Error::UnsupportedOperation`] for volatility-independent payoffs, [`Error::RootNotBracketed`]
 /// for same-sign endpoint residuals or a bracket outside the tree domain,
 /// [`Error::NonConvergence`] on exhaustion or bracket convergence without a price match,
@@ -100,6 +103,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
             "max_iterations must be positive".into(),
         ));
     }
+    engine.validate_solver_seed()?;
     if let Some(prepared) = engine.prepare_request()? {
         return implied_volatility(prepared.as_ref(), option, context, observed_price, settings);
     }

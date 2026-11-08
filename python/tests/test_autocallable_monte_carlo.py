@@ -254,7 +254,6 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         self.assertEqual(set(coupon), {"coupon_rate"})
         self.assertAlmostEqual(coupon["coupon_rate"], note.coupon_rate, delta=1e-8)
         self.assertEqual((repr(note), repr(context)), snapshot)
-        # Each unseeded solve needs one consistent affine sampled curve.
         unseeded = MC(path_count=31)
         exposed = phoenix(
             lower_strike=100,
@@ -263,9 +262,14 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                 [datetime(2025, 2, 3), END], [101, 105], coupon_barrier_levels=[0, 0]
             ),
         )
+        with self.assertRaises(InvalidInputError):
+            implied_phoenix_coupon(
+                unseeded, dated_history(exposed, market(rate=0)), market(rate=0), 1.01
+            )
         for _ in range(3):
+            replay = unseeded.with_resolved_seed()
             solved = implied_phoenix_coupon(
-                unseeded,
+                replay,
                 dated_history(exposed, market(rate=0)),
                 market(rate=0),
                 1.01,
@@ -275,6 +279,14 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             )
             self.assertGreater(solved["coupon_rate"], 0)
             self.assertLess(solved["coupon_rate"], 0.5)
+            self.assertAlmostEqual(
+                replay.price(
+                    dated_history(exposed.replace(**solved), market(rate=0)),
+                    market(rate=0),
+                ),
+                1.01,
+                delta=1e-12,
+            )
         self.assertIsNone(unseeded.seed)
         fixed = BinarySnowballOption(
             maturity_coupon_rate=0,

@@ -47,7 +47,7 @@ use pyo3::prelude::*;
 ///
 /// Notes
 /// -----
-/// Pricing failures propagate. Monte Carlo solves pin one seed per request;
+/// Pricing failures propagate. Monte Carlo solves require an explicit seed; call with_resolved_seed() first;
 /// tolerances constrain the sampled price curve, not its sampling error.
 /// Digital prices can have several volatility roots. The supplied bracket
 /// selects a root; CRR engines restrict it to their admissible tree domain.

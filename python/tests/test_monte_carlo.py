@@ -424,8 +424,11 @@ class MonteCarloTests(unittest.TestCase):
             self.assertEqual(engine.price(option, context), quote)
             self.assertEqual(engine.seed, seed)
         unseeded = MonteCarloVanillaEngine(path_count=4097, thread_count=4)
+        with self.assertRaisesRegex(InvalidInputError, "with_resolved_seed"):
+            implied_volatility(unseeded, option, context, 9.227005508154036)
+        replay = unseeded.with_resolved_seed()
         sigma = implied_volatility(
-            unseeded,
+            replay,
             option,
             context,
             9.227005508154036,
@@ -433,6 +436,12 @@ class MonteCarloTests(unittest.TestCase):
             upper_bound=0.4,
         )
         self.assertTrue(0.1 < sigma < 0.4)
+        repriced = context.replace(
+            model_parameters=context.model_parameters.replace(volatility=sigma)
+        )
+        self.assertAlmostEqual(
+            replay.price(option, repriced), 9.227005508154036, delta=1e-8
+        )
         self.assertIsNone(unseeded.seed)
         self.assertEqual(context.model_parameters.volatility, 0.2)
 
@@ -738,7 +747,7 @@ class SamplingTests(unittest.TestCase):
                     )
                     self.assertAlmostEqual(analysis.gamma, 0, delta=1e-7)
                     sigma = implied_volatility(
-                        unseeded,
+                        unseeded.with_resolved_seed(),
                         option,
                         context,
                         9.227005508154036,

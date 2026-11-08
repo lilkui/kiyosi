@@ -19,7 +19,7 @@ use crate::{
 /// knock-out cannot shift later paths. Sampling, antithetic counts and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances permit concurrent calls with request-owned buffers and shared workers.
-/// Greeks and implied-parameter solvers pin one request-local seed. Solvers
+/// Greeks pin one request-local seed. Implied-parameter solvers require an explicit seed and
 /// constrain the sampled price curve, not its statistical error. Coupon trials
 /// retain their own event-grid shortcuts when knock-in exposure changes.
 /// See [`Self::new`] for an example.
@@ -319,6 +319,10 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
+    fn validate_solver_seed(&self) -> Result<()> {
+        self.sampling_settings().validate_solver_seed()
+    }
+
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);

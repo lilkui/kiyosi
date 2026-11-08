@@ -543,6 +543,10 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
             self.native(&option.0, context, true, GreeksRequest::new([]), true)?;
         MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings(), seed)
     }
+    fn validate_solver_seed(&self) -> Result<()> {
+        self.sampling_settings().validate_solver_seed()
+    }
+
     fn prepare_request(
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<GeometricAveragePriceOption> + '_>>> {
@@ -619,6 +623,10 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
             self.native(&option.0, context, false, GreeksRequest::new([]), true)?;
         MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings(), seed)
     }
+    fn validate_solver_seed(&self) -> Result<()> {
+        self.sampling_settings().validate_solver_seed()
+    }
+
     fn prepare_request(
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<ArithmeticAveragePriceOption> + '_>>> {

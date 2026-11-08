@@ -877,7 +877,7 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
     let engines: Vec<Box<dyn PricingEngine<Accumulator>>> = vec![
         Box::new(QuadratureAccumulatorEngine::default()),
         Box::new(FiniteDifferenceAccumulatorEngine::default()),
-        Box::new(MonteCarloAccumulatorEngine::default()),
+        Box::new(MonteCarloAccumulatorEngine::default().with_resolved_seed()?),
     ];
     for engine in engines {
         assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);

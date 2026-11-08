@@ -4,6 +4,72 @@ use support::dated;
 use kiyosi::*;
 
 #[test]
+fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
+    let unseeded = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        path_count: 1024,
+        thread_count: 1,
+        ..Default::default()
+    })?;
+    let engine = unseeded.with_resolved_seed()?;
+    let context = market(100.0, date(1, 1));
+    let convention = CouponQuoteConvention::ShiftMaturityCoupon;
+    let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.06,
+        date(1, 1),
+        date(4, 1),
+        autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None)?,
+    ))?;
+    let quote = engine.price(&note.with_quoted_coupon(0.12, convention)?, &context)?;
+    assert!(matches!(
+        implied_snowball_coupon(
+            &unseeded,
+            &note,
+            &context,
+            quote,
+            convention,
+            Default::default()
+        ),
+        Err(Error::InvalidInput(_))
+    ));
+    let coupon = implied_snowball_coupon(
+        &engine,
+        &note,
+        &context,
+        quote,
+        convention,
+        Default::default(),
+    )?;
+    assert!((coupon - 0.12).abs() < 1e-8);
+    assert!(
+        (engine.price(&note.with_quoted_coupon(coupon, convention)?, &context)? - quote).abs()
+            <= 1e-8
+    );
+    for coupon in [PhoenixCoupon::Annual(0.08), PhoenixCoupon::PerPeriod(0.02)] {
+        let note = PhoenixOption::new(PhoenixTerms::new(
+            coupon,
+            100.0,
+            80.0,
+            100.0,
+            0.0,
+            date(1, 1),
+            date(4, 1),
+            autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[90.0]))?,
+            Some(date(1, 1).time_of_day()),
+        ))?;
+        let quote = engine.price(&note, &context)?;
+        assert!(matches!(
+            implied_phoenix_coupon(&unseeded, &note, &context, quote, Default::default()),
+            Err(Error::InvalidInput(_))
+        ));
+        let solved = implied_phoenix_coupon(&engine, &note, &context, quote, Default::default())?;
+        assert!((engine.price(&note.with_quoted_coupon(solved)?, &context)? - quote).abs() <= 1e-8);
+    }
+    assert!(engine.sampling_settings().seed.is_some());
+    assert_eq!(unseeded.sampling_settings().seed, None);
+    Ok(())
+}
+
+#[test]
 fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Result<()> {
     let context = market(100.0, date(1, 1));
     for engine in [

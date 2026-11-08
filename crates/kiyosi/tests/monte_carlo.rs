@@ -20,6 +20,52 @@ fn market() -> PricingContext {
 }
 
 #[test]
+fn solver_seed_policy_covers_every_monte_carlo_contract_family() -> Result<()> {
+    for seed in [None, Some(0), Some(u64::MAX)] {
+        let settings = MonteCarloSettings {
+            seed,
+            ..Default::default()
+        };
+        for result in [
+            PricingEngine::<EuropeanOption>::validate_solver_seed(&MonteCarloVanillaEngine::new(
+                settings,
+            )?),
+            PricingEngine::<AmericanOption>::validate_solver_seed(&MonteCarloVanillaEngine::new(
+                settings,
+            )?),
+            PricingEngine::<DigitalOption>::validate_solver_seed(&MonteCarloDigitalEngine::new(
+                settings,
+            )?),
+            PricingEngine::<GeometricAveragePriceOption>::validate_solver_seed(
+                &MonteCarloAsianEngine::new(settings)?,
+            ),
+            PricingEngine::<ArithmeticAveragePriceOption>::validate_solver_seed(
+                &MonteCarloAsianEngine::new(settings)?,
+            ),
+            PricingEngine::<BarrierOption>::validate_solver_seed(&MonteCarloBarrierEngine::new(
+                settings,
+            )?),
+            PricingEngine::<DoubleBarrierOption>::validate_solver_seed(
+                &MonteCarloDoubleBarrierEngine::new(settings)?,
+            ),
+            PricingEngine::<Accumulator>::validate_solver_seed(&MonteCarloAccumulatorEngine::new(
+                settings,
+            )?),
+            PricingEngine::<SnowballOption>::validate_solver_seed(
+                &MonteCarloAutocallableEngine::new(settings)?,
+            ),
+        ] {
+            if seed.is_some() {
+                result?;
+            } else {
+                assert!(matches!(result, Err(Error::InvalidInput(_))));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn uncertainty_status_explains_missing_estimates() -> Result<()> {
     use MonteCarloUncertaintyStatus::{
         Available, IncompleteAntitheticPair, InsufficientObservations, UnsupportedSampling,
@@ -284,12 +330,32 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
         } else {
             9.227_005_508_154_036
         };
-        let volatility = implied_volatility(&engine, &option, &market(), quote, settings).unwrap();
+        if seed.is_none() {
+            assert!(matches!(
+                implied_volatility(&engine, &option, &market(), quote, settings),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+        let replay = engine.with_resolved_seed().unwrap();
+        let volatility = implied_volatility(&replay, &option, &market(), quote, settings).unwrap();
         if seed.is_some() {
             assert!((volatility - 0.2).abs() < 1e-8);
         } else {
             assert!(volatility > 0.1 && volatility < 0.4);
         }
+        let repriced = market()
+            .replace(PricingContextChanges {
+                model_parameters: Some(
+                    BlackScholesMertonParameters::new(0.05, 0.02, volatility)
+                        .unwrap()
+                        .into(),
+                ),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(
+            (replay.price(&option, &repriced).unwrap() - quote).abs() <= settings.price_tolerance
+        );
         assert_eq!(engine.sampling_settings().seed, seed);
     }
 }
