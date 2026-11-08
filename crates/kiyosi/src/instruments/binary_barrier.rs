@@ -458,7 +458,7 @@ impl TouchOption {
 }
 
 macro_rules! monitoring_accessors {
-    ($contract:ty) => {
+    ($contract:ty, $changes:ident) => {
         impl $contract {
             /// Replaces the owned observation calendar; see [`crate::BarrierOption::replace_calendar`].
             ///
@@ -473,9 +473,10 @@ macro_rules! monitoring_accessors {
             ///
             /// Returns [`crate::Error::InvalidInput`] for scheduled observations on closed dates.
             pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-                let mut updated = self.clone();
-                updated.monitoring = updated.monitoring.replace_calendar(calendar)?;
-                updated.with_history_time(self.history_time())
+                self.replace($changes {
+                    calendar: Some(calendar),
+                    ..Default::default()
+                })
             }
             /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
             pub fn calendar(&self) -> &TradingCalendar {
@@ -565,8 +566,8 @@ macro_rules! monitoring_accessors {
         }
     };
 }
-monitoring_accessors!(BinaryBarrierOption);
-monitoring_accessors!(TouchOption);
+monitoring_accessors!(BinaryBarrierOption, BinaryBarrierOptionChanges);
+monitoring_accessors!(TouchOption, TouchOptionChanges);
 
 pub(crate) struct Contract<'a> {
     pub(crate) monitoring: &'a Monitoring,

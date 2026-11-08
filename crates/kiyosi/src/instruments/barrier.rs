@@ -143,9 +143,10 @@ impl BarrierOption {
     ///
     /// Returns [`crate::Error::InvalidInput`] if scheduled observations fall on closed dates.
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        let mut updated = self.clone();
-        updated.monitoring = updated.monitoring.replace_calendar(calendar)?;
-        updated.with_history_time(self.history_time())
+        self.replace(BarrierOptionChanges {
+            calendar: Some(calendar),
+            ..Default::default()
+        })
     }
 
     /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].

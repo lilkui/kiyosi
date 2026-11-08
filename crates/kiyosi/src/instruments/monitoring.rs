@@ -104,17 +104,6 @@ impl Monitoring {
             "touch_state",
         )
     }
-    pub(crate) fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        let mut updated = self.clone();
-        updated.schedule = ObservationSchedule::new(
-            self.schedule.times().to_vec(),
-            self.effective_time,
-            self.expiry_time,
-            &calendar,
-        )?;
-        updated.calendar = calendar;
-        Ok(updated)
-    }
     pub(crate) fn calendar(&self) -> &TradingCalendar {
         &self.calendar
     }
