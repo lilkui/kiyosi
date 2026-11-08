@@ -743,7 +743,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     where
         I: crate::OptionContract,
     {
-        let settings = crate::NumericalShiftSettings::default();
+        let settings = self.greek_settings(option);
         crate::numerical_greeks(self, option, context, request, settings)
     }
 

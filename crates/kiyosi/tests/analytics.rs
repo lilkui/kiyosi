@@ -483,6 +483,37 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
 }
 
 #[test]
+fn custom_engine_greeks_use_configured_shifts_and_allow_overrides() -> Result<()> {
+    struct Cubic;
+    impl PricingEngine for Cubic {
+        fn price(&self, _: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+            Ok(context.spot_price().powi(3))
+        }
+        fn greek_settings(&self, _: &EuropeanOption) -> NumericalShiftSettings {
+            NumericalShiftSettings {
+                spot_shift: Some(2.0),
+                ..Default::default()
+            }
+        }
+    }
+    let (option, context) = market();
+    let request = GreeksRequest::new([Greek::Delta]);
+    let configured = Cubic.price_with_greeks(&option, &context, request)?;
+    assert!((configured.require(Greek::Delta)? - 30_004.0).abs() < 1e-8);
+    let overridden = Cubic.price_with_greeks_with_settings(
+        &option,
+        &context,
+        request,
+        NumericalShiftSettings {
+            spot_shift: Some(1.0),
+            ..Default::default()
+        },
+    )?;
+    assert!((overridden.require(Greek::Delta)? - 30_001.0).abs() < 1e-8);
+    Ok(())
+}
+
+#[test]
 fn native_greeks_use_defaults_in_shared_trait_adapters() {
     fn check<I: OptionContract>(
         engine: &impl PricingEngine<I>,
