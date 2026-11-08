@@ -1,7 +1,8 @@
-use crate::conversions::{python_timestamp, real, supplied, timestamp};
+use crate::conversions::{python_timestamps, real, supplied, timestamp};
 use crate::error::domain;
 use crate::market::{RateTermStructure, rate};
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 
 /// Local-volatility table indexed by time (rows) and absolute spot (columns).
 ///
@@ -63,22 +64,24 @@ impl LocalVolatilitySurface {
     }
     /// Return copied absolute time nodes as datetimes.
     #[getter]
-    fn times<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
-        self.0
-            .times()
-            .iter()
-            .map(|&t| python_timestamp(py, t))
-            .collect()
+    fn times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        python_timestamps(py, self.0.times())
     }
     /// Return copied absolute price nodes.
     #[getter]
-    fn spots(&self) -> Vec<f64> {
-        self.0.spots().to_vec()
+    fn spots<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.spots())
     }
     /// Return copied volatility rows, indexed by time then price.
     #[getter]
-    fn values(&self) -> Vec<Vec<f64>> {
-        self.0.values().map(<[f64]>::to_vec).collect()
+    fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(
+            py,
+            self.0
+                .values()
+                .map(|row| PyTuple::new(py, row))
+                .collect::<PyResult<Vec<_>>>()?,
+        )
     }
     /// Return the largest supplied annualized volatility.
     #[getter]

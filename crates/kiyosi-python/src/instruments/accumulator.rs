@@ -2,7 +2,7 @@ use crate::calendar::TradingCalendar;
 use crate::conversions::{direction, python_timestamp, real, supplied, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::PyAny;
+use pyo3::types::{PyAny, PyTuple};
 
 fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
     if value.is_none() {
@@ -361,15 +361,10 @@ impl Accumulator {
     fn knock_out_observation_times<'py>(
         &self,
         py: Python<'py>,
-    ) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
+    ) -> PyResult<Option<Bound<'py, PyTuple>>> {
         self.0
             .knock_out_observation_times()
-            .map(|times| {
-                times
-                    .iter()
-                    .map(|&timestamp| python_timestamp(py, timestamp))
-                    .collect()
-            })
+            .map(|times| crate::conversions::python_timestamps(py, times))
             .transpose()
     }
     /// Return the purchase or sale strike in underlying price units.

@@ -1,9 +1,9 @@
 use crate::calendar::TradingCalendar;
-use crate::conversions::{integer, integer_index, python_timestamp, timestamp};
+use crate::conversions::{integer, integer_index, python_timestamp, python_timestamps, timestamp};
 use crate::error::domain;
 use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PySlice};
+use pyo3::types::{PyBool, PySlice, PyTuple};
 
 /// Ordered observation times with sequence access.
 ///
@@ -64,12 +64,8 @@ impl ObservationSchedule {
 
     /// Return a copy of the strictly ordered observation times.
     #[getter]
-    fn times<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
-        self.0
-            .times()
-            .iter()
-            .map(|&timestamp| python_timestamp(py, timestamp))
-            .collect()
+    fn times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        python_timestamps(py, self.0.times())
     }
     fn __len__(&self) -> usize {
         self.0.len()

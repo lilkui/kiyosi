@@ -2,7 +2,8 @@ use crate::error::domain;
 use pyo3::exceptions::{PyOverflowError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{
-    PyBool, PyDate, PyDateAccess, PyDateTime, PyDelta, PyDeltaAccess, PyFloat, PyTime, PyTimeAccess,
+    PyBool, PyDate, PyDateAccess, PyDateTime, PyDelta, PyDeltaAccess, PyFloat, PyTime,
+    PyTimeAccess, PyTuple,
 };
 
 pub(crate) fn duration(value: &Bound<'_, PyAny>) -> PyResult<std::time::Duration> {
@@ -300,4 +301,17 @@ pub(crate) fn python_timestamp(
         micros / 1_000_000 % 60,
         micros % 1_000_000,
     ))
+}
+
+pub(crate) fn python_timestamps<'py>(
+    py: Python<'py>,
+    times: &[kiyosi::Timestamp],
+) -> PyResult<Bound<'py, PyTuple>> {
+    PyTuple::new(
+        py,
+        times
+            .iter()
+            .map(|&time| python_timestamp(py, time))
+            .collect::<PyResult<Vec<_>>>()?,
+    )
 }

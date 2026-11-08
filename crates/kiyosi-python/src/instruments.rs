@@ -102,11 +102,9 @@ macro_rules! monitoring_properties {
             fn observation_times<'py>(
                 &self,
                 py: pyo3::Python<'py>,
-            ) -> pyo3::PyResult<Option<Vec<pyo3::Bound<'py, pyo3::types::PyAny>>>> {
+            ) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::types::PyTuple>>> {
                 self.0.observation_times().map(|times| {
-                    times.iter()
-                        .map(|&d| $crate::conversions::python_timestamp(py, d))
-                        .collect::<pyo3::PyResult<Vec<_>>>()
+                    $crate::conversions::python_timestamps(py, times)
                 }).transpose()
             }
             /// Return strictly prior touch history, or None if unknown.

@@ -3,6 +3,7 @@ use crate::conversions::{python_timestamp, real, supplied, timestamp, timestamps
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 
 macro_rules! autocallable_properties {
     ($name:ident, $($extra:item),* $(,)?) => {
@@ -67,13 +68,8 @@ macro_rules! autocallable_properties {
             fn calendar(&self) -> TradingCalendar { TradingCalendar(self.0.calendar().clone()) }
             /// Return owned copies of the contractual observations.
             #[getter]
-            fn observations(&self) -> Vec<AutocallableObservation> {
-                self.0
-                    .observations()
-                    .iter()
-                    .copied()
-                    .map(AutocallableObservation)
-                    .collect()
+            fn observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+                PyTuple::new(py, self.0.observations().iter().copied().map(AutocallableObservation))
             }
             /// Return an owned whole-life knock-in schedule, or None without knock-in.
             ///
@@ -87,21 +83,15 @@ macro_rules! autocallable_properties {
             }
             /// Return a copy of the contractual observation times.
             #[getter]
-            fn observation_times<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
-                self.0
-                    .observations()
-                    .iter()
+            fn observation_times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+                PyTuple::new(py, self.0.observations().iter()
                     .map(|r| python_timestamp(py, r.time()))
-                    .collect()
+                    .collect::<PyResult<Vec<_>>>()?)
             }
             /// Return copied knock-out thresholds in observation order.
             #[getter]
-            fn knock_out_levels(&self) -> Vec<f64> {
-                self.0
-                    .observations()
-                    .iter()
-                    .map(|r| r.knock_out_level())
-                    .collect()
+            fn knock_out_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+                PyTuple::new(py, self.0.observations().iter().map(|r| r.knock_out_level()))
             }
             /// Return nonnegative normalized principal, independent of coupons and losses.
             #[getter]
@@ -880,12 +870,8 @@ snowball_properties! {
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
-    fn knock_out_coupon_rates(&self) -> Vec<f64> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| r.coupon_rate().unwrap_or_default())
-            .collect()
+    fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.observations().iter().map(|r| r.coupon_rate().unwrap_or_default()))
     },
     /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
@@ -1054,12 +1040,8 @@ snowball_properties! {
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
-    fn knock_out_coupon_rates(&self) -> Vec<f64> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| r.coupon_rate().unwrap_or_default())
-            .collect()
+    fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.observations().iter().map(|r| r.coupon_rate().unwrap_or_default()))
     },
     /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
@@ -1225,12 +1207,8 @@ snowball_properties! {
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
-    fn knock_out_coupon_rates(&self) -> Vec<f64> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| r.coupon_rate().unwrap_or_default())
-            .collect()
+    fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.observations().iter().map(|r| r.coupon_rate().unwrap_or_default()))
     },
     /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
@@ -1508,12 +1486,8 @@ autocallable_properties! {
     },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
-    fn coupon_barrier_levels(&self) -> Vec<f64> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| r.coupon_barrier_level().unwrap_or_default())
-            .collect()
+    fn coupon_barrier_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.observations().iter().map(|r| r.coupon_barrier_level().unwrap_or_default()))
     },
     /// Return the annual coupon rate, or None for a fixed per-period coupon.
     #[getter]

@@ -1,7 +1,9 @@
-use crate::conversions::{python_date, python_timestamp, real, supplied, timestamp};
+use crate::conversions::{
+    python_date, python_timestamp, python_timestamps, real, supplied, timestamp,
+};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::PyDate;
+use pyo3::types::{PyDate, PyTuple};
 
 /// Rate term structure with log-linear discount factors.
 ///
@@ -141,12 +143,8 @@ impl RateTermStructure {
     }
     /// Return a copy of the supplied curve node times.
     #[getter]
-    fn nodes<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
-        self.0
-            .nodes()
-            .iter()
-            .map(|&time| python_timestamp(py, time))
-            .collect()
+    fn nodes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        python_timestamps(py, self.0.nodes())
     }
     /// Return owned node factors including shifts, allowing underflow to zero.
     ///
@@ -163,8 +161,8 @@ impl RateTermStructure {
     /// extreme shifted curves.
     ///
     #[getter]
-    fn factors(&self) -> PyResult<Vec<f64>> {
-        domain(self.0.factors())
+    fn factors<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, domain(self.0.factors())?)
     }
     /// Return original node factors without parallel shifts.
     ///
@@ -173,8 +171,8 @@ impl RateTermStructure {
     /// shifted(parallel_shift).
     ///
     #[getter]
-    fn base_factors(&self) -> Vec<f64> {
-        self.0.base_factors().to_vec()
+    fn base_factors<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.base_factors())
     }
     /// Return the accumulated node-curve parallel shift in decimal units.
     ///

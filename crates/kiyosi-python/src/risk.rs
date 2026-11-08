@@ -1,6 +1,7 @@
 use crate::error::domain;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 
 pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Greek> {
     let name = value.extract::<&str>()?;
@@ -143,22 +144,28 @@ impl PricingResult {
     }
     /// Return requested Greek names in the library's stable measure order.
     #[getter]
-    fn requested(&self) -> Vec<&'static str> {
-        kiyosi::Greek::ALL
-            .into_iter()
-            .filter(|&g| self.0.requested().has(g))
-            .map(kiyosi::Greek::name)
-            .collect()
+    fn requested<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(
+            py,
+            kiyosi::Greek::ALL
+                .into_iter()
+                .filter(|&g| self.0.requested().has(g))
+                .map(kiyosi::Greek::name)
+                .collect::<Vec<_>>(),
+        )
     }
     /// Return engine/model-supported names, regardless of availability.
     ///
     #[getter]
-    fn supported(&self) -> Vec<&'static str> {
-        kiyosi::Greek::ALL
-            .into_iter()
-            .filter(|&g| self.0.supported().has(g))
-            .map(kiyosi::Greek::name)
-            .collect()
+    fn supported<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(
+            py,
+            kiyosi::Greek::ALL
+                .into_iter()
+                .filter(|&g| self.0.supported().has(g))
+                .map(kiyosi::Greek::name)
+                .collect::<Vec<_>>(),
+        )
     }
     /// Return a requested Greek or raise when it is unavailable.
     ///
