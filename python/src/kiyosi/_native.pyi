@@ -13453,8 +13453,8 @@ class SnowballOption:
         Nonnegative lower terminal strike, at most the upper strike.
     knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
         Observe knock-in on every trading day or only at expiry.
-    observation_clock_time : datetime.time or None, optional
-        Daily monitoring requires a time. Defaults to None for expiry-only monitoring.
+    observation_clock_time : datetime.time or None
+        Required keyword: a time for daily monitoring, or None for expiry-only monitoring.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -13595,7 +13595,7 @@ class SnowballOption:
         upper_strike: _Real,
         lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        observation_clock_time: time | None = None,
+        observation_clock_time: time | None,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -13719,8 +13719,8 @@ class PhoenixOption:
         Nonnegative lower terminal strike, at most the upper strike.
     knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
         Observe knock-in on every trading day or only at expiry.
-    observation_clock_time : datetime.time or None, optional
-        Daily monitoring requires a time. Defaults to None for expiry-only monitoring.
+    observation_clock_time : datetime.time or None
+        Required keyword: a time for daily monitoring, or None for expiry-only monitoring.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -14049,7 +14049,7 @@ class PhoenixOption:
         upper_strike: _Real,
         lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        observation_clock_time: time | None = None,
+        observation_clock_time: time | None,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -14069,7 +14069,7 @@ class PhoenixOption:
         upper_strike: _Real,
         lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        observation_clock_time: time | None = None,
+        observation_clock_time: time | None,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -14393,8 +14393,8 @@ class TernarySnowballOption:
         Positive strict downside threshold.
     knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
         Observe knock-in on every trading day or only at expiry.
-    observation_clock_time : datetime.time or None, optional
-        Daily monitoring requires a time. Defaults to None for expiry-only monitoring.
+    observation_clock_time : datetime.time or None
+        Required keyword: a time for daily monitoring, or None for expiry-only monitoring.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -14528,7 +14528,7 @@ class TernarySnowballOption:
         minimum_coupon_rate: _Real,
         knock_in_level: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        observation_clock_time: time | None = None,
+        observation_clock_time: time | None,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],

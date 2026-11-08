@@ -16,6 +16,63 @@ from support.history import history_fields
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_autocallable_constructors_require_an_explicit_observation_clock(self):
+        import inspect
+        from datetime import time
+
+        start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+        common = {"effective_time": start, "expiry_time": end, "knock_in_level": 80}
+        snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0.1)
+        phoenix = ins.AutocallableObservation.phoenix(end, 110, coupon_barrier_level=90)
+        for cls, extra in (
+            (
+                ins.SnowballOption,
+                {
+                    "maturity_coupon_rate": 0.1,
+                    "initial_spot": 100,
+                    "upper_strike": 100,
+                    "lower_strike": 0,
+                    "observations": [snowball],
+                },
+            ),
+            (
+                ins.TernarySnowballOption,
+                {
+                    "maturity_coupon_rate": 0.1,
+                    "minimum_coupon_rate": 0,
+                    "observations": [snowball],
+                },
+            ),
+            (
+                ins.PhoenixOption,
+                {
+                    "coupon_rate": 0.1,
+                    "initial_spot": 100,
+                    "upper_strike": 100,
+                    "lower_strike": 0,
+                    "observations": [phoenix],
+                },
+            ),
+        ):
+            with self.subTest(contract=cls.__name__):
+                self.assertIs(
+                    inspect.signature(cls).parameters["observation_clock_time"].default,
+                    inspect.Parameter.empty,
+                )
+                with self.assertRaises(TypeError):
+                    cls(**common, **extra)
+                daily = cls(**common, **extra, observation_clock_time=time(15))
+                self.assertEqual(daily.observation_clock_time, time(15))
+                expiry = cls(
+                    **common,
+                    **extra,
+                    knock_in_observation_mode="at_expiry",
+                    observation_clock_time=None,
+                )
+                self.assertIsNone(expiry.observation_clock_time)
+                with self.assertRaises(InvalidInputError):
+                    cls(**common, **extra, observation_clock_time=None)
+
     def test_observation_coupon_choices_are_explicit_and_control_cashflows(self):
         start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
         with self.assertRaises(TypeError):

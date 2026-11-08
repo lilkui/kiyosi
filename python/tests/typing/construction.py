@@ -165,6 +165,7 @@ def phoenix_choices() -> None:
     )
     assert_type(
         PhoenixOption(
+            observation_clock_time=None,
             coupon_per_period=0.01,
             initial_spot=100,
             knock_in_level=80,
@@ -375,6 +376,7 @@ def expiry_only_snowballs() -> None:
     observations = [AutocallableObservation.snowball(end, 110, coupon_rate=0)]
     assert_type(
         SnowballOption(
+            observation_clock_time=None,
             maturity_coupon_rate=0.1,
             initial_spot=100,
             knock_in_level=80,
@@ -389,6 +391,7 @@ def expiry_only_snowballs() -> None:
     )
     assert_type(
         TernarySnowballOption(
+            observation_clock_time=None,
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,
             knock_in_level=80,
