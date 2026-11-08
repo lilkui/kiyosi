@@ -251,10 +251,7 @@ impl Accumulator {
             crate::calendar::observation_calendar(calendar, knock_out_observation_times)?
                 .unwrap_or_default();
         terms.history_time = history_time;
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
-            domain(kiyosi::Accumulator::new(terms))?,
-            history_time,
-        ))?))
+        Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
     }
     /// Return a validated replacement.
     ///

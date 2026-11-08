@@ -223,10 +223,7 @@ monitoring_properties!(
         terms.calendar =
             crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
         terms.history_time = history_time;
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
-            domain(kiyosi::BarrierOption::new(terms))?,
-            history_time,
-        ))?))
+        Ok(Self(domain(kiyosi::BarrierOption::new(terms))?))
     },
     /// Return call or put payoff direction.
     #[getter]

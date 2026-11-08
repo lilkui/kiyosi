@@ -195,10 +195,7 @@ impl RangeAccrualOption {
         }
         terms.calendar = calendar.0;
         terms.history_time = history_time;
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
-            domain(kiyosi::RangeAccrualOption::new(terms))?,
-            history_time,
-        ))?))
+        Ok(Self(domain(kiyosi::RangeAccrualOption::new(terms))?))
     }
 
     /// Return a validated replacement.

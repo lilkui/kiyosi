@@ -205,13 +205,6 @@ binary_properties!(
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::BinaryBarrierOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::BinaryBarrierOption::asset(terms),
         })?))
-        .and_then(|value: Self| {
-            domain(kiyosi::OptionContract::with_history_time(
-                value.0,
-                history_time,
-            ))
-            .map(Self)
-        })
     },
     /// Return a validated replacement.
     ///
@@ -374,13 +367,6 @@ binary_properties!(
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::TouchOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::TouchOption::asset(terms),
         })?))
-        .and_then(|value: Self| {
-            domain(kiyosi::OptionContract::with_history_time(
-                value.0,
-                history_time,
-            ))
-            .map(Self)
-        })
     },
     /// Return a validated replacement.
     ///

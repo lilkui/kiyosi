@@ -89,13 +89,6 @@ monitoring_properties!(
         Ok(Self(domain(kiyosi::DoubleTouchOption::cash(
             terms, payout,
         ))?))
-        .and_then(|value: Self| {
-            domain(kiyosi::OptionContract::with_history_time(
-                value.0,
-                history_time,
-            ))
-            .map(Self)
-        })
     },
     /// Return a validated replacement.
     ///
