@@ -118,13 +118,7 @@ impl PricingResult {
     /// means a derivative is undefined at this valuation. An unavailable numerical
     /// stencil reports stencil_unavailable; changing controls may recover the measure.
     fn status(&self, measure: &Bound<'_, PyAny>) -> PyResult<&'static str> {
-        Ok(match self.0.status(greek(measure)?) {
-            kiyosi::GreekStatus::Available => "available",
-            kiyosi::GreekStatus::NotRequested => "not_requested",
-            kiyosi::GreekStatus::Unsupported => "unsupported",
-            kiyosi::GreekStatus::Undefined => "undefined",
-            kiyosi::GreekStatus::StencilUnavailable => "stencil_unavailable",
-        })
+        Ok(self.0.status(greek(measure)?).name())
     }
     /// Return requested Greek names in the library's stable measure order.
     #[getter]
@@ -158,8 +152,9 @@ impl PricingResult {
     ///
     /// Raises
     /// ------
-    /// UnsupportedOperationError
-    ///     If the measure was not requested, is unsupported or is undefined at this valuation.
+    /// GreekUnavailableError
+    ///     If the measure has no value. Its greek and status attributes identify the
+    ///     measure and reason. Also inherits UnsupportedOperationError.
     /// ValueError
     ///     If the Greek name is unknown.
     /// TypeError

@@ -162,7 +162,7 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
             assert!(!result.has(greek));
             assert!(matches!(
                 result.require(greek),
-                Err(Error::UnsupportedOperation(_))
+                Err(Error::GreekUnavailable { greek: measure, status: GreekStatus::StencilUnavailable }) if measure == greek
             ));
         }
         let settings = NumericalShiftSettings {

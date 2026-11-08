@@ -4,7 +4,9 @@ Notes
 -----
 Domain failures raise a specific `KiyosiError` subclass:
 `InvalidInputError`, `UnsupportedOperationError`, `ComputationFailureError`,
-`RootNotBracketedError` or `NonConvergenceError`. Catch a subclass for one
+`RootNotBracketedError` or `NonConvergenceError`. `GreekUnavailableError` inherits
+`UnsupportedOperationError` and carries ``greek`` and ``status`` attributes.
+Catch a subclass for one
 failure category or `KiyosiError` for any domain failure. `InvalidInputError`
 also inherits `ValueError`. Validation
 diagnostics include field names; messages are for humans, not parsing. Representation
@@ -97,6 +99,7 @@ from . import _native
 from ._native import (
     ComputationFailureError,
     Greek,
+    GreekUnavailableError,
     InvalidInputError,
     KiyosiError,
     NonConvergenceError,
@@ -114,6 +117,7 @@ _install_serialization(_native)
 __all__ = [
     "ComputationFailureError",
     "Greek",
+    "GreekUnavailableError",
     "InvalidInputError",
     "KiyosiError",
     "NonConvergenceError",

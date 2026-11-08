@@ -15,6 +15,37 @@ fn market() -> (EuropeanOption, PricingContext) {
 }
 
 #[test]
+fn unavailable_greek_errors_preserve_measure_and_status() -> Result<()> {
+    let request = GreeksRequest::new([Greek::Vega]);
+    let absent = PricingResult::new(10.0)?;
+    for (result, expected) in [
+        (absent.clone(), GreekStatus::NotRequested),
+        (
+            absent.clone().with_request(request, GreeksRequest::new([])),
+            GreekStatus::Unsupported,
+        ),
+        (
+            absent.clone().with_request(request, request),
+            GreekStatus::Undefined,
+        ),
+        (
+            absent
+                .with_request(request, request)
+                .with_unavailable_stencils(request),
+            GreekStatus::StencilUnavailable,
+        ),
+    ] {
+        let error = result.require(Greek::Vega).unwrap_err();
+        assert!(
+            matches!(error, Error::GreekUnavailable { greek: Greek::Vega, status } if status == expected)
+        );
+        assert!(error.to_string().contains(expected.name()));
+        assert!(error.to_string().contains("vega"));
+    }
+    Ok(())
+}
+
+#[test]
 fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
     use std::{cell::Cell, rc::Rc};
 
@@ -340,7 +371,10 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
     assert_eq!(result.get(Greek::Gamma), None);
     assert!(matches!(
         result.require(Greek::Gamma).unwrap_err(),
-        Error::UnsupportedOperation(_)
+        Error::GreekUnavailable {
+            greek: Greek::Gamma,
+            status: GreekStatus::NotRequested
+        }
     ));
     let expiry = context
         .replace(PricingContextChanges {
@@ -368,7 +402,10 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
         assert!(matches!(
             result.require(Greek::Theta).unwrap_err(),
-            Error::UnsupportedOperation(_)
+            Error::GreekUnavailable {
+                greek: Greek::Theta,
+                status: GreekStatus::Undefined
+            }
         ));
     }
     let outside = context

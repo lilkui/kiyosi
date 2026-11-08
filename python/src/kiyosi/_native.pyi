@@ -23,6 +23,12 @@ class InvalidInputError(KiyosiError, ValueError):
 class UnsupportedOperationError(KiyosiError):
     """Unsupported pricing combination or unavailable result measure."""
 
+class GreekUnavailableError(UnsupportedOperationError):
+    """Unavailable Greek; greek and status attributes identify the measure and reason."""
+
+    greek: Greek
+    status: Literal["not_requested", "unsupported", "undefined", "stencil_unavailable"]
+
 class ComputationFailureError(KiyosiError):
     """Non-finite numerical result or unavailable computation state."""
 
@@ -6072,8 +6078,9 @@ class PricingResult:
 
         Raises
         ------
-        UnsupportedOperationError
-            If the measure was not requested, is unsupported or is undefined at this valuation.
+        GreekUnavailableError
+            If the measure has no value. Its greek and status attributes identify the
+            measure and reason. Also inherits UnsupportedOperationError.
         ValueError
             If the Greek name is unknown.
         TypeError

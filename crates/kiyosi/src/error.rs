@@ -25,6 +25,15 @@ pub enum Error {
     ///
     /// See [`crate::PricingResult::require`].
     UnsupportedOperation(Cow<'static, str>),
+    /// Reports an absent Greek with its request or calculation status.
+    ///
+    /// See [`crate::PricingResult::require`] for an example.
+    GreekUnavailable {
+        /// Identifies the requested sensitivity.
+        greek: crate::Greek,
+        /// Explains why the result has no value for this sensitivity.
+        status: crate::GreekStatus,
+    },
     /// Reports invalid numerical results or unavailable computation state.
     ///
     /// See [`crate::MonteCarloVanillaEngine::price`].
@@ -51,6 +60,9 @@ impl fmt::Display for Error {
             | Self::ComputationFailure(message)
             | Self::RootNotBracketed(message)
             | Self::NonConvergence(message) => f.write_str(message),
+            Self::GreekUnavailable { greek, status } => {
+                write!(f, "{} is unavailable: {}", greek.name(), status.name())
+            }
             Self::Io(error) => error.fmt(f),
         }
     }

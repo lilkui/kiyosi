@@ -107,6 +107,10 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     register_engines(module)?;
     module.add("__version__", kiyosi::VERSION)?;
     module.add("KiyosiError", py.get_type::<error::KiyosiError>())?;
+    module.add(
+        "GreekUnavailableError",
+        py.get_type::<error::GreekUnavailableError>(),
+    )?;
     // PyO3's exception macro accepts one base; Python supplies multiple inheritance.
     py.get_type::<error::InvalidInputError>().setattr(
         "__bases__",

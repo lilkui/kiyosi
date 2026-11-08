@@ -180,7 +180,9 @@ class AnalyticsTests(unittest.TestCase):
             self.assertIsNone(selected.gamma)
             with self.assertRaises(UnsupportedOperationError) as error:
                 selected.require("gamma")
-            self.assertIs(type(error.exception), UnsupportedOperationError)
+            self.assertIsInstance(error.exception, UnsupportedOperationError)
+            self.assertEqual(error.exception.greek, "gamma")
+            self.assertEqual(error.exception.status, "not_requested")
         expiry = self.context.replace(
             spot_price=110, valuation_time=self.option.expiry_time
         )

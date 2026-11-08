@@ -134,6 +134,19 @@ pub enum GreekStatus {
     StencilUnavailable,
 }
 
+impl GreekStatus {
+    /// Returns the Python status choice string; see [`PricingResult::status`].
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Available => "available",
+            Self::NotRequested => "not_requested",
+            Self::Unsupported => "unsupported",
+            Self::Undefined => "undefined",
+            Self::StencilUnavailable => "stencil_unavailable",
+        }
+    }
+}
+
 /// Owns a finite price and optional finite Greeks.
 ///
 /// Missing measures use `None`, never zero; [`Self::status`] distinguishes
@@ -246,14 +259,24 @@ impl PricingResult {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] when the measure was not requested
-    /// or cannot be provided at this valuation point. [`Self::get`] returns `None`
-    /// for these cases. See [`crate::AnalyticEuropeanEngine::price_with_greeks`]
-    /// for an example of requesting measures.
+    /// Returns [`Error::GreekUnavailable`] with the measure and its [`GreekStatus`]
+    /// when no value is available. [`Self::get`] returns `None` for these cases.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Error, Greek, GreekStatus, PricingResult};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let result = PricingResult::new(10.0)?;
+    /// assert!(matches!(result.require(Greek::Vega),
+    ///     Err(Error::GreekUnavailable { greek: Greek::Vega, status: GreekStatus::NotRequested })));
+    /// # Ok(()) }
+    /// ```
     pub fn require(&self, greek: Greek) -> Result<f64> {
-        self.get(greek).ok_or(Error::UnsupportedOperation(
-            "requested Greek is unavailable".into(),
-        ))
+        self.get(greek).ok_or(Error::GreekUnavailable {
+            greek,
+            status: self.status(greek),
+        })
     }
     /// Borrows immutable Greek storage in [`Greek::ALL`] order.
     pub fn values(&self) -> &[Option<f64>; Greek::ALL.len()] {

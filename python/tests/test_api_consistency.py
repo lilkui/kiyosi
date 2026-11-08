@@ -1503,6 +1503,22 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         self.assertEqual(unsupported.status("delta"), "unsupported")
         self.assertEqual(unsupported.status("gamma"), "not_requested")
+        from kiyosi import GreekUnavailableError
+
+        for value, measure, status in (
+            (result, "gamma", "not_requested"),
+            (terminal, "delta", "undefined"),
+            (collapsed, "delta", "stencil_unavailable"),
+            (unsupported, "delta", "unsupported"),
+        ):
+            with self.assertRaises(GreekUnavailableError) as caught:
+                value.require(measure)
+            self.assertIsInstance(caught.exception, UnsupportedOperationError)
+            self.assertEqual(caught.exception.greek, measure)
+            self.assertEqual(caught.exception.status, status)
+            self.assertIn(measure, str(caught.exception))
+            self.assertIn(status, str(caught.exception))
+
         local = context.replace(
             model_parameters=market.LocalVolatilityParameters(
                 risk_free_rate=0.05,
