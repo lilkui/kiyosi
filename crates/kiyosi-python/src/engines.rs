@@ -80,13 +80,16 @@ macro_rules! numerical_greeks_methods {
             ///     An empty iterable requests price only.
             /// spot_shift : float or None, optional
             ///     Positive absolute spot bump; None selects the product's automatic bump.
-            /// volatility_shift, rate_shift : float, optional
-            ///     Positive decimal bumps for numerical fallback Greeks.
+            /// volatility_shift : float or None, optional
+            ///     Positive decimal volatility bump. None selects the smaller of 0.0001
+            ///     and half the current volatility.
+            /// rate_shift : float, optional
+            ///     Positive decimal rate bump; defaults to 0.0001.
             /// time_shift : datetime.timedelta or None, optional
             ///     Positive whole-microsecond bump; None selects an automatic time step.
             ///     Omitted controls or Ellipsis retain engine settings, whose shared
-            ///     defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            ///     bumps. Controls affect numerical fallbacks, event checks and terminal
+            ///     defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            ///     bump. Controls affect numerical fallbacks, event checks and terminal
             ///     stencils; native estimators and engine/model Greek coverage are
             ///     preserved.
             ///
@@ -125,7 +128,7 @@ macro_rules! numerical_greeks_methods {
                 let request = $crate::engines::NativeGreeksRequest {
                     request: $crate::risk::greeks_request(greeks)?,
                     spot_shift: spot_shift.map(|v| if v.is_none() { Ok(None) } else { crate::conversions::real(v).map(Some) }).transpose()?,
-                    volatility_shift: volatility_shift.map(crate::conversions::real).transpose()?,
+                    volatility_shift: volatility_shift.map(crate::conversions::optional_real).transpose()?,
                     rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
                     time_shift: time_shift.map(|v| if v.is_none() { Ok(None) } else { crate::conversions::duration(v).map(Some) }).transpose()?,
                 };
@@ -204,7 +207,7 @@ pub(crate) struct NumericalGreeksRequest(pub NativeGreeksRequest);
 pub(crate) struct NativeGreeksRequest {
     pub request: kiyosi::GreeksRequest,
     pub spot_shift: Option<Option<f64>>,
-    pub volatility_shift: Option<f64>,
+    pub volatility_shift: Option<Option<f64>>,
     pub rate_shift: Option<f64>,
     pub time_shift: Option<Option<std::time::Duration>>,
 }

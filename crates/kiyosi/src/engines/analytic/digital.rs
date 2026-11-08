@@ -75,7 +75,7 @@ impl AnalyticDigitalEngine {
     /// #     start, start.add_days(365)?)?;
     /// # let context = PricingContext::new(
     /// #     BlackScholesMertonParameters::new(0.0, 0.0, 0.00005)?, 100.0, start)?;
-    /// let shifts = NumericalShiftSettings { volatility_shift: 0.00001, ..Default::default() };
+    /// let shifts = NumericalShiftSettings { volatility_shift: Some(0.00001), ..Default::default() };
     /// let result = AnalyticDigitalEngine.price_with_greeks_with_settings(
     ///     &option, &context, GreeksRequest::all(), shifts)?;
     /// assert!(result.require(Greek::Vega)?.is_finite());

@@ -618,7 +618,7 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
             &context,
             GreeksRequest::new([Greek::Vega]),
             NumericalShiftSettings {
-                volatility_shift: 0.1,
+                volatility_shift: Some(0.1),
                 ..Default::default()
             }
         )

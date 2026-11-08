@@ -56,9 +56,12 @@ macro_rules! fd_engine {
         ///     Positive absolute spot bump for native Greek availability and terminal
         ///     stencils. None selects the automatic bump; prices and grids are
         ///     unchanged.
-        /// volatility_shift, rate_shift : float, optional
-        ///     Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        ///     spatial delta and gamma retain their estimator.
+        /// volatility_shift : float or None, optional
+        ///     Positive decimal volatility bump, or None (default) for the smaller of
+        ///     0.0001 and half the current volatility. Native spatial delta and gamma
+        ///     retain their estimator.
+        /// rate_shift : float, optional
+        ///     Positive decimal rate bump; defaults to 0.0001.
         /// time_shift : datetime.timedelta or None, optional
         ///     Positive whole-microsecond time bump, or None for automatic selection.
         ///
@@ -117,7 +120,7 @@ macro_rules! fd_engine {
                     #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
                     asset_upper_boundary: Option<&Bound<'_, PyAny>>,
                     spot_shift: Option<&Bound<'_, PyAny>>,
-                    #[pyo3(from_py_with = real)] volatility_shift: f64,
+                    #[pyo3(from_py_with = crate::conversions::optional_real)] volatility_shift: Option<f64>,
                     #[pyo3(from_py_with = real)] rate_shift: f64,
                     time_shift: Option<&Bound<'_, PyAny>>,
                 ) -> PyResult<Self> {
@@ -162,9 +165,9 @@ macro_rules! fd_engine {
                 fn spot_shift(&self) -> Option<f64> {
                     self.0.settings().spot_shift
                 },
-                /// Return the numerical volatility bump in decimal units.
+                /// Return the numerical volatility bump, or None for automatic selection.
                 #[getter]
-                fn volatility_shift(&self) -> f64 {
+                fn volatility_shift(&self) -> Option<f64> {
                     self.0.settings().volatility_shift
                 },
                 /// Return the numerical parallel rate bump in decimal units.

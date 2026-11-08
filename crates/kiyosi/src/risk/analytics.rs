@@ -404,8 +404,11 @@ pub struct NumericalShiftSettings {
     /// Automatic bumps use the smaller of 0.01 spot units and 1% of spot,
     /// except American Monte Carlo before expiry uses 8% of spot.
     pub spot_shift: Option<f64>,
-    /// Sets the positive absolute volatility bump (default 0.0001 decimal units).
-    pub volatility_shift: f64,
+    /// Sets a positive absolute volatility bump, or `None` (default) for automatic selection.
+    ///
+    /// Automatic bumps use the smaller of 0.0001 decimal units and half the current volatility.
+    /// See [`crate::numerical_greeks`] for usage; zero-volatility derivatives remain undefined.
+    pub volatility_shift: Option<f64>,
     /// Sets the positive risk-free and dividend rate bump (default 0.0001 decimal units).
     pub rate_shift: f64,
     /// Sets a positive time bump in whole microseconds, or `None` for automatic selection.
@@ -419,7 +422,7 @@ impl Default for NumericalShiftSettings {
     fn default() -> Self {
         Self {
             spot_shift: None,
-            volatility_shift: 1e-4,
+            volatility_shift: None,
             rate_shift: 1e-4,
             time_shift: None,
         }
@@ -440,13 +443,18 @@ impl NumericalShiftSettings {
         self.spot_shift
             .unwrap_or_else(|| self.fallback_spot_shift().min(0.01 * spot))
     }
+
+    pub(crate) fn volatility_shift_at(self, volatility: f64) -> f64 {
+        self.volatility_shift
+            .unwrap_or_else(|| 1e-4_f64.min(volatility / 2.0))
+    }
     /// Validates every bump control without pricing a contract.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for nonpositive or non-finite explicit spot,
     /// volatility or rate bumps, or a zero or sub-microsecond time bump.
-    /// Leaves the settings unchanged. Automatic spot bumps are resolved by the engine;
+    /// Leaves the settings unchanged. Automatic bumps are resolved at pricing;
     /// representability of numerical stencils is checked during pricing.
     ///
     /// # Examples
@@ -460,11 +468,13 @@ impl NumericalShiftSettings {
     /// ```
     pub fn validate(&self) -> Result<()> {
         for (name, value) in [
-            ("spot_shift", self.fallback_spot_shift()),
+            ("spot_shift", self.spot_shift),
             ("volatility_shift", self.volatility_shift),
-            ("rate_shift", self.rate_shift),
+            ("rate_shift", Some(self.rate_shift)),
         ] {
-            crate::error::finite(value, true, name)?;
+            if let Some(value) = value {
+                crate::error::finite(value, true, name)?;
+            }
         }
         self.time_shift_micros()?;
         Ok(())

@@ -8,7 +8,8 @@ bias. Solver tolerances constrain the engine's price curve, not pricing accuracy
 
 ``price_with_greeks`` requires a Greek name, an iterable of names, or ``"all"``.
 An empty iterable requests price only. A nonempty request with no supported
-measures raises ``UnsupportedOperationError``; mixed requests retain partial results. `PricingResult` documents units;
+measures raises ``UnsupportedOperationError``; mixed requests retain partial results.
+`PricingResult` documents units;
 ``result.status`` explains missing measures, and ``result.require`` rejects them.
 Use ``engine.greek_method`` and ``engine.active_greek_controls`` to inspect
 estimation before pricing. `numerical_greeks` selects scalar BSM differences.
@@ -16,7 +17,9 @@ estimation before pricing. `numerical_greeks` selects scalar BSM differences.
 Request-level shifts tune numerical fallbacks and availability checks without
 changing engine settings. Both Greek entry points inherit the engine's settings
 when controls are omitted or Ellipsis;
-``None`` selects automatic spot/time bumps. Every supplied control is validated.
+``None`` selects automatic spot, volatility and time bumps. Automatic volatility
+bumps use the smaller of 0.0001 and half the current volatility. Every supplied
+control is validated.
 Supported expiry Greeks follow the payoff; time Greeks are absent at expiry.
 
 Monte Carlo engines support pseudo-random and scrambled Sobol draws. A fixed seed

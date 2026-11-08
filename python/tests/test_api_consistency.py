@@ -1508,7 +1508,9 @@ class ApiConsistencyTests(unittest.TestCase):
                     else None,
                 )
 
-    def test_smaller_volatility_bumps_recover_unavailable_stencils(self):
+    def test_automatic_volatility_bumps_preserve_explicit_controls_and_zero_boundary(
+        self,
+    ):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = ins.EuropeanOption(
             option_type="call", strike=100, effective_time=start, expiry_time=end
@@ -1521,7 +1523,11 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         engine = pricing.AnalyticEuropeanEngine()
         unavailable = numerical_greeks(
-            engine, dated_history(option, context), context, "vega"
+            engine,
+            dated_history(option, context),
+            context,
+            "vega",
+            volatility_shift=0.0001,
         )
         self.assertEqual(unavailable.status("vega"), "stencil_unavailable")
         self.assertIsNone(unavailable.vega)
@@ -1540,6 +1546,12 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         self.assertEqual(recovered.status("vega"), "available")
         self.assertAlmostEqual(recovered.vega, exact.vega, delta=1e-7)
+        for control in ({}, {"volatility_shift": None}, {"volatility_shift": Ellipsis}):
+            automatic = numerical_greeks(engine, option, context, "vega", **control)
+            self.assertEqual(automatic.status("vega"), "available")
+            self.assertAlmostEqual(
+                automatic.require("vega"), exact.require("vega"), delta=1e-7
+            )
         zero = context.replace(model_parameters=model.replace(volatility=0))
         self.assertEqual(
             numerical_greeks(engine, dated_history(option, zero), zero, "vega").status(
@@ -1573,7 +1585,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     )
                 )
                 native = engine.price_with_greeks(
-                    option, context, ["delta", "gamma", "vega"]
+                    option, context, ["delta", "gamma", "vega"], volatility_shift=0.0001
                 )
                 self.assertEqual(native.status("vega"), "stencil_unavailable")
                 result = engine.price_with_greeks(
@@ -1633,7 +1645,7 @@ class ApiConsistencyTests(unittest.TestCase):
         base = pricing.FiniteDifferenceVanillaEngine(**grid).price_with_greeks(
             option, context, ["delta", "gamma", "vega"]
         )
-        self.assertEqual(base.status("vega"), "stencil_unavailable")
+        self.assertEqual(base.status("vega"), "available")
         shifts = {
             "volatility_shift": 0.00001,
             "rate_shift": 0.0002,
@@ -1648,12 +1660,18 @@ class ApiConsistencyTests(unittest.TestCase):
             ),
             tuned,
         )
-        self.assertEqual(original.volatility_shift, 0.0001)
+        self.assertIsNone(original.volatility_shift)
         self.assertEqual(
             engine.price_with_greeks(
                 option, context, ["delta", "gamma", "vega"], volatility_shift=...
             ),
             tuned,
+        )
+        self.assertEqual(
+            engine.price_with_greeks(
+                option, context, ["delta", "gamma", "vega"], volatility_shift=None
+            ),
+            base,
         )
         self.assertEqual(tuned.price, base.price)
         self.assertEqual(tuned.require("delta"), base.require("delta"))

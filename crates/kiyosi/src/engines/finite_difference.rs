@@ -78,10 +78,11 @@ pub struct FiniteDifferenceSettings {
     /// `None` uses the shared automatic bump. Prices and spatial grids are unchanged.
     /// See [`FiniteDifferenceBarrierEngine::price_with_greeks`] for usage.
     pub spot_shift: Option<f64>,
-    /// Sets the positive absolute volatility bump for numerical Greeks; defaults to 0.0001.
+    /// Sets a positive absolute volatility bump, or `None` for automatic selection.
     ///
+    /// Uses [`NumericalShiftSettings::volatility_shift`]'s automatic cap by default.
     /// Native spot Greeks retain their spatial estimator. See [`Self::validate`] for configuration.
-    pub volatility_shift: f64,
+    pub volatility_shift: Option<f64>,
     /// Sets the positive parallel risk-free and dividend-rate bump; defaults to 0.0001.
     ///
     /// See [`Self::validate`] for configuration.

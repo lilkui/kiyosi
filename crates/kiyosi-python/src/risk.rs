@@ -243,8 +243,11 @@ pub(crate) fn _pricing_result(
 /// spot_shift : float or None, optional
 ///     Positive absolute spot bump. Omission or Ellipsis retains the engine's
 ///     setting; None selects the automatic engine/product bump.
-/// volatility_shift, rate_shift : float, optional
-///     Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+/// volatility_shift : float or None, optional
+///     Positive decimal volatility bump. None selects the smaller of 0.0001 and
+///     half the current volatility. Omission or Ellipsis retains engine settings.
+/// rate_shift : float, optional
+///     Positive decimal rate bump. Omission or Ellipsis retains engine settings.
 /// time_shift : datetime.timedelta or None, optional
 ///     Positive explicit bump. Omission or Ellipsis retains the engine's setting;
 ///     None selects an automatic bump up to one day
@@ -304,7 +307,9 @@ pub(crate) fn numerical_greeks(
                         }
                     })
                     .transpose()?,
-                volatility_shift: volatility_shift.map(crate::conversions::real).transpose()?,
+                volatility_shift: volatility_shift
+                    .map(crate::conversions::optional_real)
+                    .transpose()?,
                 rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
                 time_shift: time_shift
                     .map(|v| {

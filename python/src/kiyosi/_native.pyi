@@ -1610,7 +1610,7 @@ class AnalyticEuropeanEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -1627,13 +1627,16 @@ class AnalyticEuropeanEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -1819,7 +1822,7 @@ class AnalyticHestonEuropeanEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -1836,13 +1839,16 @@ class AnalyticHestonEuropeanEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -1972,7 +1978,7 @@ class BjerksundStenslandVanillaEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -1989,13 +1995,16 @@ class BjerksundStenslandVanillaEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -2126,7 +2135,7 @@ class AnalyticDigitalEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -2143,13 +2152,16 @@ class AnalyticDigitalEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -2297,7 +2309,7 @@ class CoxRossRubinsteinBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -2314,13 +2326,16 @@ class CoxRossRubinsteinBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -2488,7 +2503,7 @@ class QuadratureBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -2505,13 +2520,16 @@ class QuadratureBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -2694,7 +2712,7 @@ class QuadratureDigitalEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -2711,13 +2729,16 @@ class QuadratureDigitalEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -2906,7 +2927,7 @@ class QuadratureVanillaEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -2923,13 +2944,16 @@ class QuadratureVanillaEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -3072,7 +3096,7 @@ class CoxRossRubinsteinVanillaEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -3089,13 +3113,16 @@ class CoxRossRubinsteinVanillaEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -3252,7 +3279,7 @@ class CoxRossRubinsteinDigitalEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -3269,13 +3296,16 @@ class CoxRossRubinsteinDigitalEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -3331,9 +3361,12 @@ class FiniteDifferenceAccumulatorEngine:
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are
         unchanged.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        spatial delta and gamma retain their estimator.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump, or None (default) for the smaller of
+        0.0001 and half the current volatility. Native spatial delta and gamma
+        retain their estimator.
+    rate_shift : float, optional
+        Positive decimal rate bump; defaults to 0.0001.
     time_shift : datetime.timedelta or None, optional
         Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -3373,7 +3406,7 @@ class FiniteDifferenceAccumulatorEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
+        volatility_shift: _Real | None = ...,
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
@@ -3385,7 +3418,7 @@ class FiniteDifferenceAccumulatorEngine:
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
@@ -3418,9 +3451,12 @@ class FiniteDifferenceAccumulatorEngine:
             Positive absolute spot bump for native Greek availability and terminal
             stencils. None selects the automatic bump; prices and grids are
             unchanged.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-            spatial delta and gamma retain their estimator.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump, or None (default) for the smaller of
+            0.0001 and half the current volatility. Native spatial delta and gamma
+            retain their estimator.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -3452,8 +3488,8 @@ class FiniteDifferenceAccumulatorEngine:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
     @property
-    def volatility_shift(self) -> float:
-        """Return the numerical volatility bump in decimal units."""
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
 
     @property
     def rate_shift(self) -> float:
@@ -3535,7 +3571,7 @@ class FiniteDifferenceAccumulatorEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -3552,13 +3588,16 @@ class FiniteDifferenceAccumulatorEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -3616,9 +3655,12 @@ class FiniteDifferenceBarrierEngine:
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are
         unchanged.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        spatial delta and gamma retain their estimator.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump, or None (default) for the smaller of
+        0.0001 and half the current volatility. Native spatial delta and gamma
+        retain their estimator.
+    rate_shift : float, optional
+        Positive decimal rate bump; defaults to 0.0001.
     time_shift : datetime.timedelta or None, optional
         Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -3658,7 +3700,7 @@ class FiniteDifferenceBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
+        volatility_shift: _Real | None = ...,
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
@@ -3670,7 +3712,7 @@ class FiniteDifferenceBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
@@ -3703,9 +3745,12 @@ class FiniteDifferenceBarrierEngine:
             Positive absolute spot bump for native Greek availability and terminal
             stencils. None selects the automatic bump; prices and grids are
             unchanged.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-            spatial delta and gamma retain their estimator.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump, or None (default) for the smaller of
+            0.0001 and half the current volatility. Native spatial delta and gamma
+            retain their estimator.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -3737,8 +3782,8 @@ class FiniteDifferenceBarrierEngine:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
     @property
-    def volatility_shift(self) -> float:
-        """Return the numerical volatility bump in decimal units."""
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
 
     @property
     def rate_shift(self) -> float:
@@ -3820,7 +3865,7 @@ class FiniteDifferenceBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -3837,13 +3882,16 @@ class FiniteDifferenceBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -3901,9 +3949,12 @@ class FiniteDifferenceDoubleBarrierEngine:
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are
         unchanged.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        spatial delta and gamma retain their estimator.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump, or None (default) for the smaller of
+        0.0001 and half the current volatility. Native spatial delta and gamma
+        retain their estimator.
+    rate_shift : float, optional
+        Positive decimal rate bump; defaults to 0.0001.
     time_shift : datetime.timedelta or None, optional
         Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -3943,7 +3994,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
+        volatility_shift: _Real | None = ...,
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
@@ -3955,7 +4006,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
@@ -3988,9 +4039,12 @@ class FiniteDifferenceDoubleBarrierEngine:
             Positive absolute spot bump for native Greek availability and terminal
             stencils. None selects the automatic bump; prices and grids are
             unchanged.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-            spatial delta and gamma retain their estimator.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump, or None (default) for the smaller of
+            0.0001 and half the current volatility. Native spatial delta and gamma
+            retain their estimator.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -4022,8 +4076,8 @@ class FiniteDifferenceDoubleBarrierEngine:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
     @property
-    def volatility_shift(self) -> float:
-        """Return the numerical volatility bump in decimal units."""
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
 
     @property
     def rate_shift(self) -> float:
@@ -4105,7 +4159,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -4122,13 +4176,16 @@ class FiniteDifferenceDoubleBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -4186,9 +4243,12 @@ class FiniteDifferenceAutocallableEngine:
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are
         unchanged.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        spatial delta and gamma retain their estimator.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump, or None (default) for the smaller of
+        0.0001 and half the current volatility. Native spatial delta and gamma
+        retain their estimator.
+    rate_shift : float, optional
+        Positive decimal rate bump; defaults to 0.0001.
     time_shift : datetime.timedelta or None, optional
         Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -4228,7 +4288,7 @@ class FiniteDifferenceAutocallableEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
+        volatility_shift: _Real | None = ...,
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
@@ -4240,7 +4300,7 @@ class FiniteDifferenceAutocallableEngine:
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
@@ -4273,9 +4333,12 @@ class FiniteDifferenceAutocallableEngine:
             Positive absolute spot bump for native Greek availability and terminal
             stencils. None selects the automatic bump; prices and grids are
             unchanged.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-            spatial delta and gamma retain their estimator.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump, or None (default) for the smaller of
+            0.0001 and half the current volatility. Native spatial delta and gamma
+            retain their estimator.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -4307,8 +4370,8 @@ class FiniteDifferenceAutocallableEngine:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
     @property
-    def volatility_shift(self) -> float:
-        """Return the numerical volatility bump in decimal units."""
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
 
     @property
     def rate_shift(self) -> float:
@@ -4410,7 +4473,7 @@ class FiniteDifferenceAutocallableEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -4427,13 +4490,16 @@ class FiniteDifferenceAutocallableEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -4491,9 +4557,12 @@ class FiniteDifferenceDoubleTouchEngine:
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are
         unchanged.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        spatial delta and gamma retain their estimator.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump, or None (default) for the smaller of
+        0.0001 and half the current volatility. Native spatial delta and gamma
+        retain their estimator.
+    rate_shift : float, optional
+        Positive decimal rate bump; defaults to 0.0001.
     time_shift : datetime.timedelta or None, optional
         Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -4533,7 +4602,7 @@ class FiniteDifferenceDoubleTouchEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
+        volatility_shift: _Real | None = ...,
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
@@ -4545,7 +4614,7 @@ class FiniteDifferenceDoubleTouchEngine:
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
@@ -4578,9 +4647,12 @@ class FiniteDifferenceDoubleTouchEngine:
             Positive absolute spot bump for native Greek availability and terminal
             stencils. None selects the automatic bump; prices and grids are
             unchanged.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-            spatial delta and gamma retain their estimator.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump, or None (default) for the smaller of
+            0.0001 and half the current volatility. Native spatial delta and gamma
+            retain their estimator.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -4612,8 +4684,8 @@ class FiniteDifferenceDoubleTouchEngine:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
     @property
-    def volatility_shift(self) -> float:
-        """Return the numerical volatility bump in decimal units."""
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
 
     @property
     def rate_shift(self) -> float:
@@ -4695,7 +4767,7 @@ class FiniteDifferenceDoubleTouchEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -4712,13 +4784,16 @@ class FiniteDifferenceDoubleTouchEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -4776,9 +4851,12 @@ class FiniteDifferenceBinaryBarrierEngine:
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are
         unchanged.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        spatial delta and gamma retain their estimator.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump, or None (default) for the smaller of
+        0.0001 and half the current volatility. Native spatial delta and gamma
+        retain their estimator.
+    rate_shift : float, optional
+        Positive decimal rate bump; defaults to 0.0001.
     time_shift : datetime.timedelta or None, optional
         Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -4818,7 +4896,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
+        volatility_shift: _Real | None = ...,
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
@@ -4830,7 +4908,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
@@ -4863,9 +4941,12 @@ class FiniteDifferenceBinaryBarrierEngine:
             Positive absolute spot bump for native Greek availability and terminal
             stencils. None selects the automatic bump; prices and grids are
             unchanged.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-            spatial delta and gamma retain their estimator.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump, or None (default) for the smaller of
+            0.0001 and half the current volatility. Native spatial delta and gamma
+            retain their estimator.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -4897,8 +4978,8 @@ class FiniteDifferenceBinaryBarrierEngine:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
     @property
-    def volatility_shift(self) -> float:
-        """Return the numerical volatility bump in decimal units."""
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
 
     @property
     def rate_shift(self) -> float:
@@ -4982,7 +5063,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -4999,13 +5080,16 @@ class FiniteDifferenceBinaryBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -5221,7 +5305,7 @@ class FiniteDifferenceHestonVanillaEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -5238,13 +5322,16 @@ class FiniteDifferenceHestonVanillaEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -5298,9 +5385,12 @@ class FiniteDifferenceVanillaEngine:
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are
         unchanged.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        spatial delta and gamma retain their estimator.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump, or None (default) for the smaller of
+        0.0001 and half the current volatility. Native spatial delta and gamma
+        retain their estimator.
+    rate_shift : float, optional
+        Positive decimal rate bump; defaults to 0.0001.
     time_shift : datetime.timedelta or None, optional
         Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -5340,7 +5430,7 @@ class FiniteDifferenceVanillaEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
+        volatility_shift: _Real | None = ...,
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
@@ -5352,7 +5442,7 @@ class FiniteDifferenceVanillaEngine:
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
@@ -5385,9 +5475,12 @@ class FiniteDifferenceVanillaEngine:
             Positive absolute spot bump for native Greek availability and terminal
             stencils. None selects the automatic bump; prices and grids are
             unchanged.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-            spatial delta and gamma retain their estimator.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump, or None (default) for the smaller of
+            0.0001 and half the current volatility. Native spatial delta and gamma
+            retain their estimator.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -5419,8 +5512,8 @@ class FiniteDifferenceVanillaEngine:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
     @property
-    def volatility_shift(self) -> float:
-        """Return the numerical volatility bump in decimal units."""
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
 
     @property
     def rate_shift(self) -> float:
@@ -5504,7 +5597,7 @@ class FiniteDifferenceVanillaEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -5521,13 +5614,16 @@ class FiniteDifferenceVanillaEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -5585,9 +5681,12 @@ class FiniteDifferenceDigitalEngine:
         Positive absolute spot bump for native Greek availability and terminal
         stencils. None selects the automatic bump; prices and grids are
         unchanged.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-        spatial delta and gamma retain their estimator.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump, or None (default) for the smaller of
+        0.0001 and half the current volatility. Native spatial delta and gamma
+        retain their estimator.
+    rate_shift : float, optional
+        Positive decimal rate bump; defaults to 0.0001.
     time_shift : datetime.timedelta or None, optional
         Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -5627,7 +5726,7 @@ class FiniteDifferenceDigitalEngine:
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
         spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
+        volatility_shift: _Real | None = ...,
         rate_shift: _Real = ...,
         time_shift: timedelta | None = None,
     ) -> None: ...
@@ -5639,7 +5738,7 @@ class FiniteDifferenceDigitalEngine:
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
@@ -5672,9 +5771,12 @@ class FiniteDifferenceDigitalEngine:
             Positive absolute spot bump for native Greek availability and terminal
             stencils. None selects the automatic bump; prices and grids are
             unchanged.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical Greeks; defaults to 0.0001. Native
-            spatial delta and gamma retain their estimator.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump, or None (default) for the smaller of
+            0.0001 and half the current volatility. Native spatial delta and gamma
+            retain their estimator.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond time bump, or None for automatic selection.
 
@@ -5706,8 +5808,8 @@ class FiniteDifferenceDigitalEngine:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
     @property
-    def volatility_shift(self) -> float:
-        """Return the numerical volatility bump in decimal units."""
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
 
     @property
     def rate_shift(self) -> float:
@@ -5797,7 +5899,7 @@ class FiniteDifferenceDigitalEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -5814,13 +5916,16 @@ class FiniteDifferenceDigitalEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -6128,7 +6233,7 @@ class MonteCarloVanillaEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -6145,13 +6250,16 @@ class MonteCarloVanillaEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -6480,7 +6588,7 @@ class MonteCarloDigitalEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -6497,13 +6605,16 @@ class MonteCarloDigitalEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -6791,7 +6902,7 @@ class MonteCarloBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -6808,13 +6919,16 @@ class MonteCarloBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -7103,7 +7217,7 @@ class MonteCarloDoubleBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -7120,13 +7234,16 @@ class MonteCarloDoubleBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -7447,7 +7564,7 @@ class MonteCarloAutocallableEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -7464,13 +7581,16 @@ class MonteCarloAutocallableEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -7758,7 +7878,7 @@ class MonteCarloAccumulatorEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -7775,13 +7895,16 @@ class MonteCarloAccumulatorEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -8098,7 +8221,7 @@ class MonteCarloAsianEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -8115,13 +8238,16 @@ class MonteCarloAsianEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -9189,7 +9315,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9207,8 +9333,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9250,7 +9379,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9268,8 +9397,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9306,7 +9438,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9324,8 +9456,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9364,7 +9499,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9382,8 +9517,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9420,7 +9558,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9438,8 +9576,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9480,7 +9621,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9498,8 +9639,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9536,7 +9680,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9554,8 +9698,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9592,7 +9739,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9610,8 +9757,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9648,7 +9798,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9666,8 +9816,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9708,7 +9861,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9726,8 +9879,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9764,7 +9920,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9782,8 +9938,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9822,7 +9981,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9840,8 +9999,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -9878,7 +10040,7 @@ def numerical_greeks(
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
     spot_shift: _Real | None | EllipsisType = ...,
-    volatility_shift: _Real | EllipsisType = ...,
+    volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
@@ -9896,8 +10058,11 @@ def numerical_greeks(
     spot_shift : float or None, optional
         Positive absolute spot bump. Omission or Ellipsis retains the engine's
         setting; None selects the automatic engine/product bump.
-    volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
+    volatility_shift : float or None, optional
+        Positive decimal volatility bump. None selects the smaller of 0.0001 and
+        half the current volatility. Omission or Ellipsis retains engine settings.
+    rate_shift : float, optional
+        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
         Positive explicit bump. Omission or Ellipsis retains the engine's setting;
         None selects an automatic bump up to one day
@@ -10169,7 +10334,7 @@ class AnalyticGeometricAveragePriceEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -10186,13 +10351,16 @@ class AnalyticGeometricAveragePriceEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -10463,7 +10631,7 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -10480,13 +10648,16 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -10829,7 +11000,7 @@ class AnalyticBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -10846,13 +11017,16 @@ class AnalyticBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -11378,7 +11552,7 @@ class AnalyticRangeAccrualEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -11395,13 +11569,16 @@ class AnalyticRangeAccrualEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -11526,7 +11703,7 @@ class AnalyticDoubleBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -11543,13 +11720,16 @@ class AnalyticDoubleBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -11684,7 +11864,7 @@ class AnalyticDoubleTouchEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -11701,13 +11881,16 @@ class AnalyticDoubleTouchEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -12671,7 +12854,7 @@ class AnalyticBinaryBarrierEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -12688,13 +12871,16 @@ class AnalyticBinaryBarrierEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -13209,7 +13395,7 @@ class QuadratureAutocallableEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -13226,13 +13412,16 @@ class QuadratureAutocallableEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 
@@ -15699,7 +15888,7 @@ class QuadratureAccumulatorEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
         spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
@@ -15716,13 +15905,16 @@ class QuadratureAccumulatorEngine:
             An empty iterable requests price only.
         spot_shift : float or None, optional
             Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift, rate_shift : float, optional
-            Positive decimal bumps for numerical fallback Greeks.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
             Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot/time bumps and 0.0001 volatility/rate
-            bumps. Controls affect numerical fallbacks, event checks and terminal
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
 

@@ -776,7 +776,7 @@ fn request_and_solver_errors_preserve_inputs() {
             &context,
             GreeksRequest::all(),
             NumericalShiftSettings {
-                volatility_shift: 0.0,
+                volatility_shift: Some(0.0),
                 ..shifts
             }
         )

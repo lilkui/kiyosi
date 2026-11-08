@@ -119,6 +119,7 @@ pub(crate) fn expiry_greeks(
 /// or product events are unavailable. Automatic terminal spot bumps use the smaller
 /// of 0.01 spot units and 1% of spot for every engine, including American Monte Carlo.
 ///
+/// Automatic volatility bumps are capped at half the current volatility; explicit bumps retain their size.
 /// Uses rounded symmetric absolute bumps; collapsed, asymmetric or nonpositive
 /// stencils have [`crate::GreekStatus::StencilUnavailable`]. A derivative undefined
 /// at the valuation, such as a terminal payoff kink or zero-volatility boundary,
@@ -237,7 +238,7 @@ pub(crate) fn complete_greeks(
     let vol = model.volatility();
     let rate = model.risk_free_curve().exact_flat_rate().unwrap_or(0.0);
     let h = symmetric_shift(spot, settings.spot_shift_at(spot));
-    let v = symmetric_shift(vol, settings.volatility_shift);
+    let v = symmetric_shift(vol, settings.volatility_shift_at(vol));
     let r = symmetric_shift(rate, settings.rate_shift);
     let spot_ok = [
         Greek::Delta,
@@ -666,7 +667,7 @@ mod tests {
                 request,
                 NumericalShiftSettings {
                     spot_shift: Some(0.25),
-                    volatility_shift: 0.125,
+                    volatility_shift: Some(0.125),
                     rate_shift: 0.125,
                     time_shift: Some(std::time::Duration::from_secs(86_400)),
                 },
@@ -714,7 +715,7 @@ mod tests {
             request,
             NumericalShiftSettings {
                 spot_shift: Some(0.25),
-                volatility_shift: 0.125,
+                volatility_shift: Some(0.125),
                 ..Default::default()
             },
             true,

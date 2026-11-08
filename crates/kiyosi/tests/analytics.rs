@@ -283,7 +283,7 @@ fn volga_and_dividend_rho_preserve_units_curves_and_selectivity() {
                         &context,
                         GreeksRequest::new([greek]),
                         NumericalShiftSettings {
-                            volatility_shift: bump,
+                            volatility_shift: Some(bump),
                             rate_shift: bump,
                             ..Default::default()
                         },
@@ -366,7 +366,7 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
         &context,
         request,
         NumericalShiftSettings {
-            volatility_shift: 0.2,
+            volatility_shift: Some(0.2),
             ..Default::default()
         },
     )
@@ -481,7 +481,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
                 ..Default::default()
             },
             NumericalShiftSettings {
-                volatility_shift: bad,
+                volatility_shift: Some(bad),
                 ..Default::default()
             },
             NumericalShiftSettings {
@@ -997,7 +997,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
     let (option, context) = market();
     let settings = NumericalShiftSettings {
         spot_shift: Some(200.0),
-        volatility_shift: 0.3,
+        volatility_shift: Some(0.3),
         ..Default::default()
     };
     let result = numerical_greeks(

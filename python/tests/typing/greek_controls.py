@@ -57,7 +57,7 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
                 context,
                 "delta",
                 spot_shift=0.1,
-                volatility_shift=0.001,
+                volatility_shift=None,
                 rate_shift=0.001,
                 time_shift=timedelta(seconds=60),
             ),
@@ -75,6 +75,7 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
                 context,
                 "delta",
                 spot_shift=0.001,
+                volatility_shift=None,
                 time_shift=timedelta(seconds=1),
             ),
             PricingResult,
@@ -86,7 +87,7 @@ def fd_configured_shifts(option: EuropeanOption, context: PricingContext) -> Non
         volatility_shift=0.00001, rate_shift=0.0002, time_shift=timedelta(seconds=60)
     )
 
-    assert_type(engine.volatility_shift, float)
+    assert_type(engine.volatility_shift, float | None)
     assert_type(engine.rate_shift, float)
     assert_type(engine.time_shift, timedelta | None)
     assert_type(

@@ -840,6 +840,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 "vanna",
                 "zomma",
             ],
+            volatility_shift=0.0001,
         )
         for greek in (
             "vega",

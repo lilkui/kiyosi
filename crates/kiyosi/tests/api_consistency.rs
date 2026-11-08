@@ -1366,7 +1366,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
                         ..Default::default()
                     },
                     NumericalShiftSettings {
-                        volatility_shift: bad,
+                        volatility_shift: Some(bad),
                         ..Default::default()
                     },
                     NumericalShiftSettings {
@@ -2144,7 +2144,7 @@ fn settings_diagnostics_identify_invalid_fields() {
         (
             "volatility_shift",
             NumericalShiftSettings {
-                volatility_shift: 0.0,
+                volatility_shift: Some(0.0),
                 ..Default::default()
             }
             .validate(),
@@ -2638,7 +2638,7 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
 }
 
 #[test]
-fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
+fn automatic_volatility_bumps_preserve_explicit_controls_and_zero_boundary() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
@@ -2653,7 +2653,10 @@ fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
         &dated(&option, &context),
         &context,
         request,
-        Default::default(),
+        NumericalShiftSettings {
+            volatility_shift: Some(0.0001),
+            ..Default::default()
+        },
     )?;
     assert_eq!(
         unavailable.status(Greek::Vega),
@@ -2666,7 +2669,7 @@ fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
         &context,
         request,
         NumericalShiftSettings {
-            volatility_shift: 0.000_01,
+            volatility_shift: Some(0.000_01),
             ..Default::default()
         },
     )?;
@@ -2674,6 +2677,15 @@ fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
         AnalyticEuropeanEngine.price_with_greeks(&dated(&option, &context), &context, request)?;
     assert_eq!(recovered.status(Greek::Vega), GreekStatus::Available);
     assert!((recovered.require(Greek::Vega)? - exact.require(Greek::Vega)?).abs() < 1e-7);
+    let automatic = numerical_greeks(
+        &AnalyticEuropeanEngine,
+        &option,
+        &context,
+        request,
+        Default::default(),
+    )?;
+    assert_eq!(automatic.status(Greek::Vega), GreekStatus::Available);
+    assert!((automatic.require(Greek::Vega)? - exact.require(Greek::Vega)?).abs() < 1e-7);
     let zero = context.replace(PricingContextChanges {
         model_parameters: Some(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?.into()),
         ..Default::default()
@@ -2710,9 +2722,9 @@ fn fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates() -> Result<(
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]);
     let base = FiniteDifferenceVanillaEngine::new(settings)?
         .price_with_greeks(&option, &context, request)?;
-    assert_eq!(base.status(Greek::Vega), GreekStatus::StencilUnavailable);
+    assert_eq!(base.status(Greek::Vega), GreekStatus::Available);
     let configured = FiniteDifferenceSettings {
-        volatility_shift: 0.000_01,
+        volatility_shift: Some(0.000_01),
         rate_shift: 0.000_2,
         time_shift: Some(std::time::Duration::from_secs(60)),
         ..settings
@@ -2760,7 +2772,7 @@ fn fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates() -> Result<(
     }
     for invalid in [
         FiniteDifferenceSettings {
-            volatility_shift: 0.0,
+            volatility_shift: Some(0.0),
             ..settings
         },
         FiniteDifferenceSettings {

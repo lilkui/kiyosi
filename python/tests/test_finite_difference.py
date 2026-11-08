@@ -312,7 +312,6 @@ class FiniteDifferenceTests(unittest.TestCase):
                 )
             for settings in (
                 {"spot_shift": True},
-                {"volatility_shift": None},
                 {"rate_shift": "1"},
                 {"time_shift": True},
                 {"time_shift": 1.5},

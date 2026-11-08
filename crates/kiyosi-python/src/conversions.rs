@@ -130,6 +130,14 @@ pub(crate) fn boolean(value: &Bound<'_, PyAny>) -> PyResult<bool> {
     value.cast::<PyBool>()?.extract()
 }
 
+pub(crate) fn optional_real(value: &Bound<'_, PyAny>) -> PyResult<Option<f64>> {
+    if value.is_none() {
+        Ok(None)
+    } else {
+        real(value).map(Some)
+    }
+}
+
 pub(crate) fn direction(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::OptionType> {
     match value.extract::<&str>()? {
         "call" => Ok(kiyosi::OptionType::Call),

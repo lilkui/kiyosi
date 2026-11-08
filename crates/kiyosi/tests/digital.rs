@@ -33,13 +33,13 @@ fn configured_fallback_greeks_preserve_analytic_delta_and_gamma() -> Result<()> 
             ),
         ] {
             let native = AnalyticDigitalEngine.price_with_greeks(&option, &context, request)?;
-            assert_eq!(native.status(Greek::Vega), GreekStatus::StencilUnavailable);
+            assert_eq!(native.status(Greek::Vega), GreekStatus::Available);
             let result = AnalyticDigitalEngine.price_with_greeks_with_settings(
                 &option,
                 &context,
                 request,
                 NumericalShiftSettings {
-                    volatility_shift: 0.000_01,
+                    volatility_shift: Some(0.000_01),
                     ..Default::default()
                 },
             )?;
@@ -76,7 +76,7 @@ fn digital_fallback_controls_validate_even_for_native_and_terminal_requests() ->
                 ..Default::default()
             },
             NumericalShiftSettings {
-                volatility_shift: f64::NAN,
+                volatility_shift: Some(f64::NAN),
                 ..Default::default()
             },
             NumericalShiftSettings {
@@ -637,7 +637,7 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                     ..Default::default()
                 },
                 NumericalShiftSettings {
-                    volatility_shift: bad,
+                    volatility_shift: Some(bad),
                     ..Default::default()
                 },
                 NumericalShiftSettings {
