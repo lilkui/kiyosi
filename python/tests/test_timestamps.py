@@ -267,7 +267,7 @@ class TimestampTests(unittest.TestCase):
                 self.assertEqual(
                     list(expiry_only.knock_in_observation_schedule), [expiry]
                 )
-                exported = note.knock_in_observation_schedule.times
+                exported = list(note.knock_in_observation_schedule.times)
                 exported.clear()
                 self.assertEqual(
                     list(note.knock_in_observation_schedule), [start, last]
@@ -421,7 +421,7 @@ class TimestampTests(unittest.TestCase):
             end_time=clock(3, 31, 15),
             first_observation_month=1,
         )
-        self.assertEqual(schedule.times, [clock(2, 28, 10), clock(3, 31, 10)])
+        self.assertEqual(schedule.times, (clock(2, 28, 10), clock(3, 31, 10)))
         self.assertEqual(pickle.loads(pickle.dumps(schedule)), schedule)
         fixed = fixed_interval_schedule(
             observation_clock_time=clock_time(10, 11, 12, 123456),
@@ -441,7 +441,7 @@ class TimestampTests(unittest.TestCase):
             observation_times=[time(6, 10), time(6, 10, 1), time(6, 15)],
         )
         self.assertEqual(
-            option.observation_times, [time(6, 10), time(6, 10, 1), time(6, 15)]
+            option.observation_times, (time(6, 10), time(6, 10, 1), time(6, 15))
         )
         for invalid in ([time(6, 10)] * 2, [time(6, 15), time(6, 10)]):
             with self.subTest(invalid=invalid), self.assertRaises(InvalidInputError):

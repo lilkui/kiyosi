@@ -386,7 +386,7 @@ class SupportMatrixTests(unittest.TestCase):
                         self.assertAlmostEqual(
                             result.delta, terminal_delta(instrument), delta=1e-10
                         )
-                    self.assertEqual(result.requested, ["delta"])
+                    self.assertEqual(result.requested, ("delta",))
                     self.assertEqual(
                         result.status("delta"),
                         "unsupported" if name in HESTON_ENGINES else "available",
@@ -421,8 +421,8 @@ class SupportMatrixTests(unittest.TestCase):
                     result = self.engines[name].price_with_greeks(
                         dated_history(instrument, local), local, ["delta", "vega"]
                     )
-                    self.assertEqual(result.requested, ["delta", "vega"])
-                    self.assertEqual(result.supported, ["delta", "gamma"])
+                    self.assertEqual(result.requested, ("delta", "vega"))
+                    self.assertEqual(result.supported, ("delta", "gamma"))
                     self.assertEqual(result.status("delta"), "available")
                     self.assertAlmostEqual(
                         result.delta, terminal_delta(instrument), delta=1e-10

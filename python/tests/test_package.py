@@ -130,7 +130,7 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(option.rebate, 0)
         self.assertEqual(option.rebate_timing, "at_expiry")
         self.assertEqual(option.observation_mode, "continuous")
-        self.assertEqual(option.observation_times, [])
+        self.assertEqual(option.observation_times, ())
         arguments = inspect.signature(market.monthly_schedule).bind(
             observation_clock_time=clock_time(),
             start_time=start,

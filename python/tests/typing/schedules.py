@@ -22,7 +22,7 @@ def explicit_schedule() -> None:
         end_time=end,
         calendar=all_days_calendar(),
     )
-    assert_type(schedule.times, list[datetime])
+    assert_type(schedule.times, tuple[datetime, ...])
     assert_type(schedule[0], datetime)
     assert_type(schedule[::-1], list[datetime])
 

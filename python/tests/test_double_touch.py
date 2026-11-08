@@ -297,7 +297,7 @@ class DoubleTouchTests(unittest.TestCase):
         self.assertEqual(option.settlement_timing, "at_expiry")
         self.assertEqual(option.observation_mode, "continuous")
         self.assertIsNone(option.touch_state)
-        self.assertEqual(option.observation_times, [])
+        self.assertEqual(option.observation_times, ())
         self.assertEqual(option.payout, 1)
         replaced = option.replace_history(touch_state="untouched")
         self.assertEqual(replaced.touch_state, "untouched")
@@ -308,9 +308,9 @@ class DoubleTouchTests(unittest.TestCase):
             cash_double_no_touch, observation_mode="scheduled", observation_times=dates
         )
         dates.clear()
-        copy = scheduled.observation_times
+        copy = list(scheduled.observation_times)
         copy.clear()
-        self.assertEqual(scheduled.observation_times, [FIRST, END])
+        self.assertEqual(scheduled.observation_times, (FIRST, END))
         self.assertFalse(scheduled.is_one_touch)
         self.assertEqual(scheduled.settlement_timing, "at_expiry")
         self.assertIn("DoubleTouchOption", repr(scheduled))

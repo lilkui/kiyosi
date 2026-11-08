@@ -442,7 +442,7 @@ class SnowballVariantTests(unittest.TestCase):
                 ),
                 note,
             )
-            records = note.observations
+            records = list(note.observations)
             records.clear()
             self.assertEqual(len(note.observations), 1)
             for field in ("maturity_coupon_rate", "principal_ratio"):
@@ -620,7 +620,7 @@ class SnowballVariantTests(unittest.TestCase):
             **(stepped | {"observation_times": [datetime(2025, 2, 3), END]}),
             knock_out_level_decrement=-2,
         )
-        self.assertEqual(note.knock_out_levels, [110, 112])
+        self.assertEqual(note.knock_out_levels, (110, 112))
 
     def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_reads(
         self,

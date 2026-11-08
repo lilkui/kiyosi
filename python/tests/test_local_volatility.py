@@ -157,12 +157,12 @@ class LocalVolatilityTests(unittest.TestCase):
             times=iter([START, END]), spots=iter([80, 120]), values=iter(rows)
         )
         rows[0][0] = 99
-        copied = s.values
+        copied = [list(row) for row in s.values]
         copied[0][0] = 98
-        copied_spots = s.spots
+        copied_spots = list(s.spots)
         copied_spots[0] = 1
-        self.assertEqual(s.values, [[0.2, 0.4], [0.4, 0.8]])
-        self.assertEqual(s.spots, [80, 120])
+        self.assertEqual(s.values, ((0.2, 0.4), (0.4, 0.8)))
+        self.assertEqual(s.spots, (80, 120))
         self.assertEqual(s.times[0], datetime(2025, 1, 1))
         c = context(s)
         m = c.model_parameters

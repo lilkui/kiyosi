@@ -212,7 +212,7 @@ class ImpliedCouponTests(unittest.TestCase):
                         note.with_quoted_coupon(True, quote_convention=convention)
             with self.assertRaises(ValueError):
                 note.with_quoted_coupon(0.1, quote_convention="unknown")
-            self.assertEqual(note.knock_out_coupon_rates, [0.08, 0.12])
+            self.assertEqual(note.knock_out_coupon_rates, (0.08, 0.12))
             self.assertEqual(note.maturity_coupon_rate, 0.06)
 
         for note in (
@@ -397,7 +397,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 quote,
                 delta=1e-8,
             )
-        self.assertEqual(note.knock_out_coupon_rates, [0.08])
+        self.assertEqual(note.knock_out_coupon_rates, (0.08,))
         self.assertEqual(note.maturity_coupon_rate, 0.06)
 
     def test_all_products_and_presets_recover_signed_quotes_and_residuals(self):

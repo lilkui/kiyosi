@@ -192,6 +192,29 @@ def values():
 
 
 class SerializationTests(unittest.TestCase):
+    def test_owned_collection_properties_reject_silent_edits(self):
+        surface = m.LocalVolatilitySurface(
+            times=[START, END], spots=[80, 120], values=[[0.2, 0.3], [0.3, 0.4]]
+        )
+        with self.assertRaises(TypeError):
+            surface.values[0][0] = 0.5
+        observation = i.AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
+        note = i.BinarySnowballOption(
+            maturity_coupon_rate=0.1,
+            effective_time=START,
+            expiry_time=END,
+            observations=[observation],
+        )
+        updated = observation.replace(coupon_rate=0.2)
+        with self.assertRaises(TypeError):
+            note.observations[0] = updated
+        editable = list(note.observations)
+        editable[0] = updated
+        replacement = note.replace(observations=editable)
+        self.assertEqual(replacement.observations, (updated,))
+        self.assertEqual(note.observations, (observation,))
+        self.assertEqual(surface.values, ((0.2, 0.3), (0.3, 0.4)))
+
     def test_results_compare_by_value_including_metadata_and_uncertainty(self):
         option = i.EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END

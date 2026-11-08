@@ -39,7 +39,9 @@ Set the timestamp alongside updated history with ``replace_history``. Clearing
 the final history payload clears an omitted timestamp; explicit timestamps are retained. Numerical
 time sensitivities hold the observed history fixed for their hypothetical rolls.
 
-Values own their data and expose read-only properties. Default representations
+Values own their data and expose read-only properties. Collection properties
+return owned tuples, with nested tuples for surface rows; use list(...) for an
+editable copy and pass it to a constructor or replace(). Default representations
 show contract terms, market inputs, engine controls and result values, with
 large arrays abbreviated through bounded native previews for interactive inspection.
 Representations do not copy full surfaces, curves or observation arrays. Shared and distinct
@@ -78,7 +80,7 @@ Use ``result.status("delta")`` to distinguish ``"available"``, ``"not_requested"
 ``"unsupported"`` (outside the engine/model coverage), ``"undefined"``
 (a derivative undefined at this valuation) and ``"stencil_unavailable"``
 (a numerical stencil that may be recovered by changing controls). The
-``requested`` and ``supported`` properties return owned lists of Greek names.
+``requested`` and ``supported`` properties return owned tuples of Greek names.
 Rho and dividend rho are ∂V/∂r and ∂V/∂q for parallel decimal shifts of the
 continuously compounded risk-free and dividend-yield curves, respectively,
 holding other market inputs fixed.

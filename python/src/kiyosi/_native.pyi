@@ -579,11 +579,11 @@ class RateTermStructure:
         """Return the inclusive upper bound, or None for an unbounded flat curve."""
 
     @property
-    def nodes(self) -> list[datetime]:
+    def nodes(self) -> tuple[datetime, ...]:
         """Return a copy of the supplied curve node times."""
 
     @property
-    def factors(self) -> list[float]:
+    def factors(self) -> tuple[float, ...]:
         """Return owned node factors including shifts, allowing underflow to zero.
 
         Raises
@@ -598,7 +598,7 @@ class RateTermStructure:
         preserves this representation, including extreme shifted curves."""
 
     @property
-    def base_factors(self) -> list[float]:
+    def base_factors(self) -> tuple[float, ...]:
         """Return an owned copy of the original node factors, excluding parallel shifts.
 
         Flat curves have no node factors. For node curves, pass these factors with
@@ -919,15 +919,15 @@ class LocalVolatilitySurface:
         values: Iterable[Iterable[_Real]],
     ) -> None: ...
     @property
-    def times(self) -> list[datetime]:
+    def times(self) -> tuple[datetime, ...]:
         """Return copied absolute time nodes as datetimes."""
 
     @property
-    def spots(self) -> list[float]:
+    def spots(self) -> tuple[float, ...]:
         """Return copied absolute price nodes."""
 
     @property
-    def values(self) -> list[list[float]]:
+    def values(self) -> tuple[tuple[float, ...], ...]:
         """Return copied volatility rows, indexed by time then price."""
 
     @property
@@ -1220,7 +1220,7 @@ class ObservationSchedule:
         calendar: TradingCalendar = ...,
     ) -> None: ...
     @property
-    def times(self) -> list[datetime]:
+    def times(self) -> tuple[datetime, ...]:
         """Return a copy of the strictly ordered observation times."""
 
     def __len__(self) -> int: ...
@@ -6051,11 +6051,11 @@ class PricingResult:
         stencil reports stencil_unavailable; changing controls may recover the measure."""
 
     @property
-    def requested(self) -> list[Greek]:
+    def requested(self) -> tuple[Greek, ...]:
         """Return requested Greek names in the library's stable measure order."""
 
     @property
-    def supported(self) -> list[Greek]:
+    def supported(self) -> tuple[Greek, ...]:
         """Return engine/model-supported names, independent of valuation and stencil availability."""
 
 @overload
@@ -8262,7 +8262,7 @@ class BarrierOption:
         """Returns continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
@@ -8588,7 +8588,7 @@ class DoubleBarrierOption:
         """Returns continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
@@ -9296,7 +9296,7 @@ class BinaryBarrierOption:
         """Returns continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
@@ -9532,7 +9532,7 @@ class TouchOption:
         """Returns continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
@@ -10094,7 +10094,7 @@ class DoubleTouchOption:
         """Returns continuous monitoring or observations on the supplied times."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
@@ -10745,19 +10745,19 @@ class SnowballOption:
             If replacement terms fail domain validation. The original is unchanged."""
 
     @property
-    def observations(self) -> list[AutocallableObservation]:
+    def observations(self) -> tuple[AutocallableObservation, ...]:
         """Returns owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
-    def knock_out_levels(self) -> list[float]:
+    def knock_out_levels(self) -> tuple[float, ...]:
         """Returns copied knock-out thresholds in observation order."""
 
     @property
-    def knock_out_coupon_rates(self) -> list[float]:
+    def knock_out_coupon_rates(self) -> tuple[float, ...]:
         """Return copied annual knock-out coupons in observation order."""
 
     @property
@@ -11204,19 +11204,19 @@ class PhoenixOption:
             If replacement terms fail domain validation. The original is unchanged."""
 
     @property
-    def observations(self) -> list[AutocallableObservation]:
+    def observations(self) -> tuple[AutocallableObservation, ...]:
         """Returns owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
-    def knock_out_levels(self) -> list[float]:
+    def knock_out_levels(self) -> tuple[float, ...]:
         """Returns copied knock-out thresholds in observation order."""
 
     @property
-    def coupon_barrier_levels(self) -> list[float]:
+    def coupon_barrier_levels(self) -> tuple[float, ...]:
         """Return copied Phoenix coupon thresholds in observation order."""
 
     @property
@@ -11435,19 +11435,19 @@ class BinarySnowballOption:
             If replacement terms fail domain validation. The original is unchanged."""
 
     @property
-    def observations(self) -> list[AutocallableObservation]:
+    def observations(self) -> tuple[AutocallableObservation, ...]:
         """Returns owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
-    def knock_out_levels(self) -> list[float]:
+    def knock_out_levels(self) -> tuple[float, ...]:
         """Returns copied knock-out thresholds in observation order."""
 
     @property
-    def knock_out_coupon_rates(self) -> list[float]:
+    def knock_out_coupon_rates(self) -> tuple[float, ...]:
         """Return copied annual knock-out coupons in observation order."""
 
     @property
@@ -11671,19 +11671,19 @@ class TernarySnowballOption:
             If replacement terms fail domain validation. The original is unchanged."""
 
     @property
-    def observations(self) -> list[AutocallableObservation]:
+    def observations(self) -> tuple[AutocallableObservation, ...]:
         """Returns owned copies of the contractual observations."""
 
     @property
-    def observation_times(self) -> list[datetime]:
+    def observation_times(self) -> tuple[datetime, ...]:
         """Returns a copy of the contractual observation times."""
 
     @property
-    def knock_out_levels(self) -> list[float]:
+    def knock_out_levels(self) -> tuple[float, ...]:
         """Returns copied knock-out thresholds in observation order."""
 
     @property
-    def knock_out_coupon_rates(self) -> list[float]:
+    def knock_out_coupon_rates(self) -> tuple[float, ...]:
         """Return copied annual knock-out coupons in observation order."""
 
     @property
@@ -12428,7 +12428,7 @@ class Accumulator:
         """Returns call for purchases or put for sales."""
 
     @property
-    def knock_out_observation_times(self) -> list[datetime] | None:
+    def knock_out_observation_times(self) -> tuple[datetime, ...] | None:
         """Returns owned knock-out times, or None for at the daily accumulation time."""
 
     @property

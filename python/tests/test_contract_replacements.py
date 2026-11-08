@@ -381,7 +381,10 @@ class ContractReplacementTests(unittest.TestCase):
                     ):
                         self.assertFalse(changed.is_one_touch)
                     else:
-                        self.assertEqual(getattr(changed, name), value)
+                        self.assertEqual(
+                            getattr(changed, name),
+                            tuple(value) if isinstance(value, list) else value,
+                        )
                     expected = initial | updates
                     if name == "knock_in_observation_mode":
                         expected["observation_clock_time"] = None
@@ -496,7 +499,7 @@ class ContractReplacementTests(unittest.TestCase):
                         observation_times=[END],
                         touch_state=original.touch_state,
                     )
-                    self.assertEqual(scheduled.observation_times, [END])
+                    self.assertEqual(scheduled.observation_times, (END,))
                     self.assertEqual(scheduled.observation_mode, "scheduled")
 
     def test_monitoring_switch_clears_only_omitted_times_and_requires_history(self):
@@ -530,7 +533,7 @@ class ContractReplacementTests(unittest.TestCase):
                     observation_mode="continuous", touch_state=None
                 )
                 self.assertIsNone(cleared.touch_state)
-                self.assertEqual(cleared.observation_times, [])
+                self.assertEqual(cleared.observation_times, ())
                 self.assertEqual(
                     scheduled.replace_history(touch_state=None).replace(
                         observation_mode="continuous"
@@ -548,7 +551,7 @@ class ContractReplacementTests(unittest.TestCase):
                         observation_times=[], touch_state=scheduled.touch_state
                     )
                 self.assertEqual(scheduled.observation_mode, "scheduled")
-                self.assertEqual(scheduled.observation_times, [END])
+                self.assertEqual(scheduled.observation_times, (END,))
 
     def test_replaced_sequences_are_owned_and_phoenix_coupon_choices_are_exclusive(
         self,
@@ -563,10 +566,10 @@ class ContractReplacementTests(unittest.TestCase):
             barrier_state=note.barrier_state,
         )
         records.clear()
-        self.assertEqual(changed.knock_out_levels, [115])
+        self.assertEqual(changed.knock_out_levels, (115,))
         self.assertEqual(changed.coupon_per_period, 0.02)
         self.assertIsNone(changed.coupon_rate)
         self.assertEqual(note.coupon_rate, 0.1)
-        self.assertEqual(note.knock_out_levels, [110])
+        self.assertEqual(note.knock_out_levels, (110,))
         with self.assertRaises(TypeError):
             note.replace(coupon_rate=0.1, coupon_per_period=0.02)

@@ -233,10 +233,10 @@ class DoubleBarrierTests(unittest.TestCase):
         scheduled = contract(
             observation_mode="scheduled", observation_times=(d for d in [START, END])
         )
-        dates = scheduled.observation_times
+        dates = list(scheduled.observation_times)
         dates.clear()
-        self.assertEqual(scheduled.observation_times, [START, END])
-        self.assertEqual(scheduled.observation_schedule.times, [START, END])
+        self.assertEqual(scheduled.observation_times, (START, END))
+        self.assertEqual(scheduled.observation_schedule.times, (START, END))
         with self.assertRaises(AttributeError):
             option.upper_barrier = 130
 

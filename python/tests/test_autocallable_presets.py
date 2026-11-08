@@ -98,7 +98,7 @@ class AutocallablePresetTests(unittest.TestCase):
             self.assertIsNone(note.barrier_state)
             self.assertEqual(note.principal_ratio, 1)
             dates.clear()
-            self.assertEqual(note.observation_times, [MIDDLE, END])
+            self.assertEqual(note.observation_times, (MIDDLE, END))
             self.assertEqual(
                 note.replace_history(barrier_state="no_event").coupon_per_period, 0.01
             )
@@ -341,7 +341,7 @@ class AutocallablePresetTests(unittest.TestCase):
                 **terms(observation_times=dates, barrier_state="no_event"),
                 **extra,
             )
-            self.assertEqual(note.knock_out_coupon_rates, rates)
+            self.assertEqual(note.knock_out_coupon_rates, tuple(rates))
             self.assertEqual(note.maturity_coupon_rate, rates[-1])
             for day, rate in zip(dates, rates, strict=True):
                 expected = 1 + rate * (day - START).days / 365
@@ -371,7 +371,7 @@ class AutocallablePresetTests(unittest.TestCase):
             **fields,
             **terms(observation_times=[END]),
         )
-        self.assertEqual(note.knock_out_coupon_rates, [-0.02])
+        self.assertEqual(note.knock_out_coupon_rates, (-0.02,))
         increasing = butterfly_snowball(
             observation_clock_time=clock_time(),
             first_coupon_rate=-0.02,
@@ -381,7 +381,7 @@ class AutocallablePresetTests(unittest.TestCase):
             second_stage_end_time=datetime(2025, 3, 1),
             **terms(),
         )
-        self.assertEqual(increasing.knock_out_coupon_rates, [0, 0.2])
+        self.assertEqual(increasing.knock_out_coupon_rates, (0, 0.2))
         self.assertEqual(increasing.maturity_coupon_rate, 0.2)
         for cutoff in (datetime(2024, 12, 31), END, datetime(2025, 4, 2)):
             with self.assertRaises(InvalidInputError):

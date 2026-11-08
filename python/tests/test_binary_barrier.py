@@ -351,10 +351,10 @@ class BinaryBarrierTests(unittest.TestCase):
                 expected,
                 delta=1e-12,
             )
-            dates = known.observation_times
+            dates = list(known.observation_times)
             dates.clear()
-            self.assertEqual(known.observation_schedule.times, [fixing])
-            self.assertEqual(known.observation_times, [fixing])
+            self.assertEqual(known.observation_schedule.times, (fixing,))
+            self.assertEqual(known.observation_times, (fixing,))
             self.assertAlmostEqual(known.mean_observation_year_fraction, 1 / 365)
         with self.assertRaises(InvalidInputError):
             self.touch(

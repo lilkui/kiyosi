@@ -68,7 +68,7 @@ class ExpiryGreekTests(unittest.TestCase):
                                 engine.active_greek_controls(option, context), []
                             )
                             if isinstance(model, market.LocalVolatilityParameters):
-                                self.assertEqual(result.supported, ["delta", "gamma"])
+                                self.assertEqual(result.supported, ("delta", "gamma"))
                                 self.assertEqual(result.status("vega"), "unsupported")
                             only_delta = engine.price_with_greeks(
                                 dated_history(option, context), context, "delta"

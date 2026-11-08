@@ -100,11 +100,11 @@ class SnowballTests(unittest.TestCase):
         )
         note = contract(observations=iter(observations))
         observations.clear()
-        copy = note.observations
+        copy = list(note.observations)
         copy.clear()
-        self.assertEqual(note.observation_times, [END])
-        self.assertEqual(note.knock_out_levels, [110])
-        self.assertEqual(note.knock_out_coupon_rates, [0])
+        self.assertEqual(note.observation_times, (END,))
+        self.assertEqual(note.knock_out_levels, (110,))
+        self.assertEqual(note.knock_out_coupon_rates, (0,))
         known = note.replace_history(barrier_state="no_event")
         self.assertEqual(known.barrier_state, "no_event")
         for replacement in (

@@ -4,10 +4,42 @@ import copyreg
 import reprlib
 from datetime import datetime
 from inspect import isclass, signature
-from types import ModuleType
+from types import GetSetDescriptorType, ModuleType
 from typing import Any, get_args
 
 from . import _native
+
+_COLLECTION_PROPERTIES = {
+    "base_factors",
+    "coupon_barrier_levels",
+    "factors",
+    "knock_out_coupon_rates",
+    "knock_out_levels",
+    "knock_out_observation_times",
+    "nodes",
+    "observation_times",
+    "observations",
+    "requested",
+    "spots",
+    "supported",
+    "times",
+    "values",
+}
+
+
+def _immutable_collection(value: Any) -> Any:
+    return (
+        tuple(_immutable_collection(item) for item in value)
+        if isinstance(value, list)
+        else value
+    )
+
+
+def _collection_property(descriptor: Any) -> property:
+    def get(value: Any) -> Any:
+        return _immutable_collection(descriptor.__get__(value, type(value)))
+
+    return property(get, doc=descriptor.__doc__)
 
 
 def _copy(value: Any) -> Any:
@@ -187,6 +219,11 @@ def install(native: ModuleType) -> None:
             and value.__module__ == native.__name__
             and not issubclass(value, Exception)
         ):
+            for name, descriptor in tuple(vars(value).items()):
+                if name in _COLLECTION_PROPERTIES and isinstance(
+                    descriptor, GetSetDescriptorType
+                ):
+                    setattr(value, name, _collection_property(descriptor))
             value.__copy__ = _copy
             value.__deepcopy__ = _deepcopy
             copyreg.pickle(value, _reduce)

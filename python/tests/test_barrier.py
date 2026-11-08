@@ -270,10 +270,10 @@ class BarrierTests(unittest.TestCase):
                 dated_history(vanilla, self.context(150, noon)), self.context(150, noon)
             ),
         )
-        dates = untouched.observation_times
+        dates = list(untouched.observation_times)
         dates.clear()
-        self.assertEqual(untouched.observation_times, [fixing])
-        self.assertEqual(untouched.observation_schedule.times, [fixing])
+        self.assertEqual(untouched.observation_times, (fixing,))
+        self.assertEqual(untouched.observation_schedule.times, (fixing,))
         self.assertAlmostEqual(untouched.mean_observation_year_fraction, 1 / 365)
         with self.assertRaises(InvalidInputError):
             BarrierOption(

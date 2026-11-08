@@ -144,10 +144,10 @@ class PhoenixTests(unittest.TestCase):
         note = contract(barrier_state=None)
         self.assertEqual(note.principal_ratio, 1)
         self.assertIsNone(note.barrier_state)
-        self.assertEqual(note.coupon_barrier_levels, [90, 90])
-        records = note.observations
+        self.assertEqual(note.coupon_barrier_levels, (90, 90))
+        records = list(note.observations)
         records.clear()
-        self.assertEqual(note.observation_times, [MIDDLE, END])
+        self.assertEqual(note.observation_times, (MIDDLE, END))
         self.assertEqual(
             note.replace_history(barrier_state="no_event").replace_history(
                 barrier_state=None

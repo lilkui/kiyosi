@@ -31,7 +31,7 @@ class CalendarTests(unittest.TestCase):
         self.assertEqual(schedule[-1], end)
         self.assertEqual(pickle.loads(pickle.dumps(schedule)), schedule)
         times.clear()
-        copied = schedule.times
+        copied = list(schedule.times)
         copied.clear()
         self.assertEqual(len(schedule), 3)
 
@@ -135,7 +135,7 @@ class CalendarTests(unittest.TestCase):
             end_time=datetime(2025, 1, 7),
             interval_days=1,
         )
-        self.assertEqual(fixed.times, [datetime(2025, 1, 6), datetime(2025, 1, 7)])
+        self.assertEqual(fixed.times, (datetime(2025, 1, 6), datetime(2025, 1, 7)))
         self.assertEqual(
             monthly_schedule(
                 observation_clock_time=clock_time(),
@@ -143,7 +143,7 @@ class CalendarTests(unittest.TestCase):
                 end_time=datetime(2025, 3, 1),
                 first_observation_month=1,
             ).times,
-            [datetime(2025, 2, 3)],
+            (datetime(2025, 2, 3),),
         )
         self.assertEqual(
             monthly_schedule(
@@ -152,7 +152,7 @@ class CalendarTests(unittest.TestCase):
                 end_time=datetime(2025, 4, 30),
                 first_observation_month=1,
             ).times,
-            [datetime(2025, 2, 28), datetime(2025, 3, 31), datetime(2025, 4, 30)],
+            (datetime(2025, 2, 28), datetime(2025, 3, 31), datetime(2025, 4, 30)),
         )
         self.assertEqual(
             monthly_schedule(
@@ -162,7 +162,7 @@ class CalendarTests(unittest.TestCase):
                 first_observation_month=1,
                 calendar=all_days_calendar(),
             ).times,
-            [datetime(2024, 2, 29), datetime(2024, 3, 31)],
+            (datetime(2024, 2, 29), datetime(2024, 3, 31)),
         )
         self.assertEqual(
             monthly_schedule(
@@ -171,7 +171,7 @@ class CalendarTests(unittest.TestCase):
                 end_time=datetime(2025, 4, 2),
                 first_observation_month=2,
             ).times,
-            [datetime(2025, 3, 3), datetime(2025, 4, 2)],
+            (datetime(2025, 3, 3), datetime(2025, 4, 2)),
         )
         for start, end in (
             (datetime(2025, 1, 1), datetime(2025, 1, 1)),
@@ -187,7 +187,7 @@ class CalendarTests(unittest.TestCase):
                             end_time=end,
                             interval_days=interval,
                         ).times,
-                        [],
+                        (),
                     )
             self.assertEqual(
                 monthly_schedule(
@@ -196,7 +196,7 @@ class CalendarTests(unittest.TestCase):
                     end_time=end,
                     first_observation_month=2**31 - 1,
                 ).times,
-                [],
+                (),
             )
         self.assertEqual(
             fixed_interval_schedule(
@@ -206,7 +206,7 @@ class CalendarTests(unittest.TestCase):
                 interval_days=1,
                 calendar=all_days_calendar(),
             ).times,
-            [datetime(9999, 12, 31)],
+            (datetime(9999, 12, 31),),
         )
 
     def test_closures_merge_candidates_and_stop_at_end(self):
@@ -228,7 +228,7 @@ class CalendarTests(unittest.TestCase):
                 calendar=calendar,
             ),
         ):
-            self.assertEqual(schedule.times, [datetime(2025, 4, 1)])
+            self.assertEqual(schedule.times, (datetime(2025, 4, 1),))
         self.assertEqual(
             fixed_interval_schedule(
                 observation_clock_time=clock_time(),
@@ -237,7 +237,7 @@ class CalendarTests(unittest.TestCase):
                 interval_days=1,
                 calendar=calendar,
             ).times,
-            [],
+            (),
         )
 
     def test_schedule_iteration_indexing_and_owning_copies(self):
@@ -270,9 +270,9 @@ class CalendarTests(unittest.TestCase):
         with self.assertRaises(OverflowError) as error:
             _ = schedule[BrokenIndex()]
         self.assertIs(error.exception, failure)
-        copied = schedule.times
+        copied = list(schedule.times)
         copied.clear()
-        self.assertEqual(schedule.times, expected)
+        self.assertEqual(schedule.times, tuple(expected))
         with self.assertRaises(AttributeError):
             schedule.times = []
         first, second = iter(schedule), schedule.__iter__()

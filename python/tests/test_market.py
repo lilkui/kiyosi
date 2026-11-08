@@ -76,7 +76,7 @@ class RateTermStructureTests(unittest.TestCase):
                     restored.log_factor(REFERENCE, MATURITY),
                     curve.log_factor(REFERENCE, MATURITY),
                 )
-                copied = curve.base_factors
+                copied = list(curve.base_factors)
                 copied.clear()
                 self.assertEqual(curve.base_factors, base.factors)
         self.assertEqual(base.shifted(1000).factors[-1], 0.0)
@@ -86,7 +86,7 @@ class RateTermStructureTests(unittest.TestCase):
                 0.05, reference_time=REFERENCE, max_time=MATURITY
             ),
         ):
-            self.assertEqual(curve.base_factors, [])
+            self.assertEqual(curve.base_factors, ())
             self.assertEqual(curve.parallel_shift, 0.0)
 
     def test_rounded_flat_nodes_explain_exact_constant_curve_requirement(self):
@@ -224,7 +224,7 @@ class RateTermStructureTests(unittest.TestCase):
         curve = example_curve()
         self.assertEqual(curve.reference_time, REFERENCE)
         self.assertEqual(curve.max_time, MATURITY)
-        self.assertEqual(curve.nodes, [MIDDLE, MATURITY])
+        self.assertEqual(curve.nodes, (MIDDLE, MATURITY))
         self.assertEqual(curve.factors[0], math.exp(-0.02 * 180 / 365))
         self.assertAlmostEqual(
             curve.factor(REFERENCE, REFERENCE + timedelta(days=90, hours=12)),
@@ -414,21 +414,21 @@ class RateTermStructureTests(unittest.TestCase):
         times.clear()
         factors[0] = 9
         self.assertEqual(curve.reference_time, REFERENCE)
-        self.assertEqual(curve.nodes, [MIDDLE, MATURITY])
-        self.assertEqual(curve.factors, [0.98, 0.94])
-        copied_nodes = curve.nodes
-        copied_factors = curve.factors
+        self.assertEqual(curve.nodes, (MIDDLE, MATURITY))
+        self.assertEqual(curve.factors, (0.98, 0.94))
+        copied_nodes = list(curve.nodes)
+        copied_factors = list(curve.factors)
         copied_nodes.clear()
         copied_factors[0] = 7
-        self.assertEqual(curve.nodes, [MIDDLE, MATURITY])
-        self.assertEqual(curve.factors, [0.98, 0.94])
+        self.assertEqual(curve.nodes, (MIDDLE, MATURITY))
+        self.assertEqual(curve.factors, (0.98, 0.94))
         with self.assertRaises(AttributeError):
             curve.reference_time = MATURITY
         date_curve = RateTermStructure(
             reference_time=START, times=[END], factors=[0.94]
         )
         self.assertEqual(date_curve.reference_time, REFERENCE)
-        self.assertEqual(date_curve.nodes, [MATURITY])
+        self.assertEqual(date_curve.nodes, (MATURITY,))
 
     def test_context_coverage_and_replace_preserve_independent_curves(self):
         risk_free = example_curve()
@@ -649,7 +649,7 @@ class RateTermStructureTests(unittest.TestCase):
             times=(time for time in [MIDDLE, MATURITY]),
             factors=(float(value) for value in (Fraction(49, 50), Fraction(47, 50))),
         )
-        self.assertEqual(curve.factors, [0.98, 0.94])
+        self.assertEqual(curve.factors, (0.98, 0.94))
         for time in (
             datetime.min.replace(tzinfo=timezone(timedelta(hours=1))),
             datetime.max.replace(tzinfo=timezone(-timedelta(hours=1))),
@@ -694,9 +694,9 @@ class RateTermStructureTests(unittest.TestCase):
             ComputationFailureError, overflowing.factor, REFERENCE, MATURITY
         )
         underflowing = curve.shifted(1000)
-        self.assertEqual(underflowing.factors, [0.0])
+        self.assertEqual(underflowing.factors, (0.0,))
         self.assertEqual(underflowing.factor(REFERENCE, MATURITY), 0.0)
-        self.assertEqual(curve.factors, [0.95])
+        self.assertEqual(curve.factors, (0.95,))
         for extreme in (overflowing, underflowing):
             self.assertEqual(pickle.loads(pickle.dumps(extreme)), extreme)
         self.assert_rejection(

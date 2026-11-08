@@ -121,7 +121,7 @@ class BinaryTouchConstructionTests(unittest.TestCase):
                 self.assertEqual(contract, factory(**factory_fields))
                 self.assertEqual(contract.payout, terms["payout"])
                 self.assertEqual(contract.calendar, calendar)
-                self.assertEqual(contract.observation_times, [end])
+                self.assertEqual(contract.observation_times, (end,))
                 self.assertEqual(contract.touch_state, "untouched")
                 engine = (
                     pricing.AnalyticDoubleTouchEngine()

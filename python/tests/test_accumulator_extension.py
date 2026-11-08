@@ -106,13 +106,13 @@ class AccumulatorExtensionTests(unittest.TestCase):
         source = [START, END]
         option = contract(option_type="put", knock_out_observation_times=source)
         source.clear()
-        self.assertEqual(option.knock_out_observation_times, [START, END])
-        returned = option.knock_out_observation_times
+        self.assertEqual(option.knock_out_observation_times, (START, END))
+        returned = list(option.knock_out_observation_times)
         returned.clear()
-        self.assertEqual(option.knock_out_observation_times, [START, END])
+        self.assertEqual(option.knock_out_observation_times, (START, END))
         updated = option.replace_history(accumulated_quantity=0.25)
         self.assertEqual(updated.option_type, "put")
-        self.assertEqual(updated.knock_out_observation_times, [START, END])
+        self.assertEqual(updated.knock_out_observation_times, (START, END))
         self.assertEqual(updated.accumulated_quantity, 0.25)
         self.assertEqual(option.accumulated_quantity, 3)
         self.assertEqual(updated.replace_history(accumulated_quantity=3), option)
@@ -133,7 +133,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 setattr(option, field, value)
         with self.assertRaises(InvalidInputError):
             option.replace_history(accumulated_quantity=-1)
-        self.assertEqual(option.knock_out_observation_times, [START, END])
+        self.assertEqual(option.knock_out_observation_times, (START, END))
         signature = inspect.signature(Accumulator)
         self.assertIsNone(signature.parameters["knock_out_observation_times"].default)
         self.assertEqual(
@@ -151,13 +151,13 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 expiry_time=datetime(2025, 2, 3),
                 knock_out_observation_times=schedule,
             ).knock_out_observation_times,
-            list(schedule),
+            tuple(schedule),
         )
         self.assertEqual(
             contract(
                 knock_out_observation_times=iter([END])
             ).knock_out_observation_times,
-            [END],
+            (END,),
         )
 
     def test_representation_and_explicit_schedule_validation(self):

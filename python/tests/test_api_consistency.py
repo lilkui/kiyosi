@@ -538,7 +538,10 @@ class ApiConsistencyTests(unittest.TestCase):
                                     )
             self.assertFalse(original.knock_out_settled)
             self.assertIsNone(original.accumulated_quantity)
-            self.assertEqual(original.knock_out_observation_times, times)
+            self.assertEqual(
+                original.knock_out_observation_times,
+                None if times is None else tuple(times),
+            )
 
     def test_numeric_rejections_identify_the_failing_field(self):
         defaults = {"risk_free_rate": 0.02, "dividend_yield": 0, "volatility": 0.2}
@@ -1394,7 +1397,7 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         self.assertEqual(result.status("delta"), "available")
         self.assertEqual(result.status("gamma"), "not_requested")
-        self.assertEqual(result.requested, ["delta"])
+        self.assertEqual(result.requested, ("delta",))
         terminal = pricing.AnalyticEuropeanEngine().price_with_greeks(
             dated_history(option, context.replace(valuation_time=end)),
             context.replace(valuation_time=end),
@@ -1439,7 +1442,7 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         self.assertEqual(partial.status("delta"), "available")
         self.assertEqual(partial.status("vega"), "unsupported")
-        self.assertEqual(partial.requested, ["delta", "vega"])
+        self.assertEqual(partial.requested, ("delta", "vega"))
         for original in (result, terminal, collapsed, unsupported, partial):
             restored = pickle.loads(pickle.dumps(original))
             self.assertEqual(restored.price, original.price)
@@ -1503,7 +1506,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     result.price, engine.price(dated_history(option, context), context)
                 )
                 self.assertAlmostEqual(result.require("delta"), expected, delta=0.03)
-                self.assertEqual(result.requested, ["delta"])
+                self.assertEqual(result.requested, ("delta",))
                 with self.assertRaises(InvalidInputError):
                     pricing.numerical_greeks(
                         engine,

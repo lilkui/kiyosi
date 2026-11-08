@@ -185,7 +185,7 @@ class HistoryTests(unittest.TestCase):
                     )
                     self.assertEqual(
                         updated.observation_times,
-                        [past, AT, future, original.expiry_time],
+                        (past, AT, future, original.expiry_time),
                     )
                     self.assertEqual(updated.touch_state, original.touch_state)
                     with self.assertRaises(InvalidInputError):
@@ -212,7 +212,7 @@ class HistoryTests(unittest.TestCase):
                     )
                     self.assertEqual(
                         updated.observation_times,
-                        [past, AT, future, original.expiry_time],
+                        (past, AT, future, original.expiry_time),
                     )
                     self.assertEqual(updated.barrier_state, original.barrier_state)
                     with self.assertRaises(InvalidInputError):
@@ -221,7 +221,7 @@ class HistoryTests(unittest.TestCase):
                     continue
                 self.assertEqual(updated.history_time, AT)
                 self.assertEqual(
-                    original.observation_times, [past, original.expiry_time]
+                    original.observation_times, (past, original.expiry_time)
                 )
                 extended = original.replace(
                     expiry_time=original.expiry_time + timedelta(days=1)
