@@ -13,7 +13,8 @@ Use ``engine.greek_method`` and ``engine.active_greek_controls`` to inspect
 estimation before pricing. `numerical_greeks` selects scalar BSM differences.
 
 Request-level shifts tune numerical fallbacks and availability checks without
-changing engine settings. Omission or Ellipsis uses the engine's settings;
+changing engine settings. Both Greek entry points inherit the engine's settings
+when controls are omitted or Ellipsis;
 ``None`` selects automatic spot/time bumps. Every supplied control is validated.
 Supported expiry Greeks follow the payoff; time Greeks are absent at expiry.
 

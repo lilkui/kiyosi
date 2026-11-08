@@ -865,12 +865,6 @@ macro_rules! vanilla_pricing {
                 ))
             }
 
-            fn default_spot_shift(&self, _option: &$option, context: &PricingContext) -> f64 {
-                self.settings
-                    .greek_shifts()
-                    .spot_shift_at(context.spot_price())
-            }
-
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 local_volatility::validate_model(context)
             }
@@ -1079,12 +1073,6 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
                 crate::GreekMethod::Mixed
             },
         ))
-    }
-
-    fn default_spot_shift(&self, _option: &DigitalOption, context: &PricingContext) -> f64 {
-        self.settings
-            .greek_shifts()
-            .spot_shift_at(context.spot_price())
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {

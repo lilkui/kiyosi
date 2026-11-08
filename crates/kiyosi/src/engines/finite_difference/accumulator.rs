@@ -97,12 +97,6 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         ))
     }
 
-    fn default_spot_shift(&self, _option: &Accumulator, context: &PricingContext) -> f64 {
-        self.settings
-            .greek_shifts()
-            .spot_shift_at(context.spot_price())
-    }
-
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }

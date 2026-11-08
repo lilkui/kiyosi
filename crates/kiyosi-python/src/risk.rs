@@ -241,11 +241,13 @@ pub(crate) fn _pricing_result(
 ///     Required measure names or "all". Unsupported instrument/engine pairs
 ///     are checked before Greek names.
 /// spot_shift : float or None, optional
-///     Positive absolute spot bump, or None for the engine/product default.
+///     Positive absolute spot bump. Omission or Ellipsis retains the engine's
+///     setting; None selects the automatic engine/product bump.
 /// volatility_shift, rate_shift : float, optional
-///     Positive decimal-unit bumps. Defaults come from the Rust core.
+///     Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
 /// time_shift : datetime.timedelta or None, optional
-///     Positive explicit bump, or None for an automatic bump up to one day
+///     Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+///     None selects an automatic bump up to one day
 ///     shortened to avoid observations. Use smaller durations to check
 ///     convergence for intraday valuations and between observations.
 ///
@@ -271,7 +273,7 @@ pub(crate) fn _pricing_result(
 ///     operation.
 ///
 #[pyfunction]
-#[pyo3(signature = (engine, instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=None))]
+#[pyo3(signature = (engine, instrument, context, greeks, *, spot_shift=crate::conversions::OMITTED, volatility_shift=crate::conversions::OMITTED, rate_shift=crate::conversions::OMITTED, time_shift=crate::conversions::OMITTED))]
 #[expect(
     clippy::too_many_arguments,
     reason = "explicit Python numerical controls"
@@ -282,21 +284,39 @@ pub(crate) fn numerical_greeks(
     instrument: &Bound<'_, PyAny>,
     context: &crate::market::PricingContext,
     greeks: &Bound<'_, PyAny>,
-    spot_shift: Option<&Bound<'_, PyAny>>,
-    #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
-    #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
-    time_shift: Option<&Bound<'_, PyAny>>,
+    #[pyo3(from_py_with = crate::conversions::supplied)] spot_shift: Option<&Bound<'_, PyAny>>,
+    #[pyo3(from_py_with = crate::conversions::supplied)] volatility_shift: Option<
+        &Bound<'_, PyAny>,
+    >,
+    #[pyo3(from_py_with = crate::conversions::supplied)] rate_shift: Option<&Bound<'_, PyAny>>,
+    #[pyo3(from_py_with = crate::conversions::supplied)] time_shift: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PricingResult> {
     let result = crate::registration::evaluate(py, engine, instrument, context, || {
-        Ok(crate::engines::NumericalGreeksRequest {
-            request: greeks_request(greeks)?,
-            settings: kiyosi::NumericalShiftSettings {
-                spot_shift: spot_shift.map(crate::conversions::real).transpose()?,
-                volatility_shift,
-                rate_shift,
-                time_shift: time_shift.map(crate::conversions::duration).transpose()?,
+        Ok(crate::engines::NumericalGreeksRequest(
+            crate::engines::NativeGreeksRequest {
+                request: greeks_request(greeks)?,
+                spot_shift: spot_shift
+                    .map(|v| {
+                        if v.is_none() {
+                            Ok(None)
+                        } else {
+                            crate::conversions::real(v).map(Some)
+                        }
+                    })
+                    .transpose()?,
+                volatility_shift: volatility_shift.map(crate::conversions::real).transpose()?,
+                rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
+                time_shift: time_shift
+                    .map(|v| {
+                        if v.is_none() {
+                            Ok(None)
+                        } else {
+                            crate::conversions::duration(v).map(Some)
+                        }
+                    })
+                    .transpose()?,
             },
-        })
+        ))
     })?;
     Ok(PricingResult(result))
 }

@@ -1779,8 +1779,9 @@ fn spot_shift_fallback_is_distinct_from_engine_resolution() -> Result<()> {
         spot_shift: Some(0.5),
         ..Default::default()
     })?;
-    assert_eq!(fd.default_spot_shift(&european, &context), 0.5);
-    assert_eq!(fd.default_spot_shift(&american, &context), 0.5);
+    assert_eq!(fd.default_spot_shift(&european, &context), 0.01);
+    assert_eq!(fd.greek_settings(&european).spot_shift, Some(0.5));
+    assert_eq!(fd.default_spot_shift(&american, &context), 0.01);
     assert_eq!(
         NumericalShiftSettings {
             spot_shift: Some(0.5),

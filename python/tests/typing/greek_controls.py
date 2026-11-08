@@ -92,6 +92,19 @@ def fd_configured_shifts(option: EuropeanOption, context: PricingContext) -> Non
     assert_type(
         engine.price_with_greeks(option, context, ["delta", "vega"]), PricingResult
     )
+    assert_type(
+        numerical_greeks(
+            engine,
+            option,
+            context,
+            "rho",
+            spot_shift=Ellipsis,
+            volatility_shift=Ellipsis,
+            rate_shift=Ellipsis,
+            time_shift=Ellipsis,
+        ),
+        PricingResult,
+    )
 
 
 def mixed_digital_shifts(option: CashOrNothingOption, context: PricingContext) -> None:

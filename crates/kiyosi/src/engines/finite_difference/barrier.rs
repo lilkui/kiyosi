@@ -103,12 +103,6 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         ))
     }
 
-    fn default_spot_shift(&self, _option: &BarrierOption, context: &PricingContext) -> f64 {
-        self.settings
-            .greek_shifts()
-            .spot_shift_at(context.spot_price())
-    }
-
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
@@ -293,12 +287,6 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
                 crate::GreekMethod::Mixed
             },
         ))
-    }
-
-    fn default_spot_shift(&self, _option: &DoubleBarrierOption, context: &PricingContext) -> f64 {
-        self.settings
-            .greek_shifts()
-            .spot_shift_at(context.spot_price())
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {

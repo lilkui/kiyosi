@@ -9184,10 +9184,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9201,11 +9201,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9243,10 +9245,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9260,11 +9262,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9297,10 +9301,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9314,11 +9318,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9353,10 +9359,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9370,11 +9376,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9407,10 +9415,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9424,11 +9432,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9465,10 +9475,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9482,11 +9492,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9519,10 +9531,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9536,11 +9548,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9573,10 +9587,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9590,11 +9604,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9627,10 +9643,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9644,11 +9660,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9685,10 +9703,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9702,11 +9720,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9739,10 +9759,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9756,11 +9776,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9795,10 +9817,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9812,11 +9834,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
@@ -9849,10 +9873,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: _Real | None = None,
-    volatility_shift: _Real = ...,
-    rate_shift: _Real = ...,
-    time_shift: timedelta | None = None,
+    spot_shift: _Real | None | EllipsisType = ...,
+    volatility_shift: _Real | EllipsisType = ...,
+    rate_shift: _Real | EllipsisType = ...,
+    time_shift: timedelta | None | EllipsisType = ...,
 ) -> PricingResult:
     """Compute numerical BSM Greeks through any supported built-in scalar engine.
 
@@ -9866,11 +9890,13 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump, or None for the engine/product default.
+        Positive absolute spot bump. Omission or Ellipsis retains the engine's
+        setting; None selects the automatic engine/product bump.
     volatility_shift, rate_shift : float, optional
-        Positive decimal-unit bumps. Defaults come from the Rust core.
+        Positive decimal-unit bumps. Omission or Ellipsis retains engine settings.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump, or None for an automatic bump up to one day
+        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
+        None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 

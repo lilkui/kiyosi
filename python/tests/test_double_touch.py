@@ -1226,16 +1226,16 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
         }
         self.assertEqual(str(inspect.signature(type(engine))), "()")
         signature = inspect.signature(numerical_greeks)
-        for name, default in (
-            ("spot_shift", None),
-            ("volatility_shift", 0.0001),
-            ("rate_shift", 0.0001),
-            ("time_shift", None),
+        for name in (
+            "spot_shift",
+            "volatility_shift",
+            "rate_shift",
+            "time_shift",
         ):
             self.assertIs(
                 signature.parameters[name].kind, inspect.Parameter.KEYWORD_ONLY
             )
-            self.assertEqual(signature.parameters[name].default, default)
+            self.assertIs(signature.parameters[name].default, Ellipsis)
         options = (
             contract(touch_state="untouched"),
             contract(settlement_timing="at_hit", touch_state="untouched"),

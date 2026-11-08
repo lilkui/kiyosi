@@ -382,7 +382,7 @@ class PackageTests(unittest.TestCase):
                 inspect.signature(numerical_greeks).parameters["spot_shift"].default
             )
             with self.subTest(product=kind.__name__):
-                self.assertIs(shift_default, None)
+                self.assertIs(shift_default, Ellipsis)
                 self.assertEqual(
                     numerical_greeks(
                         engine,
@@ -403,7 +403,7 @@ class PackageTests(unittest.TestCase):
                     ).require("delta"),
                     default.require("delta"),
                 )
-                for invalid in (True, "invalid", Ellipsis):
+                for invalid in (True, "invalid"):
                     with self.assertRaises(TypeError):
                         numerical_greeks(
                             engine,
