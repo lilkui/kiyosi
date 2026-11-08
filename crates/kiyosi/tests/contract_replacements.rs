@@ -2,6 +2,18 @@ use kiyosi::*;
 
 macro_rules! check_monitoring_switch {
     ($original:ident, $scheduled:ident, $changes:ident) => {
+        assert_eq!($original.observation_times(), None);
+        for option in [&$original, &$scheduled] {
+            assert_eq!(
+                option
+                    .replace($changes {
+                        observation_times: Some(option.observation_times().map(<[_]>::to_vec)),
+                        ..Default::default()
+                    })
+                    .unwrap(),
+                *option
+            );
+        }
         assert_eq!($scheduled.replace($changes::default()).unwrap(), $scheduled);
         assert!(matches!(
             $scheduled.replace($changes {
@@ -45,7 +57,10 @@ macro_rules! check_monitoring_switch {
                 .unwrap(),
             cleared
         );
-        assert_eq!($scheduled.observation_times(), &[$original.expiry_time()]);
+        assert_eq!(
+            $scheduled.observation_times(),
+            Some(&[$original.expiry_time()][..])
+        );
     };
 }
 
@@ -287,7 +302,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
         })
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
-    assert_eq!(scheduled.observation_times(), &[end]);
+    assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, BarrierOptionChanges);
     assert!(matches!(
         original.replace(BarrierOptionChanges {
@@ -395,7 +410,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
         })
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
-    assert_eq!(scheduled.observation_times(), &[end]);
+    assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, DoubleBarrierOptionChanges);
     assert!(matches!(
         original.replace(DoubleBarrierOptionChanges {
@@ -502,7 +517,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
         })
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
-    assert_eq!(scheduled.observation_times(), &[end]);
+    assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, BinaryBarrierOptionChanges);
     assert!(matches!(
         original.replace(BinaryBarrierOptionChanges {
@@ -605,7 +620,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
         })
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
-    assert_eq!(scheduled.observation_times(), &[end]);
+    assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, TouchOptionChanges);
     assert!(matches!(
         original.replace(TouchOptionChanges {
@@ -707,7 +722,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
         })
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
-    assert_eq!(scheduled.observation_times(), &[end]);
+    assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, DoubleTouchOptionChanges);
     assert!(matches!(
         original.replace(DoubleTouchOptionChanges {

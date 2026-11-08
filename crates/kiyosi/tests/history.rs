@@ -448,10 +448,13 @@ fn dated_history_survives_future_schedule_edits() -> Result<()> {
         observation_times: Some(Some(vec![past, at, future, end])),
         ..Default::default()
     })?;
-    assert_eq!(updated.observation_times(), &[past, at, future, end]);
+    assert_eq!(
+        updated.observation_times(),
+        Some(&[past, at, future, end][..])
+    );
     assert_eq!(updated.touch_state(), original.touch_state());
     assert_eq!(updated.history_time(), Some(at));
-    assert_eq!(original.observation_times(), &[past, end]);
+    assert_eq!(original.observation_times(), Some(&[past, end][..]));
     assert!(matches!(
         original.replace(BarrierOptionChanges {
             observation_times: Some(Some(vec![future, end])),

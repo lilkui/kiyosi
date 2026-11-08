@@ -1395,7 +1395,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
                 ..Default::default()
             })?
             .observation_times(),
-        &[closed]
+        Some(&[closed][..])
     );
     let mut terms = AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, end, (end).time_of_day());
     terms.knock_out_observation_times = Some(vec![closed]);

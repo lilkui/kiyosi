@@ -441,9 +441,11 @@ macro_rules! monitoring_accessors {
             pub fn observation_schedule(&self) -> &ObservationSchedule {
                 self.monitoring.observation_schedule()
             }
-            /// Borrows ordered times for this owner's lifetime; see the cash constructor.
-            pub fn observation_times(&self) -> &[Timestamp] {
-                self.monitoring.observation_times()
+            /// Borrows scheduled times, or returns `None` for continuous monitoring.
+            ///
+            /// Storage remains valid for this borrow; see [`Self::observation_schedule`].
+            pub fn observation_times(&self) -> Option<&[Timestamp]> {
+                (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
             }
             /// Returns mean fixing spacing in Actual/365 Fixed years; see the cash constructor.
             pub fn mean_observation_year_fraction(&self) -> f64 {
@@ -586,7 +588,7 @@ impl BinaryBarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Switching to continuous monitoring requires explicitly empty observation times; omitted times are retained.
+    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
     /// See [`BinaryBarrierOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -614,10 +616,9 @@ impl BinaryBarrierOption {
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
-            observation_times: changes.observation_times.unwrap_or_else(|| {
-                (self.observation_mode() == ObservationMode::Scheduled)
-                    .then(|| self.observation_times().to_vec())
-            }),
+            observation_times: changes
+                .observation_times
+                .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         let updated = match changes.payoff.unwrap_or_else(|| {
@@ -668,7 +669,7 @@ impl TouchOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Switching to continuous monitoring requires explicitly empty observation times; omitted times are retained.
+    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
     /// See [`TouchOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -697,10 +698,9 @@ impl TouchOption {
             settlement_timing: changes
                 .settlement_timing
                 .unwrap_or(self.settlement_timing()),
-            observation_times: changes.observation_times.unwrap_or_else(|| {
-                (self.observation_mode() == ObservationMode::Scheduled)
-                    .then(|| self.observation_times().to_vec())
-            }),
+            observation_times: changes
+                .observation_times
+                .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         let updated = match changes.payoff.unwrap_or_else(|| {

@@ -519,7 +519,8 @@ fn native_with_model<D: Diffusion>(
         }
     }
     let observations: Vec<_> = terms
-        .observation_times()
+        .observation_schedule()
+        .times()
         .iter()
         .filter(|&&date| date > context.valuation_time())
         .map(|&date| context.valuation_time().years_until(date))
@@ -527,7 +528,7 @@ fn native_with_model<D: Diffusion>(
     diffusion::validate_event_resolution(
         context.valuation_time(),
         expiry,
-        terms.observation_times(),
+        terms.observation_schedule().times(),
     )?;
     let grid = diffusion::time_grid(
         context,

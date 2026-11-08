@@ -204,9 +204,11 @@ impl DoubleTouchOption {
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.monitoring.observation_schedule()
     }
-    /// Borrows times for this owner's lifetime; see [`Self::cash`].
-    pub fn observation_times(&self) -> &[Timestamp] {
-        self.monitoring.observation_times()
+    /// Borrows scheduled times, or returns `None` for continuous monitoring.
+    ///
+    /// Storage remains valid for this borrow; see [`Self::observation_schedule`].
+    pub fn observation_times(&self) -> Option<&[Timestamp]> {
+        (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
     }
     /// Returns strictly prior history; see [`Self::cash`].
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
@@ -310,7 +312,7 @@ impl DoubleTouchOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Switching to continuous monitoring requires explicitly empty observation times; omitted times are retained.
+    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
     /// See [`DoubleTouchOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -340,10 +342,9 @@ impl DoubleTouchOption {
                 settlement_timing: changes
                     .settlement_timing
                     .unwrap_or(self.settlement_timing()),
-                observation_times: changes.observation_times.unwrap_or_else(|| {
-                    (self.observation_mode() == ObservationMode::Scheduled)
-                        .then(|| self.observation_times().to_vec())
-                }),
+                observation_times: changes
+                    .observation_times
+                    .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
                 touch_state: changes.touch_state.unwrap_or(self.touch_state()),
             },
             changes.payout.unwrap_or(self.payout()),

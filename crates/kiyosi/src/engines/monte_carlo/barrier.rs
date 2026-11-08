@@ -335,7 +335,8 @@ impl MonteCarloBarrierEngine {
             Vec::new()
         } else {
             option
-                .observation_times()
+                .observation_schedule()
+                .times()
                 .iter()
                 .copied()
                 .filter(|date| *date > time)
@@ -358,7 +359,12 @@ impl MonteCarloBarrierEngine {
                 increment,
                 width,
                 -rate * time.years_until(next),
-                !continuous && option.observation_times().binary_search(&date).is_ok(),
+                !continuous
+                    && option
+                        .observation_schedule()
+                        .times()
+                        .binary_search(&date)
+                        .is_ok(),
             ));
             previous = next;
         }

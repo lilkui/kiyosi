@@ -495,7 +495,7 @@ pub(crate) fn analytic_log_shift(option: &Monitoring, spot: f64, sigma: f64) -> 
             * 0.582_597_157_939_010_7
             * sigma
             * option.mean_observation_year_fraction().sqrt();
-        if option.observation_times().last() != Some(&option.expiry_time()) {
+        if option.observation_schedule().times().last() != Some(&option.expiry_time()) {
             return Err(Error::UnsupportedOperation(
                 "analytic monitoring must end at expiry".into(),
             ));

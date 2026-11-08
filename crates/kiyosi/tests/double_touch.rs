@@ -756,7 +756,7 @@ fn cash_terms_defaults_validation_and_owning_history() {
         assert_eq!(option.settlement_timing(), SettlementTiming::AtExpiry);
         assert_eq!(option.observation_mode(), ObservationMode::Continuous);
         assert_eq!(option.touch_state(), None);
-        assert_eq!(option.observation_times(), []);
+        assert_eq!(option.observation_times(), None);
         let known = option
             .replace_history(
                 Some(BarrierTouchState::Untouched),
@@ -817,7 +817,10 @@ fn cash_terms_defaults_validation_and_owning_history() {
         scheduled.observation_times = Some(vec![first, scheduled.expiry_time]);
         let owned = DoubleTouchOption::cash(scheduled.clone(), 1.0).unwrap();
         scheduled.observation_times = None;
-        assert_eq!(owned.observation_times(), &[first, owned.expiry_time()]);
+        assert_eq!(
+            owned.observation_times(),
+            Some(&[first, owned.expiry_time()][..])
+        );
     }
     let mut invalid = terms(DoubleBarrierType::KnockOut);
     invalid.settlement_timing = SettlementTiming::AtHit;

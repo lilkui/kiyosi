@@ -312,7 +312,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
     t.observation_times = Some(vec![first]);
     t.rebate = 3.0;
     let option = DoubleBarrierOption::new(t.clone()).unwrap();
-    assert_eq!(option.observation_times(), &[first]);
+    assert_eq!(option.observation_times(), Some(&[first][..]));
     assert_eq!(option.observation_schedule().times(), &[first]);
     assert!(matches!(
         engine

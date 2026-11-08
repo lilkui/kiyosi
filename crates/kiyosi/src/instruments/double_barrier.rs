@@ -247,8 +247,10 @@ impl DoubleBarrierOption {
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.lower.observation_schedule()
     }
-    /// Borrows times for the lifetime of the borrow; see [`Self::new`].
-    pub fn observation_times(&self) -> &[Timestamp] {
+    /// Borrows scheduled times, or returns `None` for continuous monitoring.
+    ///
+    /// Storage remains valid for this borrow; see [`Self::observation_schedule`].
+    pub fn observation_times(&self) -> Option<&[Timestamp]> {
         self.lower.observation_times()
     }
     /// Returns strictly prior history; see [`Self::new`].
@@ -275,7 +277,7 @@ impl DoubleBarrierOption {
     }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
         (self.observation_mode() == ObservationMode::Continuous
-            || self.observation_times().last() == Some(&self.expiry_time()))
+            || self.observation_schedule().times().last() == Some(&self.expiry_time()))
             && match self.option_type() {
                 OptionType::Call => self.strike() >= self.upper,
                 OptionType::Put => self.strike() <= self.lower_barrier(),
@@ -364,7 +366,7 @@ impl DoubleBarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Switching to continuous monitoring requires explicitly empty observation times; omitted times are retained.
+    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
     /// See [`DoubleBarrierOption::new`] for construction examples.
     ///
     /// # Errors
@@ -394,10 +396,9 @@ impl DoubleBarrierOption {
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
             rebate: changes.rebate.unwrap_or(self.rebate()),
             rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
-            observation_times: changes.observation_times.unwrap_or_else(|| {
-                (self.observation_mode() == ObservationMode::Scheduled)
-                    .then(|| self.observation_times().to_vec())
-            }),
+            observation_times: changes
+                .observation_times
+                .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         })?;
         self.lower.monitoring.validate_replacement_history(
