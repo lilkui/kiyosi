@@ -1,14 +1,6 @@
-use crate::conversions::{direction, python_timestamp, real, supplied, timestamp};
+use crate::conversions::{direction, optional_real, python_timestamp, real, supplied, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
-
-fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<f64>> {
-    if value.is_none() {
-        Ok(None)
-    } else {
-        real(value).map(Some)
-    }
-}
 
 macro_rules! average_option {
     ($name:ident) => {
@@ -108,7 +100,7 @@ macro_rules! average_option {
             effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
             averaging_start_time: averaging_start_time.map(crate::conversions::timestamp).transpose()?,
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
-            realized_average: realized_average.map(history).transpose()?,
+            realized_average: realized_average.map(optional_real).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
@@ -116,7 +108,7 @@ macro_rules! average_option {
             #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE, history_time=None))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 effective_time: &Bound<'_, PyAny>, averaging_start_time: &Bound<'_, PyAny>,
-                expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = history)] realized_average: Option<f64>,
+                expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = optional_real)] realized_average: Option<f64>,
                 #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
             ) -> PyResult<Self> {
                 Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
@@ -158,7 +150,7 @@ macro_rules! average_option {
 
                 Ok(Self(domain(self.0.replace(kiyosi::AveragePriceOptionChanges {
                     history_time,
-                    realized_average: realized_average.map(history).transpose()?,
+                    realized_average: realized_average.map(optional_real).transpose()?,
                     ..Default::default()
                 }))?))
             }
