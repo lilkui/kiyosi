@@ -14,7 +14,10 @@ Explicit observations use exact timestamps; automatic observations require
 instant; range accrual observations exclude it. Settlement adds no observation.
 Barrier and touch contracts use ``observation_times=None`` for continuous
 monitoring and a nonempty iterable for scheduled monitoring. Their read-only
-``observation_mode`` property reports the selected mode.
+``observation_mode`` property reports the selected mode. Both ``observation_times``
+and ``observation_schedule`` return ``None`` for continuous monitoring. Scheduled
+values can be passed back as ``observation_times``; forward the contract's calendar
+when constructing another contract from those observations.
 
 Supplied history requires ``history_time`` and covers events strictly before it.
 Current observations use the current spot. Discrete history can be reused until

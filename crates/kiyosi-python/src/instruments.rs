@@ -89,10 +89,12 @@ macro_rules! monitoring_properties {
                     kiyosi::ObservationMode::Scheduled => "scheduled",
                 }
             }
-            /// Return an owned copy of the monitoring schedule.
+            /// Returns an owned schedule, or None for continuous monitoring.
             #[getter]
-            fn observation_schedule(&self) -> $crate::schedule::ObservationSchedule {
-                $crate::schedule::ObservationSchedule(self.0.observation_schedule().clone())
+            fn observation_schedule(&self) -> Option<$crate::schedule::ObservationSchedule> {
+                self.0.observation_times().map(|_| {
+                    $crate::schedule::ObservationSchedule(self.0.observation_schedule().clone())
+                })
             }
             /// Return a copy of the contractual observation times.
             #[getter]

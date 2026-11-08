@@ -307,6 +307,45 @@ NULLABLE = {
 
 
 class ContractReplacementTests(unittest.TestCase):
+    def test_monitoring_schedules_round_trip_for_continuous_and_scheduled_contracts(
+        self,
+    ):
+        times = (datetime(2025, 1, 4), END)
+        for factory, fields in contract_inputs():
+            if "touch_state" not in fields:
+                continue
+            with self.subTest(contract=factory.__name__):
+                continuous = factory(
+                    **(fields | {"touch_state": None, "calendar": all_days_calendar()})
+                )
+                self.assertIsNone(continuous.observation_schedule)
+                self.assertEqual(
+                    continuous.replace(
+                        observation_times=continuous.observation_schedule
+                    ),
+                    continuous,
+                )
+                scheduled = continuous.replace(observation_times=times)
+                schedule = scheduled.observation_schedule
+                self.assertEqual(schedule.times, times)
+                self.assertEqual(
+                    scheduled.replace(observation_times=schedule), scheduled
+                )
+                self.assertEqual(
+                    factory(
+                        **(
+                            fields
+                            | {
+                                "touch_state": None,
+                                "observation_times": schedule,
+                                "calendar": scheduled.calendar,
+                            }
+                        )
+                    ),
+                    scheduled,
+                )
+                self.assertEqual(scheduled.replace(observation_times=None), continuous)
+
     def test_reactivation_with_changed_rules_requires_explicit_quantity(self):
         active = next(
             value for value in contracts() if isinstance(value, i.Accumulator)

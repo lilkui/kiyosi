@@ -5,11 +5,16 @@ from typing import assert_type
 
 from kiyosi.instruments import (
     Accumulator,
+    BarrierOption,
+    BinaryBarrierOption,
     BinarySnowballOption,
+    DoubleBarrierOption,
+    DoubleTouchOption,
     PhoenixOption,
     RangeAccrualOption,
     SnowballOption,
     TernarySnowballOption,
+    TouchOption,
 )
 from kiyosi.market import ObservationSchedule, all_days_calendar
 
@@ -44,3 +49,17 @@ def contractual_schedules(
         assert_type(at, datetime)
     for at in binary.observation_times:
         assert_type(at, datetime)
+
+
+def monitoring_schedule(
+    option: BarrierOption
+    | DoubleBarrierOption
+    | BinaryBarrierOption
+    | TouchOption
+    | DoubleTouchOption,
+) -> None:
+    schedule = option.observation_schedule
+    assert_type(schedule, ObservationSchedule | None)
+    if schedule is not None:
+        assert_type(schedule.times, tuple[datetime, ...])
+    option.replace(observation_times=schedule)

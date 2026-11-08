@@ -10712,8 +10712,8 @@ class BarrierOption:
         """Return a copy of the contractual observation times."""
 
     @property
-    def observation_schedule(self) -> ObservationSchedule:
-        """Return an owned copy of the monitoring schedule."""
+    def observation_schedule(self) -> ObservationSchedule | None:
+        """Returns an owned schedule, or None for continuous monitoring."""
 
     @property
     def mean_observation_year_fraction(self) -> float:
@@ -11081,8 +11081,8 @@ class DoubleBarrierOption:
         """Return a copy of the contractual observation times."""
 
     @property
-    def observation_schedule(self) -> ObservationSchedule:
-        """Return an owned copy of the monitoring schedule."""
+    def observation_schedule(self) -> ObservationSchedule | None:
+        """Returns an owned schedule, or None for continuous monitoring."""
 
     @property
     def touch_state(self) -> Literal["untouched", "touched"] | None:
@@ -11933,8 +11933,8 @@ class BinaryBarrierOption:
         """Return a copy of the contractual observation times."""
 
     @property
-    def observation_schedule(self) -> ObservationSchedule:
-        """Return an owned copy of the monitoring schedule."""
+    def observation_schedule(self) -> ObservationSchedule | None:
+        """Returns an owned schedule, or None for continuous monitoring."""
 
     @property
     def mean_observation_year_fraction(self) -> float:
@@ -12163,8 +12163,8 @@ class TouchOption:
         """Return a copy of the contractual observation times."""
 
     @property
-    def observation_schedule(self) -> ObservationSchedule:
-        """Return an owned copy of the monitoring schedule."""
+    def observation_schedule(self) -> ObservationSchedule | None:
+        """Returns an owned schedule, or None for continuous monitoring."""
 
     @property
     def mean_observation_year_fraction(self) -> float:
@@ -12893,8 +12893,8 @@ class DoubleTouchOption:
         """Return a copy of the contractual observation times."""
 
     @property
-    def observation_schedule(self) -> ObservationSchedule:
-        """Return an owned copy of the monitoring schedule."""
+    def observation_schedule(self) -> ObservationSchedule | None:
+        """Returns an owned schedule, or None for continuous monitoring."""
 
     @property
     def touch_state(self) -> Literal["untouched", "touched"] | None:
