@@ -189,7 +189,7 @@ impl BarrierOption {
             terms.barrier_type,
             terms.observation_times,
             terms.touch_state,
-            terms.calendar,
+            &terms.calendar,
             terms.history_time,
         )?;
         let vanilla = EuropeanOption::new(

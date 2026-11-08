@@ -19,9 +19,7 @@ pub(crate) struct Monitoring {
     expiry_time: Timestamp,
     barrier_level: f64,
     barrier_type: BarrierType,
-    observation_mode: ObservationMode,
     schedule: ObservationSchedule,
-    calendar: TradingCalendar,
     touch_state: Option<BarrierTouchState>,
 }
 
@@ -37,7 +35,7 @@ impl Monitoring {
         barrier_type: BarrierType,
         observation_times: Option<Vec<Timestamp>>,
         touch_state: Option<BarrierTouchState>,
-        calendar: TradingCalendar,
+        calendar: &TradingCalendar,
         history_time: Option<Timestamp>,
     ) -> Result<Self> {
         if !barrier_level.is_finite() || barrier_level <= 0.0 {
@@ -50,16 +48,11 @@ impl Monitoring {
                 "scheduled monitoring requires nonempty observation_times".into(),
             ));
         }
-        let observation_mode = if observation_times.is_some() {
-            ObservationMode::Scheduled
-        } else {
-            ObservationMode::Continuous
-        };
         let schedule = ObservationSchedule::new(
             observation_times.unwrap_or_default(),
             effective_time,
             expiry_time,
-            &calendar,
+            calendar,
         )?;
         let monitoring = Self {
             history_time,
@@ -67,9 +60,7 @@ impl Monitoring {
             expiry_time,
             barrier_level,
             barrier_type,
-            observation_mode,
             schedule,
-            calendar,
             touch_state,
         };
         super::validate_history_snapshot(&monitoring, touch_state.is_some())?;
@@ -92,20 +83,20 @@ impl Monitoring {
                     self.effective_time,
                     self.barrier_level,
                     self.barrier_type.is_up(),
-                    self.observation_mode,
+                    self.observation_mode(),
                     super::historical_times(self.schedule.times(), self.history_time),
                 ) != (
                     updated.effective_time,
                     updated.barrier_level,
                     updated.barrier_type.is_up(),
-                    updated.observation_mode,
+                    updated.observation_mode(),
                     super::historical_times(updated.schedule.times(), self.history_time),
                 ),
             "touch_state",
         )
     }
     pub(crate) fn calendar(&self) -> &TradingCalendar {
-        &self.calendar
+        self.schedule.calendar()
     }
     pub(crate) fn effective_time(&self) -> Timestamp {
         self.effective_time
@@ -120,7 +111,11 @@ impl Monitoring {
         self.barrier_type
     }
     pub(crate) fn observation_mode(&self) -> ObservationMode {
-        self.observation_mode
+        if self.continuous() {
+            ObservationMode::Continuous
+        } else {
+            ObservationMode::Scheduled
+        }
     }
     pub(crate) fn observation_schedule(&self) -> &ObservationSchedule {
         &self.schedule
@@ -141,7 +136,7 @@ impl Monitoring {
         })
     }
     pub(crate) fn continuous(&self) -> bool {
-        self.observation_mode() == ObservationMode::Continuous
+        self.schedule.is_empty()
     }
     pub(crate) fn monitored(&self, time: Timestamp) -> bool {
         time >= self.effective_time()

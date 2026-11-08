@@ -94,7 +94,7 @@ impl BinaryBarrierTerms {
             self.barrier_type,
             self.observation_times,
             self.touch_state,
-            self.calendar,
+            &self.calendar,
             self.history_time,
         )
     }
@@ -272,7 +272,7 @@ impl TouchOptionTerms {
             self.barrier_type,
             self.observation_times,
             self.touch_state,
-            self.calendar,
+            &self.calendar,
             self.history_time,
         )
     }
