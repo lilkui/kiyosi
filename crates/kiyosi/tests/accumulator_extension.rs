@@ -155,7 +155,12 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
                 expected
             );
             let result = engine
-                .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
+                .price_with_greeks_with_settings(
+                    &dated(&option, &context),
+                    &context,
+                    GreeksRequest::all(),
+                    engine.greek_settings(&dated(&option, &context)),
+                )
                 .unwrap();
             assert_eq!(result.price(), expected);
             assert_eq!(result.get(Greek::Theta), None);
@@ -831,10 +836,11 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
     let expected_gamma = (up - 2.0 * terminal_reference(&option, &context) + down) / h.powi(2);
     for (index, engine) in engines().into_iter().enumerate() {
         let result = engine
-            .price_with_greeks(
+            .price_with_greeks_with_settings(
                 &dated(&option, &context),
                 &context,
                 GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]),
+                engine.greek_settings(&dated(&option, &context)),
             )
             .unwrap();
         assert_eq!(
@@ -954,10 +960,11 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
             let context = market(barrier, day(3), 0.4);
             for engine in engines() {
                 let result = engine
-                    .price_with_greeks(
+                    .price_with_greeks_with_settings(
                         &dated(&option, &context),
                         &context,
                         GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]),
+                        engine.greek_settings(&dated(&option, &context)),
                     )
                     .unwrap();
                 assert_eq!(result.has(Greek::Delta), !monitored);
@@ -968,10 +975,11 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
         let option = Accumulator::new(terms(direction, Some(Vec::new()))).unwrap();
         for engine in engines() {
             let result = engine
-                .price_with_greeks(
+                .price_with_greeks_with_settings(
                     &dated(&option, &market(100.0, day(3), 0.4)),
                     &market(100.0, day(3), 0.4),
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+                    engine.greek_settings(&dated(&option, &market(100.0, day(3), 0.4))),
                 )
                 .unwrap();
             assert!(!result.has(Greek::Delta));

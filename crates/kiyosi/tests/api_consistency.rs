@@ -186,10 +186,11 @@ fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Resu
         assert_eq!(engine.price(&dated(&settled, &context), &context)?, 0.0);
         assert_eq!(
             engine
-                .price_with_greeks(
+                .price_with_greeks_with_settings(
                     &dated(&settled, &context),
                     &context,
-                    GreeksRequest::new([Greek::Delta])
+                    GreeksRequest::new([Greek::Delta]),
+                    engine.greek_settings(&dated(&settled, &context))
                 )?
                 .require(Greek::Delta)?,
             0.0
@@ -510,17 +511,19 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                         let price = engine.price(&dated(&future, &context), &context)?;
                         assert_eq!(price, engine.price(&dated(&existing, &context), &context)?);
                         let request = GreeksRequest::new([Greek::Delta]);
-                        let native = engine.price_with_greeks(
+                        let native = engine.price_with_greeks_with_settings(
                             &dated(&future, &context),
                             &context,
                             request,
+                            engine.greek_settings(&dated(&future, &context)),
                         )?;
                         assert_eq!(
                             native,
-                            engine.price_with_greeks(
+                            engine.price_with_greeks_with_settings(
                                 &dated(&existing, &context),
                                 &context,
-                                request
+                                request,
+                                engine.greek_settings(&dated(&existing, &context))
                             )?
                         );
                         assert!(native.require(Greek::Delta)?.is_finite());
@@ -637,10 +640,11 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
             );
             assert!(
                 engine
-                    .price_with_greeks(
+                    .price_with_greeks_with_settings(
                         &dated(&future, &context),
                         &context,
-                        GreeksRequest::new([Greek::Delta])
+                        GreeksRequest::new([Greek::Delta]),
+                        engine.greek_settings(&dated(&future, &context))
                     )?
                     .require(Greek::Delta)?
                     .is_finite()
@@ -945,8 +949,12 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
             engine.price(&dated(&unknown, &context), &context),
             Err(Error::MissingHistory(_))
         ));
-        let result =
-            engine.price_with_greeks(&dated(&settled, &context), &context, GreeksRequest::all())?;
+        let result = engine.price_with_greeks_with_settings(
+            &dated(&settled, &context),
+            &context,
+            GreeksRequest::all(),
+            engine.greek_settings(&dated(&settled, &context)),
+        )?;
         for greek in Greek::ALL {
             assert_eq!(result.require(greek)?, 0.0);
         }
@@ -1117,14 +1125,21 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
         ($engine:expr, $option:expr) => {{
             let engine = $engine;
             let direct = engine.price_with_greeks(&dated($option, &context), &context, request)?;
-            let generic = PricingEngine::price_with_greeks(&engine, $option, &context, request)?;
+            let generic = PricingEngine::price_with_greeks_with_settings(
+                &engine,
+                $option,
+                &context,
+                request,
+                engine.greek_settings($option),
+            )?;
             assert_eq!(direct, generic);
             assert_eq!(direct.status(Greek::Delta), GreekStatus::Available);
-            let price_only = PricingEngine::price_with_greeks(
+            let price_only = PricingEngine::price_with_greeks_with_settings(
                 &engine,
                 $option,
                 &context,
                 GreeksRequest::new([]),
+                engine.greek_settings($option),
             )?;
             assert_eq!(price_only.price(), direct.price());
             for greek in Greek::ALL {
@@ -1194,7 +1209,12 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
             })?;
             assert!(
                 engine
-                    .price_with_greeks(&dated(option, &context), &context, request)?
+                    .price_with_greeks_with_settings(
+                        &dated(option, &context),
+                        &context,
+                        request,
+                        engine.greek_settings(&dated(option, &context))
+                    )?
                     .price()
                     .is_finite()
             );
@@ -1560,10 +1580,11 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         );
         assert_eq!(
             engine
-                .price_with_greeks(
+                .price_with_greeks_with_settings(
                     &dated(&settled, &context),
                     &context,
-                    GreeksRequest::new([Greek::Delta])
+                    GreeksRequest::new([Greek::Delta]),
+                    engine.greek_settings(&dated(&settled, &context))
                 )?
                 .require(Greek::Delta)?,
             0.0
@@ -1610,10 +1631,11 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         assert_eq!(engine.price(&dated(&note, &context), &context)?, 1.0);
         assert_eq!(
             engine
-                .price_with_greeks(
+                .price_with_greeks_with_settings(
                     &dated(&settled, &context),
                     &context,
-                    GreeksRequest::new([Greek::Delta])
+                    GreeksRequest::new([Greek::Delta]),
+                    engine.greek_settings(&dated(&settled, &context))
                 )?
                 .require(Greek::Delta)?,
             0.0
@@ -1671,10 +1693,11 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
                 &mc,
             ] {
                 let price = engine.price(&dated(&settled, &context), &context);
-                let greeks = engine.price_with_greeks(
+                let greeks = engine.price_with_greeks_with_settings(
                     &dated(&settled, &context),
                     &context,
                     GreeksRequest::new([Greek::Delta]),
+                    engine.greek_settings(&dated(&settled, &context)),
                 );
                 if valid {
                     assert_eq!(price?, 0.0);

@@ -274,21 +274,6 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         Ok(self.american_price(option, context, true)?.0)
     }
 
-    fn price_with_greeks(
-        &self,
-        option: &AmericanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        <Self as PricingEngine<AmericanOption>>::price_with_greeks_with_settings(
-            self,
-            option,
-            context,
-            request,
-            Default::default(),
-        )
-    }
-
     fn price_with_greeks_with_settings(
         &self,
         option: &AmericanOption,

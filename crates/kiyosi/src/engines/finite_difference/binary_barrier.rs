@@ -77,7 +77,13 @@ impl FiniteDifferenceBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
+        <Self as PricingEngine<I>>::price_with_greeks_with_settings(
+            self,
+            option,
+            context,
+            request,
+            self.greek_settings(option),
+        )
     }
 }
 
@@ -138,20 +144,11 @@ macro_rules! binary_pricing {
                 let engine = Self {
                     settings: self.settings.with_greek_shifts(shifts),
                 };
-                <Self as PricingEngine<$option>>::price_with_greeks(
-                    &engine, option, context, request,
-                )
-            }
-            fn price_with_greeks(
-                &self,
-                option: &$option,
-                context: &PricingContext,
-                request: GreeksRequest,
-            ) -> Result<PricingResult> {
-                let shifts = self.settings.greek_shifts();
+
+                let shifts = engine.settings.greek_shifts();
                 shifts.validate()?;
                 local_volatility::validate_request(context, request)?;
-                let mut settings = self.settings;
+                let mut settings = engine.settings;
                 if settings.asset_upper_boundary.is_none()
                     && local_volatility::local_model(context).is_none()
                 {
@@ -172,6 +169,7 @@ macro_rules! binary_pricing {
                     },
                 )
             }
+
             fn volatility_affects_price(&self, option: &$option, context: &PricingContext) -> bool {
                 option.contract().volatility_affects_price(context)
             }
@@ -246,8 +244,12 @@ impl FiniteDifferenceDoubleTouchEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        <Self as PricingEngine<DoubleTouchOption>>::price_with_greeks(
-            self, option, context, request,
+        <Self as PricingEngine<DoubleTouchOption>>::price_with_greeks_with_settings(
+            self,
+            option,
+            context,
+            request,
+            self.greek_settings(option),
         )
     }
 }

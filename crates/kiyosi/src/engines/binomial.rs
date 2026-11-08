@@ -137,7 +137,13 @@ impl CoxRossRubinsteinVanillaEngine {
         Self: PricingEngine<I>,
     {
         context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
+        <Self as PricingEngine<I>>::price_with_greeks_with_settings(
+            self,
+            option,
+            context,
+            request,
+            self.greek_settings(option),
+        )
     }
 }
 
@@ -477,20 +483,6 @@ macro_rules! vanilla_pricing {
                 )?
                 .price())
             }
-            fn price_with_greeks(
-                &self,
-                option: &$option,
-                context: &PricingContext,
-                request: GreeksRequest,
-            ) -> Result<PricingResult> {
-                <Self as PricingEngine<$option>>::price_with_greeks_with_settings(
-                    self,
-                    option,
-                    context,
-                    request,
-                    Default::default(),
-                )
-            }
 
             fn price_with_greeks_with_settings(
                 &self,
@@ -682,15 +674,7 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         context.bsm_parameters()?;
         Self::price(self, option, context)
     }
-    fn price_with_greeks(
-        &self,
-        option: &DigitalOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request)
-    }
+
     fn price_with_greeks_with_settings(
         &self,
         option: &DigitalOption,

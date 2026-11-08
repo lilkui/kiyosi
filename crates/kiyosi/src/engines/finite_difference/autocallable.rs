@@ -136,18 +136,9 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         let engine = Self {
             settings: self.settings.with_greek_shifts(shifts),
         };
-        <Self as PricingEngine<AutocallableNote<T>>>::price_with_greeks(
-            &engine, option, context, request,
-        )
+        engine.price_with_greeks(option, context, request)
     }
-    fn price_with_greeks(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request)
-    }
+
     fn volatility_affects_price(
         &self,
         option: &AutocallableNote<T>,

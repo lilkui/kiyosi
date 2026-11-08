@@ -860,7 +860,12 @@ fn greek_results_retain_seeds_for_native_and_scalar_replay() -> Result<()> {
             if numerical {
                 numerical_greeks(engine, option, &context, request, Default::default())
             } else {
-                engine.price_with_greeks(option, &context, request)
+                engine.price_with_greeks_with_settings(
+                    option,
+                    &context,
+                    request,
+                    engine.greek_settings(option),
+                )
             }
         };
         for numerical in [false, true] {
@@ -874,9 +879,15 @@ fn greek_results_retain_seeds_for_native_and_scalar_replay() -> Result<()> {
             model_parameters: Some(BlackScholesMertonParameters::new(0.05, 0.02, 0.0)?.into()),
             ..Default::default()
         })?;
+        let engine = factory(None)?;
         assert_eq!(
-            factory(None)?
-                .price_with_greeks(option, &deterministic, request)?
+            engine
+                .price_with_greeks_with_settings(
+                    option,
+                    &deterministic,
+                    request,
+                    engine.greek_settings(option)
+                )?
                 .seed(),
             None
         );

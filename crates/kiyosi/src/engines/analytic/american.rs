@@ -420,13 +420,4 @@ impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
         context.bsm_parameters()?;
         Self::price(self, option, context)
     }
-    fn price_with_greeks(
-        &self,
-        option: &AmericanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request)
-    }
 }

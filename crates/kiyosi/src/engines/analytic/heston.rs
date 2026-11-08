@@ -257,14 +257,7 @@ impl PricingEngine for AnalyticHestonEuropeanEngine {
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)
     }
-    fn price_with_greeks(
-        &self,
-        option: &EuropeanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request)
-    }
+
     fn price_with_greeks_with_settings(
         &self,
         option: &EuropeanOption,

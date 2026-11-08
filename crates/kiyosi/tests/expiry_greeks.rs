@@ -19,10 +19,11 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
         context: &PricingContext,
         inactive: bool,
     ) -> Result<()> {
-        let result = engine.price_with_greeks(
+        let result = engine.price_with_greeks_with_settings(
             &dated(option, context),
             context,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+            engine.greek_settings(&dated(option, context)),
         )?;
         for greek in [Greek::Delta, Greek::Gamma] {
             assert_eq!(result.get(greek), inactive.then_some(0.0));
@@ -138,10 +139,11 @@ fn finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility() ->
                         let generic: &dyn PricingEngine<$kind> = &engine;
                         assert_eq!(
                             result,
-                            generic.price_with_greeks(
+                            generic.price_with_greeks_with_settings(
                                 &dated(&option, &context),
                                 &context,
-                                GreeksRequest::all()
+                                GreeksRequest::all(),
+                                generic.greek_settings(&dated(&option, &context))
                             )?
                         );
                         assert_eq!(
@@ -218,10 +220,11 @@ fn analytic_terminal_greeks_are_exact_next_to_the_strike() -> Result<()> {
                 let generic: &dyn PricingEngine = &AnalyticEuropeanEngine;
                 assert_eq!(
                     result,
-                    generic.price_with_greeks(
+                    generic.price_with_greeks_with_settings(
                         &dated(&option, &context),
                         &context,
-                        GreeksRequest::all()
+                        GreeksRequest::all(),
+                        generic.greek_settings(&dated(&option, &context))
                     )?
                 );
                 assert_eq!(
@@ -281,7 +284,12 @@ fn automatic_spot_bumps_fit_small_price_units() -> Result<()> {
             context.valuation_time(),
         )?;
         for engine in engines {
-            let result = engine.price_with_greeks(&dated(&option, &context), &context, request)?;
+            let result = engine.price_with_greeks_with_settings(
+                &dated(&option, &context),
+                &context,
+                request,
+                engine.greek_settings(&dated(&option, &context)),
+            )?;
             assert!((result.require(Greek::Delta)? - 1.0).abs() < 1e-10);
             assert!((result.require(Greek::Gamma)? * spot).abs() < 1e-8);
         }
@@ -436,10 +444,11 @@ fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<(
             for direction in [OptionType::Call, OptionType::Put] {
                 let option = $contract::new(direction, 100.0, start, context.valuation_time())?;
                 for engine in &$engines {
-                    let result = engine.price_with_greeks(
+                    let result = engine.price_with_greeks_with_settings(
                         &dated(&option, &context),
                         &context,
                         GreeksRequest::all(),
+                        engine.greek_settings(&dated(&option, &context)),
                     )?;
                     assert!(
                         (result.require(Greek::Delta)?

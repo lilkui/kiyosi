@@ -313,15 +313,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         context.bsm_parameters()?;
         Self::price(self, option, context)
     }
-    fn price_with_greeks(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request)
-    }
+
     fn price_with_greeks_with_settings(
         &self,
         option: &DoubleBarrierOption,

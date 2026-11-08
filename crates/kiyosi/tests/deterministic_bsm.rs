@@ -12,7 +12,12 @@ fn verify<I: OptionContract + Clone>(
     let option = &dated;
     for engine in engines {
         assert!((engine.price(option, context)? - expected).abs() < 1e-10);
-        let result = engine.price_with_greeks(option, context, GreeksRequest::all())?;
+        let result = engine.price_with_greeks_with_settings(
+            option,
+            context,
+            GreeksRequest::all(),
+            engine.greek_settings(option),
+        )?;
         assert!((result.price() - expected).abs() < 1e-10);
         if result.supported().has(Greek::Delta) && !option.at_spot_discontinuity(context, 0.01) {
             assert!(result.get(Greek::Delta).is_some());
@@ -300,7 +305,12 @@ fn deterministic_payoff_boundaries_leave_greeks_undefined_and_solvers_accept_zer
         &CoxRossRubinsteinVanillaEngine::default(),
         &FiniteDifferenceVanillaEngine::default(),
     ] {
-        let result = engine.price_with_greeks(&option, &context, GreeksRequest::all())?;
+        let result = engine.price_with_greeks_with_settings(
+            &option,
+            &context,
+            GreeksRequest::all(),
+            engine.greek_settings(&option),
+        )?;
         assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
         assert_eq!(result.status(Greek::Vega), GreekStatus::Undefined);
         assert_eq!(

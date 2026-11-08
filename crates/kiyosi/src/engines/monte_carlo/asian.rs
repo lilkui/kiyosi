@@ -253,7 +253,13 @@ impl MonteCarloAsianEngine {
             );
         }
         context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
+        <Self as PricingEngine<I>>::price_with_greeks_with_settings(
+            self,
+            option,
+            context,
+            request,
+            self.greek_settings(option),
+        )
     }
 
     #[expect(
@@ -584,20 +590,6 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
             .0
             .price())
     }
-    fn price_with_greeks(
-        &self,
-        option: &GeometricAveragePriceOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        <Self as PricingEngine<GeometricAveragePriceOption>>::price_with_greeks_with_settings(
-            self,
-            option,
-            context,
-            request,
-            Default::default(),
-        )
-    }
 
     fn price_with_greeks_with_settings(
         &self,
@@ -691,20 +683,6 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
             .native(&option.0, context, false, GreeksRequest::new([]), false)?
             .0
             .price())
-    }
-    fn price_with_greeks(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        <Self as PricingEngine<ArithmeticAveragePriceOption>>::price_with_greeks_with_settings(
-            self,
-            option,
-            context,
-            request,
-            Default::default(),
-        )
     }
 
     fn price_with_greeks_with_settings(

@@ -540,6 +540,9 @@ impl GreekMethod {
 /// without mutating inputs.
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
+/// Custom estimators implement [`Self::price_with_greeks_with_settings`]. Generic
+/// callers pass [`Self::greek_settings`] to use configured controls; built-in
+/// engines also expose inherent `price_with_greeks` convenience methods.
 pub trait PricingEngine<I = EuropeanOption> {
     /// Returns default Greek controls for this engine; see [`NumericalShiftSettings`].
     ///
@@ -553,8 +556,12 @@ pub trait PricingEngine<I = EuropeanOption> {
     ///
     /// Built-in overrides retain native estimators and apply shifts to numerical
     /// fallbacks, event checks and terminal stencils. Purely analytic measures ignore
-    /// the validated controls. The default uses scalar differences, like
-    /// [`Self::price_with_greeks`]. Inputs and engine configuration remain unchanged.
+    /// the validated controls. Override this method to implement a custom estimator;
+    /// built-in engines' `price_with_greeks` convenience methods use their configured
+    /// controls. This is the trait's only Greek implementation
+    /// hook. Pass [`Self::greek_settings`] to use configured controls through a
+    /// generic engine or trait object. The default uses scalar differences. Inputs
+    /// remain unchanged.
     ///
     /// # Errors
     ///
@@ -722,29 +729,6 @@ pub trait PricingEngine<I = EuropeanOption> {
         Err(Error::UnsupportedOperation(
             "sampling statistics are unavailable for this engine and instrument".into(),
         ))
-    }
-
-    /// Returns requested sensitivities, using scalar differences unless overridden.
-    ///
-    /// Uses configured finite-difference shifts or engine-default controls. Configure scalar differences explicitly with
-    /// [`crate::numerical_greeks`] and [`NumericalShiftSettings`].
-    ///
-    /// See [`crate::CoxRossRubinsteinVanillaEngine::price_with_greeks`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Reuses [`crate::numerical_greeks`] validation and propagates pricing errors.
-    fn price_with_greeks(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
-    where
-        I: crate::OptionContract,
-    {
-        let settings = self.greek_settings(option);
-        crate::numerical_greeks(self, option, context, request, settings)
     }
 
     /// Reports whether volatility affects a validated contract's remaining payoff.

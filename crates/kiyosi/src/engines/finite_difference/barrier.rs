@@ -130,16 +130,9 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         let engine = Self {
             settings: self.settings.with_greek_shifts(shifts),
         };
-        <Self as PricingEngine<BarrierOption>>::price_with_greeks(&engine, option, context, request)
+        engine.price_with_greeks(option, context, request)
     }
-    fn price_with_greeks(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request)
-    }
+
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)
     }
@@ -329,18 +322,9 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         let engine = Self {
             settings: self.settings.with_greek_shifts(shifts),
         };
-        <Self as PricingEngine<DoubleBarrierOption>>::price_with_greeks(
-            &engine, option, context, request,
-        )
+        engine.price_with_greeks(option, context, request)
     }
-    fn price_with_greeks(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request)
-    }
+
     fn volatility_affects_price(
         &self,
         option: &DoubleBarrierOption,

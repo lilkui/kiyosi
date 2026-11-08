@@ -124,16 +124,9 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         let engine = Self {
             settings: self.settings.with_greek_shifts(shifts),
         };
-        <Self as PricingEngine<Accumulator>>::price_with_greeks(&engine, option, context, request)
+        engine.price_with_greeks(option, context, request)
     }
-    fn price_with_greeks(
-        &self,
-        option: &Accumulator,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request)
-    }
+
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)
     }

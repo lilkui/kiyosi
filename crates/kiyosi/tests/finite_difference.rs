@@ -219,9 +219,11 @@ fn check_damping<I: OptionContract, E: PricingEngine<I>>(
     context: &PricingContext,
 ) {
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
-    let actual = cn.price_with_greeks(option, context, request).unwrap();
+    let actual = cn
+        .price_with_greeks_with_settings(option, context, request, cn.greek_settings(option))
+        .unwrap();
     let expected = implicit
-        .price_with_greeks(option, context, request)
+        .price_with_greeks_with_settings(option, context, request, implicit.greek_settings(option))
         .unwrap();
     assert_eq!(actual, expected);
     assert_eq!(actual.price(), cn.price(option, context).unwrap());

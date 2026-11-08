@@ -600,9 +600,14 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
                 "{greek:?}"
             );
         }
-        let generic =
-            PricingEngine::price_with_greeks(&engine, &option, &context, GreeksRequest::all())
-                .unwrap();
+        let generic = PricingEngine::price_with_greeks_with_settings(
+            &engine,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            engine.greek_settings(&option),
+        )
+        .unwrap();
         assert_eq!(generic, actual);
     }
     let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 }).unwrap();

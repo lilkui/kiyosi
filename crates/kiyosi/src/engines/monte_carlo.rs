@@ -827,7 +827,13 @@ impl MonteCarloVanillaEngine {
         Self: PricingEngine<I>,
     {
         context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
+        <Self as PricingEngine<I>>::price_with_greeks_with_settings(
+            self,
+            option,
+            context,
+            request,
+            self.greek_settings(option),
+        )
     }
 
     /// Returns a discounted sample mean, or intrinsic value at expiry.

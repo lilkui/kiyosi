@@ -209,14 +209,7 @@ macro_rules! pricing {
                     self.settings,
                 )
             }
-            fn price_with_greeks(
-                &self,
-                option: &$instrument,
-                context: &PricingContext,
-                request: GreeksRequest,
-            ) -> Result<PricingResult> {
-                Self::price_with_greeks(self, option, context, request)
-            }
+
             fn price_with_greeks_with_settings(
                 &self,
                 option: &$instrument,
