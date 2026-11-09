@@ -1364,6 +1364,23 @@ class ApiConsistencyTests(unittest.TestCase):
                     ins.EuropeanOption(strike=value, **fields).strike, value
                 )
 
+    def test_float_values_preserve_extremes_and_signed_zero(self):
+        class Float(float):
+            pass
+
+        for value in (-0.0, 0.1, float.fromhex("0x0.0000000000001p-1022"), 1e308):
+            for factory in (float, Float):
+                with self.subTest(value=value, factory=factory):
+                    model = market.BlackScholesMertonParameters(
+                        risk_free_rate=0.0,
+                        dividend_yield=0.0,
+                        volatility=factory(value),
+                    )
+                    self.assertEqual(model.volatility, value)
+                    self.assertEqual(
+                        math.copysign(1.0, model.volatility), math.copysign(1.0, value)
+                    )
+
     def test_decimal_conversion_preserves_context_and_error_categories(self):
         start, expiry = datetime(2025, 1, 1), datetime(2026, 1, 1)
         with localcontext() as decimal_context:

@@ -83,6 +83,9 @@ pub(crate) fn supplied<'a, 'py>(
 }
 
 pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    if let Ok(number) = value.cast_exact::<PyFloat>() {
+        return Ok(number.value());
+    }
     let numbers = value.py().import("numbers")?;
     let decimal =
         if !value.is_instance_of::<PyBool>() && value.is_instance(&numbers.getattr("Real")?)? {
