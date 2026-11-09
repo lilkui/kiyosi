@@ -66,13 +66,7 @@ macro_rules! sampling_settings {
     (@sampling $engine:expr, [$step:ident]) => {
         $engine.settings().sampling
     };
-    (@barrier $engine:ident, $instrument:ty) => {
-        sampling_settings!(@structured_impl $engine, $instrument, with_contract);
-    };
     (@structured $engine:ident, $instrument:ty, $with:path) => {
-        sampling_settings!(@structured_impl $engine, $instrument, $with);
-    };
-    (@structured_impl $engine:ident, $instrument:ty, $with:path) => {
         numerical_greeks_methods!(
             $instrument,
             [
@@ -662,7 +656,7 @@ numerical_greeks_methods!(
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloBarrierEngine(pub(crate) kiyosi::MonteCarloBarrierEngine);
 
-sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierOption>);
+sampling_settings!(@structured MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierOption>, with_contract);
 
 /// Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
 ///
@@ -707,7 +701,7 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) kiyosi::MonteCarloDoubleBarrierEngine);
 
-sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barrier::DoubleBarrierOption>);
+sampling_settings!(@structured MonteCarloDoubleBarrierEngine, PyRef<'_, double_barrier::DoubleBarrierOption>, with_contract);
 
 /// Flat-rate CPU Monte Carlo pricing for snowball and Phoenix notes.
 ///
