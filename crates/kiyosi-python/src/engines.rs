@@ -284,6 +284,10 @@ pub(crate) struct StatisticsRequest;
 pub(crate) struct SeededPriceRequest;
 
 impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
+    fn is_short(self) -> bool {
+        true
+    }
+
     fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
@@ -295,6 +299,10 @@ impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
 }
 
 impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
+    fn is_short(self) -> bool {
+        true
+    }
+
     fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,

@@ -30,9 +30,6 @@ macro_rules! fd_engine {
         fd_engine!($name, $instrument, with_contract);
     };
     ($name:ident, $instrument:ty, $with:path $(,)?) => {
-        fd_engine!($name, $instrument, $with, |_option, _context| false);
-    };
-    ($name:ident, $instrument:ty, $with:path, |$option:ident, $context:ident| $short:expr $(,)?) => {
         /// Finite-difference pricing.
         ///
         /// Parameters
@@ -221,9 +218,10 @@ macro_rules! fd_engine {
                 request: impl crate::engines::PricingRequest<R>,
             ) -> PyResult<R> {
                 let engine = self.0;
-                let $context = &context.0;
-                $with!(&instrument, $option, domain(request.run(py, $short, || {
-                    request.evaluate(&engine, $option, $context)
+                let context = &context.0;
+                $with!(&instrument, option, domain(request.run(py,
+                    kiyosi::OptionContract::expiry_time(option) == context.valuation_time(), || {
+                    request.evaluate(&engine, option, context)
                 })?))
             }
         }
@@ -238,7 +236,6 @@ fd_engine!(
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
     binomial::with_vanilla,
-    |option, context| kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
 );
 fd_engine!(
     FiniteDifferenceDigitalEngine,

@@ -72,7 +72,8 @@ macro_rules! analytic_engine {
                 request: impl crate::engines::PricingRequest<R>,
             ) -> PyResult<R> {
                 let $market = &context.0;
-                $with!(&instrument, $contract, domain(request.run(py, $short, || {
+                $with!(&instrument, $contract, domain(request.run(py,
+                    $short || kiyosi::OptionContract::expiry_time($contract) == $market.valuation_time(), || {
                     request.evaluate(&kiyosi::$engine, $contract, $market)
                 })?))
             }

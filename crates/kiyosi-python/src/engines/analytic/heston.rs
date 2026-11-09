@@ -138,6 +138,10 @@ impl AnalyticHestonEuropeanEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(request.run(py, false, || request.evaluate(&engine, option, context))?)
+        domain(request.run(
+            py,
+            kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
+            || request.evaluate(&engine, option, context),
+        )?)
     }
 }

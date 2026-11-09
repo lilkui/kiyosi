@@ -300,6 +300,37 @@ def terminal_delta(instrument):
 
 
 class SupportMatrixTests(unittest.TestCase):
+    def test_monte_carlo_terminal_statistics_and_seeds_match_settlement(self):
+        for instrument, names, expected in self.cases:
+            for name in names:
+                if not name.startswith("MonteCarlo"):
+                    continue
+                context = self.context_for(name)
+                option = dated_history(instrument, context)
+                for sampling in ("pseudo_random", "sobol"):
+                    engine = self.engines[name].replace(sampling=sampling)
+                    with self.subTest(
+                        instrument=type(option).__name__, engine=name, sampling=sampling
+                    ):
+                        price, seed = engine.price_with_seed(option, context)
+                        self.assertAlmostEqual(price, expected, delta=1e-12)
+                        self.assertIsNone(seed)
+                        if isinstance(option, ins.AmericanOption):
+                            continue
+                        estimate = engine.price_with_statistics(option, context)
+                        self.assertAlmostEqual(estimate.price, expected, delta=1e-12)
+                        self.assertIsNone(estimate.seed)
+                        self.assertEqual(
+                            estimate.standard_error,
+                            0 if sampling == "pseudo_random" else None,
+                        )
+                        self.assertEqual(
+                            estimate.uncertainty_status,
+                            "available"
+                            if sampling == "pseudo_random"
+                            else "unsupported_sampling",
+                        )
+
     def test_empty_greek_requests_return_price_only_for_every_engine(self):
         for instrument, names, expected in self.cases:
             for name in names:
