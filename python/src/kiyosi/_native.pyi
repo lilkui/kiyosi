@@ -8513,60 +8513,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticRangeAccrualEngine,
@@ -8579,60 +8526,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticDoubleBarrierEngine
@@ -8647,60 +8541,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticDoubleTouchEngine | FiniteDifferenceDoubleTouchEngine,
@@ -8713,60 +8554,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticBarrierEngine
@@ -8783,60 +8571,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticGeometricAveragePriceEngine | MonteCarloAsianEngine,
@@ -8849,60 +8584,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: TurnbullWakemanArithmeticAveragePriceEngine | MonteCarloAsianEngine,
@@ -8915,60 +8597,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticEuropeanEngine | MonteCarloVanillaEngine,
@@ -8981,60 +8610,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticDigitalEngine
@@ -9051,60 +8627,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: BjerksundStenslandVanillaEngine | MonteCarloVanillaEngine,
@@ -9117,60 +8640,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: CoxRossRubinsteinVanillaEngine
@@ -9185,60 +8655,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticBinaryBarrierEngine | FiniteDifferenceBinaryBarrierEngine,
@@ -9251,60 +8668,7 @@ def implied_volatility(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> float:
-    """Solve the annualized volatility that reproduces an observed price.
-
-    Parameters
-    ----------
-    engine : object
-        Supported pricing engine for the instrument.
-    instrument : object
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound : float
-        Required nonnegative finite lower annualized volatility in decimal units.
-    upper_bound : float
-        Required finite upper annualized volatility, above lower_bound.
-    price_tolerance : float, optional
-        Positive finite absolute price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in decimal units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget; defaults to 100.
-
-    Returns
-    -------
-    float
-        Annual parameter in decimal units.
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the parameter is not identifiable.
-    RootNotBracketedError
-        If the supplied endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Pricing failures propagate. Monte Carlo solves require an explicit seed;
-    call with_resolved_seed() first; tolerances constrain the sampled price
-    curve, not its sampling error. Digital and barrier prices can have several
-    volatility roots. The required bracket selects a root; CRR engines restrict it to
-    their admissible tree domain.
-    """
-
+) -> float: ...
 @overload
 def numerical_greeks(
     engine: QuadratureAccumulatorEngine
@@ -9382,54 +8746,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: AnalyticRangeAccrualEngine,
@@ -9441,54 +8758,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: AnalyticDoubleBarrierEngine
@@ -9502,54 +8772,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: AnalyticDoubleTouchEngine | FiniteDifferenceDoubleTouchEngine,
@@ -9561,54 +8784,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: AnalyticBarrierEngine
@@ -9624,54 +8800,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: AnalyticGeometricAveragePriceEngine | MonteCarloAsianEngine,
@@ -9683,54 +8812,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: TurnbullWakemanArithmeticAveragePriceEngine | MonteCarloAsianEngine,
@@ -9742,54 +8824,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: AnalyticEuropeanEngine | MonteCarloVanillaEngine,
@@ -9801,54 +8836,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: AnalyticDigitalEngine
@@ -9864,54 +8852,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: BjerksundStenslandVanillaEngine | MonteCarloVanillaEngine,
@@ -9923,54 +8864,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: CoxRossRubinsteinVanillaEngine
@@ -9984,54 +8878,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
-
+) -> PricingResult: ...
 @overload
 def numerical_greeks(
     engine: AnalyticBinaryBarrierEngine | FiniteDifferenceBinaryBarrierEngine,
@@ -10043,53 +8890,7 @@ def numerical_greeks(
     volatility_shift: _Real | None | EllipsisType = ...,
     rate_shift: _Real | EllipsisType = ...,
     time_shift: timedelta | None | EllipsisType = ...,
-) -> PricingResult:
-    """Compute numerical BSM Greeks through any supported built-in scalar engine.
-
-    Parameters
-    ----------
-    engine, instrument : object
-        Built-in engine and one of its supported contracts.
-    context : PricingContext
-        BSM market snapshot; local-volatility and Heston models are rejected.
-    greeks : str or iterable of str
-        Required measure names or "all". Unsupported instrument/engine pairs
-        are checked before Greek names.
-    spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
-    rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
-    time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
-        convergence for intraday valuations and between observations.
-
-    Returns
-    -------
-    PricingResult
-        Numerical sensitivities with request and availability metadata. An
-        unavailable numerical stencil has status "stencil_unavailable";
-        undefined derivatives retain "undefined". Units match native
-        price_with_greeks.
-
-    Raises
-    ------
-    KiyosiError
-        If settings are invalid, or model, contract or bumped pricing fails.
-    ValueError
-        If a Greek name is unknown.
-    TypeError
-        If greeks is not a string or iterable of strings.
-    OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
-    """
+) -> PricingResult: ...
 
 class GeometricAveragePriceOption:
     """Continuously monitored average-price Asian option.
@@ -13616,39 +12417,7 @@ def autocallable_observations(
     *,
     knock_out_coupon_rates: None = None,
     coupon_barrier_levels: Iterable[_Real],
-) -> list[AutocallableObservation]:
-    """Associate parallel sequences into input observation records.
-
-    Parameters
-    ----------
-    observation_times : iterable of datetime.datetime
-        Observation times; the note constructor checks ordering and life
-        bounds.
-    knock_out_levels : iterable of float
-        Positive inclusive knock-out levels, one per observation timestamp.
-    knock_out_coupon_rates : iterable of float or None, optional
-        Explicit annual snowball coupons, including zero for no coupon.
-    coupon_barrier_levels : iterable of float or None, optional
-        Explicit Phoenix coupon thresholds, including zero for unconditional
-        coupons.
-
-    Returns
-    -------
-    list of AutocallableObservation
-        Observation records.
-
-    Raises
-    ------
-    InvalidInputError
-        If neither or both coupon choices are supplied, sequence lengths
-        differ, or numeric levels or coupons are invalid.
-
-    Notes
-    -----
-    The note constructor validates ordering, life bounds and product-specific
-    constraints. Supply exactly one of knock_out_coupon_rates and
-    coupon_barrier_levels.
-    """
+) -> list[AutocallableObservation]: ...
 
 class SnowballOption:
     """Snowball with knock-out coupons and capped knock-in downside loss.
@@ -14009,32 +12778,7 @@ class PhoenixOption:
     @overload
     def with_quoted_coupon(
         self, *, coupon_rate: None = None, coupon_per_period: _Real
-    ) -> Self:
-        """Return a note with an annual or per-period coupon.
-
-        Supply exactly one coupon choice. History and other terms are preserved.
-
-        Parameters
-        ----------
-        coupon_rate : float, optional
-            Finite signed annual coupon in decimal units.
-        coupon_per_period : float, optional
-            Finite signed payment per observation, as a notional proportion.
-
-        Returns
-        -------
-        PhoenixOption
-            Note using the selected coupon units.
-
-        Raises
-        ------
-        InvalidInputError
-            If the coupon is invalid.
-        TypeError
-            If neither or both choices are supplied, or representations are
-            invalid.
-        """
-
+    ) -> Self: ...
     @property
     def knock_in_observation_schedule(self) -> ObservationSchedule:
         """Return an owned whole-life knock-in schedule, or None without knock-in.
@@ -14138,52 +12882,7 @@ class PhoenixOption:
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Parameters
-        ----------
-        coupon_rate : float, optional
-            Absolute annual rate; omission or Ellipsis retains the coupon. None
-            requires a concrete coupon_per_period value.
-        coupon_per_period : float, optional
-            Fixed per-period proportion; omission or Ellipsis retains the coupon.
-            None requires a concrete coupon_rate value.
-        initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_clock_time : datetime.time or None, optional
-            Required for daily monitoring; absent for expiry-only monitoring.
-        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        principal_redemption_ratio : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observations : Iterable[AutocallableObservation], optional
-            Replacement value; omission or Ellipsis retains the current field.
-        calendar : TradingCalendar, optional
-            Owned contractual observation calendar; omission retains it.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Independent contract of the same class, preserving omitted history and
-            terms.
-
-        Raises
-        ------
-        KiyosiError
-            If the resulting contract fails core validation.
-        TypeError
-            If a representation or field name is invalid, both coupon choices have
-            values, or an explicit None coupon has no concrete alternative.
-        """
-
+    ) -> Self: ...
     @overload
     def replace(
         self,
@@ -14206,52 +12905,7 @@ class PhoenixOption:
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
         history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Parameters
-        ----------
-        coupon_rate : float, optional
-            Absolute annual rate; omission or Ellipsis retains the coupon. None
-            requires a concrete coupon_per_period value.
-        coupon_per_period : float, optional
-            Fixed per-period proportion; omission or Ellipsis retains the coupon.
-            None requires a concrete coupon_rate value.
-        initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_clock_time : datetime.time or None, optional
-            Required for daily monitoring; absent for expiry-only monitoring.
-        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        principal_redemption_ratio : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observations : Iterable[AutocallableObservation], optional
-            Replacement value; omission or Ellipsis retains the current field.
-        calendar : TradingCalendar, optional
-            Owned contractual observation calendar; omission retains it.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Independent contract of the same class, preserving omitted history and
-            terms.
-
-        Raises
-        ------
-        KiyosiError
-            If the resulting contract fails core validation.
-        TypeError
-            If a representation or field name is invalid, both coupon choices have
-            values, or an explicit None coupon has no concrete alternative.
-        """
-
+    ) -> Self: ...
     @overload
     def __init__(
         self,

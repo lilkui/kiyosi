@@ -924,6 +924,7 @@ class PackageTests(unittest.TestCase):
     def test_stub_docstrings_match_native_api(self):
         package = Path(kiyosi.__file__).parent
         stub = ast.parse((package / "_native.pyi").read_text(encoding="utf-8"))
+        documented = set()
         for node in stub.body:
             if not isinstance(node, (ast.ClassDef, ast.FunctionDef)):
                 continue
@@ -944,6 +945,10 @@ class PackageTests(unittest.TestCase):
                 )
             for name, declaration, value in declarations:
                 with self.subTest(symbol=name, line=declaration.lineno):
+                    if name in documented:
+                        self.assertIsNone(ast.get_docstring(declaration))
+                        continue
+                    documented.add(name)
                     self.assertIsNotNone(ast.get_docstring(declaration))
                     self.assertEqual(
                         ast.get_docstring(declaration),

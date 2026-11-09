@@ -21,11 +21,19 @@ STUB = Path(__file__).resolve().parents[1] / "python/src/kiyosi/_native.pyi"
 
 
 def sync_docstrings(declarations, owner):
+    documented = set()
     for node in declarations:
         if not isinstance(node, (ast.ClassDef, ast.FunctionDef)):
             continue
         if node.name.startswith("_"):
             continue
+        if node.name in documented:
+            if ast.get_docstring(node) is not None:
+                node.body.pop(0)
+            if not node.body:
+                node.body.append(ast.Expr(value=ast.Constant(value=Ellipsis)))
+            continue
+        documented.add(node.name)
         value = getattr(owner, node.name)
         doc = inspect.getdoc(value)
         if doc:
