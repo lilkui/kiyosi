@@ -1,7 +1,10 @@
 use std::{
     f64::consts::TAU,
     io,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
 };
 
@@ -199,7 +202,7 @@ mod tests {
                     token.cancel();
                     inherited.store(crate::cancellation::check().is_err(), Ordering::Relaxed);
                 }
-                block
+                Ok(block)
             })
         });
         assert!(
@@ -209,7 +212,7 @@ mod tests {
         assert!(visited.load(Ordering::Relaxed) < blocks.len());
         run_blocks(&mut blocks, 2, |block| {
             assert!(crate::cancellation::check().is_ok());
-            block
+            Ok(block)
         })?;
         assert!(
             blocks
@@ -246,6 +249,35 @@ mod tests {
             matches!(result, Err(Error::Io(error)) if error.kind() == io::ErrorKind::Interrupted)
         );
         assert!(samples.load(Ordering::Relaxed) < 4096);
+    }
+
+    #[test]
+    fn sampling_failures_stop_work_and_leave_workers_usable() -> Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        for max_active_workers in [1, 2] {
+            let settings = MonteCarloSettings {
+                path_count: 65_536,
+                seed: Some(42),
+                max_active_workers,
+                ..Default::default()
+            };
+            let calls = AtomicUsize::new(0);
+            let error = path_samples::<1>(settings, 1, false, |_| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                Err(io::Error::from_raw_os_error(13).into())
+            })
+            .err()
+            .expect("sampling must propagate the payoff error");
+            assert!(matches!(error, Error::Io(native) if native.raw_os_error() == Some(13)));
+            assert!(
+                (1..=max_active_workers)
+                    .contains(&i32::try_from(calls.load(Ordering::Relaxed)).unwrap())
+            );
+            let ([sample], _, _) = path_samples(settings, 1, false, |_| Ok([7.0]))?;
+            assert_eq!(sample.count, 65_536);
+            assert_eq!(sample.scale * sample.mean, 7.0);
+        }
+        Ok(())
     }
 
     #[test]
@@ -382,7 +414,7 @@ mod tests {
         let caller = thread::current().id();
         for count in [0, 1, 513] {
             let mut blocks = vec![(usize::MAX, caller); count];
-            run_blocks(&mut blocks, 1, |block| (block, thread::current().id())).unwrap();
+            run_blocks(&mut blocks, 1, |block| Ok((block, thread::current().id()))).unwrap();
             assert_eq!(
                 blocks,
                 (0..count).map(|block| (block, caller)).collect::<Vec<_>>()
@@ -405,11 +437,11 @@ mod tests {
             for max_active_workers in [0, 2, 4, i32::MAX] {
                 let mut blocks = vec![(usize::MAX, caller, false); 513];
                 run_blocks(&mut blocks, max_active_workers, |block| {
-                    (
+                    Ok((
                         block,
                         thread::current().id(),
                         pool.current_thread_index().is_some(),
-                    )
+                    ))
                 })
                 .unwrap();
                 let mut workers = std::collections::HashSet::new();
@@ -437,7 +469,7 @@ mod tests {
                 if block == 3 {
                     std::panic::panic_any("Monte Carlo worker panic");
                 }
-                block
+                Ok(block)
             })
             .unwrap();
         })
@@ -447,7 +479,7 @@ mod tests {
             Some(&"Monte Carlo worker panic")
         );
         let mut blocks = [0; 513];
-        run_blocks(&mut blocks, 2, |block| block).unwrap();
+        run_blocks(&mut blocks, 2, Ok).unwrap();
         assert_eq!(blocks, std::array::from_fn(|block| block));
     }
 
@@ -1116,9 +1148,7 @@ fn path_samples<const N: usize>(
     };
     let empty = [Moments::default(); N];
     // Seed and merge fixed blocks in index order so worker counts cannot change the result.
-    let mut partials: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
-        .map(|_| Ok((empty, empty)))
-        .collect();
+    let mut partials = vec![(empty, empty); samples.div_ceil(BLOCK_SIZE)];
     let simulate = |block: usize| -> Result<([Moments; N], [Moments; N])> {
         let mut generator = Pcg32::new(seed, block as u64);
         let mut cursor = sobol
@@ -1160,8 +1190,7 @@ fn path_samples<const N: usize>(
     run_blocks(&mut partials, settings.max_active_workers, simulate)?;
     let mut total = empty;
     let mut pairs = empty;
-    for partial in partials {
-        let (payoffs, pair_means) = partial?;
+    for (payoffs, pair_means) in partials {
         for i in 0..N {
             total[i].merge(payoffs[i], variance);
             if statistics && settings.antithetic {
@@ -1196,7 +1225,7 @@ fn sample_normal(
 fn run_blocks<T: Send>(
     partials: &mut [T],
     max_active_workers: i32,
-    simulate: impl Fn(usize) -> T + Sync,
+    simulate: impl Fn(usize) -> Result<T> + Sync,
 ) -> Result<()> {
     let available = thread::available_parallelism().map_or(1, std::num::NonZero::get);
     let workers = if max_active_workers == 0 {
@@ -1208,7 +1237,7 @@ fn run_blocks<T: Send>(
     if workers <= 1 {
         for (block, partial) in partials.iter_mut().enumerate() {
             crate::cancellation::check()?;
-            *partial = simulate(block);
+            *partial = simulate(block)?;
         }
         return Ok(());
     }
@@ -1217,6 +1246,7 @@ fn run_blocks<T: Send>(
         .len()
         .div_ceil(workers.min(pool.current_num_threads()));
     let tokens = crate::cancellation::current();
+    let failed = AtomicBool::new(false);
     pool.install(|| {
         // Each chunk runs sequentially, keeping the number of active workers within the cap.
         partials
@@ -1225,8 +1255,12 @@ fn run_blocks<T: Send>(
             .try_for_each(|(chunk, values)| {
                 crate::cancellation::with_tokens(tokens.clone(), || {
                     for (index, value) in values.iter_mut().enumerate() {
+                        if failed.load(Ordering::Relaxed) {
+                            break;
+                        }
                         crate::cancellation::check()?;
-                        *value = simulate(chunk * chunk_size + index);
+                        *value = simulate(chunk * chunk_size + index)
+                            .inspect_err(|_| failed.store(true, Ordering::Relaxed))?;
                     }
                     Ok(())
                 })

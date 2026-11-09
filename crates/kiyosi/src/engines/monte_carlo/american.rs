@@ -126,10 +126,10 @@ impl MonteCarloVanillaEngine {
         } else {
             None
         };
-        let mut partials: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
-            .map(|_| Ok(Vec::new()))
+        let mut blocks: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
+            .map(|_| Vec::new())
             .collect();
-        run_blocks(&mut partials, self.settings.max_active_workers, |block| {
+        run_blocks(&mut blocks, self.settings.max_active_workers, |block| {
             let mut generator = Pcg32::new(seed, block as u64);
             let mut cursor = sobol
                 .as_ref()
@@ -168,7 +168,6 @@ impl MonteCarloVanillaEngine {
             }
             Ok(values)
         })?;
-        let blocks = partials.into_iter().collect::<Result<Vec<_>>>()?;
         let rows = || {
             blocks
                 .iter()
