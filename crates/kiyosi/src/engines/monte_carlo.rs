@@ -47,8 +47,7 @@ pub enum MonteCarloSampling {
 
 /// Configures terminal, Asian, barrier, autocallable, accumulator or American CPU sampling.
 ///
-/// Grid sizes belong to [`MonteCarloVanillaEngine::with_step_count`] and
-/// [`MonteCarloAsianEngine::with_step_count`].
+/// Grid sizes belong to [`MonteCarloGridSettings`].
 ///
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -692,7 +691,7 @@ impl MonteCarloVanillaEngine {
     /// use kiyosi::MonteCarloVanillaEngine;
     /// # fn main() -> kiyosi::Result<()> {
     /// let engine = MonteCarloVanillaEngine::default().with_resolved_seed()?;
-    /// assert!(engine.sampling_settings().seed.is_some());
+    /// assert!(engine.settings().sampling.seed.is_some());
     /// assert_eq!(engine.with_resolved_seed()?, engine);
     /// # Ok(()) }
     /// ```
@@ -703,67 +702,46 @@ impl MonteCarloVanillaEngine {
         })
     }
 
-    /// Creates an engine from sampling controls or complete sampling and grid settings.
+    /// Creates an engine from complete sampling and grid settings.
     ///
-    /// Sampling-only inputs use 50 exercise intervals. Complete inputs preserve their grid.
-    /// See [`Self::settings`] for reconstruction or [`Self::with_step_count`] for a grid override.
+    /// European pricing samples the terminal distribution without using the grid.
+    /// American exercise pricing requires at least two intervals and limits retained
+    /// path storage to 1 GiB per call; see [`Self::price`].
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for paths outside 1..=10,000,000,
+    /// Returns [`Error::InvalidInput`] for steps outside 1..=10,000, then
+    /// for paths outside 1..=10,000,000,
     /// a negative thread cap, or a non-power-of-two Sobol count.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine};
+    /// use kiyosi::{MonteCarloGridSettings, MonteCarloSettings, MonteCarloVanillaEngine};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-    ///     seed: Some(42), max_active_workers: 4, ..Default::default()
+    /// let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings {
+    ///         seed: Some(42), max_active_workers: 4, ..Default::default()
+    ///     },
+    ///     ..Default::default()
     /// })?;
-    /// assert_eq!(engine.sampling_settings().path_count, 131_072);
-    /// let sobol = MonteCarloVanillaEngine::new(MonteCarloSettings {
-    ///     path_count: 32768, sampling: kiyosi::MonteCarloSampling::Sobol,
-    ///     antithetic: true, seed: Some(42), ..Default::default()
+    /// assert_eq!(engine.settings().sampling.path_count, 131_072);
+    /// let sobol = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings {
+    ///         path_count: 32768, sampling: kiyosi::MonteCarloSampling::Sobol,
+    ///         antithetic: true, seed: Some(42), ..Default::default()
+    ///     },
+    ///     ..Default::default()
     /// })?;
-    /// assert!(sobol.sampling_settings().antithetic);
+    /// assert!(sobol.settings().sampling.antithetic);
     /// # Ok(()) }
     /// ```
-    pub fn new(settings: impl Into<MonteCarloGridSettings>) -> Result<Self> {
-        let settings = settings.into();
-        Self::with_step_count(settings.sampling, settings.step_count)
-    }
-
-    /// Creates an engine with a configured American exercise interval count.
-    ///
-    /// European pricing samples the terminal distribution and does not use this grid.
-    /// American pricing before expiry requires at least two intervals.
-    /// American exercise-grid pricing limits retained path storage to 1 GiB per call;
-    /// see [`Self::price`] for the size calculation and validation timing.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for steps outside 1..=10,000,
-    /// then reuses [`Self::new`] sampling validation. Inputs are consumed on failure.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let engine = MonteCarloVanillaEngine::with_step_count(MonteCarloSettings::default(), 100)?;
-    /// assert_eq!(engine.step_count(), 100);
-    /// let rebuilt = MonteCarloVanillaEngine::with_step_count(
-    ///     engine.sampling_settings(), engine.step_count())?;
-    /// assert_eq!(rebuilt, engine);
-    /// # Ok(()) }
-    /// ```
-    pub fn with_step_count(settings: MonteCarloSettings, step_count: i32) -> Result<Self> {
-        validate_step_count(step_count, 1)?;
-        settings.validate()?;
+    pub fn new(settings: MonteCarloGridSettings) -> Result<Self> {
+        validate_step_count(settings.step_count, 1)?;
+        settings.sampling.validate()?;
         Ok(Self {
-            settings,
-            step_count,
+            settings: settings.sampling,
+            step_count: settings.step_count,
         })
     }
 
@@ -772,9 +750,11 @@ impl MonteCarloVanillaEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine};
+    /// use kiyosi::{MonteCarloGridSettings, MonteCarloVanillaEngine};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let engine = MonteCarloVanillaEngine::with_step_count(MonteCarloSettings::default(), 100)?;
+    /// let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+    ///     step_count: 100, ..Default::default()
+    /// })?;
     /// assert_eq!(MonteCarloVanillaEngine::new(engine.settings())?, engine);
     /// let mut settings = engine.settings();
     /// settings.sampling.path_count = 4096;
@@ -789,16 +769,9 @@ impl MonteCarloVanillaEngine {
         }
     }
 
-    /// Returns the American exercise interval count; see [`Self::with_step_count`].
+    /// Returns the American exercise interval count; see [`Self::settings`].
     pub fn step_count(&self) -> i32 {
         self.step_count
-    }
-
-    /// Returns owned sampling settings; the grid count is available from [`Self::step_count`].
-    ///
-    /// See [`Self::with_step_count`] for configuration reconstruction.
-    pub fn sampling_settings(&self) -> MonteCarloSettings {
-        self.settings
     }
 
     /// Returns finite-difference Greeks using shared normal samples.
@@ -880,7 +853,10 @@ impl MonteCarloVanillaEngine {
     /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings { seed: Some(42), ..Default::default() })?;
+    /// let engine = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
+    ///     ..Default::default()
+    /// })?;
     /// assert!((engine.price(&option, &context)? - 9.227).abs() < 0.2);
     /// let analysis = engine.price_with_greeks(&option, &context,
     ///     kiyosi::GreeksRequest::new([kiyosi::Greek::Delta]))?;
@@ -918,13 +894,17 @@ impl MonteCarloVanillaEngine {
     /// # let start = Date::new(2025, 1, 1)?.start_of_day();
     /// # let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// # let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings { seed: Some(42), ..Default::default() })?;
+    /// let engine = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
+    ///     ..Default::default()
+    /// })?;
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert!(estimate.standard_error().is_some_and(|error| error > 0.0));
     /// assert!(estimate.confidence_interval().is_some());
     /// assert_eq!(estimate.seed(), Some(42));
-    /// let replay = MonteCarloVanillaEngine::new(MonteCarloSettings {
-    ///     seed: estimate.seed(), ..engine.sampling_settings()
+    /// let replay = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { seed: estimate.seed(), ..engine.settings().sampling },
+    ///     ..engine.settings()
     /// })?;
     /// assert_eq!(replay.price_with_statistics(&option, &context)?, estimate);
     /// # Ok(()) }
@@ -1035,7 +1015,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
         Ok(())
     }
     fn validate_solver_seed(&self) -> Result<()> {
-        self.sampling_settings().validate_solver_seed()
+        self.settings.validate_solver_seed()
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + '_>>> {

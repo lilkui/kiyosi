@@ -446,7 +446,7 @@ fn odd_antithetic_counts_keep_in_out_parity_with_the_terminal_sampler() {
         let engine = MonteCarloBarrierEngine::new(settings).unwrap();
         let sum = engine.price(&dated(&inside, &context), &context).unwrap()
             + engine.price(&dated(&outside, &context), &context).unwrap();
-        let expected = MonteCarloVanillaEngine::new(settings)
+        let expected = MonteCarloVanillaEngine::new(settings.into())
             .unwrap()
             .price(&dated(&vanilla, &context), &context)
             .unwrap();

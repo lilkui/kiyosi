@@ -708,7 +708,7 @@ fn native_greeks_use_defaults_in_shared_trait_adapters() {
             .price_with_greeks(&digital, &context, request)
             .unwrap(),
     );
-    let engine = MonteCarloAsianEngine::new(settings).unwrap();
+    let engine = MonteCarloAsianEngine::new(settings.into()).unwrap();
     let geometric = GeometricAveragePriceOption::new(
         OptionType::Call,
         100.0,

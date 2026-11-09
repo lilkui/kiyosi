@@ -641,12 +641,15 @@ fn deterministic_puts_forward_start_averages_and_sobol_statistics_are_consistent
             &MonteCarloAsianEngine::default(),
         ],
     )?;
-    let sobol = MonteCarloAsianEngine::new(MonteCarloSettings {
-        path_count: 1,
-        sampling: MonteCarloSampling::Sobol,
-        antithetic: true,
-        ..Default::default()
-    })?;
+    let sobol = MonteCarloAsianEngine::new(
+        MonteCarloSettings {
+            path_count: 1,
+            sampling: MonteCarloSampling::Sobol,
+            antithetic: true,
+            ..Default::default()
+        }
+        .into(),
+    )?;
     let estimate = sobol.price_with_statistics(&arithmetic, &context)?;
     assert!((estimate.price() - expected_arithmetic).abs() < 1e-10);
     assert_eq!(estimate.standard_error(), None);

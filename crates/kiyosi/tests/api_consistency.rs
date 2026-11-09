@@ -160,13 +160,13 @@ fn greek_requests_reject_disjoint_support_and_preserve_partial_results() -> Resu
             true
         );
         check!(
-            MonteCarloAsianEngine::new(sampling)?,
+            MonteCarloAsianEngine::new(sampling.into())?,
             GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?,
             context,
             true
         );
         check!(
-            MonteCarloAsianEngine::new(sampling)?,
+            MonteCarloAsianEngine::new(sampling.into())?,
             ArithmeticAveragePriceOption::new(
                 OptionType::Call,
                 100.0,
@@ -534,12 +534,15 @@ fn constant_node_curves_price_like_scalars_and_keep_coverage() -> Result<()> {
         model_parameters: Some(BlackScholesMertonParameters::new(short, 0.0, 0.2)?.into()),
         ..Default::default()
     })?;
-    let sampling = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 512,
-        seed: Some(42),
-        max_active_workers: 1,
-        ..Default::default()
-    })?;
+    let sampling = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 512,
+            seed: Some(42),
+            max_active_workers: 1,
+            ..Default::default()
+        }
+        .into(),
+    )?;
     for engine in [
         &AnalyticEuropeanEngine as &dyn PricingEngine,
         &CoxRossRubinsteinVanillaEngine::default(),
@@ -796,12 +799,15 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
         effective_time: Some(valuation),
         ..Default::default()
     })?;
-    let monte_carlo = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 128,
-        seed: Some(42),
-        max_active_workers: 1,
-        ..Default::default()
-    })?;
+    let monte_carlo = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 128,
+            seed: Some(42),
+            max_active_workers: 1,
+            ..Default::default()
+        }
+        .into(),
+    )?;
     for volatility in [0.0, 0.2] {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.05, 0.02, volatility)?,
@@ -1327,7 +1333,7 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
     check!(CoxRossRubinsteinDigitalEngine::default(), &digital);
     check!(CoxRossRubinsteinBarrierEngine::default(), &barrier);
     check!(MonteCarloDigitalEngine::new(settings)?, &digital);
-    check!(MonteCarloAsianEngine::new(settings)?, &asian);
+    check!(MonteCarloAsianEngine::new(settings.into())?, &asian);
     check!(MonteCarloBarrierEngine::new(settings)?, &barrier);
     check!(MonteCarloDoubleBarrierEngine::new(settings)?, &double);
     Ok(())
@@ -1501,12 +1507,12 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
         bsm.clone(),
     )?;
     check(
-        &MonteCarloAsianEngine::new(sampling)?,
+        &MonteCarloAsianEngine::new(sampling.into())?,
         &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?,
         bsm.clone(),
     )?;
     check(
-        &MonteCarloAsianEngine::new(sampling)?,
+        &MonteCarloAsianEngine::new(sampling.into())?,
         &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?,
         bsm,
     )?;
@@ -2374,12 +2380,15 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
         GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?;
     let arithmetic =
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?;
-    let mc = MonteCarloAsianEngine::new(MonteCarloSettings {
-        path_count: 16,
-        seed: Some(42),
-        max_active_workers: 1,
-        ..Default::default()
-    })?;
+    let mc = MonteCarloAsianEngine::new(
+        MonteCarloSettings {
+            path_count: 16,
+            seed: Some(42),
+            max_active_workers: 1,
+            ..Default::default()
+        }
+        .into(),
+    )?;
     check(
         &CoxRossRubinsteinVanillaEngine::default(),
         &european,

@@ -24,15 +24,15 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.0, 0.2, 100.0);
     for antithetic in [false, true] {
-        let engine = MonteCarloVanillaEngine::with_step_count(
-            MonteCarloSettings {
+        let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
                 path_count: 15_001,
                 seed: Some(42),
                 antithetic,
                 ..Default::default()
             },
-            10_000,
-        )
+            step_count: 10_000,
+        })
         .unwrap();
         assert!(matches!(
             engine.price(&put, &context),
@@ -75,21 +75,21 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
                 .unwrap(),
             expected
         );
-        assert_eq!(engine.sampling_settings().seed, Some(42));
+        assert_eq!(engine.settings().sampling.seed, Some(42));
     }
 }
 
 #[test]
 fn nonfinite_continuation_regressions_fail_without_changing_the_engine() {
     let context = market(-0.1, 0.0, 0.2, 100.0);
-    let engine = MonteCarloVanillaEngine::with_step_count(
-        MonteCarloSettings {
+    let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
             path_count: 128,
             seed: Some(42),
             ..Default::default()
         },
-        4,
-    )
+        step_count: 4,
+    })
     .unwrap();
     let ordinary = option(OptionType::Call, 100.0);
     let before = engine.price(&ordinary, &context).unwrap();
@@ -105,21 +105,28 @@ fn nonfinite_continuation_regressions_fail_without_changing_the_engine() {
         ));
     }
     assert_eq!(engine.price(&ordinary, &context).unwrap(), before);
-    assert_eq!(engine.sampling_settings().seed, Some(42));
+    assert_eq!(engine.settings().sampling.seed, Some(42));
 }
 
 #[test]
 fn american_put_includes_immediate_exercise_and_validates_steps_after_expiry() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.1, 0.0, 0.1, 50.0);
-    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 4096,
-        seed: Some(42),
-        ..Default::default()
-    })
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 4096,
+            seed: Some(42),
+            ..Default::default()
+        }
+        .into(),
+    )
     .unwrap();
     assert!((engine.price(&put, &context).unwrap() - 50.0).abs() < 1e-10);
-    let engine = MonteCarloVanillaEngine::with_step_count(engine.sampling_settings(), 1).unwrap();
+    let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: engine.settings().sampling,
+        step_count: 1,
+    })
+    .unwrap();
     assert!(matches!(
         engine.price(&put, &context).unwrap_err(),
         Error::InvalidInput(_)
@@ -137,15 +144,15 @@ fn american_put_includes_immediate_exercise_and_validates_steps_after_expiry() {
 fn sparse_and_rank_deficient_paths_preserve_exercise_and_currency_scaling() {
     for paths in [1, 3, 4, 127] {
         for antithetic in [false, true] {
-            let engine = MonteCarloVanillaEngine::with_step_count(
-                MonteCarloSettings {
+            let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: MonteCarloSettings {
                     path_count: paths,
                     seed: Some(42),
                     antithetic,
                     ..Default::default()
                 },
-                4,
-            )
+                step_count: 4,
+            })
             .unwrap();
             // Deterministic decreasing spots leave a constant regression basis.
             let price = engine
@@ -173,14 +180,14 @@ fn sparse_and_rank_deficient_paths_preserve_exercise_and_currency_scaling() {
         } else {
             (0.1, 0.0, 50.0)
         };
-        let engine = MonteCarloVanillaEngine::with_step_count(
-            MonteCarloSettings {
+        let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
                 path_count: 4,
                 seed: Some(42),
                 ..Default::default()
             },
-            4,
-        )
+            step_count: 4,
+        })
         .unwrap();
         assert!(
             (engine
@@ -206,16 +213,16 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
         .unwrap();
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         for antithetic in [false, true] {
-            let engine = MonteCarloVanillaEngine::with_step_count(
-                MonteCarloSettings {
+            let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: MonteCarloSettings {
                     path_count: 32768,
                     seed: Some(42),
                     max_active_workers: 1,
                     sampling,
                     antithetic,
                 },
-                49,
-            )
+                step_count: 49,
+            })
             .unwrap();
             let price = engine.price(&put, &context).unwrap();
             assert!(
@@ -223,47 +230,47 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
                 "{sampling:?}, {antithetic}: {price} != {reference}"
             );
             for threads in [0, 2, 4] {
-                let parallel = MonteCarloVanillaEngine::with_step_count(
-                    MonteCarloSettings {
+                let parallel = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                    sampling: MonteCarloSettings {
                         max_active_workers: threads,
-                        ..engine.sampling_settings()
+                        ..engine.settings().sampling
                     },
-                    engine.step_count(),
-                )
+                    step_count: engine.step_count(),
+                })
                 .unwrap();
                 assert_eq!(parallel.price(&put, &context).unwrap(), price);
             }
-            let changed = MonteCarloVanillaEngine::with_step_count(
-                MonteCarloSettings {
+            let changed = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: MonteCarloSettings {
                     seed: Some(u64::MAX),
-                    ..engine.sampling_settings()
+                    ..engine.settings().sampling
                 },
-                engine.step_count(),
-            )
+                step_count: engine.step_count(),
+            })
             .unwrap();
             assert_ne!(changed.price(&put, &context).unwrap(), price);
         }
     }
     for steps in [3, 7, 50] {
         for paths in [1, 3, 511, 513, 19999] {
-            let engine = MonteCarloVanillaEngine::with_step_count(
-                MonteCarloSettings {
+            let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: MonteCarloSettings {
                     path_count: paths,
                     seed: Some(42),
                     antithetic: true,
                     ..Default::default()
                 },
-                steps,
-            )
+                step_count: steps,
+            })
             .unwrap();
             let odd = engine.price(&put, &context).unwrap();
-            let even = MonteCarloVanillaEngine::with_step_count(
-                MonteCarloSettings {
+            let even = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: MonteCarloSettings {
                     path_count: paths + 1,
-                    ..engine.sampling_settings()
+                    ..engine.settings().sampling
                 },
-                engine.step_count(),
-            )
+                step_count: engine.step_count(),
+            })
             .unwrap()
             .price(&put, &context)
             .unwrap();
@@ -289,29 +296,34 @@ fn terminal_only_call_preserves_price_and_immediate_exercise_floor() {
         for antithetic in [false, true] {
             for (rate, dividend) in [(0.0, 0.0), (0.05, -0.02)] {
                 let context = market(rate, dividend, 0.2, 100.0);
-                let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                    path_count: 1024,
-                    seed: Some(42),
-                    sampling,
-                    antithetic,
-                    ..Default::default()
-                })
+                let engine = MonteCarloVanillaEngine::new(
+                    MonteCarloSettings {
+                        path_count: 1024,
+                        seed: Some(42),
+                        sampling,
+                        antithetic,
+                        ..Default::default()
+                    }
+                    .into(),
+                )
                 .unwrap();
                 let price = engine.price(&european, &context).unwrap();
                 for steps in [3, 50, 10000] {
-                    let other =
-                        MonteCarloVanillaEngine::with_step_count(engine.sampling_settings(), steps)
-                            .unwrap();
+                    let other = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                        sampling: engine.settings().sampling,
+                        step_count: steps,
+                    })
+                    .unwrap();
                     assert_eq!(other.price(&call, &context).unwrap(), price);
                 }
                 let deep = market(0.0, 0.0, 0.2, 2000.0);
-                let one = MonteCarloVanillaEngine::with_step_count(
-                    MonteCarloSettings {
+                let one = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                    sampling: MonteCarloSettings {
                         path_count: 1,
-                        ..engine.sampling_settings()
+                        ..engine.settings().sampling
                     },
-                    engine.step_count(),
-                )
+                    step_count: engine.step_count(),
+                })
                 .unwrap();
                 assert_eq!(
                     one.price(&call, &deep).unwrap(),
@@ -336,16 +348,16 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
     };
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         for antithetic in [false, true] {
-            let engine = MonteCarloVanillaEngine::with_step_count(
-                MonteCarloSettings {
+            let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: MonteCarloSettings {
                     path_count: 1024,
                     seed: Some(42),
                     sampling,
                     antithetic,
                     ..Default::default()
                 },
-                6,
-            )
+                step_count: 6,
+            })
             .unwrap();
             let all =
                 kiyosi::numerical_greeks(&engine, &put, &context, GreeksRequest::all(), shifts)
@@ -405,18 +417,18 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
             );
         }
     }
-    let unseeded = MonteCarloVanillaEngine::with_step_count(
-        MonteCarloSettings {
+    let unseeded = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
             path_count: 1024,
             ..Default::default()
         },
-        6,
-    )
+        step_count: 6,
+    })
     .unwrap();
     assert!(
         kiyosi::numerical_greeks(&unseeded, &put, &context, GreeksRequest::all(), shifts).is_ok()
     );
-    assert_eq!(unseeded.sampling_settings().seed, None);
+    assert_eq!(unseeded.settings().sampling.seed, None);
 }
 
 #[test]
@@ -426,14 +438,14 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
 )]
 fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
     let call = option(OptionType::Call, 100.0);
-    let engine = MonteCarloVanillaEngine::with_step_count(
-        MonteCarloSettings {
+    let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
             path_count: 2048,
             seed: Some(42),
             ..Default::default()
         },
-        6,
-    )
+        step_count: 6,
+    })
     .unwrap();
     let requested = NumericalShiftSettings::default().rate_shift;
     for rate in [-requested / 2.0, 0.0, requested / 2.0] {
@@ -462,14 +474,14 @@ fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
 fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.02, 0.2, 100.0);
-    let engine = MonteCarloVanillaEngine::with_step_count(
-        MonteCarloSettings {
+    let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
             path_count: 127,
             seed: Some(42),
             ..Default::default()
         },
-        6,
-    )
+        step_count: 6,
+    })
     .unwrap();
     let price = engine.price(&put, &context).unwrap();
     let expiry = put.expiry_time();
@@ -591,15 +603,15 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
 #[test]
 fn automatic_spot_bumps_match_explicit_product_defaults() {
     let context = market(0.05, 0.03, 0.2, 100.0);
-    let engine = MonteCarloVanillaEngine::with_step_count(
-        MonteCarloSettings {
+    let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
             path_count: 8192,
             seed: Some(42),
             max_active_workers: 1,
             ..Default::default()
         },
-        19,
-    )
+        step_count: 19,
+    })
     .unwrap();
     let put = option(OptionType::Put, 100.0);
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
@@ -652,17 +664,28 @@ fn monte_carlo_step_counts_are_intervals_with_two_required_for_american_exercise
         seed: Some(42),
         ..Default::default()
     };
-    let two = MonteCarloVanillaEngine::with_step_count(settings, 2).unwrap();
+    let two = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: settings,
+        step_count: 2,
+    })
+    .unwrap();
     let price = two.price(&put, &context).unwrap();
     assert!(price > 0.0 && price < 100.0);
     assert_eq!(two.step_count(), 2);
     assert_eq!(
-        MonteCarloAsianEngine::with_step_count(settings, 2)
-            .unwrap()
-            .step_count(),
+        MonteCarloAsianEngine::new(MonteCarloGridSettings {
+            sampling: settings,
+            step_count: 2
+        })
+        .unwrap()
+        .step_count(),
         2
     );
-    let one = MonteCarloVanillaEngine::with_step_count(settings, 1).unwrap();
+    let one = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: settings,
+        step_count: 1,
+    })
+    .unwrap();
     assert!(matches!(
         one.price(&put, &context),
         Err(Error::InvalidInput(_))

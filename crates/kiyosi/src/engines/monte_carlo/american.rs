@@ -24,7 +24,10 @@ impl MonteCarloVanillaEngine {
     /// let put = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings { seed: Some(42), ..Default::default() })?;
+    /// let engine = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
+    ///     ..Default::default()
+    /// })?;
     /// let result = engine.price_with_greeks(&put, &context,
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert!(result.require(Greek::Delta)? < 0.0);
@@ -256,7 +259,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     }
 
     fn validate_solver_seed(&self) -> Result<()> {
-        self.sampling_settings().validate_solver_seed()
+        self.settings.validate_solver_seed()
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AmericanOption> + '_>>> {
@@ -433,14 +436,14 @@ mod tests {
             Date::new(2026, 1, 1).unwrap().start_of_day(),
         )
         .unwrap();
-        let engine = MonteCarloVanillaEngine::with_step_count(
-            MonteCarloSettings {
+        let engine = MonteCarloVanillaEngine::new(crate::MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
                 path_count: 2048,
                 seed: Some(42),
                 ..Default::default()
             },
-            7,
-        )
+            step_count: 7,
+        })
         .unwrap();
         let shift = NumericalShiftSettings::default().rate_shift;
         for rate in [0.0, 0.05] {

@@ -28,19 +28,19 @@ fn solver_seed_policy_covers_every_monte_carlo_contract_family() -> Result<()> {
         };
         for result in [
             PricingEngine::<EuropeanOption>::validate_solver_seed(&MonteCarloVanillaEngine::new(
-                settings,
+                settings.into(),
             )?),
             PricingEngine::<AmericanOption>::validate_solver_seed(&MonteCarloVanillaEngine::new(
-                settings,
+                settings.into(),
             )?),
             PricingEngine::<DigitalOption>::validate_solver_seed(&MonteCarloDigitalEngine::new(
                 settings,
             )?),
             PricingEngine::<GeometricAveragePriceOption>::validate_solver_seed(
-                &MonteCarloAsianEngine::new(settings)?,
+                &MonteCarloAsianEngine::new(settings.into())?,
             ),
             PricingEngine::<ArithmeticAveragePriceOption>::validate_solver_seed(
-                &MonteCarloAsianEngine::new(settings)?,
+                &MonteCarloAsianEngine::new(settings.into())?,
             ),
             PricingEngine::<BarrierOption>::validate_solver_seed(&MonteCarloBarrierEngine::new(
                 settings,
@@ -92,13 +92,16 @@ fn uncertainty_status_explains_missing_estimates() -> Result<()> {
         ),
         (4, false, MonteCarloSampling::Sobol, UnsupportedSampling),
     ] {
-        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            path_count: paths,
-            antithetic,
-            sampling,
-            seed: Some(42),
-            max_active_workers: 1,
-        })?;
+        let engine = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                path_count: paths,
+                antithetic,
+                sampling,
+                seed: Some(42),
+                max_active_workers: 1,
+            }
+            .into(),
+        )?;
         let result = engine.price_with_statistics(&contract(OptionType::Call), &market())?;
         assert_eq!(result.uncertainty_status(), expected);
         assert_eq!(result.standard_error().is_some(), expected == Available);
@@ -116,11 +119,14 @@ fn uncertainty_status_explains_missing_estimates() -> Result<()> {
 
 #[test]
 fn prepared_vanilla_request_replays_prices_without_mutating_engine() {
-    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 256,
-        max_active_workers: 1,
-        ..Default::default()
-    })
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 256,
+            max_active_workers: 1,
+            ..Default::default()
+        }
+        .into(),
+    )
     .unwrap();
     let prepared = <MonteCarloVanillaEngine as PricingEngine>::prepare_request(&engine)
         .unwrap()
@@ -130,12 +136,12 @@ fn prepared_vanilla_request_replays_prices_without_mutating_engine() {
     let price = prepared.price(&option, &context).unwrap();
     assert_eq!(prepared.price(&option, &context).unwrap(), price);
     assert!(prepared.prepare_request().unwrap().is_none());
-    assert_eq!(engine.sampling_settings().seed, None);
+    assert_eq!(engine.settings().sampling.seed, None);
 }
 
 #[test]
 fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
-    let defaults = MonteCarloVanillaEngine::default().sampling_settings();
+    let defaults = MonteCarloVanillaEngine::default().settings().sampling;
     assert_eq!(defaults.path_count, 131_072);
     assert_eq!(MonteCarloVanillaEngine::default().step_count(), 50);
     assert_eq!(defaults.max_active_workers, 0);
@@ -145,23 +151,32 @@ fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
         (OptionType::Put, 6.330_080_627_549_918),
     ] {
         let option = contract(direction);
-        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            seed: Some(42),
-            max_active_workers: 1,
-            ..Default::default()
-        })
+        let engine = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                seed: Some(42),
+                max_active_workers: 1,
+                ..Default::default()
+            }
+            .into(),
+        )
         .unwrap();
         let price = engine.price(&option, &market()).unwrap();
         assert!((price - expected).abs() < 0.2, "{price} != {expected}");
         for steps in [2, 7, 10_000] {
-            let other = MonteCarloVanillaEngine::with_step_count(engine.sampling_settings(), steps)
-                .unwrap();
+            let other = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: engine.settings().sampling,
+                step_count: steps,
+            })
+            .unwrap();
             assert_eq!(other.price(&option, &market()).unwrap(), price);
         }
-        let other = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            seed: Some(43),
-            ..engine.sampling_settings()
-        })
+        let other = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                seed: Some(43),
+                ..engine.settings().sampling
+            }
+            .into(),
+        )
         .unwrap();
         assert_ne!(other.price(&option, &market()).unwrap(), price);
     }
@@ -171,13 +186,16 @@ fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
 fn terminal_prices_preserve_tiny_positive_volatility() {
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         for antithetic in [false, true] {
-            let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                path_count: 65_536,
-                seed: Some(42),
-                max_active_workers: 1,
-                sampling,
-                antithetic,
-            })
+            let engine = MonteCarloVanillaEngine::new(
+                MonteCarloSettings {
+                    path_count: 65_536,
+                    seed: Some(42),
+                    max_active_workers: 1,
+                    sampling,
+                    antithetic,
+                }
+                .into(),
+            )
             .unwrap();
             for amount in [100.0, 1e18] {
                 for sigma in [1e-17, 1e-200] {
@@ -232,12 +250,15 @@ fn terminal_prices_preserve_tiny_positive_volatility() {
 
 #[test]
 fn sampling_statistics_report_uncertainty_and_single_path_unavailability() {
-    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 100_000,
-        seed: Some(42),
-        max_active_workers: 4,
-        ..Default::default()
-    })
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 100_000,
+            seed: Some(42),
+            max_active_workers: 4,
+            ..Default::default()
+        }
+        .into(),
+    )
     .unwrap();
     let option = contract(OptionType::Call);
     let estimate = engine.price_with_statistics(&option, &market()).unwrap();
@@ -247,10 +268,13 @@ fn sampling_statistics_report_uncertainty_and_single_path_unavailability() {
     let (lower, upper) = estimate.confidence_interval().unwrap();
     assert!(lower < estimate.price() && upper > estimate.price());
     assert!((upper - lower - 2.0 * 1.959_963_984_540_054 * error).abs() < 1e-12);
-    let one = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 1,
-        ..engine.sampling_settings()
-    })
+    let one = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 1,
+            ..engine.settings().sampling
+        }
+        .into(),
+    )
     .unwrap();
     let estimate = one.price_with_statistics(&option, &market()).unwrap();
     assert_eq!(estimate.standard_error(), None);
@@ -262,20 +286,26 @@ fn sampling_statistics_report_uncertainty_and_single_path_unavailability() {
         option.expiry_time(),
     )
     .unwrap();
-    let pair = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 2,
-        ..engine.sampling_settings()
-    })
+    let pair = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 2,
+            ..engine.settings().sampling
+        }
+        .into(),
+    )
     .unwrap();
     let pair = pair.price_with_statistics(&option, &market()).unwrap();
     let first = one.price(&option, &market()).unwrap();
     assert!((pair.standard_error().unwrap() - (first - pair.price()).abs()).abs() < 1e-12);
     let mut previous = None;
     for paths in 1..=5 {
-        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            path_count: paths,
-            ..engine.sampling_settings()
-        })
+        let engine = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                path_count: paths,
+                ..engine.settings().sampling
+            }
+            .into(),
+        )
         .unwrap();
         let price = engine.price(&option, &market()).unwrap();
         assert_ne!(
@@ -289,11 +319,14 @@ fn sampling_statistics_report_uncertainty_and_single_path_unavailability() {
 
 #[test]
 fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
-    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 4097,
-        max_active_workers: 2,
-        ..Default::default()
-    })
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 4097,
+            max_active_workers: 2,
+            ..Default::default()
+        }
+        .into(),
+    )
     .unwrap();
     let option = EuropeanOption::new(
         OptionType::Call,
@@ -312,14 +345,17 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
         assert!((result.require(Greek::Delta).unwrap() - result.price() / 100.0).abs() < 1e-9);
         assert!(result.require(Greek::Gamma).unwrap().abs() < 1e-7);
     }
-    assert_eq!(engine.sampling_settings().seed, None);
+    assert_eq!(engine.settings().sampling.seed, None);
     let option = contract(OptionType::Call);
     let settings = ImpliedVolatilitySettings::new(0.1, 0.4);
     for seed in [Some(42), Some(u64::MAX), None] {
-        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            seed,
-            ..engine.sampling_settings()
-        })
+        let engine = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                seed,
+                ..engine.settings().sampling
+            }
+            .into(),
+        )
         .unwrap();
         let quote = if seed.is_some() {
             engine.price(&option, &market()).unwrap()
@@ -352,7 +388,7 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
         assert!(
             (replay.price(&option, &repriced).unwrap() - quote).abs() <= settings.price_tolerance
         );
-        assert_eq!(engine.sampling_settings().seed, seed);
+        assert_eq!(engine.settings().sampling.seed, seed);
     }
 }
 
@@ -360,29 +396,43 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
 fn settings_validate_boundaries_before_committing_an_engine() {
     for paths in [i32::MIN, -1, 0, 10_000_001, i32::MAX] {
         assert!(matches!(
-            MonteCarloVanillaEngine::new(MonteCarloSettings {
-                path_count: paths,
-                ..Default::default()
-            })
+            MonteCarloVanillaEngine::new(
+                MonteCarloSettings {
+                    path_count: paths,
+                    ..Default::default()
+                }
+                .into()
+            )
             .unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
     for steps in [i32::MIN, 0, 10_001, i32::MAX] {
         assert!(matches!(
-            MonteCarloVanillaEngine::with_step_count(Default::default(), steps).unwrap_err(),
+            MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: Default::default(),
+                step_count: steps
+            })
+            .unwrap_err(),
             Error::InvalidInput(_)
         ));
         assert!(matches!(
-            MonteCarloAsianEngine::with_step_count(Default::default(), steps).unwrap_err(),
+            MonteCarloAsianEngine::new(MonteCarloGridSettings {
+                sampling: Default::default(),
+                step_count: steps
+            })
+            .unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
     assert!(matches!(
-        MonteCarloVanillaEngine::new(MonteCarloSettings {
-            max_active_workers: -1,
-            ..Default::default()
-        })
+        MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                max_active_workers: -1,
+                ..Default::default()
+            }
+            .into()
+        )
         .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -394,10 +444,18 @@ fn settings_validate_boundaries_before_committing_an_engine() {
                 max_active_workers: i32::MAX,
                 ..Default::default()
             };
-            let vanilla = MonteCarloVanillaEngine::with_step_count(settings, steps).unwrap();
-            let asian = MonteCarloAsianEngine::with_step_count(settings, steps).unwrap();
-            assert_eq!(vanilla.sampling_settings(), settings);
-            assert_eq!(asian.sampling_settings(), settings);
+            let vanilla = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: settings,
+                step_count: steps,
+            })
+            .unwrap();
+            let asian = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+                sampling: settings,
+                step_count: steps,
+            })
+            .unwrap();
+            assert_eq!(vanilla.settings().sampling, settings);
+            assert_eq!(asian.settings().sampling, settings);
             assert_eq!(vanilla.step_count(), steps);
             assert_eq!(asian.step_count(), steps);
         }
@@ -411,21 +469,27 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
     send_sync::<MonteCarloEstimate>();
     for paths in [1, 2, 255, 256, 257, 511, 512, 513, 769, 1025, 3073, 4097] {
         for seed in [0, 42, u64::MAX] {
-            let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                path_count: paths,
-                seed: Some(seed),
-                max_active_workers: 1,
-                ..Default::default()
-            })
+            let engine = MonteCarloVanillaEngine::new(
+                MonteCarloSettings {
+                    path_count: paths,
+                    seed: Some(seed),
+                    max_active_workers: 1,
+                    ..Default::default()
+                }
+                .into(),
+            )
             .unwrap();
             for direction in [OptionType::Call, OptionType::Put] {
                 let option = contract(direction);
                 let expected = engine.price_with_statistics(&option, &market()).unwrap();
                 for threads in [0, 2, 4, i32::MAX] {
-                    let parallel = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                        max_active_workers: threads,
-                        ..engine.sampling_settings()
-                    })
+                    let parallel = MonteCarloVanillaEngine::new(
+                        MonteCarloSettings {
+                            max_active_workers: threads,
+                            ..engine.settings().sampling
+                        }
+                        .into(),
+                    )
                     .unwrap();
                     assert_eq!(
                         parallel.price_with_statistics(&option, &market()).unwrap(),
@@ -435,12 +499,15 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
             }
         }
     }
-    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 1025,
-        seed: Some(42),
-        max_active_workers: 4,
-        ..Default::default()
-    })
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 1025,
+            seed: Some(42),
+            max_active_workers: 4,
+            ..Default::default()
+        }
+        .into(),
+    )
     .unwrap();
     let option = contract(OptionType::Put);
     let context = market();
@@ -451,10 +518,13 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
     let bounds = ImpliedVolatilitySettings::new(0.1, 0.4);
     let volatility = implied_volatility(&engine, &option, &context, quote, bounds).unwrap();
     for threads in [0, 1, 2, 4] {
-        let other = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            max_active_workers: threads,
-            ..engine.sampling_settings()
-        })
+        let other = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                max_active_workers: threads,
+                ..engine.settings().sampling
+            }
+            .into(),
+        )
         .unwrap();
         assert_eq!(
             other
@@ -486,12 +556,15 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
 #[test]
 fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
     let option = contract(OptionType::Call);
-    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 257,
-        seed: Some(42),
-        max_active_workers: 4,
-        ..Default::default()
-    })
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 257,
+            seed: Some(42),
+            max_active_workers: 4,
+            ..Default::default()
+        }
+        .into(),
+    )
     .unwrap();
     let context = market();
     let at = |time| {
@@ -641,7 +714,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
     assert_eq!(missing.price(), baseline);
     assert_eq!(engine.price(&option, &context).unwrap(), baseline);
     assert_eq!(context, market());
-    assert_eq!(engine.sampling_settings().seed, Some(42));
+    assert_eq!(engine.settings().sampling.seed, Some(42));
 }
 
 #[test]
@@ -651,13 +724,16 @@ fn confidence_intervals_and_standard_errors_agree_with_independent_distribution(
         let mut covered = 0;
         let mut estimates = Vec::new();
         for seed in 0..32 {
-            let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                path_count: 8192,
-                antithetic,
-                seed: Some(seed),
-                max_active_workers: 1,
-                ..Default::default()
-            })
+            let engine = MonteCarloVanillaEngine::new(
+                MonteCarloSettings {
+                    path_count: 8192,
+                    antithetic,
+                    seed: Some(seed),
+                    max_active_workers: 1,
+                    ..Default::default()
+                }
+                .into(),
+            )
             .unwrap();
             let result = engine.price_with_statistics(&option, &market()).unwrap();
             // Independent BSM moments (plain) and normal-density quadrature (paired).
@@ -684,11 +760,14 @@ fn confidence_intervals_and_standard_errors_agree_with_independent_distribution(
 
 #[test]
 fn scaled_statistics_preserve_finite_prices_when_sums_squares_or_discounts_overflow() {
-    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        seed: Some(42),
-        max_active_workers: 4,
-        ..Default::default()
-    })
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            seed: Some(42),
+            max_active_workers: 4,
+            ..Default::default()
+        }
+        .into(),
+    )
     .unwrap();
     for (amount, rate, sigma) in [
         (1e304, -10.0, 0.5),
@@ -725,13 +804,16 @@ fn scaled_statistics_preserve_finite_prices_when_sums_squares_or_discounts_overf
 #[test]
 fn sobol_prices_match_analytic_and_never_claim_sampling_uncertainty() {
     for antithetic in [false, true] {
-        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            path_count: 65_536,
-            sampling: MonteCarloSampling::Sobol,
-            antithetic,
-            seed: Some(42),
-            ..Default::default()
-        })
+        let engine = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                path_count: 65_536,
+                sampling: MonteCarloSampling::Sobol,
+                antithetic,
+                seed: Some(42),
+                ..Default::default()
+            }
+            .into(),
+        )
         .unwrap();
         for direction in [OptionType::Call, OptionType::Put] {
             let option = contract(direction);
@@ -803,31 +885,38 @@ fn sobol_path_validation_and_seeded_single_point_preserve_existing_contract() {
                 ..defaults
             };
             assert_eq!(
-                MonteCarloVanillaEngine::new(settings)
+                MonteCarloVanillaEngine::new(settings.into())
                     .unwrap()
-                    .sampling_settings(),
+                    .settings()
+                    .sampling,
                 settings
             );
         }
         for paths in [0, 3, 100_000, 8_388_609, 16_777_216] {
             assert!(matches!(
-                MonteCarloVanillaEngine::new(MonteCarloSettings {
-                    path_count: paths,
-                    sampling: MonteCarloSampling::Sobol,
-                    antithetic,
-                    ..defaults
-                })
+                MonteCarloVanillaEngine::new(
+                    MonteCarloSettings {
+                        path_count: paths,
+                        sampling: MonteCarloSampling::Sobol,
+                        antithetic,
+                        ..defaults
+                    }
+                    .into()
+                )
                 .unwrap_err(),
                 Error::InvalidInput(_)
             ));
         }
-        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            path_count: 1,
-            sampling: MonteCarloSampling::Sobol,
-            antithetic,
-            seed: Some(42),
-            ..defaults
-        })
+        let engine = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                path_count: 1,
+                sampling: MonteCarloSampling::Sobol,
+                antithetic,
+                seed: Some(42),
+                ..defaults
+            }
+            .into(),
+        )
         .unwrap();
         let option = EuropeanOption::new(
             OptionType::Call,
@@ -840,11 +929,14 @@ fn sobol_path_validation_and_seeded_single_point_preserve_existing_contract() {
         let first = -0.103_649_407_589_402_44_f64;
         let expected = (-0.05_f64).exp() * (100.0 * (0.01 + 0.2 * first).exp() - 90.0);
         assert!((engine.price(&option, &market()).unwrap() - expected).abs() < 1e-11);
-        let pair = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            path_count: 2,
-            antithetic: true,
-            ..engine.sampling_settings()
-        })
+        let pair = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                path_count: 2,
+                antithetic: true,
+                ..engine.settings().sampling
+            }
+            .into(),
+        )
         .unwrap();
         let expected = (-0.05_f64).exp()
             * (50.0 * ((0.01 + 0.2 * first).exp() + (0.01 - 0.2 * first).exp()) - 90.0);
@@ -862,13 +954,16 @@ fn antithetic_counts_keep_the_unpaired_path_and_use_pair_uncertainty() {
     )
     .unwrap();
     let engine = |paths, antithetic| {
-        MonteCarloVanillaEngine::new(MonteCarloSettings {
-            path_count: paths,
-            antithetic,
-            seed: Some(42),
-            max_active_workers: 1,
-            ..Default::default()
-        })
+        MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                path_count: paths,
+                antithetic,
+                seed: Some(42),
+                max_active_workers: 1,
+                ..Default::default()
+            }
+            .into(),
+        )
         .unwrap()
     };
     assert_eq!(
@@ -921,22 +1016,28 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
         for antithetic in [false, true] {
             for paths in [1, 2, 256, 512, 1024] {
                 for seed in [0, 42, u64::MAX] {
-                    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                        path_count: paths,
-                        seed: Some(seed),
-                        sampling,
-                        antithetic,
-                        max_active_workers: 1,
-                    })
+                    let engine = MonteCarloVanillaEngine::new(
+                        MonteCarloSettings {
+                            path_count: paths,
+                            seed: Some(seed),
+                            sampling,
+                            antithetic,
+                            max_active_workers: 1,
+                        }
+                        .into(),
+                    )
                     .unwrap();
                     for direction in [OptionType::Call, OptionType::Put] {
                         let option = contract(direction);
                         let expected = engine.price_with_statistics(&option, &market()).unwrap();
                         for max_active_workers in [0, 2, 4, i32::MAX] {
-                            let parallel = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                                max_active_workers,
-                                ..engine.sampling_settings()
-                            })
+                            let parallel = MonteCarloVanillaEngine::new(
+                                MonteCarloSettings {
+                                    max_active_workers,
+                                    ..engine.settings().sampling
+                                }
+                                .into(),
+                            )
                             .unwrap();
                             assert_eq!(
                                 parallel.price_with_statistics(&option, &market()).unwrap(),
@@ -946,13 +1047,16 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                     }
                 }
             }
-            let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                path_count: 1024,
-                seed: Some(42),
-                sampling,
-                antithetic,
-                max_active_workers: 1,
-            })
+            let engine = MonteCarloVanillaEngine::new(
+                MonteCarloSettings {
+                    path_count: 1024,
+                    seed: Some(42),
+                    sampling,
+                    antithetic,
+                    max_active_workers: 1,
+                }
+                .into(),
+            )
             .unwrap();
             let option = contract(OptionType::Call);
             let context = market();
@@ -964,10 +1068,13 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                 implied_volatility(&engine, &option, &context, expected.price(), bounds).unwrap();
             assert!((sigma - 0.2).abs() < 1e-8);
             for max_active_workers in [0, 2, 4] {
-                let parallel = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                    max_active_workers,
-                    ..engine.sampling_settings()
-                })
+                let parallel = MonteCarloVanillaEngine::new(
+                    MonteCarloSettings {
+                        max_active_workers,
+                        ..engine.settings().sampling
+                    }
+                    .into(),
+                )
                 .unwrap();
                 assert_eq!(
                     parallel
@@ -1031,10 +1138,13 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                 Error::ComputationFailure(_)
             ));
             assert_eq!(engine.price(&option, &context).unwrap(), expected.price());
-            let unseeded = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                seed: None,
-                ..engine.sampling_settings()
-            })
+            let unseeded = MonteCarloVanillaEngine::new(
+                MonteCarloSettings {
+                    seed: None,
+                    ..engine.settings().sampling
+                }
+                .into(),
+            )
             .unwrap();
             let linear = EuropeanOption::new(
                 OptionType::Call,
@@ -1054,7 +1164,7 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                 (analysis.require(Greek::Delta).unwrap() - analysis.price() / 100.0).abs() < 1e-9
             );
             assert!(analysis.require(Greek::Gamma).unwrap().abs() < 1e-7);
-            assert_eq!(unseeded.sampling_settings().seed, None);
+            assert_eq!(unseeded.settings().sampling.seed, None);
             std::thread::scope(|scope| {
                 let tasks: Vec<_> = (0..3)
                     .map(|_| scope.spawn(|| engine.price(&option, &context).unwrap()))
@@ -1081,22 +1191,25 @@ fn antithetic_companion_failures_preserve_engine_and_inputs() {
             ..Default::default()
         })
         .unwrap();
-    let one = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 1,
-        seed: Some(42),
-        sampling: MonteCarloSampling::Sobol,
-        antithetic: true,
-        ..Default::default()
-    })
+    let one = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 1,
+            seed: Some(42),
+            sampling: MonteCarloSampling::Sobol,
+            antithetic: true,
+            ..Default::default()
+        }
+        .into(),
+    )
     .unwrap();
     assert!(one.price(&option, &context).unwrap().is_finite());
-    let pair = MonteCarloVanillaEngine::with_step_count(
-        MonteCarloSettings {
+    let pair = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
             path_count: 2,
-            ..one.sampling_settings()
+            ..one.settings().sampling
         },
-        one.step_count(),
-    )
+        step_count: one.step_count(),
+    })
     .unwrap();
     let baseline = pair.price(&option, &market()).unwrap();
     assert!(matches!(
@@ -1104,18 +1217,21 @@ fn antithetic_companion_failures_preserve_engine_and_inputs() {
         Error::ComputationFailure(_)
     ));
     assert_eq!(pair.price(&option, &market()).unwrap(), baseline);
-    assert!(pair.sampling_settings().antithetic);
+    assert!(pair.settings().sampling.antithetic);
 }
 
 #[test]
 fn default_path_count_supports_both_sampling_methods() {
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
-        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
-            sampling,
-            ..Default::default()
-        })
+        let engine = MonteCarloVanillaEngine::new(
+            MonteCarloSettings {
+                sampling,
+                ..Default::default()
+            }
+            .into(),
+        )
         .unwrap();
-        assert_eq!(engine.sampling_settings().sampling, sampling);
+        assert_eq!(engine.settings().sampling.sampling, sampling);
     }
 }
 
@@ -1194,8 +1310,16 @@ fn resolved_seed_engines_preserve_configuration_and_replay() -> Result<()> {
     check!(MonteCarloDoubleBarrierEngine::new(settings)?);
     check!(MonteCarloAutocallableEngine::new(settings)?);
     check!(MonteCarloAccumulatorEngine::new(settings)?);
-    let vanilla = MonteCarloVanillaEngine::with_step_count(settings, 100)?.with_resolved_seed()?;
-    let asian = MonteCarloAsianEngine::with_step_count(settings, 100)?.with_resolved_seed()?;
+    let vanilla = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: settings,
+        step_count: 100,
+    })?
+    .with_resolved_seed()?;
+    let asian = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: settings,
+        step_count: 100,
+    })?
+    .with_resolved_seed()?;
     assert_eq!(vanilla.step_count(), 100);
     assert_eq!(asian.step_count(), 100);
     assert_eq!(vanilla.with_resolved_seed()?, vanilla);

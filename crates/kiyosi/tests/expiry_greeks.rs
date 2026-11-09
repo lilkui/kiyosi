@@ -410,8 +410,16 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
     check!(CoxRossRubinsteinDigitalEngine::default(), &digital, 0.0);
     check!(CoxRossRubinsteinBarrierEngine::default(), &barrier, 1.0);
     check!(MonteCarloDigitalEngine::new(sampling)?, &digital, 0.0);
-    check!(MonteCarloAsianEngine::new(sampling)?, &geometric, 1.0);
-    check!(MonteCarloAsianEngine::new(sampling)?, &arithmetic, 1.0);
+    check!(
+        MonteCarloAsianEngine::new(sampling.into())?,
+        &geometric,
+        1.0
+    );
+    check!(
+        MonteCarloAsianEngine::new(sampling.into())?,
+        &arithmetic,
+        1.0
+    );
     Ok(())
 }
 
@@ -430,14 +438,14 @@ fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<(
         Box::new(QuadratureVanillaEngine::default()),
         Box::new(CoxRossRubinsteinVanillaEngine::default()),
         Box::new(FiniteDifferenceVanillaEngine::default()),
-        Box::new(MonteCarloVanillaEngine::new(sampling)?),
+        Box::new(MonteCarloVanillaEngine::new(sampling.into())?),
     ];
     let american: Vec<Box<dyn PricingEngine<AmericanOption>>> = vec![
         Box::new(BjerksundStenslandVanillaEngine),
         Box::new(QuadratureVanillaEngine::default()),
         Box::new(CoxRossRubinsteinVanillaEngine::default()),
         Box::new(FiniteDifferenceVanillaEngine::default()),
-        Box::new(MonteCarloVanillaEngine::new(sampling)?),
+        Box::new(MonteCarloVanillaEngine::new(sampling.into())?),
     ];
     macro_rules! check {
         ($contract:ident, $engines:expr) => {

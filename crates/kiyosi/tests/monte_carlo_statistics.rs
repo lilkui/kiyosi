@@ -44,7 +44,11 @@ fn sample<I: support::DatedHistory>(
 fn samples(settings: MonteCarloSettings) -> Vec<(&'static str, f64, MonteCarloEstimate)> {
     let (start, end) = dates();
     let digital = MonteCarloDigitalEngine::new(settings).unwrap();
-    let asian = MonteCarloAsianEngine::with_step_count(settings, 8).unwrap();
+    let asian = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: settings,
+        step_count: 8,
+    })
+    .unwrap();
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let asset = DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end).unwrap();
     let geometric =
@@ -312,7 +316,7 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
             sampling,
             ..settings()
         };
-        let asian = MonteCarloAsianEngine::new(settings).unwrap();
+        let asian = MonteCarloAsianEngine::new(settings.into()).unwrap();
         let estimates = [
             MonteCarloDigitalEngine::new(settings)
                 .unwrap()
@@ -417,7 +421,7 @@ fn generic_statistics_reject_engines_without_sampling_estimators() {
     let american = AmericanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     assert!(matches!(
         PricingEngine::price_with_statistics(
-            &MonteCarloVanillaEngine::new(settings()).unwrap(),
+            &MonteCarloVanillaEngine::new(settings().into()).unwrap(),
             &american,
             &market()
         ),
@@ -482,7 +486,11 @@ fn arithmetic_statistics_support_curves_and_known_history() {
             ..Default::default()
         })
         .unwrap();
-    let engine = MonteCarloAsianEngine::with_step_count(settings(), 8).unwrap();
+    let engine = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: settings(),
+        step_count: 8,
+    })
+    .unwrap();
     let estimate = engine
         .price_with_statistics(&dated(&option, &context), &context)
         .unwrap();
@@ -622,7 +630,7 @@ fn statistics_preserve_life_history_and_model_rejections() {
     ))
     .unwrap();
     let digital_engine = MonteCarloDigitalEngine::new(settings()).unwrap();
-    let asian_engine = MonteCarloAsianEngine::new(settings()).unwrap();
+    let asian_engine = MonteCarloAsianEngine::new(settings().into()).unwrap();
     let single_engine = MonteCarloBarrierEngine::new(settings()).unwrap();
     let double_engine = MonteCarloDoubleBarrierEngine::new(settings()).unwrap();
     let after = market()
@@ -729,7 +737,10 @@ fn generic_statistics_keep_existing_monte_carlo_estimators_available() {
     ))
     .unwrap();
     for (price, estimate) in [
-        sample(&MonteCarloVanillaEngine::new(settings).unwrap(), &vanilla),
+        sample(
+            &MonteCarloVanillaEngine::new(settings.into()).unwrap(),
+            &vanilla,
+        ),
         sample(
             &MonteCarloAccumulatorEngine::new(settings).unwrap(),
             &accumulator,
@@ -795,17 +806,20 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
     }
     let (start, end) = dates();
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
-    check(MonteCarloVanillaEngine::new, &vanilla)?;
+    check(
+        |sampling| MonteCarloVanillaEngine::new(sampling.into()),
+        &vanilla,
+    )?;
     check(
         MonteCarloDigitalEngine::new,
         &DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?,
     )?;
     check(
-        MonteCarloAsianEngine::new,
+        |sampling| MonteCarloAsianEngine::new(sampling.into()),
         &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?,
     )?;
     check(
-        MonteCarloAsianEngine::new,
+        |sampling| MonteCarloAsianEngine::new(sampling.into()),
         &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?,
     )?;
     check(
@@ -899,11 +913,16 @@ fn greek_results_retain_seeds_for_native_and_scalar_replay() -> Result<()> {
     };
     check(
         &EuropeanOption::new(OptionType::Call, 100.0, start, end)?,
-        |seed| MonteCarloVanillaEngine::new(settings(seed)),
+        |seed| MonteCarloVanillaEngine::new(settings(seed).into()),
     )?;
     check(
         &AmericanOption::new(OptionType::Put, 100.0, start, end)?,
-        |seed| MonteCarloVanillaEngine::with_step_count(settings(seed), 4),
+        |seed| {
+            MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                sampling: settings(seed),
+                step_count: 4,
+            })
+        },
     )?;
     check(
         &DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?,

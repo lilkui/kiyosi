@@ -61,47 +61,22 @@ impl MonteCarloAsianEngine {
         })
     }
 
-    /// Creates an engine from sampling controls or complete sampling and grid settings.
-    ///
-    /// Sampling-only inputs use 50 integration intervals. Complete inputs preserve their grid.
-    /// See [`crate::MonteCarloVanillaEngine::new`] for sampling configuration examples,
-    /// or [`Self::with_step_count`] to configure arithmetic-average integration.
-    ///
-    /// # Errors
-    ///
-    /// Reuses [`crate::MonteCarloVanillaEngine::new`] validation and error categories.
-    pub fn new(settings: impl Into<super::MonteCarloGridSettings>) -> Result<Self> {
-        let settings = settings.into();
-        Self::with_step_count(settings.sampling, settings.step_count)
-    }
-
-    /// Creates an engine with a configured arithmetic-average integration interval count.
+    /// Creates an engine from complete sampling and grid settings.
     ///
     /// Geometric averages sample their exact distribution without integration steps.
+    /// See [`crate::MonteCarloVanillaEngine::new`] for sampling configuration examples
+    /// and [`Self::settings`] for configuration reconstruction.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for steps outside 2..=10,000,
-    /// then reuses [`Self::new`] sampling validation. Inputs are consumed on failure.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{MonteCarloAsianEngine, MonteCarloSettings};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let engine = MonteCarloAsianEngine::with_step_count(MonteCarloSettings::default(), 100)?;
-    /// assert_eq!(engine.step_count(), 100);
-    /// let rebuilt = MonteCarloAsianEngine::with_step_count(
-    ///     engine.sampling_settings(), engine.step_count())?;
-    /// assert_eq!(rebuilt, engine);
-    /// # Ok(()) }
-    /// ```
-    pub fn with_step_count(settings: MonteCarloSettings, step_count: i32) -> Result<Self> {
-        super::validate_step_count(step_count, 2)?;
-        settings.validate()?;
+    /// then propagates [`MonteCarloSettings::validate`] errors. Inputs are consumed on failure.
+    pub fn new(settings: super::MonteCarloGridSettings) -> Result<Self> {
+        super::validate_step_count(settings.step_count, 2)?;
+        settings.sampling.validate()?;
         Ok(Self {
-            settings,
-            step_count,
+            settings: settings.sampling,
+            step_count: settings.step_count,
         })
     }
 
@@ -116,16 +91,9 @@ impl MonteCarloAsianEngine {
         }
     }
 
-    /// Returns the arithmetic-average integration interval count; see [`Self::with_step_count`].
+    /// Returns the arithmetic-average integration interval count; see [`Self::settings`].
     pub fn step_count(&self) -> i32 {
         self.step_count
-    }
-
-    /// Returns owned sampling settings; the grid count is available from [`Self::step_count`].
-    ///
-    /// See [`Self::with_step_count`] for configuration reconstruction.
-    pub fn sampling_settings(&self) -> MonteCarloSettings {
-        self.settings
     }
 
     /// Returns a discounted average-payoff estimate, or realized settlement at expiry.
@@ -165,8 +133,9 @@ impl MonteCarloAsianEngine {
     ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None, None)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
-    ///     seed: Some(42), ..Default::default()
+    /// let engine = MonteCarloAsianEngine::new(kiyosi::MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
+    ///     ..Default::default()
     /// })?;
     /// assert!((engine.price(&option, &context)? - 5.0359).abs() < 0.2);
     /// let result = engine.price_with_greeks(&option, &context,
@@ -565,10 +534,10 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         let (result, error, seed) =
             self.native(&option.0, context, true, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings(), seed)
+        MonteCarloEstimate::from_sampling(result.price(), error, self.settings, seed)
     }
     fn validate_solver_seed(&self) -> Result<()> {
-        self.sampling_settings().validate_solver_seed()
+        self.settings.validate_solver_seed()
     }
 
     fn prepare_request(
@@ -639,10 +608,10 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         let (result, error, seed) =
             self.native(&option.0, context, false, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings(), seed)
+        MonteCarloEstimate::from_sampling(result.price(), error, self.settings, seed)
     }
     fn validate_solver_seed(&self) -> Result<()> {
-        self.sampling_settings().validate_solver_seed()
+        self.settings.validate_solver_seed()
     }
 
     fn prepare_request(

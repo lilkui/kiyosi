@@ -418,7 +418,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
 fn settings_reuse_vanilla_validation_and_cash_sampling_variance() {
     assert_eq!(
         MonteCarloDigitalEngine::default().sampling_settings(),
-        MonteCarloVanillaEngine::default().sampling_settings()
+        MonteCarloVanillaEngine::default().settings().sampling
     );
     for settings in [
         MonteCarloSettings {

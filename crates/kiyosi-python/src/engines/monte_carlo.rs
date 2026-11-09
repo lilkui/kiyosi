@@ -58,7 +58,13 @@ macro_rules! sampling_settings {
         kiyosi::$engine::new($settings)
     };
     (@new $engine:ident, $settings:expr, [$step:ident]) => {
-        kiyosi::$engine::with_step_count($settings, $step)
+        kiyosi::$engine::new(kiyosi::MonteCarloGridSettings { sampling: $settings, step_count: $step })
+    };
+    (@sampling $engine:expr, []) => {
+        $engine.sampling_settings()
+    };
+    (@sampling $engine:expr, [$step:ident]) => {
+        $engine.settings().sampling
     };
     (@barrier $engine:ident, $instrument:ty) => {
         sampling_settings!(@structured_impl $engine, $instrument, with_contract);
@@ -244,7 +250,7 @@ macro_rules! sampling_settings {
             /// Return the exact number of sampled paths.
             #[getter]
             fn path_count(&self) -> i32 {
-                self.0.sampling_settings().path_count
+                sampling_settings!(@sampling self.0, [$($step)?]).path_count
             }
             $(
                 /// Return the configured grid size.
@@ -256,7 +262,7 @@ macro_rules! sampling_settings {
             /// Return the unsigned 64-bit seed, or None for system entropy.
             #[getter]
             fn seed(&self) -> Option<u64> {
-                self.0.sampling_settings().seed
+                sampling_settings!(@sampling self.0, [$($step)?]).seed
             }
             /// Return the per-call active worker cap; zero selects automatic sizing.
             ///
@@ -265,12 +271,12 @@ macro_rules! sampling_settings {
             ///
             #[getter]
             fn max_active_workers(&self) -> i32 {
-                self.0.sampling_settings().max_active_workers
+                sampling_settings!(@sampling self.0, [$($step)?]).max_active_workers
             }
             /// Return the sampling choice string: pseudo_random or sobol.
             #[getter]
             fn sampling(&self) -> &'static str {
-                match self.0.sampling_settings().sampling {
+                match sampling_settings!(@sampling self.0, [$($step)?]).sampling {
                     kiyosi::MonteCarloSampling::PseudoRandom => "pseudo_random",
                     kiyosi::MonteCarloSampling::Sobol => "sobol",
                 }
@@ -278,7 +284,7 @@ macro_rules! sampling_settings {
             /// Return whether opposite normal draws are paired.
             #[getter]
             fn antithetic(&self) -> bool {
-                self.0.sampling_settings().antithetic
+                sampling_settings!(@sampling self.0, [$($step)?]).antithetic
             }
             $($methods)*
         }

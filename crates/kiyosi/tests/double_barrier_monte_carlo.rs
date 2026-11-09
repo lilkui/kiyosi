@@ -498,7 +498,7 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
                     .unwrap()
             })
             .sum::<f64>();
-        let expected = MonteCarloVanillaEngine::new(settings)
+        let expected = MonteCarloVanillaEngine::new(settings.into())
             .unwrap()
             .price(&dated(&vanilla, &context), &context)
             .unwrap();
