@@ -121,11 +121,13 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
 ) -> Option<f64> {
     let t = note.view();
     let pending_knock_in = if t.daily_knock_in() {
-        note.daily_observation_schedule()
-            .ok()?
-            .times()
-            .iter()
-            .any(|&time| time > context.valuation_time())
+        context.valuation_time() < note.expiry_time()
+            && note
+                .has_daily_observation(
+                    context.valuation_time().add_micros(1).ok()?,
+                    note.expiry_time(),
+                )
+                .ok()?
     } else {
         t.knock_in.is_some() && context.valuation_time() < note.expiry_time()
     };

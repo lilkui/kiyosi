@@ -1078,6 +1078,26 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         }
     }
 
+    pub(crate) fn has_daily_observation(&self, start: Timestamp, end: Timestamp) -> Result<bool> {
+        let Some(clock) = self.observation_clock_time() else {
+            return Ok(false);
+        };
+        let start = start.max(self.effective_time());
+        let end = end.min(self.expiry_time());
+        let mut event = start.date().at_time(clock);
+        while event <= end {
+            crate::cancellation::check()?;
+            if event >= start && self.calendar().is_trading_day(event.date()) {
+                return Ok(true);
+            }
+            if event.date() == end.date() {
+                break;
+            }
+            event = event.add_days(1)?;
+        }
+        Ok(false)
+    }
+
     pub(crate) fn view(&self) -> sealed::View<'_> {
         self.0.view()
     }
@@ -1118,14 +1138,14 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
     pub(crate) fn prior(&self, time: Timestamp) -> Result<bool> {
         let had_out = self.observations()[0].time < time;
-        let had_in = self.view().daily_knock_in()
-            && self
-                .daily_observation_schedule()?
-                .times()
-                .iter()
-                .any(|&event| event < time);
+        let had_in = || {
+            if !self.view().daily_knock_in() || time <= self.effective_time() {
+                return Ok(false);
+            }
+            self.has_daily_observation(self.effective_time(), time.add_micros(-1)?)
+        };
         match self.barrier_state() {
-            None if had_out || had_in => {
+            None if had_out || had_in()? => {
                 return Err(Error::MissingHistory(
                     "prior autocallable state is required".into(),
                 ));
@@ -1135,7 +1155,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
                     "knock-out predates observations".into(),
                 ));
             }
-            Some(AutocallableBarrierState::KnockedIn) if !had_in => {
+            Some(AutocallableBarrierState::KnockedIn) if !had_in()? => {
                 return Err(Error::InvalidInput("knock-in predates monitoring".into()));
             }
             _ => {}

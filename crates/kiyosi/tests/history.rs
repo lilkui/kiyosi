@@ -1,6 +1,58 @@
 use kiyosi::*;
 
 #[test]
+fn autocallable_history_respects_the_first_daily_observation_on_sparse_calendars() -> Result<()> {
+    let date = Date::new(2025, 1, 2)?;
+    let start = date.at_time(TimeOfDay::new(13, 0, 0, 0)?);
+    let first = date.add_days(4)?.at_time(TimeOfDay::new(12, 0, 0, 0)?);
+    let end = date.add_days(4)?.at_time(TimeOfDay::new(16, 0, 0, 0)?);
+    let mut terms = SnowballTerms::new(
+        0.0,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        start,
+        end,
+        vec![AutocallableObservation::snowball(end, 110.0, 0.0)?],
+        Some(TimeOfDay::new(12, 0, 0, 0)?),
+    );
+    terms.calendar = TradingCalendar::custom(
+        TradingCalendar::all_days(),
+        vec![date.add_days(1)?, date.add_days(2)?, date.add_days(3)?],
+        vec![],
+        None,
+    )?;
+    let note = SnowballOption::new(terms)?;
+    let engine = QuadratureAutocallableEngine::default();
+    for at in [start, first.add_micros(-1)?, first, first.add_micros(1)?] {
+        let market =
+            PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?, 100.0, at)?;
+        if at <= first {
+            assert_eq!(engine.price(&note, &market)?, 1.0);
+        } else {
+            assert!(matches!(
+                engine.price(&note, &market),
+                Err(Error::MissingHistory(_))
+            ));
+        }
+        let knocked_in =
+            note.replace_history(Some(AutocallableBarrierState::KnockedIn), Some(at))?;
+        if at <= first {
+            assert!(matches!(
+                engine.price(&knocked_in, &market),
+                Err(Error::InvalidInput(_))
+            ));
+        } else {
+            assert_eq!(engine.price(&knocked_in, &market)?, 1.0);
+        }
+        let known = note.replace_history(Some(AutocallableBarrierState::NoEvent), Some(at))?;
+        assert_eq!(engine.price(&known, &market)?, 1.0);
+    }
+    Ok(())
+}
+
+#[test]
 fn average_snapshots_require_elapsed_averaging_at_construction_and_replacement() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let averaging = start.add_days(1)?;

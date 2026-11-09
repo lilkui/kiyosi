@@ -43,6 +43,56 @@ def engine(instrument):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_autocallable_history_respects_first_daily_observation_on_sparse_calendar(
+        self,
+    ):
+        start, first, end = (
+            datetime(2025, 1, 2, 13),
+            datetime(2025, 1, 6, 12),
+            datetime(2025, 1, 6, 16),
+        )
+        note = i.SnowballOption(
+            maturity_coupon_rate=0,
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=0,
+            effective_time=start,
+            expiry_time=end,
+            observations=[i.AutocallableObservation.snowball(end, 110, coupon_rate=0)],
+            observation_clock_time=time(12),
+            calendar=custom_calendar(
+                base=m.all_days_calendar(),
+                closed_dates=[
+                    (start + timedelta(days=day)).date() for day in (1, 2, 3)
+                ],
+            ),
+        )
+        selected = p.QuadratureAutocallableEngine()
+        for at in (
+            start,
+            first - timedelta(microseconds=1),
+            first,
+            first + timedelta(microseconds=1),
+        ):
+            snapshot = context(at, volatility=0)
+            with self.subTest(at=at):
+                if at <= first:
+                    self.assertEqual(selected.price(note, snapshot), 1)
+                else:
+                    with self.assertRaises(MissingHistoryError):
+                        selected.price(note, snapshot)
+                knocked_in = note.replace_history(
+                    barrier_state="knocked_in", history_time=at
+                )
+                if at <= first:
+                    with self.assertRaises(InvalidInputError):
+                        selected.price(knocked_in, snapshot)
+                else:
+                    self.assertEqual(selected.price(knocked_in, snapshot), 1)
+                known = note.replace_history(barrier_state="no_event", history_time=at)
+                self.assertEqual(selected.price(known, snapshot), 1)
+
     def test_average_snapshots_require_elapsed_averaging_at_construction_and_replacement(
         self,
     ):
