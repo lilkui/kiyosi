@@ -11,7 +11,8 @@ analytic_engine!(
     /// EuropeanOption : Supported contract.
     ///
     AnalyticEuropeanEngine,
-    EuropeanOption,
+    PyRef<'_, EuropeanOption>,
+    with_contract,
     |_option, _context| true,
     [
         ///

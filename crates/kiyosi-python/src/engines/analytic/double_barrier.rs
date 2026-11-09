@@ -14,5 +14,6 @@ analytic_engine!(
     /// DoubleBarrierOption : Supported contract.
     ///
     AnalyticDoubleBarrierEngine,
-    DoubleBarrierOption
+    PyRef<'_, DoubleBarrierOption>,
+    with_contract
 );

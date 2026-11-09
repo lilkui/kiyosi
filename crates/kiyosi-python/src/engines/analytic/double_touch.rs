@@ -24,5 +24,6 @@ analytic_engine!(
     /// FiniteDifferenceDoubleTouchEngine : Supports schedules and nonconstant rate curves.
     ///
     AnalyticDoubleTouchEngine,
-    DoubleTouchOption
+    PyRef<'_, DoubleTouchOption>,
+    with_contract
 );

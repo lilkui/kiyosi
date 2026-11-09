@@ -13,7 +13,8 @@ analytic_engine!(
     /// GeometricAveragePriceOption : Supported contract.
     ///
     AnalyticGeometricAveragePriceEngine,
-    GeometricAveragePriceOption,
+    PyRef<'_, GeometricAveragePriceOption>,
+    with_contract,
     |_option, _context| true
 );
 analytic_engine!(
@@ -27,6 +28,7 @@ analytic_engine!(
     /// ArithmeticAveragePriceOption : Supported contract.
     ///
     TurnbullWakemanArithmeticAveragePriceEngine,
-    ArithmeticAveragePriceOption,
+    PyRef<'_, ArithmeticAveragePriceOption>,
+    with_contract,
     |_option, _context| true
 );

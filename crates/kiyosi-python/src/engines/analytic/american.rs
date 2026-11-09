@@ -19,6 +19,7 @@ analytic_engine!(
     /// exercise; expiry returns intrinsic value.
     ///
     BjerksundStenslandVanillaEngine,
-    AmericanOption,
+    PyRef<'_, AmericanOption>,
+    with_contract,
     |_option, _context| true
 );

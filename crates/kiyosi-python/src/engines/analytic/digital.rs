@@ -1,21 +1,20 @@
-use crate::engines::ScalarRequest;
 use crate::error::domain;
-use crate::instruments::digital::DigitalInstrument;
+use crate::instruments::digital::{DigitalInstrument, with_digital};
 use crate::market::PricingContext;
 use pyo3::prelude::*;
-/// Analytic European digital pricing with deterministic rate curves.
-///
-/// See Also
-/// --------
-/// CashOrNothingOption : Supported contract.
-/// AssetOrNothingOption : Supported contract.
-///
-#[pyclass(frozen, eq, module = "kiyosi._native")]
-#[derive(PartialEq)]
-pub(crate) struct AnalyticDigitalEngine;
 
-numerical_greeks_methods!(
+analytic_engine!(
+    /// Analytic European digital pricing with deterministic rate curves.
+    ///
+    /// See Also
+    /// --------
+    /// CashOrNothingOption : Supported contract.
+    /// AssetOrNothingOption : Supported contract.
+    ///
+    AnalyticDigitalEngine,
     DigitalInstrument<'_>,
+    with_digital,
+    |_option, _context| true,
     [
         ///
         /// Notes
@@ -26,65 +25,5 @@ numerical_greeks_methods!(
         /// supplied terminal-payoff stencils. Use numerical_greeks for scalar-only
         /// differences.
         ///
-    ],
-    engine_methods!(
-        AnalyticDigitalEngine,
-        #[new]
-        fn new() -> Self {
-            Self
-        },
-        /// Return the price.
-        ///
-        /// Parameters
-        /// ----------
-        /// instrument : object
-        ///     Supported contract; see the engine class for accepted types.
-        /// context : PricingContext
-        ///     Market snapshot and valuation instant.
-        ///
-        /// Returns
-        /// -------
-        /// float
-        ///     Present value of remaining contractual payments.
-        ///
-        /// Raises
-        /// ------
-        /// KiyosiError
-        ///     If domain validation, engine applicability or numerical pricing fails.
-        ///
-        fn price(
-            &self,
-            py: Python<'_>,
-            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: DigitalInstrument<
-                '_,
-            >,
-            context: &PricingContext,
-        ) -> PyResult<f64> {
-            self.evaluate(py, instrument, context, ScalarRequest::Price)
-        }
-    )
+    ]
 );
-
-impl AnalyticDigitalEngine {
-    #[expect(
-        clippy::unused_self,
-        reason = "uniform instance API for pricing engines"
-    )]
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "retain the extracted Python borrow during evaluation"
-    )]
-    pub(crate) fn evaluate<R: Send>(
-        &self,
-        py: Python<'_>,
-        instrument: DigitalInstrument<'_>,
-        context: &PricingContext,
-        request: impl crate::engines::PricingRequest<R>,
-    ) -> PyResult<R> {
-        let option = instrument.contract();
-        let context = &context.0;
-        let calculate = || request.evaluate(&kiyosi::AnalyticDigitalEngine, option, context);
-        // Keep the GIL for short scalar formulas, but release it for iterative solves.
-        domain(request.run(py, true, calculate)?)
-    }
-}

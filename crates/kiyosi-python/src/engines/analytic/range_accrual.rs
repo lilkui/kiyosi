@@ -11,5 +11,6 @@ analytic_engine!(
     /// RangeAccrualOption : Supported contract.
     ///
     AnalyticRangeAccrualEngine,
-    RangeAccrualOption
+    PyRef<'_, RangeAccrualOption>,
+    with_contract
 );

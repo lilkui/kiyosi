@@ -1,10 +1,11 @@
 macro_rules! analytic_engine {
-    ($(#[$doc:meta])* $engine:ident, $option:ident) => {
-        analytic_engine!($(#[$doc])* $engine, $option, |_option, _context| false);
+    ($(#[$doc:meta])* $engine:ident, $instrument:ty, $with:path) => {
+        analytic_engine!($(#[$doc])* $engine, $instrument, $with, |_option, _context| false);
     };
-    ($(#[$doc:meta])* $engine:ident, $option:ident, |$contract:ident, $market:ident| $short:expr) => {
+    ($(#[$doc:meta])* $engine:ident, $instrument:ty, $with:path,
+     |$contract:ident, $market:ident| $short:expr) => {
         analytic_engine!(
-            $(#[$doc])* $engine, $option, |$contract, $market| $short,
+            $(#[$doc])* $engine, $instrument, $with, |$contract, $market| $short,
             [
                 ///
                 /// Notes
@@ -15,14 +16,15 @@ macro_rules! analytic_engine {
             ]
         );
     };
-    ($(#[$doc:meta])* $engine:ident, $option:ident, |$contract:ident, $market:ident| $short:expr,
+    ($(#[$doc:meta])* $engine:ident, $instrument:ty, $with:path,
+     |$contract:ident, $market:ident| $short:expr,
      [$(#[$greeks_doc:meta])*]) => {
         $(#[$doc])*
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
         pub(crate) struct $engine;
         numerical_greeks_methods!(
-            PyRef<'_, $option>,
+            $instrument,
             [
                 $(#[$greeks_doc])*
             ],
@@ -54,10 +56,7 @@ macro_rules! analytic_engine {
                 fn price(
                     &self,
                     py: Python<'_>,
-                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
-                        '_,
-                        $option,
-                    >,
+                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                     context: &PricingContext,
                 ) -> PyResult<f64> {
                     self.evaluate(py, instrument, context, $crate::engines::ScalarRequest::Price)
@@ -68,14 +67,14 @@ macro_rules! analytic_engine {
             pub(crate) fn evaluate<R: Send>(
                 &self,
                 py: Python<'_>,
-                instrument: PyRef<'_, $option>,
+                instrument: $instrument,
                 context: &PricingContext,
                 request: impl crate::engines::PricingRequest<R>,
             ) -> PyResult<R> {
-                let $contract = &instrument.0;
                 let $market = &context.0;
-                let calculate = || request.evaluate(&kiyosi::$engine, $contract, $market);
-                domain(request.run(py, $short, calculate)?)
+                $with!(&instrument, $contract, domain(request.run(py, $short, || {
+                    request.evaluate(&kiyosi::$engine, $contract, $market)
+                })?))
             }
         }
     };

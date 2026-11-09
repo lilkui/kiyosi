@@ -14,7 +14,8 @@ analytic_engine!(
     /// BarrierOption : Supported contract.
     ///
     AnalyticBarrierEngine,
-    BarrierOption,
+    PyRef<'_, BarrierOption>,
+    with_contract,
     |option, context| option.rebate() == 0.0
         && option.observation_times().is_none()
         && matches!(context.model_parameters(), kiyosi::ModelParameters::BlackScholesMerton(model)
