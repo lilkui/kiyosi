@@ -146,6 +146,40 @@ fn greek_requests_reject_disjoint_support_and_preserve_partial_results() -> Resu
         max_active_workers: 1,
         ..Default::default()
     };
+    for volatility in [0.0, 0.2] {
+        let context = bsm.replace(PricingContextChanges {
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.05, 0.02, volatility)?.into(),
+            ),
+            ..Default::default()
+        })?;
+        check!(
+            MonteCarloDigitalEngine::new(sampling)?,
+            digital,
+            context,
+            true
+        );
+        check!(
+            MonteCarloAsianEngine::new(sampling)?,
+            GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?,
+            context,
+            true
+        );
+        check!(
+            MonteCarloAsianEngine::new(sampling)?,
+            ArithmeticAveragePriceOption::new(
+                OptionType::Call,
+                100.0,
+                start,
+                end,
+                end,
+                None,
+                None
+            )?,
+            context,
+            true
+        );
+    }
     check!(MonteCarloBarrierEngine::new(sampling)?, barrier, bsm, true);
     check!(
         MonteCarloDoubleBarrierEngine::new(sampling)?,

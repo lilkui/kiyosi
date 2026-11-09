@@ -1,5 +1,5 @@
-use super::barrier::{Contract, greeks};
-use super::unstable;
+use super::barrier::Contract;
+use super::{greeks, unstable};
 use crate::{
     DoubleBarrierOption, GreeksRequest, MonteCarloBarrierEngine, MonteCarloEstimate,
     MonteCarloSettings, PricingContext, PricingEngine, PricingResult, Result,

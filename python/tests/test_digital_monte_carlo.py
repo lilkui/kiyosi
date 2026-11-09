@@ -171,7 +171,7 @@ class DigitalNumericalTests(unittest.TestCase):
                         other = pricing.MonteCarloDigitalEngine(
                             **settings, max_active_workers=threads
                         )
-                        for name in ("delta", "gamma", "rho"):
+                        for name in ("delta", "gamma"):
                             actual = other.price_with_greeks(option, market(), name)
                             self.assertEqual(actual.price, expected.price)
                             self.assertEqual(
@@ -205,10 +205,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 )
                 self.assertEqual(controlled.price, engine.price(option, market()))
                 self.assertEqual(controlled.status("rho"), "available")
-                self.assertEqual(
-                    engine.price_with_greeks(option, market(), "rho").status("rho"),
-                    "unsupported",
-                )
+                with self.assertRaises(UnsupportedOperationError):
+                    engine.price_with_greeks(option, market(), "rho")
                 with self.assertRaises(TypeError):
                     numerical_greeks(engine, option, market(), "delta", spot_shift=True)
                 self.assert_rejection(
@@ -228,7 +226,8 @@ class DigitalNumericalTests(unittest.TestCase):
                     path_count=2, seed=42, antithetic=True
                 )
                 self.assertEqual(engine.price(option, context), 50 if asset else 5)
-                self.assertIsNone(engine.price_with_greeks(option, context, "rho").rho)
+                with self.assertRaises(UnsupportedOperationError):
+                    engine.price_with_greeks(option, context, "rho")
                 self.assert_rejection(
                     ComputationFailureError,
                     engine.price_with_greeks,

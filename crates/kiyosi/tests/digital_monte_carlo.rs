@@ -103,10 +103,10 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
                     engine.price(&option, &context).unwrap(),
                     option.payout().unwrap_or(100.0) / 2.0
                 );
-                let result = engine
-                    .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Rho]))
-                    .unwrap();
-                assert!(!result.has(Greek::Rho));
+                assert!(matches!(
+                    engine.price_with_greeks(&option, &context, GreeksRequest::new([Greek::Rho])),
+                    Err(Error::UnsupportedOperation(_))
+                ));
                 assert!(matches!(
                     engine
                         .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Gamma]))

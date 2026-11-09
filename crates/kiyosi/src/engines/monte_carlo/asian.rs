@@ -244,14 +244,6 @@ impl MonteCarloAsianEngine {
     where
         Self: PricingEngine<I>,
     {
-        let settings = crate::NumericalShiftSettings::default();
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, settings).map(
-                |result| {
-                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-                },
-            );
-        }
         context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_greeks_with_settings(
             self,
@@ -598,21 +590,9 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
-        settings.validate()?;
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, settings).map(
-                |result| {
-                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-                },
-            );
-        }
-        let result = self
-            .native(&option.0, context, true, request, false)?
-            .0
-            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
-            <Self as PricingEngine<_>>::price(self, option, context)
+        super::greeks(self, option, context, request, settings, || {
+            self.native(&option.0, context, true, request, false)
+                .map(|result| result.0)
         })
     }
 }
@@ -692,21 +672,9 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
-        settings.validate()?;
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, settings).map(
-                |result| {
-                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-                },
-            );
-        }
-        let result = self
-            .native(&option.0, context, false, request, false)?
-            .0
-            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
-            <Self as PricingEngine<_>>::price(self, option, context)
+        super::greeks(self, option, context, request, settings, || {
+            self.native(&option.0, context, false, request, false)
+                .map(|result| result.0)
         })
     }
     fn volatility_affects_price(

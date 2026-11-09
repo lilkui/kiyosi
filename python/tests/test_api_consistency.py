@@ -95,6 +95,39 @@ class ApiConsistencyTests(unittest.TestCase):
                 True,
             ),
             (pricing.CoxRossRubinsteinBarrierEngine(), barrier, bsm, True),
+            *(
+                (
+                    engine,
+                    option,
+                    bsm.replace(
+                        model_parameters=market.BlackScholesMertonParameters(
+                            risk_free_rate=0.05,
+                            dividend_yield=0.02,
+                            volatility=volatility,
+                        )
+                    ),
+                    True,
+                )
+                for volatility in (0.0, 0.2)
+                for engine, option in (
+                    (
+                        pricing.MonteCarloDigitalEngine(**sampling),
+                        ins.CashOrNothingOption(**fields, payout=10),
+                    ),
+                    (
+                        pricing.MonteCarloAsianEngine(**sampling),
+                        ins.GeometricAveragePriceOption(
+                            **fields, averaging_start_time=end
+                        ),
+                    ),
+                    (
+                        pricing.MonteCarloAsianEngine(**sampling),
+                        ins.ArithmeticAveragePriceOption(
+                            **fields, averaging_start_time=end
+                        ),
+                    ),
+                )
+            ),
             (pricing.MonteCarloBarrierEngine(**sampling), barrier, bsm, True),
             (pricing.MonteCarloDoubleBarrierEngine(**sampling), double, bsm, True),
         ):

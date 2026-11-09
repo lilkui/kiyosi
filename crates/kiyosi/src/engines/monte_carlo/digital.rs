@@ -1,4 +1,4 @@
-use super::{path_means, scaled_value, unstable};
+use super::{greeks, path_means, scaled_value, unstable};
 use crate::{
     DigitalOption, Greek, GreeksRequest, MonteCarloEstimate, MonteCarloSampling,
     MonteCarloSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
@@ -166,22 +166,9 @@ impl MonteCarloDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, settings).map(
-                |result| {
-                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-                },
-            );
-        }
-        context.bsm_parameters()?;
-        self.validate_applicability(context)?;
-        settings.validate()?;
-        let result = self
-            .native(option, context, request, false)?
-            .0
-            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
-            self.price(option, context)
+        greeks(self, option, context, request, settings, || {
+            self.native(option, context, request, false)
+                .map(|result| result.0)
         })
     }
 

@@ -1,4 +1,4 @@
-use super::{path_means, scaled_value, unstable};
+use super::{greeks, path_means, scaled_value, unstable};
 use crate::engines::analytic::barrier::{hit_value, resolved_price};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::log_ratio;
@@ -557,28 +557,6 @@ impl MonteCarloBarrierEngine {
         result.set(request, Greek::Gamma, values[2])?;
         Ok((result.with_seed(Some(seed)), error, Some(seed)))
     }
-}
-
-pub(super) fn greeks<I: OptionContract>(
-    engine: &impl PricingEngine<I>,
-    option: &I,
-    context: &PricingContext,
-    request: GreeksRequest,
-    shifts: NumericalShiftSettings,
-    native: impl FnOnce() -> Result<PricingResult>,
-) -> Result<PricingResult> {
-    engine.validate_applicability(context)?;
-    shifts.validate()?;
-    let supported = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
-    request.validate_support(supported)?;
-    if crate::engines::deterministic::enabled(context) {
-        return crate::numerical_greeks(engine, option, context, request, shifts)
-            .map(|result| result.with_request(request, supported));
-    }
-    let result = native()?.with_request(request, supported);
-    crate::risk::numerical::expiry_greeks(option, context, shifts, result, |context| {
-        engine.price(option, context)
-    })
 }
 
 impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
