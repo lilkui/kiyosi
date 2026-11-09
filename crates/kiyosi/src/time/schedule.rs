@@ -77,6 +77,27 @@ impl ObservationSchedule {
         })
     }
 
+    pub(crate) fn any_daily(
+        start: Timestamp,
+        end: Timestamp,
+        calendar: &TradingCalendar,
+        clock: TimeOfDay,
+        predicate: impl Fn(Timestamp) -> bool,
+    ) -> Result<bool> {
+        let mut event = start.date().at_time(clock);
+        while event <= end {
+            crate::cancellation::check()?;
+            if event >= start && calendar.is_trading_day(event.date()) && predicate(event) {
+                return Ok(true);
+            }
+            if event.date() == end.date() {
+                break;
+            }
+            event = event.add_days(1)?;
+        }
+        Ok(false)
+    }
+
     /// Creates candidates every `interval_days` after the start date at the supplied clock time.
     ///
     /// `start_time` is excluded and `end_time` is inclusive. Following adjustment merges collisions
@@ -239,6 +260,100 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
+
+    #[test]
+    fn daily_queries_respect_bounds_calendars_and_filters() -> Result<()> {
+        let friday = crate::Date::new(2025, 1, 3)?;
+        let clock = TimeOfDay::new(15, 0, 0, 123_456)?;
+        let first = friday.at_time(clock);
+        let sunday = first.add_days(2)?;
+        let monday = first.add_days(3)?;
+        let calendar = TradingCalendar::custom(
+            TradingCalendar::weekdays(),
+            vec![monday.date()],
+            vec![sunday.date()],
+            None,
+        )?;
+        for (start, end, expected) in [
+            (first, first, true),
+            (first.add_micros(1)?, sunday.add_micros(-1)?, false),
+            (first.add_micros(1)?, sunday, true),
+            (sunday.add_micros(1)?, monday, false),
+            (monday, monday.add_days(1)?, true),
+            (monday, first, false),
+        ] {
+            assert_eq!(
+                ObservationSchedule::any_daily(start, end, &calendar, clock, |_| true)?,
+                expected,
+                "{start:?} through {end:?}"
+            );
+        }
+        assert!(ObservationSchedule::any_daily(
+            first,
+            monday,
+            &calendar,
+            clock,
+            |at| at == sunday
+        )?);
+        assert!(!ObservationSchedule::any_daily(
+            first,
+            monday,
+            &calendar,
+            clock,
+            |at| at == monday
+        )?);
+        let last = crate::Date::new(32767, 12, 31)?.at_time(clock);
+        assert!(!ObservationSchedule::any_daily(
+            last,
+            last,
+            &calendar,
+            clock,
+            |_| false
+        )?);
+        Ok(())
+    }
+
+    #[test]
+    fn daily_queries_short_circuit_and_preserve_cancellation() -> Result<()> {
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let token = CancellationToken::default();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calendar = TradingCalendar::new(
+            {
+                let calls = Arc::clone(&calls);
+                move |_| {
+                    calls.fetch_add(1, Ordering::Relaxed);
+                    true
+                }
+            },
+            365,
+        )?;
+        assert!(ObservationSchedule::any_daily(
+            start,
+            start.add_days(365)?,
+            &calendar,
+            start.time_of_day(),
+            |_| true,
+        )?);
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        let result = token.run(|| {
+            ObservationSchedule::any_daily(
+                start,
+                start.add_days(365)?,
+                &calendar,
+                start.time_of_day(),
+                |_| {
+                    token.cancel();
+                    false
+                },
+            )
+        });
+        assert!(
+            matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+        Ok(())
+    }
 
     #[test]
     fn daily_generation_stops_between_calendar_queries_after_cancellation() -> Result<()> {

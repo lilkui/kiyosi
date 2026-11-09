@@ -399,17 +399,15 @@ impl Accumulator {
                 "valuation must be within contract life".into(),
             ));
         }
-        let schedule = self.accumulation_schedule()?;
-        let had_accumulation = schedule.times().iter().any(|&time| time < valuation);
-        let had_knock_out_at = |at| {
-            self.knock_out_observation_times()
-                .unwrap_or(schedule.times())
-                .iter()
-                .any(|&time| time < at)
+        let had_accumulation =
+            self.any_accumulation(self.effective_time(), valuation, |time| time < valuation)?;
+        let had_knock_out_at = |at| match self.knock_out_observation_times() {
+            Some(times) => Ok(times.iter().any(|&time| time < at)),
+            None => self.any_accumulation(self.effective_time(), at, |time| time < at),
         };
-        let had_knock_out = had_knock_out_at(valuation);
+        let had_knock_out = had_knock_out_at(valuation)?;
         if self.knock_out_settled() == Some(true)
-            && !had_knock_out_at(self.terms.history_time.unwrap_or(valuation).min(valuation))
+            && !had_knock_out_at(self.terms.history_time.unwrap_or(valuation).min(valuation))?
         {
             return Err(Error::InvalidInput(
                 "knock-out settlement predates knock-out observations".into(),
@@ -468,15 +466,28 @@ impl Accumulator {
         {
             return false;
         }
-        let Ok(schedule) = self.accumulation_schedule() else {
-            return true;
-        };
-        schedule.times().iter().any(|&time| {
+        self.any_accumulation(context.valuation_time(), self.expiry_time(), |time| {
             time > context.valuation_time()
                 && (self.acceleration_factor() != 0.0
                     || !self.is_knock_out(self.strike())
                     || !self.observes_knock_out(time))
         })
+        .unwrap_or(true)
+    }
+
+    fn any_accumulation(
+        &self,
+        start: Timestamp,
+        end: Timestamp,
+        predicate: impl Fn(Timestamp) -> bool,
+    ) -> Result<bool> {
+        ObservationSchedule::any_daily(
+            start.max(self.effective_time()),
+            end.min(self.expiry_time()),
+            self.calendar(),
+            self.observation_clock_time(),
+            predicate,
+        )
     }
     pub(crate) fn purchase(&self, spot: f64) -> f64 {
         let accelerated = match self.option_type() {
@@ -655,14 +666,14 @@ impl OptionContract for Accumulator {
         if self.knock_out_settled() == Some(true) {
             return true;
         }
-        let Ok(schedule) = self.accumulation_schedule() else {
-            return false;
-        };
-        !schedule
-            .times()
-            .iter()
-            .chain(self.knock_out_observation_times().unwrap_or(&[]))
-            .any(|&time| before <= time && time <= after)
+        !self
+            .any_accumulation(before, after, |_| true)
+            .unwrap_or(true)
+            && !self
+                .knock_out_observation_times()
+                .unwrap_or(&[])
+                .iter()
+                .any(|&time| before <= time && time <= after)
     }
 }
 

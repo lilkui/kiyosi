@@ -1082,20 +1082,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         let Some(clock) = self.observation_clock_time() else {
             return Ok(false);
         };
-        let start = start.max(self.effective_time());
-        let end = end.min(self.expiry_time());
-        let mut event = start.date().at_time(clock);
-        while event <= end {
-            crate::cancellation::check()?;
-            if event >= start && self.calendar().is_trading_day(event.date()) {
-                return Ok(true);
-            }
-            if event.date() == end.date() {
-                break;
-            }
-            event = event.add_days(1)?;
-        }
-        Ok(false)
+        crate::ObservationSchedule::any_daily(
+            start.max(self.effective_time()),
+            end.min(self.expiry_time()),
+            self.calendar(),
+            clock,
+            |_| true,
+        )
     }
 
     pub(crate) fn view(&self) -> sealed::View<'_> {
