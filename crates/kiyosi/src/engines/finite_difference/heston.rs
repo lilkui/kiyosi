@@ -1,5 +1,5 @@
-use super::grid::{Curve, SpatialGrid, TimeGrid, concentrate};
-use super::{FiniteDifferenceSettings, Payoff, invalid_grid, time_to_expiry, unstable};
+use super::grid::{SpatialGrid, TimeGrid, concentrate};
+use super::{Curve, FiniteDifferenceSettings, Payoff, invalid_grid, time_to_expiry, unstable};
 use crate::engines::analytic::heston::integrated_variance;
 use crate::engines::deterministic::exercise_value;
 use crate::numerics::{checked_with_scale, scaled_cash};

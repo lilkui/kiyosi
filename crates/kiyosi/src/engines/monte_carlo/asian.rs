@@ -1,3 +1,4 @@
+use crate::engines::curve::Curve;
 use crate::instruments::asian::AverageTerms;
 use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
@@ -310,21 +311,28 @@ impl MonteCarloAsianEngine {
         let variance_time = if single { tau } else { lead + future / 3.0 };
         let flat =
             model.risk_free_curve().nodes().is_empty() && model.dividend_curve().nodes().is_empty();
-        let carry = if flat {
-            model.flat_risk_free_rate()? - model.flat_dividend_yield()?
+        let (rate, dividend) = if flat {
+            (model.flat_risk_free_rate()?, model.flat_dividend_yield()?)
         } else {
-            0.0
+            (0.0, 0.0)
         };
+        let carry = rate - dividend;
         let drift_rate = carry - 0.5 * sigma * sigma;
         let log_discount = model.risk_free_curve().log_factor(valuation, expiry)?;
-        let carry_between = |from, to| -> Result<f64> {
-            Ok(
-                -curve_log_factor(model.risk_free_curve(), valuation, from, to)?
-                    + curve_log_factor(model.dividend_curve(), valuation, from, to)?,
-            )
+        let curves = if flat {
+            None
+        } else {
+            Some([
+                Curve::new(model.risk_free_curve(), valuation, expiry)?,
+                Curve::new(model.dividend_curve(), valuation, expiry)?,
+            ])
+        };
+        let carry_between = |from, to| match &curves {
+            Some([risk, dividend]) => -risk.log_factor(from, to) + dividend.log_factor(from, to),
+            None => rate * (to - from) - dividend * (to - from),
         };
         if !geometric && !single && o.adjusted_strike(tau) <= 0.0 {
-            let log_mean = log_average_forward(context, lead, future)?;
+            let log_mean = log_average_forward(model, valuation, lead, future, carry_between);
             let first = if o.sign() > 0.0 {
                 (log_discount + weight.ln() + log_mean).exp()
             } else {
@@ -348,7 +356,7 @@ impl MonteCarloAsianEngine {
             return Ok((result([price, first, 0.0], request)?, known_error, None));
         }
         let drift = if single && !flat {
-            carry_between(0.0, tau)? - 0.5 * sigma * sigma * tau
+            carry_between(0.0, tau) - 0.5 * sigma * sigma * tau
         } else {
             weight * drift_rate * if single { tau } else { lead + future / 2.0 }
         };
@@ -391,12 +399,12 @@ impl MonteCarloAsianEngine {
             p.interval_forward = if flat {
                 carry * dt
             } else {
-                carry_between(lead, lead + dt)?
+                carry_between(lead, lead + dt)
             };
             let mut interval_drifts = Vec::new();
             if !flat {
                 p.drift = p.interval_forward - 0.5 * sigma * sigma * dt;
-                p.lead_drift = carry_between(0.0, lead)? - 0.5 * sigma * sigma * lead;
+                p.lead_drift = carry_between(0.0, lead) - 0.5 * sigma * sigma * lead;
                 for step in 2..=self.step_count {
                     let from = lead + future * f64::from(step - 1) / f64::from(self.step_count);
                     let to = if step == self.step_count {
@@ -404,7 +412,7 @@ impl MonteCarloAsianEngine {
                     } else {
                         lead + future * f64::from(step) / f64::from(self.step_count)
                     };
-                    interval_drifts.push(carry_between(from, to)? - 0.5 * sigma * sigma * dt);
+                    interval_drifts.push(carry_between(from, to) - 0.5 * sigma * sigma * dt);
                 }
             }
             if [
@@ -687,34 +695,13 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
     }
 }
 
-fn curve_log_factor(
-    curve: &crate::RateTermStructure,
+fn log_average_forward(
+    model: &crate::BlackScholesMertonParameters,
     valuation: Timestamp,
-    from: f64,
-    to: f64,
-) -> Result<f64> {
-    if let Some(rate) = curve.exact_flat_rate() {
-        return Ok(-rate * (to - from));
-    }
-    let mut previous = valuation;
-    let mut total = 0.0;
-    for &node in curve.nodes().iter().filter(|&&n| n > valuation) {
-        let begin = valuation.years_until(previous).max(from);
-        let end = valuation.years_until(node).min(to);
-        if end > begin {
-            total -= curve.forward_rate(previous)? * (end - begin);
-        }
-        if valuation.years_until(node) >= to {
-            break;
-        }
-        previous = node;
-    }
-    Ok(total)
-}
-
-fn log_average_forward(context: &PricingContext, lead: f64, future: f64) -> Result<f64> {
-    let model = context.bsm_parameters()?;
-    let valuation = context.valuation_time();
+    lead: f64,
+    future: f64,
+    carry: impl Fn(f64, f64) -> f64,
+) -> f64 {
     let mut times = vec![lead, lead + future];
     for curve in [model.risk_free_curve(), model.dividend_curve()] {
         times.extend(
@@ -727,15 +714,9 @@ fn log_average_forward(context: &PricingContext, lead: f64, future: f64) -> Resu
     }
     times.sort_by(f64::total_cmp);
     times.dedup();
-    let carry = |from, to| -> Result<f64> {
-        Ok(
-            -curve_log_factor(model.risk_free_curve(), valuation, from, to)?
-                + curve_log_factor(model.dividend_curve(), valuation, from, to)?,
-        )
-    };
     let mut mean = f64::NEG_INFINITY;
     for pair in times.windows(2) {
-        let x = carry(pair[0], pair[1])?;
+        let x = carry(pair[0], pair[1]);
         let growth = if x == 0.0 {
             0.0
         } else if x > 0.0 {
@@ -745,10 +726,10 @@ fn log_average_forward(context: &PricingContext, lead: f64, future: f64) -> Resu
         };
         mean = log_add(
             mean,
-            carry(0.0, pair[0])? + growth + ((pair[1] - pair[0]) / future).ln(),
+            carry(0.0, pair[0]) + growth + ((pair[1] - pair[0]) / future).ln(),
         );
     }
-    Ok(mean)
+    mean
 }
 
 fn log_add(a: f64, b: f64) -> f64 {

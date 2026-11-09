@@ -1,4 +1,4 @@
-use super::Payoff;
+use super::{Payoff, curve::Curve};
 use crate::numerics::{scaled_cash as scaled, weighted_cdf};
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
@@ -16,7 +16,6 @@ pub(crate) mod heston;
 mod local_volatility;
 mod step;
 use diffusion::{Diffusion, LocalDiffusion};
-pub(super) use grid::Curve;
 use grid::{SpatialGrid, TimeGrid};
 use step::Stepper;
 

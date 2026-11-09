@@ -1,4 +1,4 @@
-use super::{Payoff, finite_difference::Curve};
+use super::{Payoff, curve::Curve};
 use crate::instruments::autocallable::pricing::{future_event_times, initial, validate};
 use crate::instruments::{
     binary_barrier::Contract,
