@@ -121,6 +121,7 @@ impl AnalyticRangeAccrualEngine {
         let mut value = Sum::default();
         value.add(scaled_cash(hits, scale));
         for date in &dates[future..] {
+            crate::cancellation::check()?;
             let time = valuation.years_until(*date);
             let volatility = model.volatility();
             let drift = -model.risk_free_curve().log_factor(valuation, *date)?

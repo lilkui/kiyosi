@@ -58,6 +58,7 @@ impl ObservationSchedule {
         let mut times = Vec::new();
         let mut date = start_time.date();
         loop {
+            crate::cancellation::check()?;
             let time = date.at_time(observation_clock_time);
             if (time > start_time || include_start && time == start_time)
                 && time <= end_time
@@ -228,4 +229,58 @@ fn validate_range(start_time: Timestamp, end_time: Timestamp) -> Result<()> {
         return Err(Error::InvalidInput("end precedes start".into()));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CancellationToken;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    #[test]
+    fn daily_generation_stops_between_calendar_queries_after_cancellation() -> Result<()> {
+        let token = CancellationToken::default();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calendar = TradingCalendar::new(
+            {
+                let token = token.clone();
+                let calls = Arc::clone(&calls);
+                move |_| {
+                    calls.fetch_add(1, Ordering::Relaxed);
+                    token.cancel();
+                    true
+                }
+            },
+            365,
+        )?;
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let result = token.run(|| {
+            ObservationSchedule::daily(
+                start,
+                start.add_days(365)?,
+                &calendar,
+                true,
+                start.time_of_day(),
+            )
+        });
+        assert!(
+            matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            ObservationSchedule::daily(
+                start,
+                start.add_days(2)?,
+                &TradingCalendar::all_days(),
+                true,
+                start.time_of_day(),
+            )?
+            .len(),
+            3
+        );
+        Ok(())
+    }
 }

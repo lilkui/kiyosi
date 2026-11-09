@@ -33,6 +33,26 @@ fn market(at: impl Into<Timestamp>, spot: f64) -> PricingContext {
 }
 
 #[test]
+fn range_pricing_observes_cancellation_inside_an_active_request() -> Result<()> {
+    let option = RangeAccrualOption::new(terms())?;
+    let context = market(day(1), 100.0);
+    let token = CancellationToken::default();
+    let result = token.run(|| {
+        token.cancel();
+        assert!(matches!(
+            AnalyticRangeAccrualEngine.price(&option, &context),
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted
+        ));
+        Ok(())
+    });
+    assert!(
+        matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+    );
+    assert!(AnalyticRangeAccrualEngine.price(&option, &context)? > 0.0);
+    Ok(())
+}
+
+#[test]
 fn automatic_time_bumps_recover_daily_risk_without_crossing_observations() -> Result<()> {
     let clock = TimeOfDay::new(15, 0, 0, 0)?;
     let mut terms = RangeAccrualTerms::new(1000.0, 0.12, 90.0, 110.0, day(1), day(5), clock);
