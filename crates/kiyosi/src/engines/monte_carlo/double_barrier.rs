@@ -59,7 +59,7 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// Current touches and resolved cash flows precede sampling. Resolved vanilla
     /// payoffs and continuous at-hit rebates use analytic formulas.
-    /// Calls finish synchronously without cancellation polling.
+    /// Cancellation follows [`crate::CancellationToken`].
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
@@ -69,7 +69,7 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves,
     /// [`crate::Error::InvalidInput`] outside life,
-    /// [`crate::Error::InvalidInput`] for missing history or Sobol
+    /// [`crate::Error::InvalidInput`] for Sobol
     /// dimensions above 21,201, [`crate::Error::InvalidInput`] for
     /// impossible history, or [`crate::Error::ComputationFailure`] for
     /// unrepresentable paths, nonconvergent series or results. Operational failures
@@ -144,9 +144,9 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat rates and requests before estimating with default controls,
-    /// then propagates [`Self::price`] errors. Empty requests return
-    /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
+    /// Checks flat rates and request support before estimating with default controls,
+    /// then propagates [`Self::price`] errors. Request handling follows
+    /// [`GreeksRequest`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`].
     ///
     /// # Panics

@@ -68,8 +68,8 @@ impl MonteCarloBarrierEngine {
     /// Prices after validating flat rates, inclusive life and prior history.
     ///
     /// Current hits and resolved payments precede sampling; resolved vanilla payoffs
-    /// use analytic pricing. Prior at-hit rebates are already paid. Calls finish
-    /// synchronously without cancellation polling. See [`Self::price_with_greeks`].
+    /// use analytic pricing. Prior at-hit rebates are already paid. Cancellation
+    /// follows [`crate::CancellationToken`]. See [`Self::price_with_greeks`].
     ///
     /// # Errors
     ///
@@ -150,9 +150,9 @@ impl MonteCarloBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat rates and requests before estimating with default controls,
-    /// then propagates [`Self::price`] errors. Empty requests return
-    /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
+    /// Checks flat rates and request support before estimating with default controls,
+    /// then propagates [`Self::price`] errors. Request handling follows
+    /// [`GreeksRequest`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`].
     ///
     /// # Panics

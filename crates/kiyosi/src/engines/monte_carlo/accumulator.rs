@@ -110,7 +110,7 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom settlements
     /// have zero uncertainty. Sobol uses one dimension per future trading date.
-    /// Calls finish synchronously without cancellation polling. See [`Self::new`].
+    /// Cancellation follows [`crate::CancellationToken`]. See [`Self::new`].
     ///
     /// # Errors
     ///

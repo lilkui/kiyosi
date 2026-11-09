@@ -98,7 +98,7 @@ impl MonteCarloAsianEngine {
 
     /// Returns a discounted average-payoff estimate, or realized settlement at expiry.
     ///
-    /// Calls finish synchronously without cancellation polling. Recoverable entropy
+    /// Cancellation follows [`crate::CancellationToken`]. Recoverable entropy
     /// and thread failures preserve [`std::io::Error`] via [`Error::Io`].
     ///
     /// # Errors
@@ -106,8 +106,8 @@ impl MonteCarloAsianEngine {
     /// Missing or stale history returns [`crate::Error::MissingHistory`] or
     /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
     ///
-    /// Checks inclusive life then history consistency, returning
-    /// [`Error::InvalidInput`] for either rejection.
+    /// Checks inclusive life then history consistency. Invalid bounds or impossible
+    /// history return [`Error::InvalidInput`].
     /// Before expiry geometric contracts require flat curves
     /// ([`Error::UnsupportedOperation`]); both kinds require curve coverage
     /// ([`Error::InvalidInput`]). Non-finite parameters, paying samples

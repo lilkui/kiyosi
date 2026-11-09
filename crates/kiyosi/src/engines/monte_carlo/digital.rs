@@ -53,8 +53,8 @@ impl MonteCarloDigitalEngine {
 
     /// Returns the discounted terminal mean, settling strictly in the money at expiry.
     ///
-    /// See [`Self::price_with_greeks`] for an example. Calls finish synchronously
-    /// without cancellation polling; operational failures preserve their native
+    /// See [`Self::price_with_greeks`] for an example and [`crate::CancellationToken`]
+    /// for cancellation. Operational failures preserve their native
     /// [`std::io::Error`] through [`crate::Error::Io`].
     ///
     /// # Errors

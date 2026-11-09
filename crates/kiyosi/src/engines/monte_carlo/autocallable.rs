@@ -112,19 +112,17 @@ impl MonteCarloAutocallableEngine {
     /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom cash flows
     /// have zero uncertainty even before expiry. Coupons are discounted at their
     /// contractual dates, including a current Phoenix coupon exactly once.
-    /// Calls finish synchronously without cancellation polling. See [`Self::new`].
+    /// Cancellation follows [`crate::CancellationToken`]. See [`Self::new`].
     ///
     /// # Errors
     ///
     /// Missing or stale history returns [`crate::Error::MissingHistory`] or
     /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
     ///
-    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), inclusive
-    /// life ([`crate::Error::InvalidInput`]), trading observations,
-    /// prior history and trading expiry using the shared autocallable validation.
-    /// Missing history returns [`crate::Error::InvalidInput`],
-    /// impossible history [`crate::Error::InvalidInput`], and nontrading
-    /// dates [`crate::Error::InvalidInput`]. Sobol dimensions above 21,201
+    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), then inclusive
+    /// life and prior history. Invalid life or impossible history returns
+    /// [`crate::Error::InvalidInput`]. Calendar compatibility follows
+    /// [`AutocallableNote::new`]. Sobol dimensions above 21,201
     /// return [`crate::Error::InvalidInput`]. Non-finite paths,
     /// payments or uncertainty return [`crate::Error::ComputationFailure`].
     /// Entropy and thread failures preserve native I/O details through

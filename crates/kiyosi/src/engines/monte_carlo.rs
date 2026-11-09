@@ -845,7 +845,7 @@ impl MonteCarloVanillaEngine {
     /// Returns a discounted sample mean, or intrinsic value at expiry.
     ///
     /// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
-    /// Calls complete synchronously without cancellation or signal polling.
+    /// Cancellation follows [`crate::CancellationToken`].
     /// American exercise grids retain `path_count * step_count` values of
     /// eight bytes each, rounding odd antithetic path counts up to the next even
     /// count for reserved capacity. Retained path storage is limited to 1 GiB per
@@ -855,8 +855,8 @@ impl MonteCarloVanillaEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
-    /// validation, [`Error::InvalidInput`] outside the inclusive contract
-    /// life, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
+    /// validation, [`Error::InvalidInput`] outside permitted valuation
+    /// bounds, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
     /// or non-finite terminal prices, or non-finite results.
     /// Entropy and thread-creation failures retain their native [`std::io::Error`]
     /// in [`Error::Io`].
