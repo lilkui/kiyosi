@@ -1,4 +1,7 @@
-use crate::{DigitalOption, OptionType};
+use crate::{
+    DigitalOption, Greek, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
+    PricingContext, PricingEngine, PricingResult, Result,
+};
 
 pub(crate) mod analytic;
 pub(crate) mod binomial;
@@ -7,6 +10,28 @@ pub(crate) mod deterministic;
 pub(crate) mod finite_difference;
 pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
+
+fn greeks<I: OptionContract>(
+    engine: &impl PricingEngine<I>,
+    option: &I,
+    context: &PricingContext,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    native: impl FnOnce() -> Result<PricingResult>,
+) -> Result<PricingResult> {
+    engine.validate_applicability(context)?;
+    shifts.validate()?;
+    let supported = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    request.validate_support(supported)?;
+    if deterministic::enabled(context) {
+        return crate::numerical_greeks(engine, option, context, request, shifts)
+            .map(|result| result.with_request(request, supported));
+    }
+    let result = native()?.with_request(request, supported);
+    crate::risk::numerical::expiry_greeks(option, context, shifts, result, |context| {
+        engine.price(option, context)
+    })
+}
 
 #[derive(Clone, Copy)]
 struct Payoff {

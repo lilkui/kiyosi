@@ -7,33 +7,12 @@ use std::{
 
 use rayon::prelude::*;
 
+use super::greeks;
 use crate::numerics::log_ratio;
 use crate::{
-    Error, EuropeanOption, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
-
-pub(super) fn greeks<I: OptionContract>(
-    engine: &impl PricingEngine<I>,
-    option: &I,
-    context: &PricingContext,
-    request: GreeksRequest,
-    shifts: NumericalShiftSettings,
-    native: impl FnOnce() -> Result<PricingResult>,
-) -> Result<PricingResult> {
-    engine.validate_applicability(context)?;
-    shifts.validate()?;
-    let supported = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
-    request.validate_support(supported)?;
-    if crate::engines::deterministic::enabled(context) {
-        return crate::numerical_greeks(engine, option, context, request, shifts)
-            .map(|result| result.with_request(request, supported));
-    }
-    let result = native()?.with_request(request, supported);
-    crate::risk::numerical::expiry_greeks(option, context, shifts, result, |context| {
-        engine.price(option, context)
-    })
-}
 
 const BLOCK_SIZE: usize = 256;
 const DEFAULT_STEP_COUNT: i32 = 50;

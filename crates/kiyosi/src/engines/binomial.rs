@@ -614,22 +614,8 @@ impl CoxRossRubinsteinDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
-        flat_rates(context)?;
-        settings.validate()?;
-        request.validate_support(GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(&self, option, context, request, settings).map(
-                |result| {
-                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-                },
-            );
-        }
-        let result = self
-            .native(option, context, request)?
-            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
-            self.price(option, context)
+        super::greeks(&self, option, context, request, settings, || {
+            self.native(option, context, request)
         })
     }
 
