@@ -20,6 +20,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
+    custom_calendar,
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
@@ -189,6 +190,59 @@ def exposure(option, context):
 
 
 class AccumulatorQuadratureTests(unittest.TestCase):
+    def test_quadrature_tails_exclude_closed_dates_and_purchases_at_knock_out(self):
+        expiry = datetime(2025, 1, 4)
+        knock_out_time = datetime(2025, 1, 3)
+        calendar = custom_calendar(
+            base=weekdays_calendar(), closed_dates=[datetime(2025, 1, 2).date()]
+        )
+        engine = pricing.QuadratureAccumulatorEngine()
+        for direction, spot, barrier, sign, purchase in (
+            ("call", 120, 110, 1, 1),
+            ("call", 80, 110, 1, 2),
+            ("put", 80, 90, -1, 1),
+            ("put", 120, 90, -1, 2),
+        ):
+            for knocks_out in (False, True):
+                with self.subTest(
+                    direction=direction, spot=spot, knocks_out=knocks_out
+                ):
+                    context = market(spot=spot, volatility=1e-8)
+                    option = Accumulator(
+                        option_type=direction,
+                        strike=100,
+                        knock_out_level=barrier,
+                        daily_quantity=1,
+                        acceleration_factor=2,
+                        effective_time=START,
+                        expiry_time=expiry,
+                        observation_clock_time=clock_time(),
+                        accumulated_quantity=3,
+                        knock_out_settled=False,
+                        knock_out_observation_times=[knock_out_time]
+                        if knocks_out
+                        else [],
+                        calendar=calendar,
+                        history_time=context.valuation_time,
+                    )
+                    terminates = knocks_out and purchase == 1
+                    settlement = knock_out_time if terminates else expiry
+                    horizon = (settlement - context.valuation_time).total_seconds() / (
+                        365 * 86400
+                    )
+                    quantity = 3 + (0 if terminates else purchase)
+                    expected = (
+                        sign
+                        * quantity
+                        * (
+                            spot * math.exp(-0.01 * horizon)
+                            - 100 * math.exp(-0.04 * horizon)
+                        )
+                    )
+                    self.assertAlmostEqual(
+                        engine.price(option, context), expected, delta=1e-7
+                    )
+
     def assert_rejection(self, expected_error, operation, *args, **kwargs):
         with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)

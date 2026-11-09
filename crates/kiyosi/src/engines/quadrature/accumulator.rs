@@ -270,13 +270,19 @@ fn price(
     let mut transitions = TransitionCache::default();
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();
     let mut next_knock_out = None;
+    let mut remaining_purchases = 0_usize;
+    let mut purchases_before_knock_out = 0_usize;
     for event in (0..dates.len()).rev() {
         crate::cancellation::check()?;
         let final_event = event + 1 == dates.len();
         let observes_knock_out = option.observes_knock_out(dates[event]);
         let accumulates = option.accumulates_at(dates[event], option.calendar());
+        remaining_purchases += usize::from(accumulates);
         if observes_knock_out {
             next_knock_out = Some(event);
+            purchases_before_knock_out = 0;
+        } else {
+            purchases_before_knock_out += usize::from(accumulates);
         }
         if !final_event {
             for (layer, result) in layers.iter_mut().enumerate().take(count) {
@@ -305,13 +311,11 @@ fn price(
                     let quantity = if layer == 0 {
                         1.0
                     } else {
-                        dates[event..=last]
-                            .iter()
-                            .filter(|&&time| {
-                                option.accumulates_at(time, option.calendar())
-                                    && (settlement.is_none() || time < dates[last])
-                            })
-                            .count() as f64
+                        (if settlement.is_some() {
+                            purchases_before_knock_out
+                        } else {
+                            remaining_purchases
+                        }) as f64
                             * purchase
                     };
                     // Extreme paths settle at the next eligible knock-out, or at expiry.

@@ -266,6 +266,53 @@ fn quadrature_tails_discount_to_the_next_knock_out_or_expiry() {
 }
 
 #[test]
+fn quadrature_tails_exclude_closed_dates_and_purchases_at_knock_out() {
+    let valuation = Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap();
+    let expiry = day(4);
+    let calendar = TradingCalendar::custom(
+        TradingCalendar::weekdays(),
+        vec![day(2).date()],
+        vec![],
+        None,
+    )
+    .unwrap();
+    let engine = QuadratureAccumulatorEngine::default();
+    for (direction, spot, sign, purchase) in [
+        (OptionType::Call, 120.0, 1.0, 1.0),
+        (OptionType::Call, 80.0, 1.0, 2.0),
+        (OptionType::Put, 80.0, -1.0, 1.0),
+        (OptionType::Put, 120.0, -1.0, 2.0),
+    ] {
+        for knocks_out in [false, true] {
+            let option = Accumulator::new(AccumulatorTerms {
+                expiry_time: expiry,
+                calendar: calendar.clone(),
+                ..terms(
+                    direction,
+                    Some(if knocks_out { vec![day(3)] } else { vec![] }),
+                )
+            })
+            .unwrap();
+            let context = market(spot, valuation, 1e-8);
+            let terminates = knocks_out
+                && match direction {
+                    OptionType::Call => spot >= 110.0,
+                    OptionType::Put => spot <= 90.0,
+                };
+            let time = valuation.years_until(if terminates { day(3) } else { expiry });
+            let quantity = 3.0 + if terminates { 0.0 } else { purchase };
+            let expected =
+                sign * quantity * (spot * (-0.01 * time).exp() - 100.0 * (-0.04 * time).exp());
+            let actual = engine.price(&dated(&option, &context), &context).unwrap();
+            assert!(
+                (actual - expected).abs() < 1e-7,
+                "{direction:?}, spot {spot}, knock-out {knocks_out}: {actual} != {expected}"
+            );
+        }
+    }
+}
+
+#[test]
 #[expect(
     clippy::float_cmp,
     reason = "Exact comparisons select fixed test cases and payoff boundaries."
