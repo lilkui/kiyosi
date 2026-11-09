@@ -270,7 +270,6 @@ impl PricingEngine for AnalyticEuropeanEngine {
     }
 
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         AnalyticEuropeanEngine::price(self, option, context)
     }
 
@@ -281,7 +280,6 @@ impl PricingEngine for AnalyticEuropeanEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         self.greeks_with_settings(option, context, request, settings)
     }
 }

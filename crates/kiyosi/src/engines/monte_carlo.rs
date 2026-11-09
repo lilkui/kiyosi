@@ -955,7 +955,6 @@ impl MonteCarloVanillaEngine {
         option: &EuropeanOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        context.bsm_parameters()?;
         let (sample, pairs, log_discount, seed) = self.sample(option, context, true)?;
         estimate(
             self.settings,
@@ -1040,7 +1039,6 @@ impl PricingEngine for MonteCarloVanillaEngine {
         option: &EuropeanOption,
         context: &PricingContext,
     ) -> Result<(f64, Option<u64>)> {
-        context.bsm_parameters()?;
         let (sample, _, discount, seed) = self.sample(option, context, false)?;
         Ok((scaled_value(sample.scale, sample.mean, discount)?, seed))
     }
@@ -1052,9 +1050,9 @@ impl PricingEngine for MonteCarloVanillaEngine {
         self.price_with_statistics(option, context)
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
-        context.bsm_parameters()?.flat_risk_free_rate()?;
-        context.bsm_parameters()?.flat_dividend_yield()?;
+        let model = context.bsm_parameters()?;
+        model.flat_risk_free_rate()?;
+        model.flat_dividend_yield()?;
         Ok(())
     }
     fn validate_solver_seed(&self) -> Result<()> {
@@ -1071,7 +1069,6 @@ impl PricingEngine for MonteCarloVanillaEngine {
         })))
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         let (sample, _, log_discount, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, log_discount)
     }

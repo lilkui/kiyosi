@@ -117,7 +117,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAuto
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {

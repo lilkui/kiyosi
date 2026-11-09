@@ -417,7 +417,6 @@ impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
     }
 
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
 }

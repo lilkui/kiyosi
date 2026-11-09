@@ -103,7 +103,6 @@ impl MonteCarloAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
-        context.bsm_parameters()?;
         let (sample, _, _, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, 0.0)
     }
@@ -143,7 +142,6 @@ impl MonteCarloAutocallableEngine {
         note: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        context.bsm_parameters()?;
         let (sample, pairs, known, seed) = self.sample(note, context, true)?;
         estimate(self.settings, sample, pairs, 0.0, known, seed)
     }
@@ -313,7 +311,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<(f64, Option<u64>)> {
-        context.bsm_parameters()?;
         let (sample, _, _, seed) = self.sample(option, context, false)?;
         Ok((scaled_value(sample.scale, sample.mean, 0.0)?, seed))
     }
@@ -325,9 +322,9 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         self.price_with_statistics(option, context)
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
-        context.bsm_parameters()?.flat_risk_free_rate()?;
-        context.bsm_parameters()?.flat_dividend_yield()?;
+        let model = context.bsm_parameters()?;
+        model.flat_risk_free_rate()?;
+        model.flat_dividend_yield()?;
         Ok(())
     }
     fn validate_solver_seed(&self) -> Result<()> {
@@ -343,7 +340,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         })))
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn volatility_affects_price(

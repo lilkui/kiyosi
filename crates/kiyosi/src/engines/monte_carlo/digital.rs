@@ -317,9 +317,9 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         self.price_with_statistics(option, context)
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
-        context.bsm_parameters()?.flat_risk_free_rate()?;
-        context.bsm_parameters()?.flat_dividend_yield()?;
+        let model = context.bsm_parameters()?;
+        model.flat_risk_free_rate()?;
+        model.flat_dividend_yield()?;
         Ok(())
     }
     fn validate_solver_seed(&self) -> Result<()> {
@@ -335,7 +335,6 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         })))
     }
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
 
@@ -346,7 +345,6 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         self.greeks_with_settings(option, context, request, settings)
     }
 }

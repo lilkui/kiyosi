@@ -354,7 +354,6 @@ asian_analytics!(
 );
 impl PricingEngine<GeometricAveragePriceOption> for AnalyticGeometricAveragePriceEngine {
     fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
 }
@@ -380,7 +379,6 @@ impl PricingEngine<ArithmeticAveragePriceOption> for TurnbullWakemanArithmeticAv
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
     ) -> Result<f64> {
-        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn volatility_affects_price(

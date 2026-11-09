@@ -319,7 +319,6 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
 
@@ -330,7 +329,6 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         self.greeks_with_settings(option, context, request, settings)
     }
     fn prepare_implied_volatility(

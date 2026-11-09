@@ -150,7 +150,6 @@ impl AnalyticRangeAccrualEngine {
 
 impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
     fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn volatility_affects_price(

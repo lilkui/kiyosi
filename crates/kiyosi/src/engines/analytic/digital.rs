@@ -239,7 +239,6 @@ impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
     }
 
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         AnalyticDigitalEngine::price(self, option, context)
     }
 

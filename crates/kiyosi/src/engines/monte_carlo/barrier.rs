@@ -596,9 +596,9 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         self.price_with_statistics(option, context)
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
-        context.bsm_parameters()?.flat_risk_free_rate()?;
-        context.bsm_parameters()?.flat_dividend_yield()?;
+        let model = context.bsm_parameters()?;
+        model.flat_risk_free_rate()?;
+        model.flat_dividend_yield()?;
         Ok(())
     }
     fn validate_solver_seed(&self) -> Result<()> {
@@ -614,7 +614,6 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         })))
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
 

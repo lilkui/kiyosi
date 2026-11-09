@@ -672,7 +672,6 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
     }
 
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
 
@@ -683,7 +682,6 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         self.greeks_with_settings(option, context, request, settings)
     }
     fn prepare_implied_volatility(

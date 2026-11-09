@@ -89,13 +89,12 @@ impl AnalyticDoubleBarrierEngine {
 }
 impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
-        context.bsm_parameters()?.flat_risk_free_rate()?;
-        context.bsm_parameters()?.flat_dividend_yield()?;
+        let model = context.bsm_parameters()?;
+        model.flat_risk_free_rate()?;
+        model.flat_dividend_yield()?;
         Ok(())
     }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn volatility_affects_price(
