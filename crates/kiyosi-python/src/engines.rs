@@ -306,6 +306,10 @@ impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
 }
 
 impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
+    fn is_short(self) -> bool {
+        true
+    }
+
     fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
