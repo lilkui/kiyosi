@@ -460,7 +460,11 @@ impl TimeGrid {
         let tolerance = 4.0 * f64::EPSILON * time;
         for index in 1..steps {
             let node = time * f64::from(index) / f64::from(steps);
-            if !events.iter().any(|event| (event - node).abs() <= tolerance) {
+            let next = events.partition_point(|&event| event < node);
+            if !events[next.saturating_sub(1)..(next + 1).min(events.len())]
+                .iter()
+                .any(|event| (event - node).abs() <= tolerance)
+            {
                 times.push(node);
             }
         }
@@ -502,6 +506,30 @@ impl TimeGrid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn time_grid_preserves_events_and_only_replaces_uniform_nodes_within_tolerance() {
+        let start = crate::Date::new(2025, 1, 1).unwrap().start_of_day();
+        let end = start.add_days(365).unwrap();
+        let curve = Curve::new(
+            &crate::RateTermStructure::flat(0.0, None).unwrap(),
+            start,
+            end,
+        )
+        .unwrap();
+        let events = [
+            0.25 - 4.0 * f64::EPSILON,
+            0.5 + 4.0 * f64::EPSILON,
+            0.75 + 8.0 * f64::EPSILON,
+        ];
+        let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &events);
+        assert_eq!(
+            grid.times,
+            vec![0.0, events[0], events[1], 0.75, events[2], 1.0]
+        );
+        assert!(grid.widths.iter().all(|&width| width > 0.0));
+        assert!((grid.widths.iter().sum::<f64>() - 1.0).abs() < f64::EPSILON);
+    }
 
     #[test]
     fn speed_uses_gamma_differences_only_strictly_inside_grid() {
