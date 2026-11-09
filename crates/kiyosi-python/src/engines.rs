@@ -142,6 +142,21 @@ pub(crate) mod finite_difference;
 pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
 
+pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
+    py: Python<'_>,
+    engine: &(impl kiyosi::PricingEngine<I> + Sync),
+    instrument: &I,
+    context: &crate::market::PricingContext,
+    request: impl PricingRequest<R>,
+) -> PyResult<R> {
+    let context = &context.0;
+    crate::error::domain(request.run(
+        py,
+        instrument.expiry_time() == context.valuation_time(),
+        || request.evaluate(engine, instrument, context),
+    )?)
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum ScalarRequest {
     Price,

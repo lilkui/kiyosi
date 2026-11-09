@@ -198,11 +198,7 @@ macro_rules! binomial_engine {
             ) -> PyResult<R> {
                 let $value = instrument;
                 let option = $contract;
-                let engine = self.0;
-                let context = &context.0;
-                domain(request.run(py,
-                    kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
-                    || request.evaluate(&engine, option, context))?)
+                crate::engines::evaluate(py, &self.0, option, context, request)
             }
         }
     };
@@ -238,16 +234,10 @@ impl CoxRossRubinsteinVanillaEngine {
         context: &PricingContext,
         request: impl crate::engines::PricingRequest<R>,
     ) -> PyResult<R> {
-        let engine = self.0;
-        let context = &context.0;
         with_vanilla!(
             instrument,
             option,
-            domain(request.run(
-                py,
-                kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
-                || request.evaluate(&engine, option, context),
-            )?)
+            crate::engines::evaluate(py, &self.0, option, context, request)
         )
     }
 }

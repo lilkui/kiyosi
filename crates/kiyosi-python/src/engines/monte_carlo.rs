@@ -130,12 +130,7 @@ macro_rules! sampling_settings {
                 context: &PricingContext,
                 request: impl crate::engines::PricingRequest<R>,
             ) -> PyResult<R> {
-                let engine = self.0;
-                let context = &context.0;
-                $with!(&instrument, option, domain(request.run(py,
-                    kiyosi::OptionContract::expiry_time(option) == context.valuation_time(), || {
-                    request.evaluate(&engine, option, context)
-                })?))
+                $with!(&instrument, option, crate::engines::evaluate(py, &self.0, option, context, request))
             }
         }
     };
@@ -821,16 +816,10 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
         request: impl crate::engines::PricingRequest<R>,
     ) -> PyResult<R> {
-        let engine = self.0;
-        let context = &context.0;
         binomial::with_vanilla!(
             instrument,
             option,
-            domain(request.run(
-                py,
-                kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
-                || request.evaluate(&engine, option, context),
-            )?)
+            crate::engines::evaluate(py, &self.0, option, context, request)
         )
     }
 }
@@ -847,14 +836,8 @@ impl MonteCarloDigitalEngine {
         context: &PricingContext,
         request: impl crate::engines::PricingRequest<R>,
     ) -> PyResult<R> {
-        let engine = self.0;
         let option = instrument.contract();
-        let context = &context.0;
-        domain(request.run(
-            py,
-            kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
-            || request.evaluate(&engine, option, context),
-        )?)
+        crate::engines::evaluate(py, &self.0, option, context, request)
     }
 }
 
@@ -866,16 +849,10 @@ impl MonteCarloAsianEngine {
         context: &PricingContext,
         request: impl crate::engines::PricingRequest<R>,
     ) -> PyResult<R> {
-        let engine = self.0;
-        let context = &context.0;
         asian::with_asian!(
             instrument,
             option,
-            domain(request.run(
-                py,
-                kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
-                || request.evaluate(&engine, option, context)
-            )?)
+            crate::engines::evaluate(py, &self.0, option, context, request)
         )
     }
 }
