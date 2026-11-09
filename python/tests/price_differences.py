@@ -58,29 +58,16 @@ def price_differences(
 
     @cache
     def price(ds=0, dv=0, dr=0, dt=timedelta(), dq=0):
-        return engine.price(
-            dated_history(
-                option,
-                PricingContext(
-                    model_parameters=BlackScholesMertonParameters(
-                        risk_free_rate=rate + dr,
-                        dividend_yield=parameters.flat_dividend_yield + dq,
-                        volatility=volatility + dv,
-                    ),
-                    spot_price=spot + ds,
-                    valuation_time=time + dt,
-                ),
+        shifted = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=rate + dr,
+                dividend_yield=parameters.flat_dividend_yield + dq,
+                volatility=volatility + dv,
             ),
-            PricingContext(
-                model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=rate + dr,
-                    dividend_yield=parameters.flat_dividend_yield + dq,
-                    volatility=volatility + dv,
-                ),
-                spot_price=spot + ds,
-                valuation_time=time + dt,
-            ),
+            spot_price=spot + ds,
+            valuation_time=time + dt,
         )
+        return engine.price(dated_history(option, shifted), shifted)
 
     def spread(dv=0, dt=timedelta()):
         return price(h, dv, dt=dt) - price(-h, dv, dt=dt)
