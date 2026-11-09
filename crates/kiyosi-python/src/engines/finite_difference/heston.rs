@@ -154,7 +154,11 @@ impl FiniteDifferenceHestonVanillaEngine {
         binomial::with_vanilla!(
             instrument,
             option,
-            domain(request.run(py, || request.evaluate(&engine, option, context))?)
+            domain(request.run(
+                py,
+                kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
+                || request.evaluate(&engine, option, context),
+            )?)
         )
     }
 }

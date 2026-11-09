@@ -75,11 +75,7 @@ macro_rules! analytic_engine {
                 let $contract = &instrument.0;
                 let $market = &context.0;
                 let calculate = || request.evaluate(&kiyosi::$engine, $contract, $market);
-                domain(if request.is_short() && $short {
-                    calculate()
-                } else {
-                    request.run(py, calculate)?
-                })
+                domain(request.run(py, $short, calculate)?)
             }
         }
     };

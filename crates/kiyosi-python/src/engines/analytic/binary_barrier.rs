@@ -75,7 +75,7 @@ impl AnalyticBinaryBarrierEngine {
         binary_barrier::with_binary!(
             instrument,
             option,
-            domain(request.run(py, || request.evaluate(
+            domain(request.run(py, false, || request.evaluate(
                 &kiyosi::AnalyticBinaryBarrierEngine,
                 option,
                 context

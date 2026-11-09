@@ -16,6 +16,12 @@ macro_rules! quadrature_engine {
     };
     ($(#[$doc:meta])* $name:ident, $instrument:ty,
      $with:path, $settings:ident $(, $time:ident)? $(,)?) => {
+        quadrature_engine!($(#[$doc])* $name, $instrument, $with, $settings $(, $time)?;
+            |_option, _context| false);
+    };
+    ($(#[$doc:meta])* $name:ident, $instrument:ty,
+     $with:path, $settings:ident $(, $time:ident)?;
+     |$option:ident, $context:ident| $short:expr $(,)?) => {
         /// Flat-rate quadrature pricing.
         ///
         /// Parameters
@@ -123,9 +129,9 @@ macro_rules! quadrature_engine {
                 request: impl crate::engines::PricingRequest<R>,
             ) -> PyResult<R> {
                 let engine = self.0;
-                let context = &context.0;
-                $with!(&instrument, option, domain(request.run(py, || {
-                    request.evaluate(&engine, option, context)
+                let $context = &context.0;
+                $with!(&instrument, $option, domain(request.run(py, $short, || {
+                    request.evaluate(&engine, $option, $context)
                 })?))
             }
         }
@@ -151,7 +157,8 @@ quadrature_engine!(
     VanillaInstrument<'_>,
     with_vanilla,
     QuadratureVanillaSettings,
-    time_step_count,
+    time_step_count;
+    |option, context| kiyosi::OptionContract::expiry_time(option) == context.valuation_time(),
 );
 
 quadrature_engine!(

@@ -85,10 +85,6 @@ impl AnalyticDigitalEngine {
         let context = &context.0;
         let calculate = || request.evaluate(&kiyosi::AnalyticDigitalEngine, option, context);
         // Keep the GIL for short scalar formulas, but release it for iterative solves.
-        domain(if request.is_short() {
-            calculate()
-        } else {
-            request.run(py, calculate)?
-        })
+        domain(request.run(py, true, calculate)?)
     }
 }
