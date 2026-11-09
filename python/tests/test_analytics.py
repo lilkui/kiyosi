@@ -120,6 +120,31 @@ class AnalyticsTests(unittest.TestCase):
             with self.subTest(request=request), self.assertRaises(ValueError):
                 self.engine.price_with_greeks(self.option, self.context, request)
 
+    def test_volatility_recovery_with_bounded_and_extended_iteration_budgets(self):
+        quote = self.engine.price(self.option, self.context)
+        for budget in (100, 101):
+            for lower in (0.1, 0.2):
+                with self.subTest(budget=budget, lower=lower):
+                    actual = implied_volatility(
+                        self.engine,
+                        self.option,
+                        self.context,
+                        quote,
+                        lower_bound=lower,
+                        upper_bound=0.3,
+                        max_iterations=budget,
+                    )
+                    self.assertAlmostEqual(actual, 0.2, delta=1e-8)
+                    repriced = self.engine.price(
+                        self.option,
+                        self.context.replace(
+                            model_parameters=self.context.model_parameters.replace(
+                                volatility=actual
+                            )
+                        ),
+                    )
+                    self.assertAlmostEqual(repriced, quote, delta=1e-8)
+
     def test_greek_iterables_deduplicate_and_validate_through_exhaustion(self):
         names = get_args(Greek)
         expected = self.engine.price_with_greeks(self.option, self.context, "all")

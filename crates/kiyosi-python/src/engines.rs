@@ -198,7 +198,12 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
 
 impl PricingRequest<f64> for ScalarRequest {
     fn is_short(self) -> bool {
-        matches!(self, Self::Price)
+        match self {
+            Self::Price => true,
+            Self::ImpliedVolatility { settings, .. } => {
+                settings.max_iterations <= kiyosi::ImpliedVolatilitySettings::DEFAULT_MAX_ITERATIONS
+            }
+        }
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
