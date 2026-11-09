@@ -120,13 +120,26 @@ impl AnalyticRangeAccrualEngine {
         let upper = log_ratio(option.upper_bound(), context.spot_price());
         let mut value = Sum::default();
         value.add(scaled_cash(hits, scale));
+        let mut risk = Sum::default();
+        let mut dividend = Sum::default();
+        let mut previous = valuation;
+        let log_factor = |curve: &crate::RateTermStructure, total: &mut Sum, previous, date| {
+            // Direct flat factors preserve exact deterministic boundary comparisons.
+            if curve.nodes().is_empty() {
+                curve.log_factor(valuation, date)
+            } else {
+                total.add(curve.log_factor(previous, date)?);
+                Ok(total.total())
+            }
+        };
         for date in &dates[future..] {
             crate::cancellation::check()?;
+            let risk_log = log_factor(model.risk_free_curve(), &mut risk, previous, *date)?;
+            let dividend_log = log_factor(model.dividend_curve(), &mut dividend, previous, *date)?;
+            previous = *date;
             let time = valuation.years_until(*date);
             let volatility = model.volatility();
-            let drift = -model.risk_free_curve().log_factor(valuation, *date)?
-                + model.dividend_curve().log_factor(valuation, *date)?
-                - 0.5 * volatility * volatility * time;
+            let drift = -risk_log + dividend_log - 0.5 * volatility * volatility * time;
             let root = time.sqrt();
             if !drift.is_finite() || !(volatility * root).is_finite() {
                 return Err(Error::ComputationFailure(

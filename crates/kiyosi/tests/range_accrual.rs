@@ -247,6 +247,79 @@ impl PricingEngine<RangeAccrualOption> for ReferenceEngine {
 }
 
 #[test]
+fn deterministic_flat_curves_include_exact_bounds_after_many_observations() -> Result<()> {
+    for lower in [110.0_f64, 120.0] {
+        let rate = ((lower - 100.0) / 100.0).ln_1p();
+        let option = RangeAccrualOption::new(RangeAccrualTerms {
+            calendar: TradingCalendar::all_days(),
+            notional: 1000.0,
+            annual_coupon_rate: 0.1,
+            lower_bound: lower,
+            upper_bound: lower + 10.0,
+            expiry_time: day(1).add_days(365)?,
+            ..terms()
+        })?;
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(rate, 0.0, 0.0)?,
+            100.0,
+            day(1),
+        )?;
+        let expected = 100.0 / 365.0 * (-rate).exp();
+        assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - expected).abs() < 1e-14);
+    }
+    Ok(())
+}
+
+#[test]
+fn dense_shifted_curves_match_independent_marginals_from_intraday_valuation() -> Result<()> {
+    let start = day(1);
+    let end = start.add_days(730)?;
+    let reference_time = start.add_days(-2)?;
+    let nodes = (0..=730)
+        .map(|n| start.add_days(n)?.add_micros(43_200_000_000))
+        .collect::<Result<Vec<_>>>()?;
+    let curve = |rate: f64, amplitude: f64, shift| {
+        RateTermStructure::new(
+            reference_time,
+            nodes.clone(),
+            nodes
+                .iter()
+                .map(|&node| {
+                    let time = reference_time.years_until(node);
+                    (-rate * time + amplitude * (7.0 * time).sin()).exp()
+                })
+                .collect(),
+        )?
+        .shifted(shift)
+    };
+    let risk = curve(0.03, 0.005, 0.002)?;
+    let dividend = curve(-0.01, 0.003, -0.001)?;
+    for valuation in [start, start.add_days(5)?.add_micros(32_400_000_000)?] {
+        let mut input = RangeAccrualTerms {
+            calendar: TradingCalendar::all_days(),
+            expiry_time: end,
+            ..terms()
+        };
+        if valuation != start {
+            input.realized_hit_count = Some(3);
+            input.history_time = Some(valuation);
+        }
+        let option = RangeAccrualOption::new(input)?;
+        for volatility in [0.2, 1e-10] {
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(risk.clone(), dividend.clone(), volatility)?,
+                100.0,
+                valuation,
+            )?;
+            let expected = reference(&option, &context);
+            let actual = AnalyticRangeAccrualEngine.price(&option, &context)?;
+            assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() {
     let option = RangeAccrualOption::new(RangeAccrualTerms {
         calendar: TradingCalendar::all_days(),

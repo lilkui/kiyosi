@@ -110,6 +110,65 @@ def reference(option, context):
 
 
 class RangeAccrualTests(unittest.TestCase):
+    def test_deterministic_flat_curves_include_exact_bounds_after_many_observations(
+        self,
+    ):
+        for lower in (110.0, 120.0):
+            rate = math.log1p((lower - 100.0) / 100.0)
+            option = contract(
+                annual_coupon_rate=0.1,
+                lower_bound=lower,
+                upper_bound=lower + 10.0,
+                expiry_time=START + timedelta(days=365),
+            )
+            with self.subTest(lower=lower):
+                self.assertAlmostEqual(
+                    AnalyticRangeAccrualEngine().price(
+                        option, market(rate=rate, dividend=0.0, volatility=0.0)
+                    ),
+                    100.0 / 365.0 * math.exp(-rate),
+                    delta=1e-14,
+                )
+
+    def test_dense_shifted_curves_match_independent_intraday_marginals(self):
+        nodes = [START + timedelta(days=n, hours=12) for n in range(731)]
+        reference_time = START - timedelta(days=2)
+
+        def curve(rate, amplitude, shift):
+            years = [
+                (node - reference_time).total_seconds() / (365 * 86400)
+                for node in nodes
+            ]
+            return RateTermStructure(
+                reference_time=reference_time,
+                times=nodes,
+                factors=[
+                    math.exp(-rate * t + amplitude * math.sin(7 * t)) for t in years
+                ],
+            ).shifted(shift)
+
+        risk = curve(0.03, 0.005, 0.002)
+        dividend = curve(-0.01, 0.003, -0.001)
+        for valuation in (START, START + timedelta(days=5, hours=9)):
+            option = contract(expiry_time=START + timedelta(days=730))
+            if valuation != START:
+                option = option.replace_history(
+                    realized_hit_count=3, history_time=valuation
+                )
+            for volatility in (0.2, 1e-10):
+                context = market(
+                    valuation=valuation,
+                    rate=risk,
+                    dividend=dividend,
+                    volatility=volatility,
+                )
+                with self.subTest(valuation=valuation, volatility=volatility):
+                    self.assertAlmostEqual(
+                        AnalyticRangeAccrualEngine().price(option, context),
+                        reference(option, context),
+                        delta=1e-10,
+                    )
+
     def test_schedule_snapshots_survive_calendar_replacement_and_owner_deletion(self):
         original = contract(expiry_time=START + timedelta(days=3))
         snapshot = original.observation_schedule
