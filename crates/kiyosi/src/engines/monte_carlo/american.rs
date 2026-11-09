@@ -122,7 +122,7 @@ impl MonteCarloVanillaEngine {
         }
         let seed = self.settings.resolved_seed()?;
         let sobol = if self.settings.sampling == MonteCarloSampling::Sobol {
-            Some(sobol::SobolSequence::new(intervals, seed)?)
+            Some(sobol::sequence(intervals, seed)?)
         } else {
             None
         };
@@ -280,6 +280,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let _sampling = super::RequestCache::new();
         context.bsm_parameters()?;
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
         settings.validate()?;

@@ -92,6 +92,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     observed_price: f64,
     settings: ImpliedVolatilitySettings,
 ) -> Result<f64> {
+    let _sampling = crate::engines::monte_carlo::RequestCache::new();
     context.bsm_parameters()?;
     engine.validate_applicability(context)?;
     let s = settings;

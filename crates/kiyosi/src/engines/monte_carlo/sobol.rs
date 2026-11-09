@@ -1,10 +1,70 @@
 use super::Pcg32;
 use crate::{Error, Result};
+use std::{cell::RefCell, marker::PhantomData, sync::Arc};
 
 const BITS: usize = 52;
 const MASK: u64 = (1 << BITS) - 1;
 
 include!("sobol_joe_kuo.rs");
+
+#[derive(Default)]
+struct Cache {
+    active: bool,
+    sequence: Option<(u64, Arc<SobolSequence>)>,
+}
+
+thread_local! {
+    static CACHE: RefCell<Cache> = const { RefCell::new(Cache {
+        active: false,
+        sequence: None,
+    }) };
+}
+
+pub(crate) struct RequestCache {
+    owner: bool,
+    // Drop must clear the cache on the thread that owns it.
+    _thread: PhantomData<*mut ()>,
+}
+
+impl RequestCache {
+    pub(crate) fn new() -> Self {
+        let owner = CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            let owner = !cache.active;
+            cache.active = true;
+            owner
+        });
+        Self {
+            owner,
+            _thread: PhantomData,
+        }
+    }
+}
+
+impl Drop for RequestCache {
+    fn drop(&mut self) {
+        if self.owner {
+            CACHE.with(|cache| *cache.borrow_mut() = Cache::default());
+        }
+    }
+}
+
+pub(super) fn sequence(dimensions: usize, seed: u64) -> Result<Arc<SobolSequence>> {
+    CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some((cached_seed, sequence)) = &cache.sequence {
+            if *cached_seed == seed && sequence.shifts.len() == dimensions {
+                return Ok(Arc::clone(sequence));
+            }
+        }
+        let sequence = Arc::new(SobolSequence::new(dimensions, seed)?);
+        // Retain only the last setup within the enclosing multi-price request.
+        if cache.active {
+            cache.sequence = Some((seed, Arc::clone(&sequence)));
+        }
+        Ok(sequence)
+    })
+}
 
 pub(super) struct SobolSequence {
     directions: Vec<u64>,
@@ -204,4 +264,79 @@ fn inverse_normal_cdf(probability: f64) -> f64 {
         };
     let quantile = root - root.ln() / root - correction;
     if upper { quantile } else { -quantile }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_bits(sequence: &SobolSequence, dimensions: usize) -> Vec<u64> {
+        let mut cursor = sequence.cursor(256);
+        (0..16)
+            .flat_map(|_| {
+                let values: Vec<_> = (0..dimensions).map(|_| cursor.normal().to_bits()).collect();
+                cursor.next_path();
+                values
+            })
+            .collect()
+    }
+
+    #[test]
+    fn request_reuses_matching_setup_and_preserves_seeded_samples() -> Result<()> {
+        let retained;
+        {
+            let _request = RequestCache::new();
+            let first = sequence(4, 42)?;
+            let repeated = sequence(4, 42)?;
+            assert!(Arc::ptr_eq(&first, &repeated));
+            let nested = {
+                let _nested = RequestCache::new();
+                sequence(4, 42)?
+            };
+            assert!(Arc::ptr_eq(&first, &nested));
+            for (dimensions, seed) in [(4, 42), (4, 43), (5, 43), (4, 42)] {
+                let cached = sequence(dimensions, seed)?;
+                let fresh = SobolSequence::new(dimensions, seed)?;
+                assert_eq!(
+                    sample_bits(&cached, dimensions),
+                    sample_bits(&fresh, dimensions)
+                );
+            }
+            assert!(sequence(0, 42).is_err());
+            assert!(sequence(21_202, 42).is_err());
+            retained = Arc::downgrade(&sequence(4, 42)?);
+            assert!(retained.upgrade().is_some());
+        }
+        assert!(retained.upgrade().is_none());
+        assert!(!Arc::ptr_eq(&sequence(4, 42)?, &sequence(4, 42)?));
+        Ok(())
+    }
+
+    #[test]
+    fn request_cache_is_thread_local_and_releases_setup_after_panics() -> Result<()> {
+        let request = RequestCache::new();
+        let local = sequence(4, 42)?;
+        let other = std::thread::spawn(|| {
+            let _request = RequestCache::new();
+            let first = sequence(4, 42).unwrap();
+            assert!(Arc::ptr_eq(&first, &sequence(4, 42).unwrap()));
+            first
+        })
+        .join()
+        .unwrap();
+        assert!(!Arc::ptr_eq(&local, &other));
+        assert_eq!(sample_bits(&local, 4), sample_bits(&other, 4));
+        drop(request);
+
+        let retained = RefCell::new(std::sync::Weak::new());
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _request = RequestCache::new();
+            *retained.borrow_mut() = Arc::downgrade(&sequence(5, 43).unwrap());
+            panic!("pricing failed");
+        }));
+        assert!(panic.is_err());
+        assert!(retained.borrow().upgrade().is_none());
+        assert!(!Arc::ptr_eq(&sequence(5, 43)?, &sequence(5, 43)?));
+        Ok(())
+    }
 }

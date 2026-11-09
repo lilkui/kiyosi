@@ -29,6 +29,7 @@ mod barrier;
 mod digital;
 mod double_barrier;
 mod sobol;
+pub(crate) use sobol::RequestCache;
 
 pub use accumulator::MonteCarloAccumulatorEngine;
 pub use autocallable::MonteCarloAutocallableEngine;
@@ -1142,7 +1143,7 @@ fn path_samples<const N: usize>(
         && (!settings.antithetic || paths % 2 == 0);
     let variance = statistics && !settings.antithetic;
     let sobol = if settings.sampling == MonteCarloSampling::Sobol {
-        Some(sobol::SobolSequence::new(dimensions, seed)?)
+        Some(sobol::sequence(dimensions, seed)?)
     } else {
         None
     };

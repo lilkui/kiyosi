@@ -208,6 +208,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     minimum: Option<f64>,
     replace: &impl Fn(&I, f64) -> Result<I>,
 ) -> Result<f64> {
+    let _sampling = crate::engines::monte_carlo::RequestCache::new();
     crate::error::finite(observed, false, "observed_price")?;
     crate::error::finite(s.lower_bound, false, "lower_bound")?;
     crate::error::finite(s.upper_bound, false, "upper_bound")?;
