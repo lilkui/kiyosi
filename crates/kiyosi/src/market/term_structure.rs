@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{Error, Result, Timestamp, error::finite};
 
 /// Owns a term structure of continuously compounded rates.
@@ -7,15 +9,16 @@ use crate::{Error, Result, Timestamp, error::finite};
 /// time. This gives piecewise constant instantaneous forward rates.
 /// Dated curves reject queries before their reference; bounded flat curves and
 /// node-based curves also enforce their upper coverage bounds. Negative rates
-/// are allowed. See [`Self::flat`], [`Self::bounded_flat`] and [`Self::new`].
+/// are allowed. Clones share immutable node storage; parallel shifts retain that
+/// storage and own their shift. See [`Self::flat`], [`Self::bounded_flat`] and [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct RateTermStructure {
     reference: Option<Timestamp>,
     upper_bound: Option<Timestamp>,
     rate: Option<f64>,
-    nodes: Vec<Timestamp>,
-    factors: Vec<f64>,
-    forwards: Vec<f64>,
+    nodes: Arc<[Timestamp]>,
+    factors: Arc<[f64]>,
+    forwards: Arc<[f64]>,
     spread: f64,
 }
 
@@ -43,9 +46,9 @@ impl RateTermStructure {
             reference,
             upper_bound: None,
             rate: Some(rate),
-            nodes: vec![],
-            factors: vec![],
-            forwards: vec![],
+            nodes: Arc::default(),
+            factors: Arc::default(),
+            forwards: Arc::default(),
             spread: 0.0,
         })
     }
@@ -134,9 +137,9 @@ impl RateTermStructure {
             reference: Some(reference),
             upper_bound: None,
             rate: None,
-            nodes,
-            factors,
-            forwards,
+            nodes: nodes.into(),
+            factors: factors.into(),
+            forwards: forwards.into(),
             spread: 0.0,
         })
     }
@@ -203,11 +206,11 @@ impl RateTermStructure {
     /// Returns [`Error::ComputationFailure`] for a non-finite log factor or overflow.
     pub fn factors(&self) -> Result<Vec<f64>> {
         let Some(reference) = self.reference.filter(|_| self.spread != 0.0) else {
-            return Ok(self.factors.clone());
+            return Ok(self.factors.to_vec());
         };
         self.nodes
             .iter()
-            .zip(&self.factors)
+            .zip(self.factors.iter())
             .map(|(&node, &factor)| {
                 let log = factor.ln() - self.spread * reference.years_until(node);
                 let value = log.exp();
@@ -331,7 +334,7 @@ impl RateTermStructure {
         } else {
             copy.spread += shift;
             finite(copy.spread, false, "parallel_shift")?;
-            for rate in &self.forwards {
+            for rate in self.forwards.iter() {
                 finite(rate + copy.spread, false, "forward_rate")?;
             }
         }
