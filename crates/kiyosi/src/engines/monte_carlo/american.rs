@@ -263,10 +263,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         if self.settings.seed.is_some() {
             return Ok(None);
         }
-        Ok(Some(Box::new(Self {
-            settings: self.settings.with_resolved_seed()?,
-            ..*self
-        })))
+        Ok(Some(Box::new(self.with_resolved_seed()?)))
     }
 
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
@@ -303,10 +300,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             ),
             ..settings
         };
-        let engine = Self {
-            settings: self.settings.with_resolved_seed()?,
-            ..*self
-        };
+        let engine = self.with_resolved_seed()?;
         let native = |context: &PricingContext, requested: GreeksRequest| {
             let (price, seed) = engine.american_price(option, context, true)?;
             let mut result = PricingResult::new(price)?.with_seed(seed);

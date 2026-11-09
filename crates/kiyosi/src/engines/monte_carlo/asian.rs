@@ -574,14 +574,10 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
     fn prepare_request(
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<GeometricAveragePriceOption> + '_>>> {
-        Ok(if self.settings.seed.is_none() {
-            Some(Box::new(Self {
-                settings: self.settings.with_resolved_seed()?,
-                ..*self
-            }))
-        } else {
-            None
-        })
+        if self.settings.seed.is_some() {
+            return Ok(None);
+        }
+        Ok(Some(Box::new(self.with_resolved_seed()?)))
     }
     fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
@@ -652,14 +648,10 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
     fn prepare_request(
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<ArithmeticAveragePriceOption> + '_>>> {
-        Ok(if self.settings.seed.is_none() {
-            Some(Box::new(Self {
-                settings: self.settings.with_resolved_seed()?,
-                ..*self
-            }))
-        } else {
-            None
-        })
+        if self.settings.seed.is_some() {
+            return Ok(None);
+        }
+        Ok(Some(Box::new(self.with_resolved_seed()?)))
     }
     fn price(
         &self,

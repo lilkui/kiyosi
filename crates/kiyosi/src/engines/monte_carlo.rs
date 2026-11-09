@@ -1042,10 +1042,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
         if self.settings.seed.is_some() {
             return Ok(None);
         }
-        Ok(Some(Box::new(Self {
-            settings: self.settings.with_resolved_seed()?,
-            ..*self
-        })))
+        Ok(Some(Box::new(self.with_resolved_seed()?)))
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         let (sample, _, log_discount, _) = self.sample(option, context, false)?;

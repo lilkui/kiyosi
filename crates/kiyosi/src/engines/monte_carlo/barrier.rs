@@ -609,9 +609,7 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         if self.settings.seed.is_some() {
             return Ok(None);
         }
-        Ok(Some(Box::new(Self {
-            settings: self.settings.with_resolved_seed()?,
-        })))
+        Ok(Some(Box::new(self.with_resolved_seed()?)))
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)
