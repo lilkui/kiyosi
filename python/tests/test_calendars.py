@@ -191,6 +191,34 @@ class CalendarTests(unittest.TestCase):
         self.assertFalse(nested.is_trading_day(opened))
         self.assertTrue(nested.is_trading_day(closed))
 
+    def test_calendar_amendments_merge_and_serialize_effective_overrides(self):
+        closed, opened = date(2026, 10, 1), date(2026, 10, 10)
+        original = custom_calendar(
+            base=weekdays_calendar(),
+            closed_dates=[closed],
+            open_dates=[opened],
+            trading_days_per_year=260,
+        )
+        amended = original
+        for _ in range(500):
+            amended = custom_calendar(
+                base=amended, closed_dates=[opened], open_dates=[closed]
+            )
+        expected = custom_calendar(
+            base=weekdays_calendar(),
+            closed_dates=[opened],
+            open_dates=[closed],
+            trading_days_per_year=260,
+        )
+        self.assertEqual(amended, expected)
+        self.assertEqual(pickle.loads(pickle.dumps(amended)), expected)
+        self.assertEqual(repr(amended), repr(expected))
+        self.assertTrue(amended.is_trading_day(closed))
+        self.assertFalse(amended.is_trading_day(opened))
+        self.assertEqual(amended.trading_days_per_year, 260)
+        self.assertFalse(original.is_trading_day(closed))
+        self.assertTrue(original.is_trading_day(opened))
+
     def test_counts_adjustment_and_annualization(self):
         calendar = weekdays_calendar()
         start, end = date(2025, 1, 1), date(2025, 1, 6)

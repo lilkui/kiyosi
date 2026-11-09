@@ -165,6 +165,40 @@ fn calendar_equality_preserves_normalized_overrides_and_predicate_identity() {
 }
 
 #[test]
+fn calendar_amendments_merge_overrides_with_latest_choices_and_preserve_the_base()
+-> kiyosi::Result<()> {
+    let closed = day(2026, 10, 1);
+    let opened = day(2026, 10, 10);
+    let extra = day(2026, 10, 2);
+    let base = TradingCalendar::new(|_| true, 252)?;
+    let original = TradingCalendar::custom(base.clone(), vec![closed], vec![opened], Some(260))?;
+    let mut amended = original.clone();
+    for _ in 0..500 {
+        amended = TradingCalendar::custom(amended, vec![opened, extra], vec![closed], None)?;
+    }
+    let expected =
+        TradingCalendar::custom(base.clone(), vec![extra, opened], vec![closed], Some(260))?;
+    assert_eq!(amended, expected);
+    let (underlying, closed_dates, open_dates) = amended.overrides().unwrap();
+    assert_eq!(underlying, &base);
+    assert_eq!(closed_dates, &[extra, opened]);
+    assert_eq!(open_dates, &[closed]);
+    assert_eq!(amended.trading_days_per_year(), 260);
+    assert!(amended.is_trading_day(closed));
+    assert!(!amended.is_trading_day(opened));
+    assert!(!amended.is_trading_day(extra));
+    assert!(!original.is_trading_day(closed));
+    assert!(original.is_trading_day(opened));
+    assert!(original.is_trading_day(extra));
+    assert!(matches!(
+        TradingCalendar::custom(amended.clone(), vec![closed], vec![closed], None),
+        Err(Error::InvalidInput(_))
+    ));
+    assert_eq!(amended, expected);
+    Ok(())
+}
+
+#[test]
 fn custom_calendars_own_overrides_validate_and_retain_basis() {
     let base = TradingCalendar::default();
     let mut closed = vec![day(2026, 10, 2), day(2026, 10, 1), day(2026, 10, 1)];

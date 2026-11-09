@@ -167,13 +167,14 @@ impl TradingCalendar {
     /// value and is never recalculated from the overrides. The base is consumed.
     /// Equivalent normalized overrides on equal bases compare equal. Empty overrides
     /// preserve the base's kind, including when changing only its annualization basis.
+    /// Amendments merge into one override layer; new choices take precedence on each date.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for dates present in both override lists,
     /// then for a nonpositive basis. See [`Self::adjust`] for calendar usage.
     pub fn custom(
-        base: Self,
+        mut base: Self,
         mut closed: Vec<Date>,
         mut open: Vec<Date>,
         basis: Option<i32>,
@@ -196,13 +197,32 @@ impl TradingCalendar {
         if closed.is_empty() && open.is_empty() {
             return Ok(Self { basis, ..base });
         }
+        if let Some((underlying, previous_closed, previous_open)) = base.overrides() {
+            closed.extend(
+                previous_closed
+                    .iter()
+                    .copied()
+                    .filter(|date| open.binary_search(date).is_err()),
+            );
+            closed.sort_unstable();
+            closed.dedup();
+            open.extend(
+                previous_open
+                    .iter()
+                    .copied()
+                    .filter(|date| closed.binary_search(date).is_err()),
+            );
+            open.sort_unstable();
+            open.dedup();
+            base = underlying.clone();
+        }
         Ok(Self {
             kind: CalendarKind::Overrides(Arc::new(CalendarOverrides { base, closed, open })),
             basis,
         })
     }
 
-    /// Borrows this layer's base calendar and normalized date overrides, if present.
+    /// Borrows the underlying base calendar and merged date overrides, if present.
     ///
     /// Built-in and predicate calendars return `None`. References remain valid
     /// for the borrow's lifetime; see [`Self::custom`] for construction.
