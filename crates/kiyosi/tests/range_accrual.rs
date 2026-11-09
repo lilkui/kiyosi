@@ -33,6 +33,27 @@ fn market(at: impl Into<Timestamp>, spot: f64) -> PricingContext {
 }
 
 #[test]
+fn observation_schedules_retain_valid_storage_across_contract_replacements() -> Result<()> {
+    let option = RangeAccrualOption::new(terms())?;
+    let schedule = option.observation_schedule();
+    let closed = schedule.times()[0].date();
+    let calendar = TradingCalendar::custom(option.calendar().clone(), vec![closed], vec![], None)?;
+    let updated = option.replace_calendar(calendar.clone())?;
+    assert_eq!(
+        updated.observation_schedule().times(),
+        &schedule.times()[1..]
+    );
+    assert_eq!(updated.observation_schedule().calendar(), &calendar);
+    assert!(schedule.calendar().is_trading_day(closed));
+    assert_eq!(schedule.times()[0].date(), closed);
+    let snapshot = schedule.clone();
+    drop(option);
+    drop(updated);
+    assert_eq!(snapshot.times()[0].date(), closed);
+    Ok(())
+}
+
+#[test]
 fn range_pricing_observes_cancellation_inside_an_active_request() -> Result<()> {
     let option = RangeAccrualOption::new(terms())?;
     let context = market(day(1), 100.0);

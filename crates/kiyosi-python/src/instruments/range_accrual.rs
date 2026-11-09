@@ -256,8 +256,8 @@ impl RangeAccrualOption {
     /// supplied history. Payment adds no observation.
     ///
     #[getter]
-    fn observation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
-        domain(self.0.observation_schedule()).map(crate::schedule::ObservationSchedule)
+    fn observation_schedule(&self) -> crate::schedule::ObservationSchedule {
+        crate::schedule::ObservationSchedule(self.0.observation_schedule().clone())
     }
 
     /// Return an owned copy of the contract's observation calendar.

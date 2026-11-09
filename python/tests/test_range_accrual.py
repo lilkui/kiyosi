@@ -20,6 +20,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
     all_days_calendar,
+    custom_calendar,
     weekdays_calendar,
 )
 from kiyosi.pricing import (
@@ -109,6 +110,20 @@ def reference(option, context):
 
 
 class RangeAccrualTests(unittest.TestCase):
+    def test_schedule_snapshots_survive_calendar_replacement_and_owner_deletion(self):
+        original = contract(expiry_time=START + timedelta(days=3))
+        snapshot = original.observation_schedule
+        closed = (START + timedelta(days=1)).date()
+        calendar = custom_calendar(base=original.calendar, closed_dates=[closed])
+        updated = original.replace(calendar=calendar)
+        self.assertEqual(tuple(updated.observation_schedule), tuple(snapshot)[1:])
+        self.assertEqual(updated.observation_schedule.calendar, calendar)
+        del original, updated
+        self.assertEqual(
+            tuple(snapshot), tuple(START + timedelta(days=n) for n in range(1, 4))
+        )
+        self.assertTrue(snapshot.calendar.is_trading_day(closed))
+
     def test_automatic_time_bumps_recover_daily_risk_without_crossing_observations(
         self,
     ):

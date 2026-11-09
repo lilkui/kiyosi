@@ -63,6 +63,7 @@ impl RangeAccrualTerms {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RangeAccrualOption {
     terms: RangeAccrualTerms,
+    schedule: crate::ObservationSchedule,
 }
 
 impl RangeAccrualOption {
@@ -118,8 +119,19 @@ impl RangeAccrualOption {
                 "range accrual requires a positive contract term".into(),
             ));
         }
-        let option = Self { terms };
-        option.validate_calendar()?;
+        let schedule = crate::ObservationSchedule::daily(
+            terms.effective_time,
+            terms.expiry_time,
+            &terms.calendar,
+            false,
+            terms.observation_clock_time,
+        )?;
+        if schedule.is_empty() {
+            return Err(Error::InvalidInput(
+                "range accrual requires at least one observation".into(),
+            ));
+        }
+        let option = Self { terms, schedule };
         super::validate_history_snapshot(&option, option.realized_hit_count().is_some())?;
         Ok(option)
     }
@@ -153,9 +165,9 @@ impl RangeAccrualOption {
     /// let expiry = Date::new(2025, 1, 4)?.start_of_day();
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 80.0, 120.0, start, expiry, kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
     /// let option = RangeAccrualOption::new(terms)?;
-    /// assert_eq!(option.observation_schedule()?.times(), &[start.add_days(1)?]);
+    /// assert_eq!(option.observation_schedule().times(), &[start.add_days(1)?]);
     /// let daily = option.replace_calendar(TradingCalendar::all_days())?;
-    /// assert_eq!(daily.observation_schedule()?.len(), 2);
+    /// assert_eq!(daily.observation_schedule().len(), 2);
     /// assert_eq!(daily.expiry_time(), expiry);
     /// # Ok(()) }
     /// ```
@@ -164,15 +176,6 @@ impl RangeAccrualOption {
             calendar: Some(calendar),
             ..Default::default()
         })
-    }
-
-    fn validate_calendar(&self) -> Result<()> {
-        if self.observation_schedule()?.is_empty() {
-            return Err(Error::InvalidInput(
-                "range accrual requires at least one observation".into(),
-            ));
-        }
-        Ok(())
     }
 
     /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
@@ -230,19 +233,12 @@ impl RangeAccrualOption {
     pub fn observation_clock_time(&self) -> TimeOfDay {
         self.terms.observation_clock_time
     }
-    /// Returns an owned schedule of the contract's daily range observations.
+    /// Borrows the validated schedule of the contract's daily range observations.
     ///
     /// Excludes the effective instant, includes observations through expiry and
     /// applies the contractual clock and calendar. Payment adds no observation.
-    /// The returned schedule is independent of this contract and its history.
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`crate::ObservationSchedule`] time-range errors.
-    ///
-    /// # Panics
-    ///
-    /// Propagates panics from custom calendar predicates.
+    /// Storage remains valid for this contract's lifetime, independently of its history.
+    /// Clone the schedule to retain an owned value after dropping the contract.
     ///
     /// # Examples
     ///
@@ -253,17 +249,11 @@ impl RangeAccrualOption {
     /// let clock = TimeOfDay::new(0, 0, 0, 0)?;
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(
     ///     1000.0, 0.12, 90.0, 110.0, start, start.add_days(2)?, clock))?;
-    /// assert_eq!(option.observation_schedule()?.times(), &[start.add_days(1)?, start.add_days(2)?]);
+    /// assert_eq!(option.observation_schedule().times(), &[start.add_days(1)?, start.add_days(2)?]);
     /// # Ok(()) }
     /// ```
-    pub fn observation_schedule(&self) -> Result<crate::ObservationSchedule> {
-        crate::ObservationSchedule::daily(
-            self.effective_time(),
-            self.expiry_time(),
-            self.calendar(),
-            false,
-            self.observation_clock_time(),
-        )
+    pub fn observation_schedule(&self) -> &crate::ObservationSchedule {
+        &self.schedule
     }
     /// Returns hits strictly before valuation; see [`Self::new`].
     pub fn realized_hit_count(&self) -> Option<i32> {
@@ -294,25 +284,21 @@ impl OptionContract for RangeAccrualOption {
             .as_bsm()
             .is_ok_and(|model| model.volatility() == 0.0)
             && self.annual_coupon_rate() != 0.0
-            && self.observation_schedule().is_ok_and(|schedule| {
-                schedule
-                    .times()
-                    .iter()
-                    .filter(|&&time| time > context.valuation_time())
-                    .any(|&time| {
-                        context.deterministic_crosses(time, self.lower_bound(), radius)
-                            || context.deterministic_crosses(time, self.upper_bound(), radius)
-                    })
-            })
+            && self
+                .schedule
+                .times()
+                .iter()
+                .filter(|&&time| time > context.valuation_time())
+                .any(|&time| {
+                    context.deterministic_crosses(time, self.lower_bound(), radius)
+                        || context.deterministic_crosses(time, self.upper_bound(), radius)
+                })
         {
             return true;
         }
         let time = context.valuation_time();
         self.annual_coupon_rate() != 0.0
-            && time > self.effective_time()
-            && time <= self.expiry_time()
-            && time.micros_since_midnight() == self.observation_clock_time().micros_since_midnight()
-            && self.calendar().is_trading_day(time.date())
+            && self.schedule.times().binary_search(&time).is_ok()
             && [self.lower_bound(), self.upper_bound()]
                 .iter()
                 .any(|&level| {
@@ -325,10 +311,8 @@ impl OptionContract for RangeAccrualOption {
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
-        let Ok(schedule) = self.observation_schedule() else {
-            return false;
-        };
-        !schedule
+        !self
+            .schedule
             .times()
             .iter()
             .any(|&time| before <= time && time <= after)
@@ -422,13 +406,11 @@ impl RangeAccrualOption {
                     updated.observation_clock_time(),
                 )
                 || self.calendar() != updated.calendar()
-                    && super::historical_times(
-                        self.observation_schedule()?.times(),
-                        self.terms.history_time,
-                    ) != super::historical_times(
-                        updated.observation_schedule()?.times(),
-                        self.terms.history_time,
-                    ),
+                    && super::historical_times(self.schedule.times(), self.terms.history_time)
+                        != super::historical_times(
+                            updated.schedule.times(),
+                            self.terms.history_time,
+                        ),
             "realized_hit_count",
         )?;
         Ok(updated)

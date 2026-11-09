@@ -131,7 +131,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
         terms.realized_hit_count = Some(1);
         terms.history_time = Some(terms.effective_time);
         let range = RangeAccrualOption::new(terms)?;
-        assert_eq!(range.observation_schedule()?.times(), &[observation]);
+        assert_eq!(range.observation_schedule().times(), &[observation]);
 
         let mut terms = AccumulatorTerms::new(
             90.0,
@@ -1118,7 +1118,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
     let mut range_terms = RangeAccrualTerms::new(1000.0, 0.12, 90.0, 110.0, start, expiry, clock);
     range_terms.calendar = calendar.clone();
     let range = RangeAccrualOption::new(range_terms)?;
-    let schedule = range.observation_schedule()?;
+    let schedule = range.observation_schedule().clone();
     drop(range);
     assert_eq!(schedule.times(), &[last]);
 
