@@ -89,7 +89,9 @@ pub(crate) fn validate<T: AutocallableTerms>(
         ));
     }
     note.prior(context.valuation_time())?;
-    if let Some(time) = crate::OptionContract::history_time(note) {
+    if let Some(time) =
+        crate::OptionContract::history_time(note).filter(|_| note.barrier_state().is_some())
+    {
         note.prior(time)?;
     }
     crate::instruments::validate_history_time(

@@ -63,20 +63,17 @@ pub(crate) fn validate_history_time(
     context: &crate::PricingContext,
     continuous: bool,
 ) -> crate::Result<()> {
-    if !known {
+    validate_history_snapshot(option, known)?;
+    let Some(time) = option.history_time() else {
         return Ok(());
-    }
-    let time = option.history_time().ok_or_else(|| {
-        crate::Error::MissingHistory("supplied history requires history_time".into())
-    })?;
-    validate_history_time_bounds(option, Some(time))?;
+    };
     let valuation = context.history_anchor.unwrap_or(context.valuation_time());
     if time > valuation {
         return Err(crate::Error::InvalidInput(
             "history_time cannot follow valuation".into(),
         ));
     }
-    if time != valuation {
+    if known && time != valuation {
         let before = time.min(valuation);
         let after = time.max(valuation).add_micros(-1)?;
         if continuous || !option.time_stencil_available(context, before, after) {

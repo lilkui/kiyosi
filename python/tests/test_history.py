@@ -43,6 +43,37 @@ def engine(instrument):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_history_timestamps_cannot_follow_valuation_without_payloads(self):
+        for factory, fields in contract_inputs():
+            fields = fields.copy()
+            for name in (
+                "touch_state",
+                "barrier_state",
+                "realized_average",
+                "realized_hit_count",
+                "accumulated_quantity",
+                "knock_out_settled",
+            ):
+                if name in fields:
+                    fields[name] = None
+            option = factory(**fields)
+            selected = engine(option)
+            market = context(option.effective_time)
+            baseline = selected.price(option, market)
+            with self.subTest(contract=factory.__name__):
+                self.assertEqual(
+                    selected.price(
+                        option.replace(history_time=market.valuation_time), market
+                    ),
+                    baseline,
+                )
+                future = option.replace(
+                    history_time=market.valuation_time + timedelta(microseconds=1)
+                )
+                with self.assertRaises(InvalidInputError) as raised:
+                    selected.price(future, market)
+                self.assertIs(type(raised.exception), InvalidInputError)
+
     def test_autocallable_history_respects_first_daily_observation_on_sparse_calendar(
         self,
     ):

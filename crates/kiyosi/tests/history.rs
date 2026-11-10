@@ -1,6 +1,74 @@
 use kiyosi::*;
 
 #[test]
+fn history_timestamps_cannot_follow_valuation_without_payloads() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_days(8)?;
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
+    let market = context(start)?;
+    macro_rules! check {
+        ($option:expr, $engine:expr) => {{
+            let option = $option;
+            let engine = $engine;
+            let baseline = engine.price(&option, &market)?;
+            let dated = option.clone().with_history_time(Some(start))?;
+            assert_eq!(engine.price(&dated, &market)?, baseline);
+            let future = option.with_history_time(Some(start.add_micros(1)?))?;
+            assert!(matches!(
+                engine.price(&future, &market),
+                Err(Error::InvalidInput(_))
+            ));
+        }};
+    }
+    check!(
+        BarrierOption::new(BarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut
+        ))?,
+        AnalyticBarrierEngine
+    );
+    check!(
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?,
+        AnalyticGeometricAveragePriceEngine
+    );
+    check!(
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?,
+        TurnbullWakemanArithmeticAveragePriceEngine
+    );
+    check!(
+        RangeAccrualOption::new(RangeAccrualTerms::new(
+            1000.0, 0.12, 90.0, 110.0, start, end, clock
+        ))?,
+        AnalyticRangeAccrualEngine
+    );
+    check!(
+        Accumulator::new(AccumulatorTerms::new(
+            100.0, 120.0, 1.0, 2.0, start, end, clock
+        ))?,
+        QuadratureAccumulatorEngine::default()
+    );
+    check!(
+        SnowballOption::new(SnowballTerms::new(
+            0.1,
+            100.0,
+            80.0,
+            100.0,
+            0.0,
+            start,
+            end,
+            vec![AutocallableObservation::snowball(end, 110.0, 0.1)?],
+            Some(clock)
+        ))?,
+        QuadratureAutocallableEngine::default()
+    );
+    Ok(())
+}
+
+#[test]
 fn autocallable_history_respects_the_first_daily_observation_on_sparse_calendars() -> Result<()> {
     let date = Date::new(2025, 1, 2)?;
     let start = date.at_time(TimeOfDay::new(13, 0, 0, 0)?);

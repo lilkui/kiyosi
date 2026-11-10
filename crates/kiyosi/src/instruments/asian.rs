@@ -74,12 +74,17 @@ impl AverageTerms {
                 "realized average must match the elapsed averaging period".into(),
             ));
         }
+        let anchor = context.history_anchor.unwrap_or(valuation);
+        if self.history_time.is_some_and(|time| time > anchor) {
+            return Err(Error::InvalidInput(
+                "history_time cannot follow valuation".into(),
+            ));
+        }
         if self.realized.is_some() {
             let time = self.history_time.ok_or_else(|| {
                 Error::MissingHistory("supplied history requires history_time".into())
             })?;
-            let anchor = context.history_anchor.unwrap_or(valuation);
-            if time > anchor || time < self.averaging_start || time > expiry {
+            if time < self.averaging_start || time > expiry {
                 return Err(Error::InvalidInput(
                     "history_time must match the elapsed averaging period at valuation".into(),
                 ));
