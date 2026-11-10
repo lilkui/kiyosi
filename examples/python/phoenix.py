@@ -4,6 +4,8 @@ from kiyosi.instruments import (
     PhoenixOption,
     autocallable_observations,
     fixed_coupon_note,
+    standard_phoenix,
+    step_down_phoenix,
 )
 from kiyosi.market import BlackScholesMertonParameters, PricingContext, monthly_schedule
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_phoenix_coupon
@@ -53,8 +55,41 @@ context = PricingContext(
 )
 engine = FiniteDifferenceAutocallableEngine()
 
+# 前两期正常观察票息和敲入，从第三期开始允许敲出。
+standard = standard_phoenix(
+    coupon_per_period=0.01,
+    initial_spot=100,
+    knock_in_level=80,
+    knock_out_level=103,
+    coupon_barrier_level=90,
+    lockout_periods=2,
+    observation_clock_time=time(15),
+    observation_times=times,
+    effective_time=start,
+    expiry_time=end,
+)
+# 首次允许敲出时障碍为 103，此后每期递减 1；锁定期不消耗降敲阶数。
+step_down = step_down_phoenix(
+    coupon_per_period=0.01,
+    initial_spot=100,
+    knock_in_level=80,
+    initial_knock_out_level=103,
+    knock_out_level_decrement=1,
+    coupon_barrier_level=90,
+    lockout_periods=2,
+    observation_clock_time=time(15),
+    observation_times=times,
+    effective_time=start,
+    expiry_time=end,
+)
+
 # 两种结构都返回单位本金价值，求解值均为每期绝对票息率。
-for name, note in (("Phoenix", phoenix), ("FCN", fcn)):
+for name, note in (
+    ("Phoenix", phoenix),
+    ("FCN", fcn),
+    ("标准凤凰", standard),
+    ("降敲凤凰", step_down),
+):
     print(f"{name} 单位本金价格：{engine.price(note, context):.6f}")
     target = 1.0
     quote = implied_phoenix_coupon(

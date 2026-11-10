@@ -3,6 +3,7 @@ use pyo3::types::PyDict;
 
 pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     let defaults = PyDict::new(py);
+    defaults.set_item("lockout_periods", kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS)?;
     defaults.set_item(
         "principal_redemption_ratio",
         kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO,

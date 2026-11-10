@@ -343,7 +343,7 @@ pub(super) fn autocallable<T: AutocallableTerms>(
         {
             next += 1;
             let coupon = note.observation_coupon(record, spot);
-            if spot >= record.knock_out_level() {
+            if note.knock_out_enabled(record) && spot >= record.knock_out_level() {
                 return finite(
                     coupons
                         + scaled_cash(

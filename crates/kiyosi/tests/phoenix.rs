@@ -38,6 +38,235 @@ fn market(spot: f64, valuation: Timestamp) -> PricingContext {
     )
     .unwrap()
 }
+
+#[test]
+fn lockout_preserves_conditional_coupons_and_continuation_in_all_engines() {
+    let context = market(100.0, date(1, 1));
+    let mut input = terms();
+    input.lower_strike = 100.0;
+    input.lockout_periods = 2;
+    input.observations = autocallable_observations(
+        &[date(1, 1), date(2, 3), date(4, 1)],
+        &[100.0; 3],
+        None,
+        Some(&[90.0; 3]),
+    )
+    .unwrap();
+    let note = PhoenixOption::new(input).unwrap();
+    let mut expected = (-0.04 * date(1, 1).years_until(date(4, 1))).exp() + 0.01;
+    for time in [date(2, 3), date(4, 1)] {
+        let digital =
+            DigitalOption::cash_or_nothing(OptionType::Call, 90.0, 0.01, date(1, 1), time).unwrap();
+        expected += AnalyticDigitalEngine.price(&digital, &context).unwrap();
+    }
+    for (engine, tolerance) in [
+        (
+            &QuadratureAutocallableEngine::default() as &dyn PricingEngine<PhoenixOption>,
+            1e-9,
+        ),
+        (&FiniteDifferenceAutocallableEngine::default(), 2e-5),
+    ] {
+        let actual = engine.price(&note, &context).unwrap();
+        assert!(
+            (actual - expected).abs() < tolerance,
+            "{actual} != {expected}"
+        );
+    }
+    let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        path_count: 32768,
+        seed: Some(42),
+        ..Default::default()
+    })
+    .unwrap();
+    let estimate = engine.price_with_statistics(&note, &context).unwrap();
+    assert!((estimate.price() - expected).abs() < 5.0 * estimate.standard_error().unwrap() + 1e-6);
+}
+
+#[test]
+fn lockout_preserves_daily_knock_in_and_first_eligible_knock_out() {
+    let mut input = terms();
+    input.lockout_periods = 1;
+    input.lower_strike = 0.0;
+    input.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
+    input.observation_clock_time = Some(date(1, 1).time_of_day());
+    input.observations = autocallable_observations(
+        &[date(1, 1), date(4, 1)],
+        &[50.0, 200.0],
+        None,
+        Some(&[0.0; 2]),
+    )
+    .unwrap();
+    let note = PhoenixOption::new(input).unwrap();
+    let horizon = date(1, 1).years_until(date(4, 1));
+    let rate = (90.0_f64 / 70.0).ln() / horizon;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(rate, 0.0, 0.0).unwrap(),
+        70.0,
+        date(1, 1),
+    )
+    .unwrap();
+    for engine in [
+        &QuadratureAutocallableEngine::default() as &dyn PricingEngine<PhoenixOption>,
+        &FiniteDifferenceAutocallableEngine::default(),
+        &MonteCarloAutocallableEngine::default(),
+    ] {
+        let expected = 0.01 + (0.9 + 0.01) * (-rate * horizon).exp();
+        assert!((engine.price(&note, &context).unwrap() - expected).abs() < 1e-12);
+        let context = market(200.0, date(4, 1));
+        assert!((engine.price(&dated(&note, &context), &context).unwrap() - 1.01).abs() < 1e-14);
+    }
+}
+
+#[test]
+fn lockout_daily_layers_agree_across_engines_and_constant_local_volatility() {
+    let end = date(1, 10);
+    let mut input = terms();
+    input.expiry_time = end;
+    input.knock_in_level = 99.0;
+    input.lower_strike = 0.0;
+    input.lockout_periods = 2;
+    input.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
+    input.observation_clock_time = Some(date(1, 1).time_of_day());
+    input.observations = autocallable_observations(
+        &[date(1, 2), date(1, 6), end],
+        &[100.0; 3],
+        None,
+        Some(&[90.0; 3]),
+    )
+    .unwrap();
+    let note = PhoenixOption::new(input).unwrap();
+    let context = market(100.0, date(1, 1));
+    let expected = QuadratureAutocallableEngine::default()
+        .price(&note, &context)
+        .unwrap();
+    let fd = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 800,
+        time_step_count: 800,
+        ..Default::default()
+    })
+    .unwrap();
+    let actual = fd.price(&note, &context).unwrap();
+    assert!((actual - expected).abs() < 2e-5, "{actual} != {expected}");
+    let surface = LocalVolatilitySurface::new(
+        vec![date(1, 1), end],
+        vec![50.0, 150.0],
+        vec![vec![0.3; 2]; 2],
+    )
+    .unwrap();
+    let local = PricingContext::new(
+        LocalVolatilityParameters::new(0.04, 0.01, surface).unwrap(),
+        100.0,
+        date(1, 1),
+    )
+    .unwrap();
+    assert!((fd.price(&note, &local).unwrap() - actual).abs() < 1e-12);
+    let mc = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        path_count: 32768,
+        seed: Some(42),
+        ..Default::default()
+    })
+    .unwrap();
+    let estimate = mc.price_with_statistics(&note, &context).unwrap();
+    assert!((estimate.price() - expected).abs() < 5.0 * estimate.standard_error().unwrap());
+}
+
+#[test]
+fn lockout_history_depends_only_on_eligible_knock_out_observations() {
+    let mut input = terms();
+    input.lockout_periods = 1;
+    input.barrier_state = None;
+    input.history_time = None;
+    input.observations = autocallable_observations(
+        &[date(2, 3), date(3, 3), date(4, 1)],
+        &[110.0; 3],
+        None,
+        Some(&[90.0; 3]),
+    )
+    .unwrap();
+    let note = PhoenixOption::new(input).unwrap();
+    let engine = QuadratureAutocallableEngine::default();
+    assert!(engine.price(&note, &market(100.0, date(3, 3))).is_ok());
+    assert!(matches!(
+        engine.price(&note, &market(100.0, date(3, 4))),
+        Err(Error::MissingHistory(_))
+    ));
+    let known = note
+        .replace_history(Some(AutocallableBarrierState::NoEvent), Some(date(2, 4)))
+        .unwrap();
+    assert!(matches!(
+        known.replace(PhoenixOptionChanges {
+            lockout_periods: Some(0),
+            ..Default::default()
+        }),
+        Err(Error::StaleHistory(_))
+    ));
+    assert_eq!(known.lockout_periods(), 1);
+    assert_eq!(
+        known
+            .replace(PhoenixOptionChanges {
+                lockout_periods: Some(2),
+                ..Default::default()
+            })
+            .unwrap()
+            .lockout_periods(),
+        2
+    );
+    let impossible = note
+        .replace_history(Some(AutocallableBarrierState::KnockedOut), Some(date(2, 4)))
+        .unwrap();
+    assert!(matches!(
+        engine.price(&impossible, &market(100.0, date(2, 4))),
+        Err(Error::InvalidInput(_))
+    ));
+    let possible = note
+        .replace_history(Some(AutocallableBarrierState::KnockedOut), Some(date(3, 4)))
+        .unwrap();
+    assert_eq!(
+        engine.price(&possible, &market(100.0, date(3, 4))).unwrap(),
+        0.0
+    );
+    let mut daily = note.terms().clone();
+    daily.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
+    daily.observation_clock_time = Some(date(1, 1).time_of_day());
+    assert!(matches!(
+        engine.price(
+            &PhoenixOption::new(daily).unwrap(),
+            &market(100.0, date(1, 2))
+        ),
+        Err(Error::MissingHistory(_))
+    ));
+}
+
+#[test]
+fn lockout_validates_counts_and_ignores_disabled_greek_discontinuities() {
+    let mut input = terms();
+    input.lockout_periods = 1;
+    let note = PhoenixOption::new(input.clone()).unwrap();
+    for count in [2, usize::MAX] {
+        input.lockout_periods = count;
+        assert!(matches!(
+            PhoenixOption::new(input.clone()),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            note.replace(PhoenixOptionChanges {
+                lockout_periods: Some(count),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    let context = market(110.0, date(2, 3));
+    let greeks = QuadratureAutocallableEngine::default()
+        .price_with_greeks(
+            &dated(&note, &context),
+            &context,
+            GreeksRequest::new([Greek::Delta]),
+        )
+        .unwrap();
+    assert!(greeks.require(Greek::Delta).unwrap().is_finite());
+    assert_eq!(note.lockout_periods(), 1);
+}
 #[test]
 fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
     let engine = QuadratureAutocallableEngine::default();

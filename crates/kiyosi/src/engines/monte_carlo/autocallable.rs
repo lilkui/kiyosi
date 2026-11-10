@@ -202,7 +202,8 @@ impl MonteCarloAutocallableEngine {
             let record = record.map(|record| {
                 (
                     record,
-                    log_ratio(record.knock_out_level(), initial_spot),
+                    note.knock_out_enabled(record)
+                        .then(|| log_ratio(record.knock_out_level(), initial_spot)),
                     log_ratio(record.coupon_barrier_level().unwrap_or(0.0), initial_spot),
                     note.period_coupon(),
                 )
@@ -241,7 +242,7 @@ impl MonteCarloAutocallableEngine {
                         } else {
                             0.0
                         };
-                        if log_return >= knock_out {
+                        if knock_out.is_some_and(|level| log_return >= level) {
                             let value = coupons
                                 + scaled_value(
                                     1.0,

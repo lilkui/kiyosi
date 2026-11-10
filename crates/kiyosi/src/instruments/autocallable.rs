@@ -8,6 +8,9 @@ use crate::{Error, OptionContract, PricingContext, Result, TimeOfDay, Timestamp,
 /// Supplies unit principal redemption for autocallable terms; see [`SnowballTerms::new`].
 pub const DEFAULT_PRINCIPAL_REDEMPTION_RATIO: f64 = 1.0;
 
+/// Supplies no initial knock-out lockout; see [`PhoenixPresetTerms::expand`].
+pub const DEFAULT_PHOENIX_LOCKOUT_PERIODS: usize = 0;
+
 /// Selects strict downside monitoring; see [`SnowballTerms::new`] for construction.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum KnockInObservationMode {
@@ -374,6 +377,11 @@ impl SnowballTerms {
 /// Supplies Phoenix terms; see [`Self::new`] and [`PhoenixOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct PhoenixTerms {
+    /// Disables knock-out for this many initial observations; defaults to zero.
+    ///
+    /// Must leave at least one eligible observation; coupons and knock-in remain active.
+    /// See [`PhoenixPresetTerms::expand`] for an example.
+    pub lockout_periods: usize,
     /// Dates supplied history; required when any history payload is known.
     ///
     /// See the [crate-level history example](crate).
@@ -425,6 +433,7 @@ impl PhoenixTerms {
         observation_clock_time: Option<TimeOfDay>,
     ) -> Self {
         Self {
+            lockout_periods: DEFAULT_PHOENIX_LOCKOUT_PERIODS,
             history_time: None,
             calendar: TradingCalendar::default(),
             coupon_per_period,
@@ -701,6 +710,7 @@ mod sealed {
         Phoenix(f64),
     }
     pub struct View<'a> {
+        pub lockout_periods: usize,
         pub history_time: Option<Timestamp>,
         pub calendar: &'a crate::TradingCalendar,
         pub knock_in: Option<KnockIn>,
@@ -716,7 +726,9 @@ pub(crate) use sealed::Coupon;
 use sealed::{Downside, KnockIn, Redemption};
 
 macro_rules! terms_view {
-    ($terms:ty, $coupon:path, $rate:ident) => {
+    (@lockout $terms:ident) => { 0 };
+    (@lockout $terms:ident, $field:ident) => { $terms.$field };
+    ($terms:ty, $coupon:path, $rate:ident $(, $lockout:ident)?) => {
         impl sealed::Terms for $terms {
             fn set_history_time(&mut self, time: Option<Timestamp>) {
                 self.history_time = time;
@@ -730,6 +742,7 @@ macro_rules! terms_view {
             }
             fn view(&self) -> sealed::View<'_> {
                 sealed::View {
+                    lockout_periods: terms_view!(@lockout self $(, $lockout)?),
                     history_time: self.history_time,
                     calendar: &self.calendar,
                     knock_in: Some(KnockIn {
@@ -754,7 +767,12 @@ macro_rules! terms_view {
     };
 }
 terms_view!(SnowballTerms, Coupon::Snowball, maturity_coupon_rate);
-terms_view!(PhoenixTerms, Coupon::Phoenix, coupon_per_period);
+terms_view!(
+    PhoenixTerms,
+    Coupon::Phoenix,
+    coupon_per_period,
+    lockout_periods
+);
 
 impl sealed::Terms for BinarySnowballTerms {
     fn set_history_time(&mut self, time: Option<Timestamp>) {
@@ -769,6 +787,7 @@ impl sealed::Terms for BinarySnowballTerms {
     }
     fn view(&self) -> sealed::View<'_> {
         sealed::View {
+            lockout_periods: 0,
             history_time: self.history_time,
             calendar: &self.calendar,
             knock_in: None,
@@ -795,6 +814,7 @@ impl sealed::Terms for TernarySnowballTerms {
     }
     fn view(&self) -> sealed::View<'_> {
         sealed::View {
+            lockout_periods: 0,
             history_time: self.history_time,
             calendar: &self.calendar,
             knock_in: Some(KnockIn {
@@ -836,7 +856,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// Returns [`Error::InvalidInput`] for invalid numeric terms or
     /// product-incompatible observation fields, reversed life, or empty, unordered
-    /// or out-of-life observations. Inputs are consumed on failure.
+    /// or out-of-life observations, or a lockout covering every observation.
+    /// Inputs are consumed on failure.
     ///
     /// # Examples
     ///
@@ -925,11 +946,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
                     || !old
                         .observations
                         .iter()
+                        .skip(old.lockout_periods)
                         .filter(|r| self.history_time().is_none_or(|at| r.time < at))
                         .map(|r| (r.time, r.knock_out_level))
                         .eq(new
                             .observations
                             .iter()
+                            .skip(new.lockout_periods)
                             .filter(|r| self.history_time().is_none_or(|at| r.time < at))
                             .map(|r| (r.time, r.knock_out_level))))
             },
@@ -1107,7 +1130,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         })
     }
     pub(crate) fn prior(&self, time: Timestamp) -> Result<bool> {
-        let had_out = self.observations()[0].time < time;
+        let had_out = self.observations()[self.view().lockout_periods].time < time;
         let had_in = || {
             if !self.view().daily_knock_in() || time <= self.effective_time() {
                 return Ok(false);
@@ -1131,6 +1154,9 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             _ => {}
         }
         Ok(self.barrier_state() == Some(AutocallableBarrierState::KnockedIn))
+    }
+    pub(crate) fn knock_out_enabled(&self, record: &AutocallableObservation) -> bool {
+        record.time >= self.observations()[self.view().lockout_periods].time
     }
     pub(crate) fn daily_at(&self, context: &PricingContext) -> bool {
         self.view().daily_knock_in() && self.daily_time(context.valuation_time(), self.calendar())
@@ -1199,7 +1225,8 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
                 .iter()
                 .filter(|record| record.time > context.valuation_time())
             {
-                if context.deterministic_crosses(record.time, record.knock_out_level, radius)
+                if self.knock_out_enabled(record)
+                    && context.deterministic_crosses(record.time, record.knock_out_level, radius)
                     || matches!(self.view().coupon, Coupon::Phoenix(_))
                         && self.period_coupon() != 0.0
                         && context.deterministic_crosses(
@@ -1275,10 +1302,10 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
             {
                 return true;
             }
-            if crosses(record.knock_out_level) {
+            if self.knock_out_enabled(record) && crosses(record.knock_out_level) {
                 return true;
             }
-            if spot > record.knock_out_level {
+            if self.knock_out_enabled(record) && spot > record.knock_out_level {
                 return false;
             }
         }
@@ -1458,6 +1485,11 @@ impl sealed::View<'_> {
         if terms.observations.is_empty() {
             return Err(Error::InvalidInput("empty autocallable schedule".into()));
         }
+        if terms.lockout_periods >= terms.observations.len() {
+            return Err(Error::InvalidInput(
+                "lockout_periods must leave at least one knock-out observation".into(),
+            ));
+        }
         for (i, r) in terms.observations.iter().enumerate() {
             if r.time < terms.effective_time
                 || r.time > terms.expiry_time
@@ -1603,6 +1635,8 @@ impl SnowballOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct PhoenixOptionChanges {
+    /// Replaces [`lockout_periods`](PhoenixTerms::lockout_periods) without regenerating barriers.
+    pub lockout_periods: Option<usize>,
     /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
     pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
@@ -1634,6 +1668,13 @@ pub struct PhoenixOptionChanges {
 }
 
 impl PhoenixOption {
+    /// Returns the number of initial observations excluded from knock-out.
+    ///
+    /// Coupons and knock-in remain active; see [`PhoenixPresetTerms::expand`].
+    pub fn lockout_periods(&self) -> usize {
+        self.0.lockout_periods
+    }
+
     /// Returns a note with the supplied finite signed coupon per observation.
     ///
     /// Preserves history and other terms. Apply [`crate::implied_phoenix_coupon`]
@@ -1658,6 +1699,7 @@ impl PhoenixOption {
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`PhoenixOption::new`] for construction examples.
+    /// Replacing the lockout changes eligibility without regenerating barrier levels.
     ///
     /// # Errors
     ///
@@ -1670,6 +1712,7 @@ impl PhoenixOption {
     pub fn replace(&self, changes: PhoenixOptionChanges) -> Result<Self> {
         let history_supplied = changes.barrier_state.is_some();
         let updated = Self::new(PhoenixTerms {
+            lockout_periods: changes.lockout_periods.unwrap_or(self.0.lockout_periods),
             history_time: super::replacement_history_time(
                 self.history_time(),
                 changes.history_time,

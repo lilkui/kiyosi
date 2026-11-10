@@ -224,6 +224,14 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
+        instruments::autocallable::standard_phoenix,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        instruments::autocallable::step_down_phoenix,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
         instruments::autocallable::digital_coupon_note,
         module
     )?)?;

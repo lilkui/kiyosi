@@ -13,6 +13,7 @@ from kiyosi import (
     MissingHistoryError,
     NonConvergenceError,
     RootNotBracketedError,
+    StaleHistoryError,
     UnsupportedOperationError,
 )
 from kiyosi.instruments import (
@@ -20,7 +21,13 @@ from kiyosi.instruments import (
     PhoenixOption,
     autocallable_observations,
 )
-from kiyosi.market import RateTermStructure, all_days_calendar, custom_calendar
+from kiyosi.market import (
+    LocalVolatilityParameters,
+    LocalVolatilitySurface,
+    RateTermStructure,
+    all_days_calendar,
+    custom_calendar,
+)
 from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
@@ -77,6 +84,179 @@ def contract(**changes):
 
 
 class PhoenixTests(unittest.TestCase):
+    def test_lockout_daily_layers_agree_across_engines_and_constant_local_volatility(
+        self,
+    ):
+        end = datetime(2025, 1, 10)
+        note = contract(
+            expiry_time=end,
+            knock_in_level=99,
+            lower_strike=0,
+            knock_in_observation_mode="every_trading_day",
+            lockout_periods=2,
+            observations=autocallable_observations(
+                [datetime(2025, 1, 2), datetime(2025, 1, 6), end],
+                [100] * 3,
+                coupon_barrier_levels=[90] * 3,
+            ),
+        )
+        context = market()
+        expected = QuadratureAutocallableEngine().price(note, context)
+        fd = FiniteDifferenceAutocallableEngine(
+            asset_step_count=800, time_step_count=800
+        )
+        actual = fd.price(note, context)
+        self.assertAlmostEqual(actual, expected, delta=2e-5)
+        local = context.replace(
+            model_parameters=LocalVolatilityParameters(
+                risk_free_rate=0.04,
+                dividend_yield=0.01,
+                surface=LocalVolatilitySurface(
+                    times=[START, end], spots=[50, 150], values=[[0.3, 0.3], [0.3, 0.3]]
+                ),
+            )
+        )
+        self.assertAlmostEqual(fd.price(note, local), actual, delta=1e-12)
+        estimate = MonteCarloAutocallableEngine(
+            path_count=32768, seed=42
+        ).price_with_statistics(note, context)
+        self.assertAlmostEqual(
+            estimate.price, expected, delta=5 * estimate.standard_error
+        )
+
+    def test_lockout_preserves_conditional_coupons_and_continuation_in_all_engines(
+        self,
+    ):
+        note = contract(
+            lower_strike=100,
+            lockout_periods=2,
+            observations=autocallable_observations(
+                [START, MIDDLE, END], [100] * 3, coupon_barrier_levels=[90] * 3
+            ),
+        )
+        expected = math.exp(-0.04 * (END - START).days / 365) + 0.01
+        for at in (MIDDLE, END):
+            t = (at - START).days / 365
+            d2 = (math.log(100 / 90) + (0.03 - 0.3**2 / 2) * t) / (0.3 * math.sqrt(t))
+            expected += 0.01 * math.exp(-0.04 * t) * math.erfc(-d2 / math.sqrt(2)) / 2
+        context = market()
+        for engine, tolerance in (
+            (QuadratureAutocallableEngine(), 1e-9),
+            (FiniteDifferenceAutocallableEngine(), 2e-5),
+        ):
+            self.assertAlmostEqual(
+                engine.price(note, context), expected, delta=tolerance
+            )
+        estimate = MonteCarloAutocallableEngine(
+            path_count=32768, seed=42
+        ).price_with_statistics(note, context)
+        self.assertAlmostEqual(
+            estimate.price, expected, delta=5 * estimate.standard_error + 1e-6
+        )
+
+    def test_lockout_preserves_daily_knock_in_and_first_eligible_knock_out(self):
+        note = contract(
+            lower_strike=0,
+            lockout_periods=1,
+            knock_in_observation_mode="every_trading_day",
+            observations=autocallable_observations(
+                [START, END], [50, 200], coupon_barrier_levels=[0, 0]
+            ),
+        )
+        horizon = (END - START).days / 365
+        rate = math.log(90 / 70) / horizon
+        context = market(70, START, volatility=0, rate=rate, dividend=0)
+        for engine in (
+            QuadratureAutocallableEngine(),
+            FiniteDifferenceAutocallableEngine(),
+            MonteCarloAutocallableEngine(),
+        ):
+            self.assertAlmostEqual(
+                engine.price(note, context),
+                0.01 + 0.91 * math.exp(-rate * horizon),
+                delta=1e-12,
+            )
+            context_at_end = market(200, END)
+            self.assertAlmostEqual(
+                engine.price(dated_history(note, context_at_end), context_at_end),
+                1.01,
+                delta=1e-14,
+            )
+
+    def test_lockout_history_depends_only_on_eligible_knock_out_observations(self):
+        first_eligible = datetime(2025, 3, 3)
+        after_locked = MIDDLE + timedelta(days=1)
+        after_eligible = first_eligible + timedelta(days=1)
+        note = contract(
+            lockout_periods=1,
+            barrier_state=None,
+            observations=autocallable_observations(
+                [MIDDLE, first_eligible, END], [110] * 3, coupon_barrier_levels=[90] * 3
+            ),
+        )
+        engine = QuadratureAutocallableEngine()
+        self.assertTrue(math.isfinite(engine.price(note, market(100, first_eligible))))
+        with self.assertRaises(MissingHistoryError):
+            engine.price(note, market(100, after_eligible))
+        known = note.replace_history(
+            barrier_state="no_event", history_time=after_locked
+        )
+        with self.assertRaises(StaleHistoryError):
+            known.replace(lockout_periods=0)
+        self.assertEqual(known.lockout_periods, 1)
+        self.assertEqual(known.replace(lockout_periods=2).lockout_periods, 2)
+        impossible = note.replace_history(
+            barrier_state="knocked_out", history_time=after_locked
+        )
+        with self.assertRaises(InvalidInputError):
+            engine.price(impossible, market(100, after_locked))
+        possible = note.replace_history(
+            barrier_state="knocked_out", history_time=after_eligible
+        )
+        self.assertEqual(engine.price(possible, market(100, after_eligible)), 0)
+        daily = note.replace(
+            knock_in_observation_mode="every_trading_day",
+            observation_clock_time=clock_time(),
+        )
+        with self.assertRaises(MissingHistoryError):
+            engine.price(daily, market(100, START + timedelta(days=1)))
+
+    def test_lockout_counts_use_integer_protocol_and_core_validation(self):
+        class Count:
+            def __index__(self):
+                return 1
+
+        note = contract(lockout_periods=Count())
+        self.assertEqual(note.lockout_periods, 1)
+        self.assertEqual(contract().lockout_periods, 0)
+        self.assertEqual(
+            inspect.signature(PhoenixOption).parameters["lockout_periods"].default, 0
+        )
+        self.assertEqual(note.replace(lockout_periods=Ellipsis), note)
+        for value, error in (
+            (True, TypeError),
+            (False, TypeError),
+            (1.0, TypeError),
+            (0.5, TypeError),
+            (None, TypeError),
+            ("1", TypeError),
+            (-1, OverflowError),
+            (2**100, OverflowError),
+            (2, InvalidInputError),
+        ):
+            for operation in (contract, note.replace):
+                with (
+                    self.subTest(value=value, operation=operation),
+                    self.assertRaises(error),
+                ):
+                    operation(lockout_periods=value)
+        context = market(110, MIDDLE)
+        result = QuadratureAutocallableEngine().price_with_greeks(
+            dated_history(note, context), context, "delta"
+        )
+        self.assertTrue(math.isfinite(result.require("delta")))
+        self.assertEqual(note.lockout_periods, 1)
+
     def test_periodic_coupons_ignore_unequal_and_zero_length_periods_in_all_engines(
         self,
     ):

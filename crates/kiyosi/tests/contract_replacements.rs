@@ -1063,6 +1063,7 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = PhoenixOption::new(PhoenixTerms {
+        lockout_periods: 0,
         history_time: Some(start.add_days(5).unwrap()),
         observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),

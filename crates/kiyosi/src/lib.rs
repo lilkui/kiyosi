@@ -164,11 +164,11 @@ pub use instruments::autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation,
     AutocallableObservationChanges, AutocallableObservationKind, AutocallableTerms,
     BinarySnowballOption, BinarySnowballOptionChanges, BinarySnowballTerms,
-    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode, PhoenixOption,
-    PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms,
-    SnowballOption, SnowballOptionChanges, SnowballPreset, SnowballPresetTerms, SnowballTerms,
-    TernarySnowballOption, TernarySnowballOptionChanges, TernarySnowballTerms,
-    autocallable_observations,
+    DEFAULT_PHOENIX_LOCKOUT_PERIODS, DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode,
+    PhoenixOption, PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms,
+    SnowballCouponTerms, SnowballOption, SnowballOptionChanges, SnowballPreset,
+    SnowballPresetTerms, SnowballTerms, TernarySnowballOption, TernarySnowballOptionChanges,
+    TernarySnowballTerms, autocallable_observations,
 };
 pub use instruments::barrier::{
     BarrierOption, BarrierOptionChanges, BarrierOptionTerms, BarrierTouchState, BarrierType,

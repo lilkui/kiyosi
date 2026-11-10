@@ -137,7 +137,11 @@ fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
     }
     note.observations().iter().fold(level, |level, r| {
         level
-            .max(r.knock_out_level())
+            .max(if note.knock_out_enabled(r) {
+                r.knock_out_level()
+            } else {
+                0.0
+            })
             .max(r.coupon_barrier_level().unwrap_or(0.0))
     })
 }
@@ -361,7 +365,9 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
             .iter()
             .filter(|r| r.time() > context.valuation_time())
         {
-            levels.push(r.knock_out_level());
+            if note.knock_out_enabled(r) {
+                levels.push(r.knock_out_level());
+            }
             if matches!(t.coupon, Coupon::Phoenix(_)) {
                 levels.push(r.coupon_barrier_level().unwrap_or(0.0));
             }
@@ -394,12 +400,17 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     }
     let end_event = event(note, time, context);
     if let Some(r) = end_event {
-        breaks.extend([r.knock_out_level(), r.coupon_barrier_level().unwrap_or(0.0)]);
+        if note.knock_out_enabled(r) {
+            breaks.push(r.knock_out_level());
+        }
+        breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
     }
     let payment = |asset, knocked_in, record: Option<&AutocallableObservation>| {
         let coupon = record.map_or(0.0, |r| note.observation_coupon(r, asset));
         coupon
-            + if let Some(r) = record.filter(|r| asset >= r.knock_out_level()) {
+            + if let Some(r) =
+                record.filter(|r| note.knock_out_enabled(r) && asset >= r.knock_out_level())
+            {
                 note.knock_out_payment(r)
             } else {
                 note.terminal(
@@ -460,7 +471,10 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
                 breaks.push(ki.level);
             }
             if let Some(r) = record {
-                breaks.extend([r.knock_out_level(), r.coupon_barrier_level().unwrap_or(0.0)]);
+                if note.knock_out_enabled(r) {
+                    breaks.push(r.knock_out_level());
+                }
+                breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
             }
             for i in 0..size {
                 let correction = project(&space, &breaks, i, |asset| {
@@ -471,7 +485,9 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
                         0.0
                     };
                     let coupon = record.map_or(0.0, |r| note.observation_coupon(r, asset));
-                    if let Some(r) = record.filter(|r| asset >= r.knock_out_level()) {
+                    if let Some(r) =
+                        record.filter(|r| note.knock_out_enabled(r) && asset >= r.knock_out_level())
+                    {
                         let payment = note.knock_out_payment(r) + coupon;
                         [payment - a, payment - k]
                     } else {

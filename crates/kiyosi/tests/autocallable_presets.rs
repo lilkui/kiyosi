@@ -29,6 +29,99 @@ fn phoenix_terms() -> PhoenixPresetTerms {
 }
 
 #[test]
+fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observation() {
+    let mut input = phoenix_terms();
+    input.observation_times = vec![date(1, 2), date(2, 3), date(3, 3), date(4, 1)];
+    input.observation_clock_time = Some(date(1, 1).time_of_day());
+    input.lockout_periods = 2;
+    let step = input
+        .clone()
+        .expand(PhoenixPreset::StepDown {
+            coupon_barrier_level: 90.0,
+            knock_out_level_decrement: 2.0,
+        })
+        .unwrap();
+    let mut expected = PhoenixTerms::new(
+        0.01,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        input.effective_time,
+        input.expiry_time,
+        autocallable_observations(
+            &input.observation_times,
+            &[110.0, 110.0, 110.0, 108.0],
+            None,
+            Some(&[90.0; 4]),
+        )
+        .unwrap(),
+        input.observation_clock_time,
+    );
+    expected.lockout_periods = 2;
+    assert_eq!(step.terms(), &expected);
+    let moved = step
+        .replace(PhoenixOptionChanges {
+            lockout_periods: Some(3),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(moved.observations(), step.observations());
+    assert_eq!(moved.observations()[3].knock_out_level(), 108.0);
+    let standard = input
+        .clone()
+        .expand(PhoenixPreset::Standard {
+            coupon_barrier_level: 90.0,
+        })
+        .unwrap();
+    assert_eq!(
+        standard,
+        input
+            .clone()
+            .expand(PhoenixPreset::StepDown {
+                coupon_barrier_level: 90.0,
+                knock_out_level_decrement: 0.0
+            })
+            .unwrap()
+    );
+    input.observation_clock_time = None;
+    for preset in [
+        PhoenixPreset::FixedCouponNote,
+        PhoenixPreset::DigitalCouponNote {
+            coupon_barrier_level: 90.0,
+        },
+    ] {
+        let note = input.clone().expand(preset).unwrap();
+        assert_eq!(note.lockout_periods(), 2);
+        assert_eq!(note.terms().upper_strike, 80.0);
+        assert_eq!(
+            note.terms().knock_in_observation_mode,
+            KnockInObservationMode::AtExpiry
+        );
+    }
+    assert!(matches!(
+        input.clone().expand(PhoenixPreset::Standard {
+            coupon_barrier_level: 90.0
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    input.observation_clock_time = Some(date(1, 1).time_of_day());
+    assert!(matches!(
+        input.clone().expand(PhoenixPreset::FixedCouponNote),
+        Err(Error::InvalidInput(_))
+    ));
+    for decrement in [-1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 110.0] {
+        assert!(matches!(
+            input.clone().expand(PhoenixPreset::StepDown {
+                coupon_barrier_level: 90.0,
+                knock_out_level_decrement: decrement
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+}
+
+#[test]
 fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
     let engine = QuadratureAutocallableEngine::default();
     for (preset, barrier) in [
@@ -251,6 +344,13 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
             PhoenixPreset::FixedCouponNote => 0.01 * discount,
             PhoenixPreset::DigitalCouponNote {
                 coupon_barrier_level,
+            }
+            | PhoenixPreset::Standard {
+                coupon_barrier_level,
+            }
+            | PhoenixPreset::StepDown {
+                coupon_barrier_level,
+                ..
             } => {
                 let digital = DigitalOption::cash_or_nothing(
                     OptionType::Call,

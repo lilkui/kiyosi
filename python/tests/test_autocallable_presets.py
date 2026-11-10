@@ -1,8 +1,10 @@
 """FCN/DCN coupon units and staged snowballs through the public Python API."""
 
+import copy
 import datetime as datetime_module
 import inspect
 import math
+import pickle
 import unittest
 from datetime import UTC, datetime
 from datetime import time as clock_time
@@ -16,6 +18,8 @@ from kiyosi.instruments import (
     digital_coupon_note,
     early_profit_snowball,
     fixed_coupon_note,
+    standard_phoenix,
+    step_down_phoenix,
 )
 from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
@@ -70,6 +74,108 @@ def engines():
 
 
 class AutocallablePresetTests(unittest.TestCase):
+    def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_observation(
+        self,
+    ):
+        dates = [datetime(2025, 1, 2), MIDDLE, datetime(2025, 3, 3), END]
+        common = {
+            "coupon_per_period": 0.01,
+            "initial_spot": 100,
+            "knock_in_level": 80,
+            "observation_clock_time": clock_time(),
+            "coupon_barrier_level": 90,
+            "observation_times": dates,
+            "effective_time": START,
+            "expiry_time": END,
+            "lockout_periods": 2,
+        }
+        note = step_down_phoenix(
+            initial_knock_out_level=110, knock_out_level_decrement=2, **common
+        )
+        expected = PhoenixOption(
+            coupon_per_period=0.01,
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=0,
+            observation_clock_time=clock_time(),
+            effective_time=START,
+            expiry_time=END,
+            lockout_periods=2,
+            observations=autocallable_observations(
+                dates, [110, 110, 110, 108], coupon_barrier_levels=[90] * 4
+            ),
+        )
+        self.assertEqual(note, expected)
+        self.assertEqual(note.knock_in_observation_mode, "every_trading_day")
+        self.assertEqual(
+            note.replace(lockout_periods=3).knock_out_levels, note.knock_out_levels
+        )
+        self.assertEqual(note.replace(lockout_periods=3).knock_out_levels[-1], 108)
+        self.assertEqual(
+            standard_phoenix(knock_out_level=110, **common),
+            step_down_phoenix(
+                initial_knock_out_level=110, knock_out_level_decrement=0, **common
+            ),
+        )
+        for restored in (
+            copy.copy(note),
+            copy.deepcopy(note),
+            pickle.loads(pickle.dumps(note)),
+        ):
+            self.assertEqual(restored, note)
+            self.assertEqual(restored.lockout_periods, 2)
+        restored = eval(
+            repr(note),
+            {
+                "datetime": datetime_module,
+                "PhoenixOption": PhoenixOption,
+                "AutocallableObservation": AutocallableObservation,
+            },
+        )
+        self.assertEqual(restored, note)
+        for factory, extra in (
+            (fixed_coupon_note, {}),
+            (digital_coupon_note, {"coupon_barrier_level": 90}),
+        ):
+            locked = factory(
+                coupon_per_period=0.01, lockout_periods=1, **terms(), **extra
+            )
+            self.assertEqual(locked.lockout_periods, 1)
+            self.assertEqual(locked.upper_strike, 80)
+            self.assertEqual(locked.knock_in_observation_mode, "at_expiry")
+        for factory in (
+            fixed_coupon_note,
+            digital_coupon_note,
+            standard_phoenix,
+            step_down_phoenix,
+        ):
+            self.assertEqual(
+                inspect.signature(factory).parameters["lockout_periods"].default, 0
+            )
+        for decrement in (-1, math.nan, math.inf, -math.inf, 110):
+            with (
+                self.subTest(decrement=decrement),
+                self.assertRaises(InvalidInputError),
+            ):
+                step_down_phoenix(
+                    initial_knock_out_level=110,
+                    knock_out_level_decrement=decrement,
+                    **common,
+                )
+        for count, error in (
+            (4, InvalidInputError),
+            (True, TypeError),
+            (1.5, TypeError),
+            (-1, OverflowError),
+        ):
+            with self.assertRaises(error):
+                step_down_phoenix(
+                    initial_knock_out_level=110,
+                    knock_out_level_decrement=2,
+                    **(common | {"lockout_periods": count}),
+                )
+
     def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(self):
         for factory, extra, barrier in (
             (fixed_coupon_note, {}, 0),

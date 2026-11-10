@@ -43,6 +43,13 @@ construct product-specific observations. `PhoenixOption` accepts a finite signed
 per unit of original notional; scale the complete price and Greeks for position
 size.
 
+Phoenix ``lockout_periods`` disables knock-out for the first specified number of
+observations, while coupons and knock-in remain active. At least one observation
+must allow knock-out. ``standard_phoenix`` uses a constant knock-out barrier;
+``step_down_phoenix`` starts its absolute barrier ladder at the first eligible
+observation. Both use daily knock-in and initial spot as the upper loss strike.
+Replacing the lockout changes eligibility without regenerating barrier levels.
+
 `cash_touch_option` and `asset_touch_option` pay on a touch and require an
 ``up_and_in`` or ``down_and_in`` barrier. `cash_no_touch_option` and
 `asset_no_touch_option` pay when the barrier is never reached and require
@@ -126,7 +133,9 @@ from ._native import (
     loss_capped_snowball,
     otm_snowball,
     parachute_snowball,
+    standard_phoenix,
     standard_snowball,
+    step_down_phoenix,
     step_down_snowball,
 )
 
@@ -171,6 +180,8 @@ __all__ = [
     "loss_capped_snowball",
     "otm_snowball",
     "parachute_snowball",
+    "standard_phoenix",
     "standard_snowball",
+    "step_down_phoenix",
     "step_down_snowball",
 ]

@@ -1,7 +1,7 @@
 use super::{
     AutocallableBarrierState, AutocallableObservation, AutocallableObservationKind,
-    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode, PhoenixOption, PhoenixTerms,
-    SnowballOption, SnowballTerms,
+    DEFAULT_PHOENIX_LOCKOUT_PERIODS, DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode,
+    PhoenixOption, PhoenixTerms, SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
 use crate::error::finite;
@@ -296,9 +296,21 @@ fn staged_coupons(
     Ok(())
 }
 
-/// Selects a fixed-payment Phoenix convention; see [`PhoenixPresetTerms::expand`].
+/// Selects a Phoenix convention; see [`PhoenixPresetTerms::expand`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PhoenixPreset {
+    /// Uses a constant knock-out level and daily knock-in monitoring.
+    Standard {
+        /// Sets the finite nonnegative inclusive coupon threshold.
+        coupon_barrier_level: f64,
+    },
+    /// Decreases knock-out levels from the first eligible observation, with daily knock-in.
+    StepDown {
+        /// Sets the finite nonnegative inclusive coupon threshold.
+        coupon_barrier_level: f64,
+        /// Sets the finite nonnegative absolute decrement per eligible observation.
+        knock_out_level_decrement: f64,
+    },
     /// Pays a fixed coupon unconditionally at each surviving observation.
     FixedCouponNote,
     /// Pays a fixed coupon only when the inclusive coupon barrier is met.
@@ -308,9 +320,13 @@ pub enum PhoenixPreset {
     },
 }
 
-/// Supplies fixed coupon note (FCN) and digital coupon note (DCN) inputs; see [`Self::expand`] for conventions and an example.
+/// Supplies Phoenix preset inputs; see [`Self::expand`] for conventions and examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PhoenixPresetTerms {
+    /// Disables knock-out for initial observations; defaults to [`DEFAULT_PHOENIX_LOCKOUT_PERIODS`].
+    pub lockout_periods: usize,
+    /// Supplies the daily clock for standard and step-down presets; absent for FCN/DCN.
+    pub observation_clock_time: Option<TimeOfDay>,
     /// Dates supplied history; required when any history payload is known.
     ///
     /// See the [crate-level history example](crate).
@@ -321,7 +337,7 @@ pub struct PhoenixPresetTerms {
     pub coupon_per_period: f64,
     /// Sets the positive reference spot used to normalize downside losses.
     pub initial_spot: f64,
-    /// Sets the positive strict expiry knock-in threshold and upper settlement strike.
+    /// Sets the positive strict knock-in threshold; also the FCN/DCN upper settlement strike.
     pub knock_in_level: f64,
     /// Sets the positive inclusive knock-out threshold.
     pub knock_out_level: f64,
@@ -337,7 +353,7 @@ pub struct PhoenixPresetTerms {
     pub observation_times: Vec<Timestamp>,
 }
 impl PhoenixPresetTerms {
-    /// Creates FCN/DCN input terms with unknown history and unit principal.
+    /// Creates input terms with no lockout, no daily clock, unknown history and unit principal.
     ///
     /// Validation occurs on [`Self::expand`]; see its example.
     pub fn new(
@@ -350,6 +366,8 @@ impl PhoenixPresetTerms {
         observation_times: Vec<Timestamp>,
     ) -> Self {
         Self {
+            lockout_periods: DEFAULT_PHOENIX_LOCKOUT_PERIODS,
+            observation_clock_time: None,
             history_time: None,
             calendar: TradingCalendar::default(),
             coupon_per_period,
@@ -364,10 +382,15 @@ impl PhoenixPresetTerms {
         }
     }
 
-    /// Expands FCN/DCN terms into an ordinary validated [`PhoenixOption`].
+    /// Expands preset terms into an ordinary validated [`PhoenixOption`].
     ///
-    /// Observes strict knock-in only at expiry, with the knock-in level as upper
-    /// loss strike and zero lower strike. Coupons are fixed per observation,
+    /// Standard and step-down presets observe strict daily knock-in at the supplied
+    /// clock and use initial spot as the upper loss strike. FCN/DCN observe only at
+    /// expiry and use the knock-in level as upper strike. All use zero lower strike.
+    /// The lockout disables only knock-out; coupons and knock-in remain active.
+    /// Step-down starts at the supplied level on the first eligible observation,
+    /// then subtracts the nonnegative absolute decrement per eligible observation.
+    /// Coupons are fixed per observation,
     /// including a qualifying knock-out observation, with no memory. Coupon and
     /// principal amounts are normalized to initial notional; downside is the
     /// capped price difference divided by initial spot. Observation times are
@@ -376,7 +399,9 @@ impl PhoenixPresetTerms {
     /// # Errors
     ///
     /// Propagates [`PhoenixOption::new`] errors for invalid numeric terms, times
-    /// or schedules. Inputs are consumed on failure.
+    /// or schedules, lockout covering every observation, a missing daily clock or
+    /// a daily clock on FCN/DCN. Rejects negative or non-finite step-down decrements.
+    /// Inputs are consumed on failure.
     ///
     /// # Examples
     ///
@@ -389,21 +414,55 @@ impl PhoenixPresetTerms {
     ///     start, end, vec![end]);
     /// let note = terms.expand(PhoenixPreset::FixedCouponNote)?;
     /// assert_eq!(note.terms().coupon_per_period, 0.01);
+    /// let mut terms = PhoenixPresetTerms::new(0.01, 100.0, 80.0, 110.0,
+    ///     start, end, vec![start.add_days(1)?, end]);
+    /// terms.lockout_periods = 1;
+    /// terms.observation_clock_time = Some(start.time_of_day());
+    /// let note = terms.expand(PhoenixPreset::StepDown {
+    ///     coupon_barrier_level: 90.0, knock_out_level_decrement: 2.0,
+    /// })?;
+    /// assert_eq!(note.lockout_periods(), 1);
+    /// assert_eq!(note.observations()[1].knock_out_level(), 110.0);
     /// # Ok(()) }
     /// ```
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Observation indices are bounded by the supported calendar range and fit exactly in f64."
+    )]
     pub fn expand(self, preset: PhoenixPreset) -> Result<PhoenixOption> {
-        let coupon_barrier = match preset {
-            PhoenixPreset::FixedCouponNote => 0.0,
+        let (coupon_barrier, decrement, daily) = match preset {
+            PhoenixPreset::Standard {
+                coupon_barrier_level,
+            } => (coupon_barrier_level, 0.0, true),
+            PhoenixPreset::StepDown {
+                coupon_barrier_level,
+                knock_out_level_decrement,
+            } => {
+                finite(
+                    knock_out_level_decrement,
+                    false,
+                    "knock_out_level_decrement",
+                )?;
+                if knock_out_level_decrement < 0.0 {
+                    return Err(Error::InvalidInput(
+                        "negative knock_out_level_decrement".into(),
+                    ));
+                }
+                (coupon_barrier_level, knock_out_level_decrement, true)
+            }
+            PhoenixPreset::FixedCouponNote => (0.0, 0.0, false),
             PhoenixPreset::DigitalCouponNote {
                 coupon_barrier_level,
-            } => coupon_barrier_level,
+            } => (coupon_barrier_level, 0.0, false),
         };
         let observations = self
             .observation_times
             .into_iter()
-            .map(|date| AutocallableObservation {
+            .enumerate()
+            .map(|(i, date)| AutocallableObservation {
                 time: date,
-                knock_out_level: self.knock_out_level,
+                knock_out_level: self.knock_out_level
+                    - i.saturating_sub(self.lockout_periods) as f64 * decrement,
                 coupon_rate: 0.0,
                 coupon_barrier_level: coupon_barrier,
                 kind: AutocallableObservationKind::Phoenix,
@@ -413,14 +472,23 @@ impl PhoenixPresetTerms {
             self.coupon_per_period,
             self.initial_spot,
             self.knock_in_level,
-            self.knock_in_level,
+            if daily {
+                self.initial_spot
+            } else {
+                self.knock_in_level
+            },
             0.0,
             self.effective_time,
             self.expiry_time,
             observations,
-            None,
+            self.observation_clock_time,
         );
-        terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+        terms.lockout_periods = self.lockout_periods;
+        terms.knock_in_observation_mode = if daily {
+            KnockInObservationMode::EveryTradingDay
+        } else {
+            KnockInObservationMode::AtExpiry
+        };
         terms.barrier_state = self.barrier_state;
         terms.history_time = self.history_time;
         terms.calendar = self.calendar;

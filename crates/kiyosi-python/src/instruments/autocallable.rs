@@ -5,6 +5,10 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
+fn phoenix_lockout(value: &Bound<'_, PyAny>) -> PyResult<usize> {
+    crate::conversions::integer_index(value)?.extract()
+}
+
 macro_rules! autocallable_properties {
     ($name:ident, $changes:ident, $($extra:item),* $(,)?) => {
         #[pymethods]
@@ -1294,6 +1298,9 @@ snowball_properties! {
 ///     Inclusive expiry time.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
+/// lockout_periods : int, optional
+///     Initial observations excluded from knock-out; defaults to zero and must
+///     leave at least one eligible observation. Coupons and knock-in remain active.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
 ///     Strictly prior events. None is unknown; the string no_event means no
 ///     event.
@@ -1321,6 +1328,7 @@ snowball_properties! {
 /// effective timestamp, without time accrual. None is not a coupon value.
 /// Coupon and knock-out barriers are inclusive; knock-in is strict.
 /// Past coupons are settled. There is no coupon memory or maturity coupon.
+/// The initial lockout disables only knock-out; coupons and knock-in remain active.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -1328,12 +1336,17 @@ pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
     PhoenixOptionChanges,
+    /// Return the number of initial observations excluded from knock-out.
+    #[getter]
+    fn lockout_periods(&self) -> usize { self.0.lockout_periods() },
     /// Return a validated replacement.
     ///
     /// Parameters
     /// ----------
     /// coupon_per_period : float, optional
     ///     Finite signed periodic coupon rate; omission or Ellipsis retains it.
+    /// lockout_periods : int, optional
+    ///     Initial observations excluded from knock-out. Does not regenerate barriers.
     /// initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
@@ -1367,11 +1380,12 @@ autocallable_properties! {
     /// TypeError
     ///     If a representation or field name is invalid, including a None coupon.
     ///
-    #[pyo3(signature = (*, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_redemption_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, coupon_per_period=crate::conversions::OMITTED, lockout_periods=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_redemption_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
         &self,
         #[pyo3(from_py_with = crate::conversions::supplied)] coupon_per_period: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] lockout_periods: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] initial_spot: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_level: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] upper_strike: Option<&Bound<'_, PyAny>>,
@@ -1392,6 +1406,7 @@ autocallable_properties! {
             .transpose()?;
 
         let changes = kiyosi::PhoenixOptionChanges {
+            lockout_periods: lockout_periods.map(phoenix_lockout).transpose()?,
             history_time,
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             coupon_per_period: coupon_per_period.map(crate::conversions::real).transpose()?,
@@ -1411,7 +1426,7 @@ autocallable_properties! {
     }
 ,
     #[new]
-    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
+    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         #[pyo3(from_py_with = real)] coupon_per_period: f64,
@@ -1424,6 +1439,7 @@ autocallable_properties! {
         effective_time: &Bound<'_, PyAny>,
         expiry_time: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = phoenix_lockout)] lockout_periods: usize,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
         calendar: TradingCalendar,
@@ -1441,6 +1457,7 @@ autocallable_properties! {
             records(observations)?,
             observation_clock_time.map(crate::conversions::clock_time).transpose()?,
         );
+        terms.lockout_periods = lockout_periods;
         terms.knock_in_observation_mode = knock_in_observation_mode;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
@@ -1522,7 +1539,7 @@ autocallable_properties! {
 }
 
 macro_rules! phoenix_preset {
-    ($name:ident, [$($extra:ident => $extra_doc:literal),*], $preset:expr, $summary:literal) => {
+    ($name:ident, $knock_out:ident, [$($clock:ident)?], [$($extra:ident => $extra_doc:literal),*], $preset:expr, $summary:literal, $convention:literal) => {
         #[doc = $summary]
         ///
         /// Parameters
@@ -1533,9 +1550,16 @@ macro_rules! phoenix_preset {
         /// initial_spot : float
         ///     Positive reference spot used to normalize downside losses.
         /// knock_in_level : float
-        ///     Positive strict expiry knock-in threshold and upper settlement strike.
-        /// knock_out_level : float
-        ///     Positive inclusive knock-out threshold.
+        ///     Positive strict knock-in threshold.
+        #[doc = concat!(stringify!($knock_out), " : float")]
+        ///     Positive inclusive threshold at the first eligible knock-out observation.
+        /// lockout_periods : int, optional
+        ///     Initial observations excluded from knock-out; defaults to zero and must
+        ///     leave at least one eligible observation. Coupons and knock-in remain active.
+        $(
+            #[doc = concat!(stringify!($clock), " : datetime.time")]
+            ///     Daily knock-in observation clock on trading days.
+        )?
         ///
         $(
             #[doc = concat!(stringify!($extra), " : float")]
@@ -1563,13 +1587,16 @@ macro_rules! phoenix_preset {
         /// Returns
         /// -------
         /// PhoenixOption
-        ///     Validated owned contract, with expiry-only knock-in and zero lower
-        ///     strike.
+        #[doc = concat!("    ", $convention)]
         ///
         /// Raises
         /// ------
         /// InvalidInputError
-        ///     If numeric terms, times or observations are invalid.
+        ///     If numeric terms, lockout, times or observations are invalid.
+        /// TypeError
+        ///     If a supplied representation is invalid, including Boolean or fractional counts.
+        /// OverflowError
+        ///     If a count is negative or outside the native unsigned integer range.
         ///
         /// Notes
         /// -----
@@ -1581,17 +1608,19 @@ macro_rules! phoenix_preset {
         /// Past coupons are settled.
         ///
         #[pyfunction]
-        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, knock_out_level, $($extra,)* observation_times, effective_time, expiry_time, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=crate::conversions::OMITTED, history_time=None))]
+        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, $knock_out, $($extra,)* $($clock,)? observation_times, effective_time, expiry_time, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=crate::conversions::OMITTED, history_time=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             coupon_per_period: &Bound<'_, PyAny>,
             initial_spot: &Bound<'_, PyAny>,
             knock_in_level: &Bound<'_, PyAny>,
-            knock_out_level: &Bound<'_, PyAny>,
+            $knock_out: &Bound<'_, PyAny>,
             $($extra: &Bound<'_, PyAny>,)*
+            $($clock: &Bound<'_, PyAny>,)?
             observation_times: &Bound<'_, PyAny>,
             effective_time: &Bound<'_, PyAny>,
             expiry_time: &Bound<'_, PyAny>,
+            #[pyo3(from_py_with = phoenix_lockout)] lockout_periods: usize,
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
             #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
@@ -1600,10 +1629,12 @@ macro_rules! phoenix_preset {
         ) -> PyResult<PhoenixOption> {
             let mut terms = kiyosi::PhoenixPresetTerms::new(
                 real(coupon_per_period)?, real(initial_spot)?, real(knock_in_level)?,
-                real(knock_out_level)?, timestamp(effective_time)?, timestamp(expiry_time)?,
+                real($knock_out)?, timestamp(effective_time)?, timestamp(expiry_time)?,
                 timestamps(observation_times)?,
             );
             $(let $extra = real($extra)?;)*
+            $(terms.observation_clock_time = Some(crate::conversions::clock_time($clock)?);)?
+            terms.lockout_periods = lockout_periods;
             if let Some(value) = barrier_state {
                 terms.barrier_state = state(value)?;
             }
@@ -1616,15 +1647,41 @@ macro_rules! phoenix_preset {
 }
 phoenix_preset!(
     fixed_coupon_note,
+    knock_out_level,
+    [],
     [],
     kiyosi::PhoenixPreset::FixedCouponNote,
-    "Create a fixed coupon note with unconditional surviving coupons."
+    "Create a fixed coupon note with unconditional surviving coupons.",
+    "Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike."
 );
 phoenix_preset!(
     digital_coupon_note,
+    knock_out_level,
+    [],
     [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out times."],
     kiyosi::PhoenixPreset::DigitalCouponNote { coupon_barrier_level },
-    "Create a digital coupon note with barrier-conditional fixed coupons."
+    "Create a digital coupon note with barrier-conditional fixed coupons.",
+    "Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike."
+);
+
+phoenix_preset!(
+    standard_phoenix,
+    knock_out_level,
+    [observation_clock_time],
+    [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out times."],
+    kiyosi::PhoenixPreset::Standard { coupon_barrier_level },
+    "Create a standard Phoenix with a constant knock-out barrier and optional initial lockout.",
+    "Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike."
+);
+phoenix_preset!(
+    step_down_phoenix,
+    initial_knock_out_level,
+    [observation_clock_time],
+    [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out times.",
+     knock_out_level_decrement => "Finite nonnegative absolute decrement after each eligible observation; lockout does not consume ladder steps."],
+    kiyosi::PhoenixPreset::StepDown { coupon_barrier_level, knock_out_level_decrement },
+    "Create a step-down Phoenix whose first eligible knock-out uses the initial level.",
+    "Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike."
 );
 
 #[derive(FromPyObject)]

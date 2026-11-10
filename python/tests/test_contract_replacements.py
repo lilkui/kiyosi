@@ -172,7 +172,10 @@ def contract_inputs():
             "effective_time": START,
             "expiry_time": END,
             "observations": [
-                i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
+                i.AutocallableObservation.phoenix(
+                    datetime(2025, 12, 31), 110, coupon_barrier_level=0
+                ),
+                i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0),
             ],
         },
     )
@@ -292,6 +295,7 @@ UPDATES = {
     "minimum_coupon_rate": 0.03,
     "coupon_rate": 0.15,
     "coupon_per_period": 0.02,
+    "lockout_periods": 1,
     "realized_average": 105,
 }
 NULLABLE = {
@@ -665,6 +669,6 @@ class ContractReplacementTests(unittest.TestCase):
         self.assertEqual(changed.knock_out_levels, (115,))
         self.assertEqual(changed.coupon_per_period, 0.02)
         self.assertEqual(note.coupon_per_period, 0.1)
-        self.assertEqual(note.knock_out_levels, (110,))
+        self.assertEqual(note.knock_out_levels, (110, 110))
         with self.assertRaises(TypeError):
             note.replace(coupon_rate=0.1, coupon_per_period=0.02)

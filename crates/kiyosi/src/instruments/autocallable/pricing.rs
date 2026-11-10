@@ -29,22 +29,23 @@ pub(crate) fn initial<T: AutocallableTerms>(
         .iter()
         .find(|r| r.time == context.valuation_time());
     let coupon = current.map_or(0.0, |r| note.observation_coupon(r, context.spot_price()));
-    let settlement =
-        if let Some(record) = current.filter(|r| context.spot_price() >= r.knock_out_level) {
-            Some(note.knock_out_payment(record) + coupon)
-        } else if context.valuation_time() == note.expiry_time() {
-            Some(
-                coupon
-                    + note.terminal(
-                        context.spot_price(),
-                        knocked_in
-                            || note.observes_knock_in(context.valuation_time())
-                                && note.view().below_knock_in(context.spot_price()),
-                    ),
-            )
-        } else {
-            None
-        };
+    let settlement = if let Some(record) =
+        current.filter(|r| note.knock_out_enabled(r) && context.spot_price() >= r.knock_out_level)
+    {
+        Some(note.knock_out_payment(record) + coupon)
+    } else if context.valuation_time() == note.expiry_time() {
+        Some(
+            coupon
+                + note.terminal(
+                    context.spot_price(),
+                    knocked_in
+                        || note.observes_knock_in(context.valuation_time())
+                            && note.view().below_knock_in(context.spot_price()),
+                ),
+        )
+    } else {
+        None
+    };
     Initial {
         knocked_in,
         settlement,
@@ -161,7 +162,10 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
         .filter(|r| r.time > context.valuation_time())
     {
         let discount = discount(record.time)?;
-        if !discount.is_normal() || note.knock_out_payment(record) * discount != value + coupons {
+        if !discount.is_normal()
+            || note.knock_out_enabled(record)
+                && note.knock_out_payment(record) * discount != value + coupons
+        {
             return None;
         }
         if matches!(t.coupon, Coupon::Phoenix(_)) {

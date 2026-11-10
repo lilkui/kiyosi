@@ -237,7 +237,9 @@ fn terminal<T: AutocallableTerms>(
             };
             let mut cash;
             let mut asset = 0.0;
-            if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level(), anchor)) {
+            if let Some(r) = record.filter(|r| {
+                note.knock_out_enabled(r) && point > log_ratio(r.knock_out_level(), anchor)
+            }) {
                 cash = note.knock_out_payment(r);
             } else if knocked_in
                 || note.observes_knock_in(note.expiry_time())
@@ -294,16 +296,19 @@ fn apply_event<T: AutocallableTerms>(
             })
             .map_or(0.0, |_| amount)
     };
-    if let Some(r) = record {
-        alive.high = note.knock_out_payment(r) + coupon(f64::INFINITY);
+    if let Some(r) = record.filter(|r| note.knock_out_enabled(r)) {
+        alive.high = note.knock_out_payment(r);
     }
+    alive.high += coupon(f64::INFINITY);
     if let Some(knocked) = knocked {
         alive.low = knocked.low;
     }
     alive.low[0] += coupon(f64::NEG_INFINITY);
     for (i, cell) in alive.cells.iter_mut().enumerate() {
         let point = nodes[i].midpoint(nodes[i + 1]);
-        if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level(), anchor)) {
+        if let Some(r) = record
+            .filter(|r| note.knock_out_enabled(r) && point > log_ratio(r.knock_out_level(), anchor))
+        {
             *cell = [note.knock_out_payment(r), 0.0, 0.0, 0.0];
         } else if let Some(knocked) = knocked.filter(|_| {
             t.knock_in
@@ -385,7 +390,9 @@ fn price<T: AutocallableTerms>(
         .iter()
         .filter(|r| r.time() > context.valuation_time())
     {
-        breaks.push(log_ratio(r.knock_out_level(), anchor));
+        if note.knock_out_enabled(r) {
+            breaks.push(log_ratio(r.knock_out_level(), anchor));
+        }
         if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level().unwrap_or(0.0) > 0.0 {
             breaks.push(log_ratio(r.coupon_barrier_level().unwrap_or(0.0), anchor));
         }

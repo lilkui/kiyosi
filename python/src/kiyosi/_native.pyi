@@ -12738,6 +12738,9 @@ class PhoenixOption:
         Inclusive expiry time.
     observations : iterable of AutocallableObservation
         Nonempty, strictly ordered contractual observations within life.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Strictly prior events. None is unknown; the string no_event means no
         event.
@@ -12765,7 +12768,12 @@ class PhoenixOption:
     effective timestamp, without time accrual. None is not a coupon value.
     Coupon and knock-out barriers are inclusive; knock-in is strict.
     Past coupons are settled. There is no coupon memory or maturity coupon.
+    The initial lockout disables only knock-out; coupons and knock-in remain active.
     """
+
+    @property
+    def lockout_periods(self) -> int:
+        """Return the number of initial observations excluded from knock-out."""
 
     @property
     def history_time(self) -> datetime | None:
@@ -12811,6 +12819,7 @@ class PhoenixOption:
         self,
         *,
         coupon_per_period: _Real | EllipsisType = ...,
+        lockout_periods: SupportsIndex | EllipsisType = ...,
         initial_spot: _Real | EllipsisType = ...,
         knock_in_level: _Real | EllipsisType = ...,
         upper_strike: _Real | EllipsisType = ...,
@@ -12834,6 +12843,8 @@ class PhoenixOption:
         ----------
         coupon_per_period : float, optional
             Finite signed periodic coupon rate; omission or Ellipsis retains it.
+        lockout_periods : int, optional
+            Initial observations excluded from knock-out. Does not regenerate barriers.
         initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
@@ -12881,6 +12892,7 @@ class PhoenixOption:
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
+        lockout_periods: SupportsIndex = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar = ...,
@@ -14531,90 +14543,24 @@ class QuadratureAccumulatorEngine:
         engine defaults. Use numerical_greeks for configurable scalar differences.
         """
 
-def fixed_coupon_note(
-    *,
-    coupon_per_period: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    observation_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
-) -> PhoenixOption:
-    """Create a fixed coupon note with unconditional surviving coupons.
-
-    Parameters
-    ----------
-    coupon_per_period : float
-        Finite signed coupon proportion per qualifying observation; not
-        annualized.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict expiry knock-in threshold and upper settlement strike.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation and payment times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events; None means unknown history.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupon and loss
-        components.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
-
-    Returns
-    -------
-    PhoenixOption
-        Validated owned contract, with expiry-only knock-in and zero lower
-        strike.
-
-    Raises
-    ------
-    InvalidInputError
-        If numeric terms, times or observations are invalid.
-
-    Notes
-    -----
-    Coupons pay once per qualifying observation, including a qualifying
-    knock-out, with no day accrual or memory. Knock-out and coupon barriers are
-    inclusive; knock-in is strict. Observation times are payment times; no
-    observation is implicitly added at expiry. Calendar compatibility is
-    checked on construction; history consistency is checked during pricing.
-    Past coupons are settled.
-    """
-
-def digital_coupon_note(
+def standard_phoenix(
     *,
     coupon_per_period: _Real,
     initial_spot: _Real,
     knock_in_level: _Real,
     knock_out_level: _Real,
     coupon_barrier_level: _Real,
+    observation_clock_time: time,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    lockout_periods: SupportsIndex = ...,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
     history_time: datetime | None = None,
 ) -> PhoenixOption:
-    """Create a digital coupon note with barrier-conditional fixed coupons.
+    """Create a standard Phoenix with a constant knock-out barrier and optional initial lockout.
 
     Parameters
     ----------
@@ -14624,9 +14570,14 @@ def digital_coupon_note(
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
-        Positive strict expiry knock-in threshold and upper settlement strike.
+        Positive strict knock-in threshold.
     knock_out_level : float
-        Positive inclusive knock-out threshold.
+        Positive inclusive threshold at the first eligible knock-out observation.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
+    observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
 
     coupon_barrier_level : float
         Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
@@ -14652,13 +14603,253 @@ def digital_coupon_note(
     Returns
     -------
     PhoenixOption
-        Validated owned contract, with expiry-only knock-in and zero lower
-        strike.
+        Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike.
 
     Raises
     ------
     InvalidInputError
-        If numeric terms, times or observations are invalid.
+        If numeric terms, lockout, times or observations are invalid.
+    TypeError
+        If a supplied representation is invalid, including Boolean or fractional counts.
+    OverflowError
+        If a count is negative or outside the native unsigned integer range.
+
+    Notes
+    -----
+    Coupons pay once per qualifying observation, including a qualifying
+    knock-out, with no day accrual or memory. Knock-out and coupon barriers are
+    inclusive; knock-in is strict. Observation times are payment times; no
+    observation is implicitly added at expiry. Calendar compatibility is
+    checked on construction; history consistency is checked during pricing.
+    Past coupons are settled.
+    """
+
+def step_down_phoenix(
+    *,
+    coupon_per_period: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    initial_knock_out_level: _Real,
+    coupon_barrier_level: _Real,
+    knock_out_level_decrement: _Real,
+    observation_clock_time: time,
+    observation_times: Iterable[datetime],
+    effective_time: datetime,
+    expiry_time: datetime,
+    lockout_periods: SupportsIndex = ...,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+    principal_redemption_ratio: _Real = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
+    history_time: datetime | None = None,
+) -> PhoenixOption:
+    """Create a step-down Phoenix whose first eligible knock-out uses the initial level.
+
+    Parameters
+    ----------
+    coupon_per_period : float
+        Finite signed coupon proportion per qualifying observation; not
+        annualized.
+    initial_spot : float
+        Positive reference spot used to normalize downside losses.
+    knock_in_level : float
+        Positive strict knock-in threshold.
+    initial_knock_out_level : float
+        Positive inclusive threshold at the first eligible knock-out observation.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
+    observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
+
+    coupon_barrier_level : float
+        Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
+    knock_out_level_decrement : float
+        Finite nonnegative absolute decrement after each eligible observation; lockout does not consume ladder steps.
+    observation_times : iterable of datetime.datetime
+        Strictly increasing observation and payment times within life.
+    effective_time : datetime.datetime
+        Inclusive contract start.
+    expiry_time : datetime.datetime
+        Inclusive expiry time.
+    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+        Strictly prior events; None means unknown history.
+    principal_redemption_ratio : float, optional
+        Nonnegative normalized principal, independent of coupon and loss
+        components.
+    calendar : TradingCalendar, optional
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required with history; refresh payload and timestamp together.
+
+    Returns
+    -------
+    PhoenixOption
+        Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike.
+
+    Raises
+    ------
+    InvalidInputError
+        If numeric terms, lockout, times or observations are invalid.
+    TypeError
+        If a supplied representation is invalid, including Boolean or fractional counts.
+    OverflowError
+        If a count is negative or outside the native unsigned integer range.
+
+    Notes
+    -----
+    Coupons pay once per qualifying observation, including a qualifying
+    knock-out, with no day accrual or memory. Knock-out and coupon barriers are
+    inclusive; knock-in is strict. Observation times are payment times; no
+    observation is implicitly added at expiry. Calendar compatibility is
+    checked on construction; history consistency is checked during pricing.
+    Past coupons are settled.
+    """
+
+def fixed_coupon_note(
+    *,
+    coupon_per_period: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    observation_times: Iterable[datetime],
+    effective_time: datetime,
+    expiry_time: datetime,
+    lockout_periods: SupportsIndex = ...,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+    principal_redemption_ratio: _Real = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
+    history_time: datetime | None = None,
+) -> PhoenixOption:
+    """Create a fixed coupon note with unconditional surviving coupons.
+
+    Parameters
+    ----------
+    coupon_per_period : float
+        Finite signed coupon proportion per qualifying observation; not
+        annualized.
+    initial_spot : float
+        Positive reference spot used to normalize downside losses.
+    knock_in_level : float
+        Positive strict knock-in threshold.
+    knock_out_level : float
+        Positive inclusive threshold at the first eligible knock-out observation.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
+
+    observation_times : iterable of datetime.datetime
+        Strictly increasing observation and payment times within life.
+    effective_time : datetime.datetime
+        Inclusive contract start.
+    expiry_time : datetime.datetime
+        Inclusive expiry time.
+    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+        Strictly prior events; None means unknown history.
+    principal_redemption_ratio : float, optional
+        Nonnegative normalized principal, independent of coupon and loss
+        components.
+    calendar : TradingCalendar, optional
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required with history; refresh payload and timestamp together.
+
+    Returns
+    -------
+    PhoenixOption
+        Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike.
+
+    Raises
+    ------
+    InvalidInputError
+        If numeric terms, lockout, times or observations are invalid.
+    TypeError
+        If a supplied representation is invalid, including Boolean or fractional counts.
+    OverflowError
+        If a count is negative or outside the native unsigned integer range.
+
+    Notes
+    -----
+    Coupons pay once per qualifying observation, including a qualifying
+    knock-out, with no day accrual or memory. Knock-out and coupon barriers are
+    inclusive; knock-in is strict. Observation times are payment times; no
+    observation is implicitly added at expiry. Calendar compatibility is
+    checked on construction; history consistency is checked during pricing.
+    Past coupons are settled.
+    """
+
+def digital_coupon_note(
+    *,
+    coupon_per_period: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    coupon_barrier_level: _Real,
+    observation_times: Iterable[datetime],
+    effective_time: datetime,
+    expiry_time: datetime,
+    lockout_periods: SupportsIndex = ...,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+    principal_redemption_ratio: _Real = ...,
+    calendar: TradingCalendar | EllipsisType = ...,
+    history_time: datetime | None = None,
+) -> PhoenixOption:
+    """Create a digital coupon note with barrier-conditional fixed coupons.
+
+    Parameters
+    ----------
+    coupon_per_period : float
+        Finite signed coupon proportion per qualifying observation; not
+        annualized.
+    initial_spot : float
+        Positive reference spot used to normalize downside losses.
+    knock_in_level : float
+        Positive strict knock-in threshold.
+    knock_out_level : float
+        Positive inclusive threshold at the first eligible knock-out observation.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
+
+    coupon_barrier_level : float
+        Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
+    observation_times : iterable of datetime.datetime
+        Strictly increasing observation and payment times within life.
+    effective_time : datetime.datetime
+        Inclusive contract start.
+    expiry_time : datetime.datetime
+        Inclusive expiry time.
+    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+        Strictly prior events; None means unknown history.
+    principal_redemption_ratio : float, optional
+        Nonnegative normalized principal, independent of coupon and loss
+        components.
+    calendar : TradingCalendar, optional
+        Explicit calendar override; omission or Ellipsis inherits an
+        ObservationSchedule calendar, otherwise weekdays.
+
+    history_time : datetime.datetime or None, optional
+        Timestamp of supplied history, covering events strictly before it.
+        Required with history; refresh payload and timestamp together.
+
+    Returns
+    -------
+    PhoenixOption
+        Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike.
+
+    Raises
+    ------
+    InvalidInputError
+        If numeric terms, lockout, times or observations are invalid.
+    TypeError
+        If a supplied representation is invalid, including Boolean or fractional counts.
+    OverflowError
+        If a count is negative or outside the native unsigned integer range.
 
     Notes
     -----

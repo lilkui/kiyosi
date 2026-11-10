@@ -1,6 +1,6 @@
 """Static constructor contracts; checked with unused ignores reported as errors."""
 
-from datetime import datetime
+from datetime import datetime, time
 from typing import Literal, assert_type
 
 from kiyosi.instruments import (
@@ -17,6 +17,8 @@ from kiyosi.instruments import (
     autocallable_observations,
     cash_no_touch_option,
     cash_touch_option,
+    standard_phoenix,
+    step_down_phoenix,
 )
 from kiyosi.market import PricingContext
 from kiyosi.pricing import (
@@ -173,6 +175,9 @@ def phoenix_periodic_coupon() -> None:
 
 
 def phoenix_replacements(note: PhoenixOption) -> None:
+    assert_type(note.lockout_periods, int)
+    assert_type(note.replace(lockout_periods=1), PhoenixOption)
+    note.replace(lockout_periods=1.5)  # ty: ignore[invalid-argument-type]
     assert_type(note.coupon_per_period, float)
     assert_type(note.with_quoted_coupon(coupon_per_period=0.01), PhoenixOption)
     note.with_quoted_coupon(0.1)  # ty: ignore[too-many-positional-arguments, missing-argument]
@@ -183,6 +188,40 @@ def phoenix_replacements(note: PhoenixOption) -> None:
     assert_type(note.replace(coupon_per_period=Ellipsis), PhoenixOption)
     note.replace(coupon_rate=0.1)  # ty: ignore[unknown-argument]
     note.replace(coupon_per_period=None)  # ty: ignore[invalid-argument-type]
+
+
+def phoenix_presets(start: datetime, end: datetime) -> None:
+    assert_type(
+        standard_phoenix(
+            coupon_per_period=0.01,
+            initial_spot=100,
+            knock_in_level=80,
+            knock_out_level=110,
+            coupon_barrier_level=90,
+            observation_times=[start, end],
+            observation_clock_time=time(15),
+            effective_time=start,
+            expiry_time=end,
+            lockout_periods=1,
+        ),
+        PhoenixOption,
+    )
+    assert_type(
+        step_down_phoenix(
+            coupon_per_period=0.01,
+            initial_spot=100,
+            knock_in_level=80,
+            initial_knock_out_level=110,
+            knock_out_level_decrement=2,
+            coupon_barrier_level=90,
+            observation_clock_time=time(15),
+            observation_times=[start, end],
+            effective_time=start,
+            expiry_time=end,
+            lockout_periods=1,
+        ),
+        PhoenixOption,
+    )
 
 
 def binary_and_touch_constructors() -> None:
