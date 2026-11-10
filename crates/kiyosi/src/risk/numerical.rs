@@ -298,18 +298,25 @@ pub(crate) fn complete_greeks(
             ((up - center) - (center - down)) / h / h,
         )
     };
+    let spot_request = |delta, gamma| {
+        GreeksRequest::new(
+            [Greek::Delta, Greek::Gamma]
+                .into_iter()
+                .filter(|g| native_spot_greeks && if *g == Greek::Delta { delta } else { gamma }),
+        )
+    };
     let paired_derivatives = |first_vol,
                               first_time,
                               last_vol,
                               last_time,
                               delta: bool,
                               gamma: bool,
-                              prices: Option<(f64, f64)>|
+                              prices: Option<(PricingResult, PricingResult)>|
      -> Result<((f64, f64), (f64, f64))> {
         if !native_spot_greeks {
             let (first, last) = if gamma {
                 match prices {
-                    Some(prices) => prices,
+                    Some((first, last)) => (first.price(), last.price()),
                     None => (
                         price(spot, first_vol, 0.0, first_time)?,
                         price(spot, last_vol, 0.0, last_time)?,
@@ -323,13 +330,14 @@ pub(crate) fn complete_greeks(
                 derivatives(spot_samples(last_vol, last_time, last)?),
             ));
         }
-        let measures = GreeksRequest::new(
-            [Greek::Delta, Greek::Gamma]
-                .into_iter()
-                .filter(|g| if *g == Greek::Delta { delta } else { gamma }),
-        );
-        let first = native(&shifted(spot, first_vol, 0.0, first_time)?, measures)?;
-        let last = native(&shifted(spot, last_vol, 0.0, last_time)?, measures)?;
+        let measures = spot_request(delta, gamma);
+        let (first, last) = match prices {
+            Some(prices) => prices,
+            None => (
+                native(&shifted(spot, first_vol, 0.0, first_time)?, measures)?,
+                native(&shifted(spot, last_vol, 0.0, last_time)?, measures)?,
+            ),
+        };
         let native_delta = first.get(Greek::Delta).zip(last.get(Greek::Delta));
         let native_gamma = first.get(Greek::Gamma).zip(last.get(Greek::Gamma));
         let missing_delta = delta && native_delta.is_none();
@@ -391,17 +399,26 @@ pub(crate) fn complete_greeks(
             || want(Greek::Volga)
             || (spot_ok && (want(Greek::Vanna) || want(Greek::Zomma))))
     {
+        let measures = spot_request(spot_ok && want(Greek::Vanna), spot_ok && want(Greek::Zomma));
         let prices = if want(Greek::Vega) || want(Greek::Volga) {
             Some((
-                price(spot, vol + v, 0.0, time)?,
-                price(spot, vol - v, 0.0, time)?,
+                native(&shifted(spot, vol + v, 0.0, time)?, measures)?,
+                native(&shifted(spot, vol - v, 0.0, time)?, measures)?,
             ))
         } else {
             None
         };
-        if let Some((up, down)) = prices {
-            result.set(request, Greek::Vega, (up - down) / (2.0 * v))?;
-            result.set(request, Greek::Volga, ((up - p0) - (p0 - down)) / v / v)?;
+        if let Some((up, down)) = &prices {
+            result.set(
+                request,
+                Greek::Vega,
+                (up.price() - down.price()) / (2.0 * v),
+            )?;
+            result.set(
+                request,
+                Greek::Volga,
+                ((up.price() - p0) - (p0 - down.price())) / v / v,
+            )?;
         }
         if spot_ok && (want(Greek::Vanna) || want(Greek::Zomma)) {
             let (high, low) = paired_derivatives(
@@ -486,16 +503,22 @@ pub(crate) fn complete_greeks(
         }
         if before != after && option.time_stencil_available(context, before, after) {
             let years = before.years_until(after);
+            let measures =
+                spot_request(spot_ok && want(Greek::Charm), spot_ok && want(Greek::Color));
             let prices = if want(Greek::Theta) {
                 Some((
-                    price(spot, vol, 0.0, after)?,
-                    price(spot, vol, 0.0, before)?,
+                    native(&shifted(spot, vol, 0.0, after)?, measures)?,
+                    native(&shifted(spot, vol, 0.0, before)?, measures)?,
                 ))
             } else {
                 None
             };
-            if let Some((after, before)) = prices {
-                result.set(request, Greek::Theta, (after - before) / years)?;
+            if let Some((after, before)) = &prices {
+                result.set(
+                    request,
+                    Greek::Theta,
+                    (after.price() - before.price()) / years,
+                )?;
             }
             if spot_ok && (want(Greek::Charm) || want(Greek::Color)) {
                 let (first, last) = paired_derivatives(
@@ -596,6 +619,78 @@ mod tests {
         assert_eq!(result.require(Greek::Delta).unwrap(), 1.0);
         assert!((result.require(Greek::Vega).unwrap() - 10.0).abs() < 1e-10);
         assert_eq!(result.get(Greek::Gamma), None);
+    }
+
+    #[test]
+    fn combined_greeks_share_bumped_prices_and_preserve_scalar_fallbacks() -> Result<()> {
+        let (option, context) = inputs();
+        let context = context.replace(PricingContextChanges {
+            valuation_time: Some(context.valuation_time().add_days(2)?),
+            ..Default::default()
+        })?;
+        for native_spot_greeks in [false, true] {
+            for available in [false, true] {
+                for expected in [
+                    &[
+                        (Greek::Vega, 1.6),
+                        (Greek::Volga, 8.0),
+                        (Greek::Vanna, 1.6),
+                        (Greek::Zomma, 0.8),
+                    ][..],
+                    &[
+                        (Greek::Theta, 4.0),
+                        (Greek::Charm, 4.0),
+                        (Greek::Color, 2.0),
+                    ][..],
+                ] {
+                    let request = GreeksRequest::new(expected.iter().map(|&(greek, _)| greek));
+                    let calls = std::cell::Cell::new(0);
+                    let evaluate = |context: &PricingContext, measures| {
+                        calls.set(calls.get() + 1);
+                        let spot = context.spot_price();
+                        let weight = context.bsm_parameters()?.volatility().powi(2)
+                            + option
+                                .effective_time()
+                                .years_until(context.valuation_time());
+                        let mut result = PricingResult::new(spot * spot * weight)?;
+                        if available {
+                            result.set(measures, Greek::Delta, 2.0 * spot * weight)?;
+                            result.set(measures, Greek::Gamma, 2.0 * weight)?;
+                        }
+                        Ok(result)
+                    };
+                    let central = evaluate(&context, request)?;
+                    calls.set(0);
+                    let result = complete_greeks(
+                        &option,
+                        &context,
+                        request,
+                        NumericalShiftSettings {
+                            spot_shift: Some(0.25),
+                            volatility_shift: Some(0.125),
+                            ..Default::default()
+                        },
+                        native_spot_greeks,
+                        central,
+                        evaluate,
+                    )?;
+                    assert_eq!(
+                        calls.get(),
+                        if native_spot_greeks && available {
+                            2
+                        } else {
+                            6
+                        }
+                    );
+                    for &(greek, expected) in expected {
+                        assert!((result.require(greek)? - expected).abs() < 1e-10);
+                    }
+                    assert_eq!(result.get(Greek::Delta), None);
+                    assert_eq!(result.get(Greek::Gamma), None);
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
