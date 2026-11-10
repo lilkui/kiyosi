@@ -62,9 +62,9 @@ fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
             Err(Error::UnsupportedOperation(_))
         ));
     }
-    for coupon in [PhoenixCoupon::Annual(0.12), PhoenixCoupon::PerPeriod(0.03)] {
+    for coupon in [0.12, 0.03] {
         let mut terms = PhoenixTerms::new(
-            PhoenixCoupon::Annual(0.08),
+            0.08,
             100.0,
             80.0,
             100.0,
@@ -78,13 +78,7 @@ fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
         let note = PhoenixOption::new(terms)?.with_quoted_coupon(coupon)?;
         let target = engine.price(&note, &context)?;
         let solved = implied_phoenix_coupon(&engine, &note, &context, target, Default::default())?;
-        match (coupon, solved) {
-            (PhoenixCoupon::Annual(expected), PhoenixCoupon::Annual(actual))
-            | (PhoenixCoupon::PerPeriod(expected), PhoenixCoupon::PerPeriod(actual)) => {
-                assert!((actual - expected).abs() < 1e-7);
-            }
-            _ => panic!("coupon convention was lost"),
-        }
+        assert!((solved - coupon).abs() < 1e-7);
         assert!(
             (engine.price(&note.with_quoted_coupon(solved)?, &context)? - target).abs() <= 1e-8
         );
@@ -134,7 +128,7 @@ fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
         (engine.price(&note.with_quoted_coupon(coupon, convention)?, &context)? - quote).abs()
             <= 1e-8
     );
-    for coupon in [PhoenixCoupon::Annual(0.08), PhoenixCoupon::PerPeriod(0.02)] {
+    for coupon in [0.08, 0.02] {
         let note = PhoenixOption::new(PhoenixTerms::new(
             coupon,
             100.0,
@@ -463,7 +457,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
     );
 
     let note = PhoenixOption::new(PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.08),
+        0.08,
         100.0,
         80.0,
         100.0,
@@ -486,7 +480,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
                 &dated(
                     &note
                         .replace(PhoenixOptionChanges {
-                            coupon: Some(PhoenixCoupon::Annual(coupon)),
+                            coupon_per_period: Some(coupon),
                             ..Default::default()
                         })
                         .unwrap(),
@@ -506,9 +500,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
             },
         )
         .unwrap();
-        let PhoenixCoupon::Annual(rate) = solved else {
-            panic!("expected an annual coupon")
-        };
+        let rate = solved;
         assert!((rate - coupon).abs() < 1e-7);
         assert!(
             (engine
@@ -516,7 +508,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
                     &dated(
                         &note
                             .replace(PhoenixOptionChanges {
-                                coupon: Some(solved),
+                                coupon_per_period: Some(solved),
                                 ..Default::default()
                             })
                             .unwrap(),
@@ -530,7 +522,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
                 < 1e-8
         );
     }
-    assert_eq!(note.terms().coupon, PhoenixCoupon::Annual(0.08));
+    assert_eq!(note.terms().coupon_per_period, 0.08);
 }
 
 #[test]
@@ -972,7 +964,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
     let context = market(70.0, date(4, 1));
     let records = autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[90.0])).unwrap();
     let mut terms = PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.08),
+        0.08,
         100.0,
         80.0,
         100.0,
@@ -1003,7 +995,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
             &dated(
                 &phoenix
                     .replace(PhoenixOptionChanges {
-                        coupon: Some(PhoenixCoupon::Annual(0.18)),
+                        coupon_per_period: Some(0.18),
                         ..Default::default()
                     })
                     .unwrap(),
@@ -1020,9 +1012,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         Default::default(),
     )
     .unwrap();
-    let PhoenixCoupon::Annual(rate) = solved else {
-        panic!("expected an annual coupon")
-    };
+    let rate = solved;
     assert!((rate - 0.18).abs() < 1e-8);
     let records = autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None).unwrap();
     let mut terms = SnowballTerms::new(

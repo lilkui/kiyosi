@@ -66,8 +66,8 @@ impl QuadratureAutocallableEngine {
     /// Prices remaining cash flows, resolving current events before future integration.
     ///
     /// Knock-in is strict below its level; knock-out and Phoenix coupon barriers
-    /// are inclusive. Annual Phoenix coupons accrue over contractual observation
-    /// periods; fixed per-period coupons pay without day accrual. Coupons are paid
+    /// are inclusive. Phoenix coupons pay a fixed proportion of initial notional
+    /// per qualifying observation without time accrual. Coupons are paid
     /// independently of knock-out, principal and downside loss.
     /// Past knock-outs return zero, and terminal payments use normalized units.
     /// See [`Self::new`] for an example.
@@ -260,11 +260,11 @@ fn terminal<T: AutocallableTerms>(
             } else {
                 cash = note.terminal(anchor, false);
             }
-            if let Some(r) = record.filter(|r| {
+            if record.is_some_and(|r| {
                 r.coupon_barrier_level().unwrap_or(0.0) == 0.0
                     || point > log_ratio(r.coupon_barrier_level().unwrap_or(0.0), anchor)
             }) {
-                cash += note.period_coupon(r);
+                cash += note.period_coupon();
             }
             TerminalPiece {
                 lower: e[0],
@@ -285,7 +285,7 @@ fn apply_event<T: AutocallableTerms>(
     let t = note.view();
     let anchor = t.reference_spot();
     let record = event(note, date);
-    let amount = record.map_or(0.0, |r| note.period_coupon(r));
+    let amount = record.map_or(0.0, |_| note.period_coupon());
     let coupon = |point: f64| {
         record
             .filter(|r| {

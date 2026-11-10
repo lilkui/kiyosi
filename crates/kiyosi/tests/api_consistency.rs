@@ -218,7 +218,7 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
     }
     for (barrier, expected) in [(0.0, 1.03), (90.0, 1.0)] {
         let mut terms = PhoenixTerms::new(
-            PhoenixCoupon::PerPeriod(0.03),
+            0.03,
             100.0,
             80.0,
             100.0,
@@ -2575,7 +2575,7 @@ fn zero_coupon_observations_preserve_product_identity() -> Result<()> {
         Err(Error::InvalidInput(_))
     ));
     let terms = PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.1),
+        0.1,
         100.0,
         80.0,
         100.0,

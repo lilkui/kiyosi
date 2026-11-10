@@ -223,16 +223,10 @@ class PackageTests(unittest.TestCase):
                 for name, default in zip(keywords, method.args.kw_defaults):
                     parameter = signature.parameters[name]
                     self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
-                    if node.name == "PhoenixOption" and name in (
-                        "coupon_rate",
-                        "coupon_per_period",
-                    ):
-                        self.assertIs(parameter.default, Ellipsis)
-                    else:
-                        self.assertEqual(
-                            parameter.default is inspect.Parameter.empty,
-                            default is None,
-                        )
+                    self.assertEqual(
+                        parameter.default is inspect.Parameter.empty,
+                        default is None,
+                    )
                     if default is not None:
                         self.assertIs(parameter.default, Ellipsis)
 
@@ -641,12 +635,7 @@ class PackageTests(unittest.TestCase):
                 for name, default in zip(keywords, arguments.kw_defaults):
                     parameter = signature.parameters[name]
                     self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
-                    if factory is instruments.PhoenixOption and name in (
-                        "coupon_rate",
-                        "coupon_per_period",
-                    ):
-                        self.assertIs(parameter.default, Ellipsis)
-                    elif factory is instruments.autocallable_observations and name in (
+                    if factory is instruments.autocallable_observations and name in (
                         "knock_out_coupon_rates",
                         "coupon_barrier_levels",
                     ):
@@ -692,7 +681,7 @@ class PackageTests(unittest.TestCase):
             (
                 instruments.PhoenixOption,
                 {
-                    "coupon_rate": 0.1,
+                    "coupon_per_period": 0.1,
                     "initial_spot": 100,
                     "upper_strike": 100,
                     "lower_strike": 0,

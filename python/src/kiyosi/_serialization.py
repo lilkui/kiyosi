@@ -153,10 +153,6 @@ def _repr(value: Any) -> str:
     _, (_, fields) = _reduce(value, previews)
     name = type(value).__name__
     fields = fields.copy()
-    if isinstance(value, _native.PhoenixOption):
-        for coupon_name in ("coupon_rate", "coupon_per_period"):
-            if fields[coupon_name] is None:
-                del fields[coupon_name]
     if fields.get("calendar") == _native.weekdays_calendar():
         fields.pop("calendar")
     terms = ", ".join(

@@ -38,8 +38,8 @@ Clearing the final history payload clears an omitted timestamp; an explicit
 timestamp is validated and retained.
 
 Use `AutocallableObservation.snowball` or `AutocallableObservation.phoenix` to
-construct product-specific observations. `PhoenixOption` accepts exactly one of
-annual ``coupon_rate`` or fixed ``coupon_per_period``. Principal redemption is
+construct product-specific observations. `PhoenixOption` accepts a finite signed
+``coupon_per_period`` rate applied at each qualifying observation without time accrual. Principal redemption is
 per unit of original notional; scale the complete price and Greeks for position
 size.
 

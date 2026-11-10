@@ -109,7 +109,7 @@ pub(crate) fn implied_snowball_coupon(
     )
 }
 
-/// Solve a Phoenix coupon without changing its annual or per-period units.
+/// Solve a Phoenix coupon in absolute periodic rate units.
 ///
 /// Parameters
 /// ----------
@@ -137,9 +137,8 @@ pub(crate) fn implied_snowball_coupon(
 /// Returns
 /// -------
 /// PhoenixCouponQuote
-///     Dictionary with exactly one key: coupon_rate for an annual rate or
-///     coupon_per_period for a fixed proportion per observation. Apply with
-///     instrument.replace(**quote) to retain the coupon convention.
+///     Dictionary with one key, coupon_per_period: the signed coupon rate per
+///     qualifying observation. Apply with instrument.with_quoted_coupon(**quote).
 ///
 /// Raises
 /// ------
@@ -301,12 +300,8 @@ where
             let coupon = domain(crate::cancellation::run(py, || {
                 kiyosi::implied_phoenix_coupon(&engine, note, context, observed, controls)
             })?)?;
-            let (field, value) = match coupon {
-                kiyosi::PhoenixCoupon::Annual(value) => ("coupon_rate", value),
-                kiyosi::PhoenixCoupon::PerPeriod(value) => ("coupon_per_period", value),
-            };
             let quote = PyDict::new(py);
-            quote.set_item(field, value)?;
+            quote.set_item("coupon_per_period", coupon)?;
             Ok(quote.into_any().unbind())
         }
         AutocallableInstrument::Binary(note) => solve!(note),

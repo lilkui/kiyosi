@@ -130,7 +130,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             );
         }
         let mut terms = PhoenixTerms::new(
-            kiyosi::PhoenixCoupon::Annual(0.0),
+            0.0,
             100.0,
             80.0,
             100.0,
@@ -140,7 +140,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             autocallable_observations(&[end], &[120.0], None, Some(&[100.0])).unwrap(),
             Some((end).time_of_day()),
         );
-        terms.coupon = PhoenixCoupon::PerPeriod(0.12);
+        terms.coupon_per_period = 0.12;
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         terms.observation_clock_time = None;
         let note = PhoenixOption::new(terms).unwrap();

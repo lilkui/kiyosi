@@ -371,24 +371,6 @@ impl SnowballTerms {
     }
 }
 
-/// Selects annual accrual or a fixed payment per qualifying Phoenix observation.
-///
-/// See [`PhoenixPresetTerms::expand`] for a fixed-payment example.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum PhoenixCoupon {
-    /// Accrues the signed annual rate over each observation period on Actual/365 Fixed.
-    Annual(f64),
-    /// Pays the signed proportion once per qualifying observation, regardless of period length.
-    PerPeriod(f64),
-}
-impl PhoenixCoupon {
-    fn value(self) -> f64 {
-        match self {
-            Self::Annual(value) | Self::PerPeriod(value) => value,
-        }
-    }
-}
-
 /// Supplies Phoenix terms; see [`Self::new`] and [`PhoenixOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct PhoenixTerms {
@@ -398,8 +380,8 @@ pub struct PhoenixTerms {
     pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
-    /// Sets the finite signed coupon and its contractual payment convention.
-    pub coupon: PhoenixCoupon,
+    /// Sets the finite signed coupon per qualifying observation, without time accrual.
+    pub coupon_per_period: f64,
     /// Sets the positive reference spot used to normalize downside losses.
     pub initial_spot: f64,
     /// Sets the positive strict downside threshold.
@@ -424,7 +406,7 @@ pub struct PhoenixTerms {
     pub observations: Vec<AutocallableObservation>,
 }
 impl PhoenixTerms {
-    /// Creates explicitly typed coupon terms with daily monitoring, unknown history and unit principal.
+    /// Creates periodic coupon terms with daily monitoring, unknown history and unit principal.
     ///
     /// Validation occurs in [`PhoenixOption::new`]; see its example.
     #[expect(
@@ -432,7 +414,7 @@ impl PhoenixTerms {
         reason = "explicit contractual input terms"
     )]
     pub fn new(
-        coupon: PhoenixCoupon,
+        coupon_per_period: f64,
         initial_spot: f64,
         knock_in_level: f64,
         upper_strike: f64,
@@ -445,7 +427,7 @@ impl PhoenixTerms {
         Self {
             history_time: None,
             calendar: TradingCalendar::default(),
-            coupon,
+            coupon_per_period,
             initial_spot,
             knock_in_level,
             upper_strike,
@@ -587,11 +569,9 @@ pub type TernarySnowballOption = AutocallableNote<TernarySnowballTerms>;
 
 /// Owns validated Phoenix terms; see [`Self::new`].
 ///
-/// Pays the signed [`PhoenixCoupon`] when spot is at or above its coupon barrier,
-/// including on knock-out. Annual coupons use each observation period's Actual/365
-/// Fixed length; fixed per-period coupons pay once without day accrual.
-/// The first annual period starts at the effective time; later periods start at
-/// the preceding contractual observation, even when pricing a seasoned note.
+/// Pays the signed periodic coupon when spot is at or above its coupon barrier,
+/// including on knock-out. Each qualifying observation pays the same proportion
+/// of initial notional, independently of period length, including at the effective time.
 /// Otherwise expiry pays principal, less capped downside loss after knock-in.
 /// Past coupons are settled; current coupons are included once. Zero coupon
 /// barriers pay unconditionally. There is no coupon memory or maturity coupon.
@@ -685,8 +665,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
 
 mod sealed {
     use super::{
-        AutocallableBarrierState, AutocallableObservation, KnockInObservationMode, PhoenixCoupon,
-        Timestamp,
+        AutocallableBarrierState, AutocallableObservation, KnockInObservationMode, Timestamp,
     };
     pub trait Terms {
         fn set_calendar(&mut self, calendar: crate::TradingCalendar);
@@ -719,7 +698,7 @@ mod sealed {
     #[derive(Clone, Copy)]
     pub enum Coupon {
         Snowball(f64),
-        Phoenix(PhoenixCoupon),
+        Phoenix(f64),
     }
     pub struct View<'a> {
         pub history_time: Option<Timestamp>,
@@ -775,7 +754,7 @@ macro_rules! terms_view {
     };
 }
 terms_view!(SnowballTerms, Coupon::Snowball, maturity_coupon_rate);
-terms_view!(PhoenixTerms, Coupon::Phoenix, coupon);
+terms_view!(PhoenixTerms, Coupon::Phoenix, coupon_per_period);
 
 impl sealed::Terms for BinarySnowballTerms {
     fn set_history_time(&mut self, time: Option<Timestamp>) {
@@ -866,7 +845,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
-    /// let terms = PhoenixTerms::new(PhoenixCoupon::Annual(0.08), 100.0, 80.0, 100.0, 0.0, start, end,
+    /// let terms = PhoenixTerms::new(0.02, 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = PhoenixOption::new(terms)?;
     /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent), Some(start.add_days(1)?))?;
@@ -1105,23 +1084,14 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         if spot < record.coupon_barrier_level {
             0.0
         } else {
-            self.period_coupon(record)
+            self.period_coupon()
         }
     }
-    pub(crate) fn period_coupon(&self, record: &AutocallableObservation) -> f64 {
-        let t = self.view();
-        let rate = match t.coupon {
-            Coupon::Snowball(_) => return 0.0,
-            Coupon::Phoenix(PhoenixCoupon::PerPeriod(value)) => return value,
-            Coupon::Phoenix(PhoenixCoupon::Annual(rate)) => rate,
-        };
-        let i = t.observations.partition_point(|r| r.time < record.time);
-        let previous = if i == 0 {
-            t.effective_time
-        } else {
-            t.observations[i - 1].time
-        };
-        rate * previous.years_until(record.time)
+    pub(crate) fn period_coupon(&self) -> f64 {
+        match self.view().coupon {
+            Coupon::Snowball(_) => 0.0,
+            Coupon::Phoenix(coupon) => coupon,
+        }
     }
     #[expect(
         clippy::float_cmp,
@@ -1231,7 +1201,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
             {
                 if context.deterministic_crosses(record.time, record.knock_out_level, radius)
                     || matches!(self.view().coupon, Coupon::Phoenix(_))
-                        && self.period_coupon(record) != 0.0
+                        && self.period_coupon() != 0.0
                         && context.deterministic_crosses(
                             record.time,
                             record.coupon_barrier_level,
@@ -1299,7 +1269,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
             .find(|r| r.time == context.valuation_time())
         {
             if matches!(self.view().coupon, Coupon::Phoenix(_))
-                && self.period_coupon(record) != 0.0
+                && self.period_coupon() != 0.0
                 && record.coupon_barrier_level > 0.0
                 && crosses(record.coupon_barrier_level)
             {
@@ -1517,14 +1487,7 @@ impl sealed::View<'_> {
             }
         }
         if let Coupon::Phoenix(coupon) = terms.coupon {
-            finite(
-                coupon.value(),
-                false,
-                match coupon {
-                    PhoenixCoupon::Annual(_) => "coupon_rate",
-                    PhoenixCoupon::PerPeriod(_) => "coupon_per_period",
-                },
-            )?;
+            finite(coupon, false, "coupon_per_period")?;
             for r in terms.observations {
                 if r.kind != AutocallableObservationKind::Phoenix {
                     return Err(Error::InvalidInput(
@@ -1644,8 +1607,8 @@ pub struct PhoenixOptionChanges {
     pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
-    /// Replaces [`coupon`](PhoenixTerms::coupon).
-    pub coupon: Option<PhoenixCoupon>,
+    /// Replaces [`coupon_per_period`](PhoenixTerms::coupon_per_period).
+    pub coupon_per_period: Option<f64>,
     /// Replaces [`initial_spot`](PhoenixTerms::initial_spot).
     pub initial_spot: Option<f64>,
     /// Replaces [`knock_in_level`](PhoenixTerms::knock_in_level).
@@ -1671,11 +1634,10 @@ pub struct PhoenixOptionChanges {
 }
 
 impl PhoenixOption {
-    /// Returns a note with an explicitly annual or per-period quoted coupon.
+    /// Returns a note with the supplied finite signed coupon per observation.
     ///
-    /// Applies the supplied convention, preserving history and other terms.
-    /// Solver results carry their convention; apply [`crate::implied_phoenix_coupon`]
-    /// results with [`Self::replace`] and [`PhoenixOptionChanges::coupon`].
+    /// Preserves history and other terms. Apply [`crate::implied_phoenix_coupon`]
+    /// results directly as periodic coupon rates.
     ///
     /// # Errors
     ///
@@ -1685,9 +1647,9 @@ impl PhoenixOption {
     /// # Examples
     ///
     /// See [`crate::implied_phoenix_coupon`] for solving and applying a quote.
-    pub fn with_quoted_coupon(&self, coupon: PhoenixCoupon) -> Result<Self> {
+    pub fn with_quoted_coupon(&self, coupon_per_period: f64) -> Result<Self> {
         self.replace(PhoenixOptionChanges {
-            coupon: Some(coupon),
+            coupon_per_period: Some(coupon_per_period),
             ..Default::default()
         })
     }
@@ -1718,7 +1680,9 @@ impl PhoenixOption {
                         .is_none(),
             ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
-            coupon: changes.coupon.unwrap_or(self.0.coupon),
+            coupon_per_period: changes
+                .coupon_per_period
+                .unwrap_or(self.0.coupon_per_period),
             initial_spot: changes.initial_spot.unwrap_or(self.0.initial_spot),
             knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
             upper_strike: changes.upper_strike.unwrap_or(self.0.upper_strike),

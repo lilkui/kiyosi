@@ -156,7 +156,7 @@ def values():
         i.PhoenixOption(
             **history_fields(
                 observation_clock_time=clock_time(),
-                coupon_rate=0.1,
+                coupon_per_period=0.1,
                 **dict(
                     common,
                     observations=[

@@ -1,7 +1,7 @@
 use super::{
     AutocallableBarrierState, AutocallableObservation, AutocallableObservationKind,
-    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption,
-    PhoenixTerms, SnowballOption, SnowballTerms,
+    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode, PhoenixOption, PhoenixTerms,
+    SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
 use crate::error::finite;
@@ -381,14 +381,14 @@ impl PhoenixPresetTerms {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Date, PhoenixCoupon, PhoenixPreset, PhoenixPresetTerms};
+    /// use kiyosi::{Date, PhoenixPreset, PhoenixPresetTerms};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let terms = PhoenixPresetTerms::new(0.01, 100.0, 80.0, 110.0,
     ///     start, end, vec![end]);
     /// let note = terms.expand(PhoenixPreset::FixedCouponNote)?;
-    /// assert_eq!(note.terms().coupon, PhoenixCoupon::PerPeriod(0.01));
+    /// assert_eq!(note.terms().coupon_per_period, 0.01);
     /// # Ok(()) }
     /// ```
     pub fn expand(self, preset: PhoenixPreset) -> Result<PhoenixOption> {
@@ -410,7 +410,7 @@ impl PhoenixPresetTerms {
             })
             .collect();
         let mut terms = PhoenixTerms::new(
-            PhoenixCoupon::PerPeriod(self.coupon_per_period),
+            self.coupon_per_period,
             self.initial_spot,
             self.knock_in_level,
             self.knock_in_level,

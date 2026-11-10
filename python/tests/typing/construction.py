@@ -1,7 +1,6 @@
 """Static constructor contracts; checked with unused ignores reported as errors."""
 
 from datetime import datetime
-from datetime import time as clock_time
 from typing import Literal, assert_type
 
 from kiyosi.instruments import (
@@ -144,25 +143,9 @@ def accumulator_history(option: Accumulator) -> None:
     option.replace_history(knock_out_settled=0)  # ty: ignore[invalid-argument-type]
 
 
-def phoenix_choices() -> None:
-    # Keep date and observation types visible to the overload checker.
-    start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+def phoenix_periodic_coupon() -> None:
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     observations = [AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)]
-    assert_type(
-        PhoenixOption(
-            observation_clock_time=clock_time(),
-            coupon_rate=0.1,
-            initial_spot=100,
-            knock_in_level=80,
-            upper_strike=100,
-            lower_strike=0,
-            knock_in_observation_mode="every_trading_day",
-            effective_time=start,
-            expiry_time=end,
-            observations=observations,
-        ),
-        PhoenixOption,
-    )
     assert_type(
         PhoenixOption(
             observation_clock_time=None,
@@ -171,52 +154,35 @@ def phoenix_choices() -> None:
             knock_in_level=80,
             upper_strike=100,
             lower_strike=0,
-            knock_in_observation_mode="at_expiry",
             effective_time=start,
             expiry_time=end,
             observations=observations,
         ),
         PhoenixOption,
     )
-    PhoenixOption(
-        observation_clock_time=clock_time(),
-        coupon_rate=0.1,
-        coupon_per_period=0.01,
+    PhoenixOption(  # ty: ignore[missing-argument]
+        observation_clock_time=None,
         initial_spot=100,
         knock_in_level=80,
         upper_strike=100,
         lower_strike=0,
-        knock_in_observation_mode="every_trading_day",
         effective_time=start,
         expiry_time=end,
         observations=observations,
-    )  # ty: ignore[no-matching-overload]
-    PhoenixOption(
-        observation_clock_time=clock_time(),
-        initial_spot=100,
-        knock_in_level=80,
-        upper_strike=100,
-        lower_strike=0,
-        knock_in_observation_mode="every_trading_day",
-        effective_time=start,
-        expiry_time=end,
-        observations=observations,
-    )  # ty: ignore[no-matching-overload]
+    )
 
 
 def phoenix_replacements(note: PhoenixOption) -> None:
-    assert_type(note.with_quoted_coupon(coupon_rate=0.1), PhoenixOption)
+    assert_type(note.coupon_per_period, float)
     assert_type(note.with_quoted_coupon(coupon_per_period=0.01), PhoenixOption)
-    note.with_quoted_coupon(0.1)  # ty: ignore[no-matching-overload]
-    note.with_quoted_coupon()  # ty: ignore[no-matching-overload]
-    note.with_quoted_coupon(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[no-matching-overload]
+    note.with_quoted_coupon(0.1)  # ty: ignore[too-many-positional-arguments, missing-argument]
+    note.with_quoted_coupon()  # ty: ignore[missing-argument]
+    note.with_quoted_coupon(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[unknown-argument]
     assert_type(note.replace(), PhoenixOption)
-    assert_type(note.replace(coupon_rate=0.1, coupon_per_period=None), PhoenixOption)
-    assert_type(note.replace(coupon_per_period=0.01, coupon_rate=None), PhoenixOption)
-    note.replace(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[no-matching-overload]
-    note.replace(coupon_rate=None)  # ty: ignore[no-matching-overload]
-    note.replace(coupon_per_period=None)  # ty: ignore[no-matching-overload]
-    note.replace(coupon_rate=None, coupon_per_period=None)  # ty: ignore[no-matching-overload]
+    assert_type(note.replace(coupon_per_period=0.01), PhoenixOption)
+    assert_type(note.replace(coupon_per_period=Ellipsis), PhoenixOption)
+    note.replace(coupon_rate=0.1)  # ty: ignore[unknown-argument]
+    note.replace(coupon_per_period=None)  # ty: ignore[invalid-argument-type]
 
 
 def binary_and_touch_constructors() -> None:

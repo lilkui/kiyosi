@@ -22,6 +22,8 @@ from kiyosi.instruments import (
 )
 from kiyosi.market import RateTermStructure, all_days_calendar, custom_calendar
 from kiyosi.pricing import (
+    FiniteDifferenceAutocallableEngine,
+    MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
     implied_volatility,
     numerical_greeks,
@@ -49,7 +51,7 @@ START, MIDDLE, END = datetime(2025, 1, 1), datetime(2025, 2, 3), datetime(2025, 
 
 def contract(**changes):
     fields = {
-        "coupon_rate": 0.365,
+        "coupon_per_period": 0.01,
         "initial_spot": 100,
         "knock_in_level": 80,
         "upper_strike": 100,
@@ -75,50 +77,49 @@ def contract(**changes):
 
 
 class PhoenixTests(unittest.TestCase):
-    def test_coupon_properties_roundtrip_through_construction_and_replacement(self):
-        for note in (contract(), contract().replace(coupon_per_period=0.01)):
-            with self.subTest(
-                coupon=note.coupon_rate, per_period=note.coupon_per_period
-            ):
-                fields = {
-                    name: getattr(note, name)
-                    for name in inspect.signature(PhoenixOption).parameters
-                }
-                self.assertEqual(PhoenixOption(**history_fields(**fields)), note)
-                self.assertEqual(
-                    note.replace(
-                        coupon_rate=note.coupon_rate,
-                        coupon_per_period=note.coupon_per_period,
-                    ),
-                    note,
-                )
-                self.assertEqual(note.replace(), note)
-                self.assertEqual(
-                    note.replace(coupon_rate=Ellipsis, coupon_per_period=Ellipsis), note
-                )
-                for update in (
-                    {"coupon_rate": None},
-                    {"coupon_per_period": None},
-                    {"coupon_rate": None, "coupon_per_period": None},
-                    {"coupon_rate": None, "coupon_per_period": Ellipsis},
-                    {"coupon_rate": Ellipsis, "coupon_per_period": None},
+    def test_periodic_coupons_ignore_unequal_and_zero_length_periods_in_all_engines(
+        self,
+    ):
+        for coupon in (-0.01, 0, 0.01):
+            note = contract(
+                coupon_per_period=coupon,
+                observations=autocallable_observations(
+                    [START, MIDDLE, END], [110] * 3, coupon_barrier_levels=[90] * 3
+                ),
+            )
+            for at in (START, MIDDLE, END):
+                context = market(110, at)
+                for engine in (
+                    QuadratureAutocallableEngine(),
+                    FiniteDifferenceAutocallableEngine(),
+                    MonteCarloAutocallableEngine(),
                 ):
-                    with self.subTest(update=update), self.assertRaises(TypeError):
-                        note.replace(**update)
-                self.assertEqual(PhoenixOption(**history_fields(**fields)), note)
-                for operation in (PhoenixOption, note.replace):
-                    with self.assertRaises(TypeError):
-                        operation(
-                            **dict(fields, coupon_rate=0.1, coupon_per_period=0.01)
+                    with self.subTest(coupon=coupon, at=at, engine=engine):
+                        self.assertAlmostEqual(
+                            engine.price(dated_history(note, context), context),
+                            1 + coupon,
+                            delta=1e-14,
                         )
-        fields.update(coupon_rate=None, coupon_per_period=None)
-        with self.assertRaises(TypeError):
-            PhoenixOption(**history_fields(**fields))
+
+    def test_coupon_properties_roundtrip_through_construction_and_replacement(self):
+        for coupon in (-0.01, 0, 0.01):
+            note = contract(coupon_per_period=coupon)
+            fields = {
+                name: getattr(note, name)
+                for name in inspect.signature(PhoenixOption).parameters
+            }
+            self.assertEqual(PhoenixOption(**history_fields(**fields)), note)
+            self.assertEqual(note.replace(coupon_per_period=coupon), note)
+            self.assertEqual(note.replace(), note)
+            self.assertEqual(note.replace(coupon_per_period=Ellipsis), note)
+            with self.assertRaises(TypeError):
+                note.replace(coupon_per_period=None)
+            self.assertEqual(PhoenixOption(**history_fields(**fields)), note)
 
     def test_current_conditional_coupon_and_settlement_boundaries(self):
         engine = QuadratureAutocallableEngine()
         for coupon in (0.365, -0.365):
-            note = contract(coupon_rate=coupon, principal_redemption_ratio=0.25)
+            note = contract(coupon_per_period=coupon, principal_redemption_ratio=0.25)
             for spot, base, paid in (
                 (60, -0.15, False),
                 (70, -0.05, False),
@@ -130,13 +131,13 @@ class PhoenixTests(unittest.TestCase):
                     engine.price(
                         dated_history(note, market(spot, END)), market(spot, END)
                     ),
-                    base + (coupon * 57 / 365 if paid else 0),
+                    base + (coupon if paid else 0),
                 )
             self.assertAlmostEqual(
                 engine.price(
                     dated_history(note, market(110, MIDDLE)), market(110, MIDDLE)
                 ),
-                0.25 + coupon * 33 / 365,
+                0.25 + coupon,
             )
 
     def assert_rejection(self, expected, operation, *args, **kwargs):
@@ -159,10 +160,10 @@ class PhoenixTests(unittest.TestCase):
             ).replace_history(barrier_state=None),
             note,
         )
-        self.assertIn("PhoenixOption(coupon_rate=", repr(note))
+        self.assertIn("PhoenixOption(coupon_per_period=", repr(note))
         for fields in (
-            {"coupon_rate": True},
-            {"coupon_rate": "0.1"},
+            {"coupon_per_period": True},
+            {"coupon_per_period": "0.1"},
             {"principal_redemption_ratio": None},
             {"initial_spot": True},
             {"observations": [(END, 110)]},
@@ -190,7 +191,7 @@ class PhoenixTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 note.replace_history(**fields)
         with self.assertRaises(AttributeError):
-            note.coupon_rate = 1
+            note.coupon_per_period = 1
         engine = QuadratureAutocallableEngine()
         self.assertEqual(
             (engine.asset_step_count, engine.integration_standard_deviations), (512, 8)
@@ -209,7 +210,7 @@ class PhoenixTests(unittest.TestCase):
 
     def test_core_validation_order_errors_and_history(self):
         for fields, expected_error in (
-            ({"coupon_rate": math.nan}, InvalidInputError),
+            ({"coupon_per_period": math.nan}, InvalidInputError),
             ({"initial_spot": 0}, InvalidInputError),
             ({"lower_strike": 101}, InvalidInputError),
             ({"principal_redemption_ratio": -1}, InvalidInputError),
@@ -316,7 +317,7 @@ class PhoenixTests(unittest.TestCase):
                 note = contract(
                     effective_time=start,
                     expiry_time=end,
-                    coupon_rate=inputs["coupon_rate"],
+                    coupon_per_period=inputs["coupon_per_period"],
                     principal_redemption_ratio=inputs["principal_redemption_ratio"],
                     barrier_state=inputs["history"],
                     knock_in_level=inputs["knock_in_level"],
@@ -342,7 +343,7 @@ class PhoenixTests(unittest.TestCase):
         engine = QuadratureAutocallableEngine()
         for coupon in (0.08, -0.2, 0):
             note = contract(
-                coupon_rate=coupon,
+                coupon_per_period=coupon,
                 observations=autocallable_observations(
                     [MIDDLE, END], [200, 190], coupon_barrier_levels=[0] * 2
                 ),
@@ -358,14 +359,9 @@ class PhoenixTests(unittest.TestCase):
                     / (365 * 86400)
                 )
                 expected = math.exp(-0.04 * t(END))
-                for previous, current in ((START, MIDDLE), (MIDDLE, END)):
+                for current in (MIDDLE, END):
                     if t(current) >= 0:
-                        expected += (
-                            coupon
-                            * (current - previous).days
-                            / 365
-                            * math.exp(-0.04 * t(current))
-                        )
+                        expected += coupon * math.exp(-0.04 * t(current))
                 self.assertAlmostEqual(
                     engine.price(
                         dated_history(
@@ -380,7 +376,7 @@ class PhoenixTests(unittest.TestCase):
     def test_unconditional_coupon_tails_and_fixed_cashflow_identifiability(self):
         middle, end = datetime(2025, 7, 1), datetime(2026, 1, 1)
         note = contract(
-            coupon_rate=-0.5,
+            coupon_per_period=-0.5,
             lower_strike=100,
             principal_redemption_ratio=0.25,
             expiry_time=end,
@@ -390,8 +386,8 @@ class PhoenixTests(unittest.TestCase):
         )
         time = 181 / 365
         survival = math.erfc((0.03 - 2) * math.sqrt(time) / (2 * math.sqrt(2))) / 2
-        expected = (-0.5 * time + 0.25 * (1 - survival)) * math.exp(-0.04 * time) + (
-            0.25 - 0.5 * (1 - time)
+        expected = (-0.5 + 0.25 * (1 - survival)) * math.exp(-0.04 * time) + (
+            0.25 - 0.5
         ) * survival * math.exp(-0.04)
         for settings in (
             {},
@@ -413,9 +409,7 @@ class PhoenixTests(unittest.TestCase):
         )
         engine = QuadratureAutocallableEngine()
         quote = engine.price(dated_history(fixed, market()), market())
-        self.assertAlmostEqual(
-            quote, (1 + 0.365 * 90 / 365) * math.exp(-0.04 * 90 / 365)
-        )
+        self.assertAlmostEqual(quote, (1 + 0.01) * math.exp(-0.04 * 90 / 365))
         self.assert_rejection(
             UnsupportedOperationError,
             implied_volatility,
@@ -539,7 +533,7 @@ class PhoenixTests(unittest.TestCase):
             ]
             deviation = sigma * math.sqrt(remaining)
             mean = math.log(spot) + drift * remaining
-            value = coupon * remaining * normal((mean - math.log(90)) / deviation)
+            value = coupon * normal((mean - math.log(90)) / deviation)
             for lower, upper, cash, asset in pieces:
                 low = (math.log(lower) - mean) / deviation if lower else -math.inf
                 high = (math.log(upper) - mean) / deviation
@@ -556,7 +550,7 @@ class PhoenixTests(unittest.TestCase):
             for coupon in (0.08, -0.2):
 
                 def reference(panels, mode=mode, coupon=coupon):
-                    value = (1 + coupon * first) * (1 - normal(z_for(110)))
+                    value = (1 + coupon) * (1 - normal(z_for(110)))
                     for left, right in zip(
                         [-12, z_for(90), z_for(95)],
                         [z_for(90), z_for(95), z_for(110)],
@@ -576,7 +570,7 @@ class PhoenixTests(unittest.TestCase):
                                 mode == "every_trading_day" and right <= z_for(95),
                                 coupon,
                             )
-                            payoff += coupon * first if right > z_for(90) else 0
+                            payoff += coupon if right > z_for(90) else 0
                             return (
                                 payoff * math.exp(-z * z / 2) / math.sqrt(2 * math.pi)
                             )
@@ -596,7 +590,7 @@ class PhoenixTests(unittest.TestCase):
                 self.assertAlmostEqual(coarse, fine, delta=1e-9)
                 note = contract(
                     calendar=calendar,
-                    coupon_rate=coupon,
+                    coupon_per_period=coupon,
                     knock_in_level=95,
                     knock_in_observation_mode=mode,
                 )
@@ -681,7 +675,7 @@ class PhoenixTests(unittest.TestCase):
         note = contract(
             expiry_time=end,
             lower_strike=100,
-            coupon_rate=0.1,
+            coupon_per_period=0.1,
             observations=autocallable_observations(
                 [end], [100], coupon_barrier_levels=[100]
             ),
@@ -790,9 +784,9 @@ class PhoenixTests(unittest.TestCase):
         )
         self.assertAlmostEqual(
             engine.price(dated_history(note, market(120, MIDDLE)), market(120, MIDDLE)),
-            1 + 0.365 * 33 / 365,
+            1 + 0.01,
         )
-        zero = contract(coupon_rate=0)
+        zero = contract(coupon_per_period=0)
         result = engine.price_with_greeks(
             dated_history(zero, market(90, MIDDLE)), market(90, MIDDLE), "delta"
         )
@@ -808,7 +802,7 @@ class PhoenixTests(unittest.TestCase):
             ),
             1,
         )
-        # An effective-date observation has a zero-length coupon period.
+        # An effective-date observation pays the full periodic coupon.
         immediate = contract(
             observations=autocallable_observations(
                 [START, END], [110, 110], coupon_barrier_levels=[90, 90]
@@ -817,7 +811,10 @@ class PhoenixTests(unittest.TestCase):
         result = engine.price_with_greeks(
             dated_history(immediate, market(90)), market(90), "delta"
         )
-        self.assertIsNotNone(result.delta)
+        self.assertIsNone(result.delta)
+        self.assertAlmostEqual(
+            engine.price(dated_history(immediate, market(110)), market(110)), 1.01
+        )
 
     def test_dense_deterministic_ladder_and_short_terminal_transition(self):
         dates = [START + timedelta(days=i) for i in range(1, 33)]
@@ -835,9 +832,9 @@ class PhoenixTests(unittest.TestCase):
         for spot, expected in (
             (50, 0.1),
             (70, 0.2),
-            (95, 0.532),
-            (120, 0.511),
-            (140, 0.501),
+            (95, 0.82),
+            (120, 0.61),
+            (140, 0.51),
         ):
             self.assertAlmostEqual(
                 engine.price(
@@ -871,7 +868,7 @@ class PhoenixTests(unittest.TestCase):
             t = 1 / (365 * 86400)
             d2 = (0.03 - sigma * sigma / 2) * math.sqrt(t) / sigma
             expected = math.exp(-0.04 * t) * (
-                1 + 0.365 * 90 / 365 * math.erfc(-d2 / math.sqrt(2)) / 2
+                1 + 0.01 * math.erfc(-d2 / math.sqrt(2)) / 2
             )
             self.assertAlmostEqual(
                 engine.price(

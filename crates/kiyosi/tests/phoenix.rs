@@ -8,7 +8,7 @@ fn date(month: u32, day: u32) -> Timestamp {
 }
 fn terms() -> PhoenixTerms {
     let mut terms = PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.365),
+        0.01,
         100.0,
         80.0,
         100.0,
@@ -47,67 +47,49 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
         date(1, 1),
     )
     .unwrap();
-    for original_coupon in [PhoenixCoupon::Annual(0.08), PhoenixCoupon::PerPeriod(0.01)] {
-        let mut input = terms();
-        input.coupon = original_coupon;
-        input.observations =
-            autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[0.0])).unwrap();
-        let note = PhoenixOption::new(input.clone()).unwrap();
-        for coupon in [-0.02, 0.0, 0.02] {
-            let (expected_coupon, payment) = match original_coupon {
-                PhoenixCoupon::Annual(_) => (PhoenixCoupon::Annual(coupon), coupon * 90.0 / 365.0),
-                PhoenixCoupon::PerPeriod(_) => (PhoenixCoupon::PerPeriod(coupon), coupon),
-            };
-            let quoted = note.with_quoted_coupon(expected_coupon).unwrap();
-            let mut expected = input.clone();
-            expected.coupon = expected_coupon;
-            assert_eq!(quoted.terms(), &expected);
-            let quote = 1.0 + payment;
-            assert!(
-                (engine.price(&dated(&quoted, &context), &context).unwrap() - quote).abs() < 1e-14
-            );
-            let solved = implied_phoenix_coupon(
-                &engine,
-                &dated(&note, &context),
-                &context,
-                quote,
-                ImpliedCouponSettings {
-                    lower_bound: -1.0,
-                    ..Default::default()
-                },
-            )
+    let mut input = terms();
+    input.observations =
+        autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[0.0])).unwrap();
+    let note = PhoenixOption::new(input.clone()).unwrap();
+    for coupon in [-0.02, 0.0, 0.02] {
+        let quoted = note.with_quoted_coupon(coupon).unwrap();
+        let mut expected = input.clone();
+        expected.coupon_per_period = coupon;
+        assert_eq!(quoted.terms(), &expected);
+        let quote = 1.0 + coupon;
+        assert!((engine.price(&dated(&quoted, &context), &context).unwrap() - quote).abs() < 1e-14);
+        let solved = implied_phoenix_coupon(
+            &engine,
+            &dated(&note, &context),
+            &context,
+            quote,
+            ImpliedCouponSettings {
+                lower_bound: -1.0,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!((solved - coupon).abs() < 1e-12);
+        let repriced = note
+            .replace(PhoenixOptionChanges {
+                coupon_per_period: Some(solved),
+                ..Default::default()
+            })
             .unwrap();
-            let ((PhoenixCoupon::Annual(solved_value), PhoenixCoupon::Annual(_))
-            | (PhoenixCoupon::PerPeriod(solved_value), PhoenixCoupon::PerPeriod(_))) =
-                (solved, original_coupon)
-            else {
-                panic!("solved coupon has the wrong payment convention")
-            };
-            assert!((solved_value - coupon).abs() < 1e-12);
-            let repriced = note
-                .replace(PhoenixOptionChanges {
-                    coupon: Some(solved),
-                    ..Default::default()
-                })
-                .unwrap();
-            assert!(
-                (engine.price(&dated(&repriced, &context), &context).unwrap() - quote).abs()
-                    < 1e-12
-            );
-        }
-        for coupon in [PhoenixCoupon::Annual(0.12), PhoenixCoupon::PerPeriod(0.12)] {
-            let quoted = note.with_quoted_coupon(coupon).unwrap();
-            assert_eq!(quoted.terms().coupon, coupon);
-            assert_eq!(quoted.barrier_state(), note.barrier_state());
-        }
-        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert!(matches!(
-                note.with_quoted_coupon(PhoenixCoupon::Annual(invalid)),
-                Err(Error::InvalidInput(_))
-            ));
-        }
-        assert_eq!(note.terms(), &input);
+        assert!(
+            (engine.price(&dated(&repriced, &context), &context).unwrap() - quote).abs() < 1e-12
+        );
     }
+    let quoted = note.with_quoted_coupon(0.12).unwrap();
+    assert_eq!(quoted.terms().coupon_per_period, 0.12);
+    assert_eq!(quoted.barrier_state(), note.barrier_state());
+    for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert!(matches!(
+            note.with_quoted_coupon(invalid),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    assert_eq!(note.terms(), &input);
 }
 
 #[test]
@@ -115,7 +97,7 @@ fn conditional_period_coupons_are_inclusive_and_independent_of_principal_and_los
     let engine = QuadratureAutocallableEngine::default();
     for coupon in [0.365, -0.365] {
         let mut terms = terms();
-        terms.coupon = PhoenixCoupon::Annual(coupon);
+        terms.coupon_per_period = coupon;
         terms.principal_redemption_ratio = 0.25;
         let note = PhoenixOption::new(terms).unwrap();
         for (spot, base, paid) in [
@@ -125,7 +107,7 @@ fn conditional_period_coupons_are_inclusive_and_independent_of_principal_and_los
             (90.0, 0.25, true),
             (110.0, 0.25, true),
         ] {
-            let expected = base + if paid { coupon * 57.0 / 365.0 } else { 0.0 };
+            let expected = base + if paid { coupon } else { 0.0 };
             assert!(
                 (engine
                     .price(
@@ -145,10 +127,37 @@ fn conditional_period_coupons_are_inclusive_and_independent_of_principal_and_los
                     &market(110.0, date(2, 3))
                 )
                 .unwrap()
-                - (0.25 + coupon * 33.0 / 365.0))
+                - (0.25 + coupon))
                 .abs()
                 < 1e-14
         );
+    }
+}
+
+#[test]
+fn periodic_coupons_ignore_unequal_and_zero_length_periods_in_all_engines() {
+    for coupon in [-0.01, 0.0, 0.01] {
+        let mut input = terms();
+        input.coupon_per_period = coupon;
+        input.observations = autocallable_observations(
+            &[date(1, 1), date(2, 3), date(4, 1)],
+            &[110.0; 3],
+            None,
+            Some(&[90.0; 3]),
+        )
+        .unwrap();
+        let note = PhoenixOption::new(input).unwrap();
+        for at in [date(1, 1), date(2, 3), date(4, 1)] {
+            let context = market(110.0, at);
+            let note = dated(&note, &context);
+            for engine in [
+                &QuadratureAutocallableEngine::default() as &dyn PricingEngine<PhoenixOption>,
+                &FiniteDifferenceAutocallableEngine::default(),
+                &MonteCarloAutocallableEngine::default(),
+            ] {
+                assert!((engine.price(&note, &context).unwrap() - (1.0 + coupon)).abs() < 1e-14);
+            }
+        }
     }
 }
 
@@ -163,7 +172,7 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             t.knock_in_level = 100.0;
             t.lower_strike = lower;
             t.principal_redemption_ratio = 0.25;
-            t.coupon = PhoenixCoupon::Annual(coupon);
+            t.coupon_per_period = coupon;
             t.observations =
                 autocallable_observations(&[end], &[100.0], None, Some(&[100.0])).unwrap();
             let put = |strike| {
@@ -230,7 +239,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         Error::InvalidInput(_)
     ));
     let mut t = terms();
-    t.coupon = PhoenixCoupon::Annual(f64::NAN);
+    t.coupon_per_period = f64::NAN;
     assert!(matches!(
         PhoenixOption::new(t).unwrap_err(),
         Error::InvalidInput(_)
@@ -356,7 +365,7 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     let middle = date(7, 1);
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let mut t = terms();
-    t.coupon = PhoenixCoupon::Annual(-0.5);
+    t.coupon_per_period = -0.5;
     t.lower_strike = 100.0;
     t.principal_redemption_ratio = 0.25;
     t.expiry_time = end;
@@ -375,8 +384,8 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
         .unwrap();
     let time: f64 = 181.0 / 365.0;
     let survival = 0.5 * libm::erfc((0.03 - 2.0) * time.sqrt() / (2.0 * 2.0_f64.sqrt()));
-    let expected = (-0.5 * time + 0.25 * (1.0 - survival)) * (-0.04 * time).exp()
-        + (0.25 - 0.5 * (1.0 - time)) * survival * (-0.04_f64).exp();
+    let expected = (-0.5 + 0.25 * (1.0 - survival)) * (-0.04 * time).exp()
+        + (0.25 - 0.5) * survival * (-0.04_f64).exp();
     for settings in [
         QuadratureSettings::default(),
         QuadratureSettings {

@@ -47,7 +47,11 @@ def scenarios():
                         "knock_out_level": 110,
                         "coupon_barrier_level": 95,
                         "principal_redemption_ratio": principal,
-                        "coupon_rate": coupon,
+                        (
+                            "coupon_per_period"
+                            if instrument == "PhoenixOption"
+                            else "coupon_rate"
+                        ): coupon,
                         "maturity_coupon_rate": 0.06,
                         "minimum_coupon_rate": 0.02,
                         "history": history,
@@ -127,10 +131,13 @@ def portfolio(instrument, inputs):
 
     time = horizon(inputs, "effective_time")
     principal = inputs["principal_redemption_ratio"]
-    coupon, maturity, minimum = (
-        inputs[name] * time
-        for name in ("coupon_rate", "maturity_coupon_rate", "minimum_coupon_rate")
+    coupon = (
+        inputs["coupon_per_period"]
+        if instrument == "PhoenixOption"
+        else inputs["coupon_rate"] * time
     )
+    maturity = inputs["maturity_coupon_rate"] * time
+    minimum = inputs["minimum_coupon_rate"] * time
     barrier, knock_in = inputs["knock_out_level"], inputs["knock_in_level"]
     known_knock_in = inputs["history"] == "knocked_in"
     if instrument == "BinarySnowballOption":
@@ -247,7 +254,7 @@ def check_portfolios():
                     instrument == "PhoenixOption"
                     and spot >= inputs["coupon_barrier_level"]
                 ):
-                    expected += inputs["coupon_rate"] * time
+                    expected += inputs["coupon_per_period"]
                 if spot >= inputs["knock_out_level"]:
                     if instrument != "PhoenixOption":
                         expected += inputs["coupon_rate"] * time

@@ -206,13 +206,13 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         )
         self.assertAlmostEqual(
             engine.price(dated_history(note, at_event), at_event),
-            1 + 0.365 * 90 / 365,
+            1 + 2 * 0.01,
             delta=1e-14,
         )
         after_event = at_event.replace(valuation_time=datetime(2025, 2, 3, 0, 0, 0, 1))
         self.assertAlmostEqual(
             engine.price(dated_history(note, after_event), after_event),
-            1 + 0.365 * 57 / 365,
+            1 + 0.01,
             delta=1e-14,
         )
         weekend = datetime(2025, 1, 4)
@@ -258,8 +258,10 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             lower_bound=-0.1,
             upper_bound=0.5,
         )
-        self.assertEqual(set(coupon), {"coupon_rate"})
-        self.assertAlmostEqual(coupon["coupon_rate"], note.coupon_rate, delta=1e-8)
+        self.assertEqual(set(coupon), {"coupon_per_period"})
+        self.assertAlmostEqual(
+            coupon["coupon_per_period"], note.coupon_per_period, delta=1e-8
+        )
         self.assertEqual((repr(note), repr(context)), snapshot)
         unseeded = MC(path_count=31)
         exposed = phoenix(
@@ -284,8 +286,8 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                 upper_bound=0.5,
                 price_tolerance=1e-12,
             )
-            self.assertGreater(solved["coupon_rate"], 0)
-            self.assertLess(solved["coupon_rate"], 0.5)
+            self.assertGreater(solved["coupon_per_period"], 0)
+            self.assertLess(solved["coupon_per_period"], 0.5)
             self.assertAlmostEqual(
                 replay.price(
                     dated_history(exposed.replace(**solved), market(rate=0)),

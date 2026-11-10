@@ -203,11 +203,11 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
     )?;
     let observations = autocallable_observations(&[end], &[120.0], Some(&[0.0]), None)?;
     macro_rules! note {
-        ($option:expr) => {
+        ($option:expr, $expected:expr) => {
             verify(
                 &$option,
                 &context,
-                1.0 + 0.1 * 4.0 / 365.0,
+                $expected,
                 &[
                     &QuadratureAutocallableEngine::default(),
                     &FiniteDifferenceAutocallableEngine::default(),
@@ -216,43 +216,55 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             )?
         };
     }
-    note!(SnowballOption::new(SnowballTerms::new(
-        0.1,
-        100.0,
-        80.0,
-        100.0,
-        0.0,
-        start,
-        end,
-        observations.clone(),
-        Some((end).time_of_day())
-    ))?);
-    note!(PhoenixOption::new(PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.1),
-        100.0,
-        80.0,
-        100.0,
-        0.0,
-        start,
-        end,
-        autocallable_observations(&[end], &[120.0], None, Some(&[0.0]))?,
-        Some((end).time_of_day())
-    ))?);
-    note!(BinarySnowballOption::new(BinarySnowballTerms::new(
-        0.1,
-        start,
-        end,
-        observations.clone()
-    ))?);
-    note!(TernarySnowballOption::new(TernarySnowballTerms::new(
-        0.1,
-        0.0,
-        80.0,
-        start,
-        end,
-        observations,
-        Some((end).time_of_day())
-    ))?);
+    note!(
+        SnowballOption::new(SnowballTerms::new(
+            0.1,
+            100.0,
+            80.0,
+            100.0,
+            0.0,
+            start,
+            end,
+            observations.clone(),
+            Some((end).time_of_day())
+        ))?,
+        1.0 + 0.1 * 4.0 / 365.0
+    );
+    note!(
+        PhoenixOption::new(PhoenixTerms::new(
+            0.1,
+            100.0,
+            80.0,
+            100.0,
+            0.0,
+            start,
+            end,
+            autocallable_observations(&[end], &[120.0], None, Some(&[0.0]))?,
+            Some((end).time_of_day())
+        ))?,
+        1.1
+    );
+    note!(
+        BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.1,
+            start,
+            end,
+            observations.clone()
+        ))?,
+        1.0 + 0.1 * 4.0 / 365.0
+    );
+    note!(
+        TernarySnowballOption::new(TernarySnowballTerms::new(
+            0.1,
+            0.0,
+            80.0,
+            start,
+            end,
+            observations,
+            Some((end).time_of_day())
+        ))?,
+        1.0 + 0.1 * 4.0 / 365.0
+    );
     let accumulator = Accumulator::new(AccumulatorTerms::new(
         90.0,
         120.0,

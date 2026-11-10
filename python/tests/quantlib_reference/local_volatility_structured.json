@@ -54,18 +54,18 @@
         "control_reference_error": 1.645857023619099e-09
       },
       "phoenix_daily": {
-        "price": 0.9657946996141008,
-        "standard_error": 1.3211436332173649e-05,
-        "raw_price": 0.965770145896908,
-        "control_beta": -0.011004582832624425,
-        "control_reference_error": 2.6015619621444162e-08
+        "price": 1.1017539455403773,
+        "standard_error": 0.00010720185455031857,
+        "raw_price": 1.1017042642317656,
+        "control_beta": -0.02226636690320186,
+        "control_reference_error": 5.263928133539846e-08
       },
       "phoenix_terminal": {
-        "price": 0.968664092694738,
-        "standard_error": 1.7227512738903405e-05,
-        "raw_price": 0.9686383010688004,
-        "control_beta": -0.011559393707677642,
-        "control_reference_error": 2.7327232147494166e-08
+        "price": 1.1046233386220525,
+        "standard_error": 0.00010883633298060582,
+        "raw_price": 1.1045724194046953,
+        "control_beta": -0.022821177778603235,
+        "control_reference_error": 5.3950893862271533e-08
       }
     }
   },
@@ -101,12 +101,12 @@
           "standard_error": 1.18271282645644e-06
         },
         "phoenix_daily": {
-          "fine_minus_coarse": 6.586266115773893e-07,
-          "standard_error": 2.9746906797471926e-06
+          "fine_minus_coarse": 1.1821083676576164e-05,
+          "standard_error": 1.4221504081526495e-05
         },
         "phoenix_terminal": {
-          "fine_minus_coarse": 1.2985487965689045e-06,
-          "standard_error": 5.3473982249276605e-06
+          "fine_minus_coarse": 1.246100586156733e-05,
+          "standard_error": 1.654526409705307e-05
         }
       }
     },
@@ -141,12 +141,12 @@
           "standard_error": 9.329821788226458e-07
         },
         "phoenix_daily": {
-          "fine_minus_coarse": 1.4824483641196045e-06,
-          "standard_error": 2.4409730239872483e-06
+          "fine_minus_coarse": 1.4800626176754002e-05,
+          "standard_error": 1.1647080930431428e-05
         },
         "phoenix_terminal": {
-          "fine_minus_coarse": 1.099696047557721e-05,
-          "standard_error": 4.238172555712338e-06
+          "fine_minus_coarse": 2.431513828821155e-05,
+          "standard_error": 1.342079409847091e-05
         }
       }
     }
@@ -184,12 +184,12 @@
             "standard_error": 4.04554380277031e-06
           },
           "phoenix_daily": {
-            "value": 0.004128352442921315,
-            "standard_error": 1.54655141171358e-05
+            "value": 0.004435220672395691,
+            "standard_error": 6.409272919185677e-05
           },
           "phoenix_terminal": {
-            "value": 0.003923353441532474,
-            "standard_error": 2.109997950586857e-05
+            "value": 0.004230221671006815,
+            "standard_error": 6.959882188817516e-05
           }
         },
         "gamma_1": {
@@ -218,12 +218,12 @@
             "standard_error": 8.894812696127327e-06
           },
           "phoenix_daily": {
-            "value": -0.0004293827665079214,
-            "standard_error": 2.7342939172215702e-05
+            "value": -0.001565690962624631,
+            "standard_error": 0.00012431413222515933
           },
           "phoenix_terminal": {
-            "value": -0.00044568428832628365,
-            "standard_error": 3.976182171752252e-05
+            "value": -0.001581992484443009,
+            "standard_error": 0.00013710401540292352
           }
         },
         "delta_2": {
@@ -252,12 +252,12 @@
             "standard_error": 2.551524089490463e-06
           },
           "phoenix_daily": {
-            "value": 0.004130685357040306,
-            "standard_error": 1.1718075857002863e-05
+            "value": 0.004497348242620012,
+            "standard_error": 4.136272677428189e-05
           },
           "phoenix_terminal": {
-            "value": 0.003927289001166447,
-            "standard_error": 1.5465865705232064e-05
+            "value": 0.004293951886746913,
+            "standard_error": 4.496381644837635e-05
           }
         },
         "gamma_2": {
@@ -286,12 +286,12 @@
             "standard_error": 3.1552981610484957e-06
           },
           "phoenix_daily": {
-            "value": -0.00040107919127600105,
-            "standard_error": 9.92927464741849e-06
+            "value": -0.0014882631864459827,
+            "standard_error": 4.470976846051802e-05
           },
           "phoenix_terminal": {
-            "value": -0.00040742446720414867,
-            "standard_error": 1.4201541861410659e-05
+            "value": -0.001494608462374149,
+            "standard_error": 4.8969613610580924e-05
           }
         }
       }
@@ -328,12 +328,12 @@
             "standard_error": 5.662722601866119e-06
           },
           "phoenix_daily": {
-            "value": 0.004103973059181299,
-            "standard_error": 2.1565780888696263e-05
+            "value": 0.004365695395837082,
+            "standard_error": 9.018022739592407e-05
           },
           "phoenix_terminal": {
-            "value": 0.0038671374526190938,
-            "standard_error": 2.942711068074238e-05
+            "value": 0.004128859789274961,
+            "standard_error": 9.76577350430577e-05
           }
         },
         "gamma_1": {
@@ -362,12 +362,12 @@
             "standard_error": 1.2386425772521004e-05
           },
           "phoenix_daily": {
-            "value": -0.0004362938057399971,
-            "standard_error": 3.804861963052753e-05
+            "value": -0.0013165581738557514,
+            "standard_error": 0.00017574726681012661
           },
           "phoenix_terminal": {
-            "value": -0.00042543749371090655,
-            "standard_error": 5.522717366300456e-05
+            "value": -0.0013057018618266758,
+            "standard_error": 0.00019277115622451824
           }
         },
         "delta_2": {
@@ -396,12 +396,12 @@
             "standard_error": 3.5862063392113892e-06
           },
           "phoenix_daily": {
-            "value": 0.004114867528032783,
-            "standard_error": 1.641564841754069e-05
+            "value": 0.004411010665436174,
+            "standard_error": 5.799708145582421e-05
           },
           "phoenix_terminal": {
-            "value": 0.0038834808582082904,
-            "standard_error": 2.1685379616194395e-05
+            "value": 0.0041796239956115346,
+            "standard_error": 6.303124015512575e-05
           }
         },
         "gamma_2": {
@@ -430,12 +430,12 @@
             "standard_error": 4.4138418708888514e-06
           },
           "phoenix_daily": {
-            "value": -0.00041611101896568215,
-            "standard_error": 1.3925972014470323e-05
+            "value": -0.001554491500402474,
+            "standard_error": 6.296557594394783e-05
           },
           "phoenix_terminal": {
-            "value": -0.00041466652497349556,
-            "standard_error": 1.981307412461456e-05
+            "value": -0.0015530470064102845,
+            "standard_error": 6.863867305820634e-05
           }
         }
       }

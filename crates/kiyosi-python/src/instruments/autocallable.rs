@@ -1273,13 +1273,9 @@ snowball_properties! {
 ///
 /// Parameters
 /// ----------
-/// coupon_rate : float, optional
-///     Finite signed annual coupon rate. Supply exactly one of coupon_rate and
-///     coupon_per_period; omission, None or Ellipsis leaves a choice
-///     unspecified.
-/// coupon_per_period : float, optional
-///     Finite signed fixed coupon proportion per qualifying observation,
-///     without day accrual. The unused coupon property returns None.
+/// coupon_per_period : float
+///     Finite signed coupon proportion per qualifying observation, independent
+///     of period length.
 /// initial_spot : float
 ///     Positive reference spot used to normalize downside losses.
 /// knock_in_level : float
@@ -1313,8 +1309,7 @@ snowball_properties! {
 /// Raises
 /// ------
 /// TypeError
-///     If both coupon choices or neither are supplied, or a supplied value is
-///     not real.
+///     If a required value is missing or a supplied representation is invalid.
 /// InvalidInputError
 ///     If amounts, strikes, life times or observations are invalid.
 ///     Observation coupon_rate must be zero; coupon_barrier_level is
@@ -1322,12 +1317,10 @@ snowball_properties! {
 ///
 /// Notes
 /// -----
-/// Annual coupons accrue over contractual observation periods on Actual/365
-/// Fixed. Fixed per-period coupons pay once per qualifying observation, even
-/// for an observation on the effective timestamp. Explicit None is not a
-/// coupon value. Coupon and knock-out barriers are inclusive; knock-in is
-/// strict. Past coupons are settled. There is no coupon memory or maturity
-/// coupon.
+/// Periodic coupons pay once per qualifying observation, including at the
+/// effective timestamp, without time accrual. None is not a coupon value.
+/// Coupon and knock-out barriers are inclusive; knock-in is strict.
+/// Past coupons are settled. There is no coupon memory or maturity coupon.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -1339,12 +1332,8 @@ autocallable_properties! {
     ///
     /// Parameters
     /// ----------
-    /// coupon_rate : float, optional
-    ///     Absolute annual rate; omission or Ellipsis retains the coupon. None
-    ///     requires a concrete coupon_per_period value.
     /// coupon_per_period : float, optional
-    ///     Fixed per-period proportion; omission or Ellipsis retains the coupon.
-    ///     None requires a concrete coupon_rate value.
+    ///     Finite signed periodic coupon rate; omission or Ellipsis retains it.
     /// initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
@@ -1376,14 +1365,12 @@ autocallable_properties! {
     /// KiyosiError
     ///     If the resulting contract fails core validation.
     /// TypeError
-    ///     If a representation or field name is invalid, both coupon choices have
-    ///     values, or an explicit None coupon has no concrete alternative.
+    ///     If a representation or field name is invalid, including a None coupon.
     ///
-    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_redemption_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_redemption_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
         &self,
-        #[pyo3(from_py_with = crate::conversions::supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] coupon_per_period: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] initial_spot: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_level: Option<&Bound<'_, PyAny>>,
@@ -1407,15 +1394,7 @@ autocallable_properties! {
         let changes = kiyosi::PhoenixOptionChanges {
             history_time,
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
-            coupon: match (coupon_rate.filter(|v| !v.is_none()), coupon_per_period.filter(|v| !v.is_none())) {
-                (None, None) if coupon_rate.is_some() || coupon_per_period.is_some() => {
-                    return Err(PyTypeError::new_err("None coupon updates require a concrete alternative"));
-                }
-                (None, None) => None,
-                (Some(value), None) => Some(kiyosi::PhoenixCoupon::Annual(crate::conversions::real(value)?)),
-                (None, Some(value)) => Some(kiyosi::PhoenixCoupon::PerPeriod(crate::conversions::real(value)?)),
-                _ => return Err(pyo3::exceptions::PyTypeError::new_err("supply at most one coupon choice")),
-            },
+            coupon_per_period: coupon_per_period.map(crate::conversions::real).transpose()?,
             initial_spot: initial_spot.map(crate::conversions::real).transpose()?,
             knock_in_level: knock_in_level.map(crate::conversions::real).transpose()?,
             upper_strike: upper_strike.map(crate::conversions::real).transpose()?,
@@ -1432,11 +1411,10 @@ autocallable_properties! {
     }
 ,
     #[new]
-    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
+    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
-        #[pyo3(from_py_with = supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] coupon_per_period: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = real)] coupon_per_period: f64,
         initial_spot: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
         upper_strike: &Bound<'_, PyAny>,
@@ -1452,15 +1430,8 @@ autocallable_properties! {
 
         #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
     ) -> PyResult<Self> {
-        let coupon = match (coupon_rate.filter(|v| !v.is_none()), coupon_per_period.filter(|v| !v.is_none())) {
-            (Some(value), None) => kiyosi::PhoenixCoupon::Annual(real(value)?),
-            (None, Some(value)) => kiyosi::PhoenixCoupon::PerPeriod(real(value)?),
-            _ => return Err(PyTypeError::new_err(
-                "supply exactly one of coupon_rate and coupon_per_period",
-            )),
-        };
         let mut terms = kiyosi::PhoenixTerms::new(
-            coupon,
+            coupon_per_period,
             real(initial_spot)?,
             real(knock_in_level)?,
             real(upper_strike)?,
@@ -1479,63 +1450,43 @@ autocallable_properties! {
         terms.history_time = history_time;
         Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
     },
-    /// Return a note with an annual or per-period coupon.
+    /// Return a note with the supplied periodic coupon rate.
     ///
-    /// Supply exactly one coupon choice. History and other terms are preserved.
+    /// History and other terms are preserved.
     ///
     /// Parameters
     /// ----------
-    /// coupon_rate : float, optional
-    ///     Finite signed annual coupon in decimal units.
-    /// coupon_per_period : float, optional
-    ///     Finite signed payment per observation, as a notional proportion.
+    /// coupon_per_period : float
+    ///     Finite signed payment per observation, as a proportion of initial notional.
     ///
     /// Returns
     /// -------
     /// PhoenixOption
-    ///     Note using the selected coupon units.
+    ///     Note using the supplied periodic coupon rate.
     ///
     /// Raises
     /// ------
     /// InvalidInputError
-    ///     If the coupon is invalid.
+    ///     If the coupon is non-finite.
     /// TypeError
-    ///     If neither or both choices are supplied, or representations are
-    ///     invalid.
+    ///     If the supplied representation is invalid.
     ///
-    #[pyo3(signature = (*, coupon_rate=None, coupon_per_period=None))]
+    #[pyo3(signature = (*, coupon_per_period))]
     fn with_quoted_coupon(
         &self,
-        coupon_rate: Option<&Bound<'_, PyAny>>,
-        coupon_per_period: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = real)] coupon_per_period: f64,
     ) -> PyResult<Self> {
-        let coupon = match (coupon_rate, coupon_per_period) {
-            (Some(value), None) => kiyosi::PhoenixCoupon::Annual(real(value)?),
-            (None, Some(value)) => kiyosi::PhoenixCoupon::PerPeriod(real(value)?),
-            _ => return Err(PyTypeError::new_err("supply exactly one of coupon_rate and coupon_per_period")),
-        };
-        Ok(Self(domain(self.0.with_quoted_coupon(coupon))?))
+        Ok(Self(domain(self.0.with_quoted_coupon(coupon_per_period))?))
     },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
     fn coupon_barrier_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
         PyTuple::new(py, self.0.observations().iter().map(|r| r.coupon_barrier_level().unwrap_or_default()))
     },
-    /// Return the annual coupon rate, or None for a fixed per-period coupon.
+    /// Return the finite signed coupon proportion per qualifying observation.
     #[getter]
-    fn coupon_rate(&self) -> Option<f64> {
-        match self.0.terms().coupon {
-            kiyosi::PhoenixCoupon::Annual(value) => Some(value),
-            kiyosi::PhoenixCoupon::PerPeriod(_) => None,
-        }
-    },
-    /// Return the fixed per-period coupon, or None for an annual coupon.
-    #[getter]
-    fn coupon_per_period(&self) -> Option<f64> {
-        match self.0.terms().coupon {
-            kiyosi::PhoenixCoupon::PerPeriod(value) => Some(value),
-            kiyosi::PhoenixCoupon::Annual(_) => None,
-        }
+    fn coupon_per_period(&self) -> f64 {
+        self.0.terms().coupon_per_period
     },
     /// Return positive reference spot used to normalize downside losses.
     #[getter]

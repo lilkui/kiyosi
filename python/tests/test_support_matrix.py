@@ -264,7 +264,7 @@ def terminal_cases():
                         observation_clock_time=None,
                         **dates,
                         **loss,
-                        coupon_rate=0.08,
+                        coupon_per_period=0.08,
                         observations=ins.autocallable_observations(
                             [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
                         ),

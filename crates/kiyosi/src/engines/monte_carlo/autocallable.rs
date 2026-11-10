@@ -204,7 +204,7 @@ impl MonteCarloAutocallableEngine {
                     record,
                     log_ratio(record.knock_out_level(), initial_spot),
                     log_ratio(record.coupon_barrier_level().unwrap_or(0.0), initial_spot),
-                    note.period_coupon(record),
+                    note.period_coupon(),
                 )
             });
             steps.push((

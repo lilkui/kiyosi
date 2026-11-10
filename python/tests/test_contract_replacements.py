@@ -161,7 +161,7 @@ def contract_inputs():
         i.PhoenixOption,
         {
             "observation_clock_time": clock_time(),
-            "coupon_rate": 0.1,
+            "coupon_per_period": 0.1,
             "initial_spot": 100,
             "knock_in_level": 80,
             "upper_strike": 100,
@@ -508,16 +508,6 @@ class ContractReplacementTests(unittest.TestCase):
                     expected = initial | updates
                     if name == "knock_in_observation_mode":
                         expected["observation_clock_time"] = None
-                    if isinstance(original, i.PhoenixOption) and name in (
-                        "coupon_rate",
-                        "coupon_per_period",
-                    ):
-                        expected.pop(
-                            "coupon_rate"
-                            if name == "coupon_per_period"
-                            else "coupon_per_period",
-                            None,
-                        )
                     if not (
                         isinstance(original, i.DoubleTouchOption)
                         and name == "barrier_type"
@@ -593,17 +583,10 @@ class ContractReplacementTests(unittest.TestCase):
                     nullable_payout = field == "payout" and isinstance(
                         original, (i.BinaryBarrierOption, i.TouchOption)
                     )
-                    nullable_coupon = isinstance(
-                        original, i.PhoenixOption
-                    ) and field in (
-                        "coupon_rate",
-                        "coupon_per_period",
-                    )
                     if (
                         field not in NULLABLE
                         and field != "realized_average"
                         and not nullable_payout
-                        and not nullable_coupon
                     ):
                         error = (
                             InvalidInputError
@@ -666,7 +649,7 @@ class ContractReplacementTests(unittest.TestCase):
                 )
                 self.assertEqual(scheduled.observation_times, (END,))
 
-    def test_replaced_sequences_are_owned_and_phoenix_coupon_choices_are_exclusive(
+    def test_replaced_phoenix_observations_are_owned_and_coupon_is_periodic(
         self,
     ):
         note = next(
@@ -681,8 +664,7 @@ class ContractReplacementTests(unittest.TestCase):
         records.clear()
         self.assertEqual(changed.knock_out_levels, (115,))
         self.assertEqual(changed.coupon_per_period, 0.02)
-        self.assertIsNone(changed.coupon_rate)
-        self.assertEqual(note.coupon_rate, 0.1)
+        self.assertEqual(note.coupon_per_period, 0.1)
         self.assertEqual(note.knock_out_levels, (110,))
         with self.assertRaises(TypeError):
             note.replace(coupon_rate=0.1, coupon_per_period=0.02)

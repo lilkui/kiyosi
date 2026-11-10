@@ -108,7 +108,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         ternary.history_time = Some(ternary.effective_time);
         let mut phoenix = PhoenixTerms::new(
-            kiyosi::PhoenixCoupon::Annual(0.08),
+            0.08,
             100.0,
             95.0,
             100.0,
@@ -150,7 +150,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
 fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     let end = date(4, 1);
     let mut terms = PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.08),
+        0.08,
         100.0,
         80.0,
         100.0,
@@ -195,7 +195,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     for coupon in [-0.05, 0.18] {
         let target = note
             .replace(PhoenixOptionChanges {
-                coupon: Some(PhoenixCoupon::Annual(coupon)),
+                coupon_per_period: Some(coupon),
                 ..Default::default()
             })
             .unwrap();
@@ -213,9 +213,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
             },
         )
         .unwrap();
-        let PhoenixCoupon::Annual(rate) = solved else {
-            panic!("expected an annual coupon")
-        };
+        let rate = solved;
         assert!((rate - coupon).abs() < 1e-8);
         assert!(
             (engine
@@ -223,7 +221,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
                     &dated(
                         &note
                             .replace(PhoenixOptionChanges {
-                                coupon: Some(solved),
+                                coupon_per_period: Some(solved),
                                 ..Default::default()
                             })
                             .unwrap(),
@@ -426,7 +424,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     let start = date(1, 1);
     let end = date(4, 1);
     let mut terms = PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.08),
+        0.08,
         100.0,
         80.0,
         100.0,

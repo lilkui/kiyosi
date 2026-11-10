@@ -389,7 +389,7 @@ fn constructors_require_timestamps_for_supplied_history() -> Result<()> {
     );
     check!(
         PhoenixTerms::new(
-            PhoenixCoupon::Annual(0.1),
+            0.1,
             100.0,
             80.0,
             100.0,
@@ -473,7 +473,7 @@ fn autocallable_terms_roundtrip_preserves_history_snapshot() -> Result<()> {
     )?;
     check(
         PhoenixTerms::new(
-            PhoenixCoupon::Annual(0.1),
+            0.1,
             100.0,
             80.0,
             100.0,
@@ -1046,7 +1046,7 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
     check(
         &QuadratureAutocallableEngine::default(),
         PhoenixOption::new(PhoenixTerms::new(
-            kiyosi::PhoenixCoupon::Annual(0.1),
+            0.1,
             100.0,
             80.0,
             100.0,

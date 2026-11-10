@@ -109,7 +109,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                                 observation_clock_time=clock_time()
                                 if mode == "every_trading_day"
                                 else None,
-                                coupon_rate=0.08,
+                                coupon_per_period=0.08,
                                 initial_spot=100,
                                 upper_strike=100,
                                 lower_strike=60,
@@ -453,13 +453,13 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         )
         for note in notes:
             self.check_autocallable(note, cashflow_market(100, FIRST), 0.99)
-        for barrier, expected in ((100, 0.99), (math.nextafter(100, 200), 1)):
+        for barrier, expected in ((100, 0.635), (math.nextafter(100, 200), 1)):
             note = PhoenixOption(
                 **history_fields(
                     observation_clock_time=clock_time(),
                     **common,
                     **strikes,
-                    coupon_rate=-0.365,
+                    coupon_per_period=-0.365,
                     knock_in_level=80,
                     knock_in_observation_mode="every_trading_day",
                     barrier_state="knocked_in",
@@ -497,7 +497,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             **history_fields(
                 observation_clock_time=clock_time(),
                 **common,
-                coupon_rate=-0.365,
+                coupon_per_period=-0.365,
                 observations=autocallable_observations(
                     [FIRST, END], [110, 110], coupon_barrier_levels=[90, 90]
                 ),
@@ -508,7 +508,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             self.check_autocallable(
                 phoenix,
                 cashflow_market(spot, END),
-                expected - (0.02 if spot >= 90 else 0),
+                expected - (0.365 if spot >= 90 else 0),
             )
 
 

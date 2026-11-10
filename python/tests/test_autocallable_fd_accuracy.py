@@ -289,7 +289,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = PhoenixOption(
             observation_clock_time=clock_time(),
-            coupon_rate=0.08,
+            coupon_per_period=0.08,
             initial_spot=100,
             knock_in_level=80,
             upper_strike=100,

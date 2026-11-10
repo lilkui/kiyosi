@@ -1,5 +1,5 @@
 use crate::{
-    AutocallableNote, Error, PhoenixCoupon, PhoenixOption, PricingContext, PricingEngine, Result,
+    AutocallableNote, Error, PhoenixOption, PricingContext, PricingEngine, Result,
     SnowballCouponTerms,
 };
 
@@ -128,7 +128,7 @@ pub fn implied_snowball_coupon<
     })
 }
 
-/// Solves a Phoenix price curve in its conditional coupon, preserving its units.
+/// Solves a Phoenix price curve in its conditional periodic coupon rate.
 ///
 /// Python exposes this operation through `pricing.implied_phoenix_coupon`.
 /// Snowball contracts use `pricing.implied_snowball_coupon`, corresponding to
@@ -136,9 +136,8 @@ pub fn implied_snowball_coupon<
 ///
 /// Uses the validation, endpoint, convergence and failure-state contract of
 /// [`implied_snowball_coupon`], without a quote convention.
-/// Bounds and parameter tolerance use the contract's coupon units. The returned
-/// [`PhoenixCoupon`] retains the annual or per-period convention, including FCN/DCN presets.
-/// Apply it with [`PhoenixOption::replace`] and [`crate::PhoenixOptionChanges::coupon`].
+/// Bounds, parameter tolerance and the result use decimal periodic coupon rates.
+/// Apply the result with [`PhoenixOption::with_quoted_coupon`].
 ///
 /// Monte Carlo engines require an explicit seed; retain the engine returned by
 /// `with_resolved_seed` for solving and repricing the quote.
@@ -154,17 +153,16 @@ pub fn implied_snowball_coupon<
 /// # fn main() -> Result<()> {
 /// let start = Date::new(2025, 1, 1)?.start_of_day();
 /// let end = Date::new(2025, 4, 1)?.start_of_day();
-/// let note = PhoenixOption::new(PhoenixTerms::new(PhoenixCoupon::Annual(0.08), 100.0, 80.0, 100.0, 60.0,
+/// let note = PhoenixOption::new(PhoenixTerms::new(0.02, 100.0, 80.0, 100.0, 60.0,
 ///     start, end, autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?)))?;
 /// let market = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();
-/// let quoted = note.with_quoted_coupon(PhoenixCoupon::Annual(0.12))?;
+/// let quoted = note.with_quoted_coupon(0.03)?;
 /// let quote = engine.price(&quoted, &market)?;
 /// let coupon = implied_phoenix_coupon(&engine, &note, &market, quote, ImpliedCouponSettings::default())?;
-/// let PhoenixCoupon::Annual(rate) = coupon else { unreachable!() };
-/// assert!((rate - 0.12).abs() < 1e-7);
-/// let repriced = note.replace(PhoenixOptionChanges { coupon: Some(coupon), ..Default::default() })?;
+/// assert!((coupon - 0.03).abs() < 1e-7);
+/// let repriced = note.replace(PhoenixOptionChanges { coupon_per_period: Some(coupon), ..Default::default() })?;
 /// assert!((engine.price(&repriced, &market)? - quote).abs() < 1e-8);
 /// # Ok(()) }
 /// ```
@@ -174,25 +172,16 @@ pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
     context: &PricingContext,
     observed_price: f64,
     settings: ImpliedCouponSettings,
-) -> Result<PhoenixCoupon> {
-    let coupon = solve(
+) -> Result<f64> {
+    solve(
         engine,
         option,
         context,
         observed_price,
         settings,
         None,
-        &|note, value| {
-            note.with_quoted_coupon(match note.terms().coupon {
-                PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(value),
-                PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(value),
-            })
-        },
-    )?;
-    Ok(match option.terms().coupon {
-        PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
-        PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(coupon),
-    })
+        &PhoenixOption::with_quoted_coupon,
+    )
 }
 
 #[expect(

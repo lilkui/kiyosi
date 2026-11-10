@@ -29,7 +29,7 @@ Sobol estimates omit uncertainty. Implied-parameter solvers require an explicit
 seed: retain the engine returned by ``with_resolved_seed`` for solving and repricing.
 
 Coupon solvers return dictionaries for ``note.with_quoted_coupon(**quote)``,
-preserving the snowball maturity convention or Phoenix annual/per-period units.
+preserving the snowball maturity convention and quoting Phoenix rates per observation.
 
 Examples
 --------
@@ -67,7 +67,7 @@ Recover the model volatility from its price using a chosen bracket:
 0.2
 """
 
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, TypedDict
 
 from ._native import (
     AnalyticBarrierEngine,
@@ -144,17 +144,10 @@ class SnowballCouponQuote(TypedDict):
     quote_convention: CouponQuoteConvention
 
 
-class _AnnualPhoenixCouponQuote(TypedDict):
-    coupon_rate: float
-    coupon_per_period: NotRequired[None]
+class PhoenixCouponQuote(TypedDict):
+    """Absolute coupon rate per qualifying observation."""
 
-
-class _PerPeriodPhoenixCouponQuote(TypedDict):
-    coupon_rate: NotRequired[None]
     coupon_per_period: float
-
-
-type PhoenixCouponQuote = _AnnualPhoenixCouponQuote | _PerPeriodPhoenixCouponQuote
 
 
 __all__ = [

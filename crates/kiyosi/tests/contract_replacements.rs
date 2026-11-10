@@ -1066,7 +1066,7 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         history_time: Some(start.add_days(5).unwrap()),
         observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
-        coupon: PhoenixCoupon::Annual(0.1),
+        coupon_per_period: 0.1,
         initial_spot: 100.0,
         knock_in_level: 80.0,
         upper_strike: 100.0,
@@ -1099,9 +1099,9 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         PhoenixOptionChanges,
-        coupon,
-        PhoenixCoupon::PerPeriod(0.02),
-        terms().coupon
+        coupon_per_period,
+        0.02,
+        terms().coupon_per_period
     );
     check_field!(
         original,

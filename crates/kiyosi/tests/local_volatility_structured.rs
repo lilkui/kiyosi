@@ -186,7 +186,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
             ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
             ternary.history_time = Some(ternary.effective_time);
             let mut phoenix = PhoenixTerms::new(
-                kiyosi::PhoenixCoupon::Annual(0.08),
+                0.08,
                 100.0,
                 95.0,
                 100.0,
@@ -331,7 +331,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     let start = date(1, 1);
     let end = date(4, 1);
     let mut terms = PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.08),
+        0.08,
         100.0,
         80.0,
         100.0,
@@ -619,13 +619,13 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
             KnockInObservationMode::EveryTradingDay,
             0.960_932_575_380_086_7,
             1.000_047_411_574_597_9,
-            0.965_794_699_614_100_8,
+            1.101_753_945_540_377_3,
         ),
         (
             KnockInObservationMode::AtExpiry,
             0.966_432_501_864_323_6,
             1.002_239_522_744_068_1,
-            0.968_664_092_694_738,
+            1.104_623_338_622_052_5,
         ),
     ] {
         let mut snow = SnowballTerms::new(
@@ -659,7 +659,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         ternary.history_time = Some(ternary.effective_time);
         let mut phoenix = PhoenixTerms::new(
-            kiyosi::PhoenixCoupon::Annual(0.08),
+            0.08,
             100.0,
             95.0,
             100.0,
@@ -706,7 +706,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
                     )
                     .unwrap(),
                 phoenix_ref,
-                0.00022,
+                0.00083,
             ),
         ] {
             assert!(

@@ -257,7 +257,7 @@ class TimestampTests(unittest.TestCase):
             SnowballOption(**history_fields(maturity_coupon_rate=0.1, **terms)),
             PhoenixOption(
                 **history_fields(
-                    coupon_rate=0.1,
+                    coupon_per_period=0.1,
                     **dict(
                         terms,
                         observations=autocallable_observations(

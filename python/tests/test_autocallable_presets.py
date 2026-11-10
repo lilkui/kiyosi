@@ -95,7 +95,6 @@ class AutocallablePresetTests(unittest.TestCase):
             )
             self.assertIs(type(note), PhoenixOption)
             self.assertEqual(note, expected)
-            self.assertIsNone(note.coupon_rate)
             self.assertEqual(note.coupon_per_period, 0.01)
             self.assertEqual(note.upper_strike, 80)
             self.assertEqual(note.lower_strike, 0)
@@ -119,82 +118,66 @@ class AutocallablePresetTests(unittest.TestCase):
                 note,
             )
 
-    def test_phoenix_coupon_choice_signatures_getters_and_repr_roundtrip(self):
+    def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(self):
         signature = inspect.signature(PhoenixOption)
-        for key in ("coupon_rate", "coupon_per_period"):
-            self.assertIs(signature.parameters[key].default, Ellipsis)
-        for key in ("coupon_rate", "coupon_per_period"):
-            fields = {key: -0.01}
-            note = PhoenixOption(
-                **history_fields(
-                    observation_clock_time=None,
-                    **fields,
-                    **phoenix_fields(),
-                )
+        self.assertNotIn("coupon_rate", signature.parameters)
+        self.assertIs(
+            signature.parameters["coupon_per_period"].default, inspect.Parameter.empty
+        )
+        note = PhoenixOption(
+            **history_fields(
+                observation_clock_time=None, coupon_per_period=-0.01, **phoenix_fields()
             )
-            unused = (
-                "coupon_rate" if key == "coupon_per_period" else "coupon_per_period"
-            )
-            self.assertEqual(getattr(note, key), -0.01)
-            self.assertIsNone(getattr(note, unused))
-            self.assertIn(f"{key}=-0.01", repr(note))
-            self.assertNotIn(f"{unused}=", repr(note).split(", initial_spot=", 1)[0])
-            self.assertEqual(
-                eval(
-                    repr(note),
-                    {
-                        "datetime": datetime_module,
-                        "PhoenixOption": PhoenixOption,
-                        "AutocallableObservation": AutocallableObservation,
-                    },
-                ),
-                note,
-            )
-            forwarded = {"coupon_rate": Ellipsis, "coupon_per_period": Ellipsis}
-            forwarded.update(fields)
-            self.assertEqual(
-                PhoenixOption(
-                    **history_fields(
-                        observation_clock_time=None,
-                        **forwarded,
-                        **phoenix_fields(),
-                    )
-                ),
-                note,
-            )
-            with self.assertRaises(AttributeError):
-                setattr(note, key, 0.02)
-        for fields in ({}, {"coupon_rate": 0.1, "coupon_per_period": 0.01}):
+        )
+        self.assertEqual(note.coupon_per_period, -0.01)
+        self.assertIn("coupon_per_period=-0.01", repr(note))
+        self.assertEqual(
+            eval(
+                repr(note),
+                {
+                    "datetime": datetime_module,
+                    "PhoenixOption": PhoenixOption,
+                    "AutocallableObservation": AutocallableObservation,
+                },
+            ),
+            note,
+        )
+        with self.assertRaises(AttributeError):
+            note.coupon_per_period = 0.02
+        with self.assertRaises(AttributeError):
+            _ = note.coupon_rate
+        for fields in (
+            {},
+            {"coupon_rate": 0.1},
+            {"coupon_rate": 0.1, "coupon_per_period": 0.01},
+        ):
             with self.subTest(fields=fields), self.assertRaises(TypeError):
                 PhoenixOption(
                     **history_fields(
+                        observation_clock_time=None, **fields, **phoenix_fields()
+                    )
+                )
+        for operation in (note.replace, note.with_quoted_coupon):
+            with self.assertRaises(TypeError):
+                operation(coupon_rate=0.1)
+        for value in (True, "0.01", None, Ellipsis):
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                PhoenixOption(
+                    **history_fields(
                         observation_clock_time=None,
-                        **fields,
+                        coupon_per_period=value,
                         **phoenix_fields(),
                     )
                 )
-        for key in ("coupon_rate", "coupon_per_period"):
-            for value in (True, "0.01", None):
-                with self.subTest(key=key, value=value), self.assertRaises(TypeError):
-                    PhoenixOption(
-                        **history_fields(
-                            observation_clock_time=None,
-                            **{key: value},
-                            **phoenix_fields(),
-                        )
+        for value in (math.nan, math.inf, -math.inf):
+            with self.subTest(value=value), self.assertRaises(InvalidInputError):
+                PhoenixOption(
+                    **history_fields(
+                        observation_clock_time=None,
+                        coupon_per_period=value,
+                        **phoenix_fields(),
                     )
-            for value in (math.nan, math.inf, -math.inf):
-                with (
-                    self.subTest(key=key, value=value),
-                    self.assertRaises(InvalidInputError),
-                ):
-                    PhoenixOption(
-                        **history_fields(
-                            observation_clock_time=None,
-                            **{key: value},
-                            **phoenix_fields(),
-                        )
-                    )
+                )
 
     def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(self):
         for factory, extra, barrier in (
@@ -299,33 +282,17 @@ class AutocallablePresetTests(unittest.TestCase):
                         ),
                         0,
                     )
-        annual = PhoenixOption(
-            **history_fields(
-                observation_clock_time=None,
-                coupon_rate=0.365,
-                **phoenix_fields(),
-            )
-        )
         fixed = PhoenixOption(
             **history_fields(
-                observation_clock_time=None,
-                coupon_per_period=0.01,
-                **phoenix_fields(),
+                observation_clock_time=None, coupon_per_period=0.01, **phoenix_fields()
             )
         )
         engine = QuadratureAutocallableEngine()
-        self.assertAlmostEqual(
-            engine.price(
-                dated_history(annual, market(110, MIDDLE)), market(110, MIDDLE)
-            ),
-            1 + 0.365 * 33 / 365,
-        )
-        self.assertAlmostEqual(
-            engine.price(
-                dated_history(fixed, market(110, MIDDLE)), market(110, MIDDLE)
-            ),
-            1.01,
-        )
+        for at in (MIDDLE, END):
+            self.assertAlmostEqual(
+                engine.price(dated_history(fixed, market(110, at)), market(110, at)),
+                1.01,
+            )
 
     def test_implied_coupon_bounds_tolerance_and_result_use_contract_units(self):
         for factory, extra in (
@@ -350,7 +317,6 @@ class AutocallablePresetTests(unittest.TestCase):
                 self.assertEqual(set(solved), {"coupon_per_period"})
                 self.assertAlmostEqual(solved["coupon_per_period"], -0.02, places=7)
                 self.assertEqual(note.coupon_per_period, 0.01)
-                self.assertIsNone(note.coupon_rate)
 
     def test_staged_snowballs_use_inclusive_cutoffs_and_whole_holding_coupons(self):
         dates = [

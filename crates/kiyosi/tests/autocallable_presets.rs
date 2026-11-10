@@ -48,7 +48,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
             input.history_time = Some(input.effective_time);
             let note = input.expand(preset).unwrap();
             let mut expected = PhoenixTerms::new(
-                PhoenixCoupon::PerPeriod(coupon),
+                coupon,
                 100.0,
                 80.0,
                 80.0,
@@ -102,22 +102,25 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
             );
             let changed = note
                 .replace(PhoenixOptionChanges {
-                    coupon: Some(PhoenixCoupon::PerPeriod(0.02)),
+                    coupon_per_period: Some(0.02),
                     ..Default::default()
                 })
                 .unwrap();
-            assert_eq!(changed.terms().coupon, PhoenixCoupon::PerPeriod(0.02));
-            assert_eq!(note.terms().coupon, PhoenixCoupon::PerPeriod(coupon));
+            assert_eq!(changed.terms().coupon_per_period, 0.02);
+            assert_eq!(note.terms().coupon_per_period, coupon);
             assert!(matches!(
                 note.replace(PhoenixOptionChanges {
-                    coupon: Some(PhoenixCoupon::PerPeriod(f64::NAN)),
+                    coupon_per_period: Some(f64::NAN),
                     ..Default::default()
                 }),
                 Err(Error::InvalidInput(_))
             ));
             assert_eq!(
-                note.replace_history(None, None).unwrap().terms().coupon,
-                note.terms().coupon
+                note.replace_history(None, None)
+                    .unwrap()
+                    .terms()
+                    .coupon_per_period,
+                note.terms().coupon_per_period
             );
         }
     }
@@ -142,7 +145,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
 }
 
 #[test]
-fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() {
+fn fixed_period_cashflows_exclude_settled_coupons_and_ignore_period_length() {
     let quad = QuadratureAutocallableEngine::default();
     let fd = FiniteDifferenceAutocallableEngine::default();
     let mc = MonteCarloAutocallableEngine::new(MonteCarloSettings {
@@ -204,18 +207,13 @@ fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() 
             Some((phoenix_terms()).effective_time),
         )
         .unwrap();
-    let mut terms = fixed.terms().clone();
-    terms.coupon = PhoenixCoupon::Annual(0.365);
-    let annual = PhoenixOption::new(terms).unwrap();
-    let context = market(110.0, date(2, 3));
-    assert_eq!(
-        quad.price(&dated(&fixed, &context), &context).unwrap(),
-        1.01
-    );
-    assert_eq!(
-        quad.price(&dated(&annual, &context), &context).unwrap(),
-        1.0 + 0.365 * 33.0 / 365.0
-    );
+    for at in [date(2, 3), date(4, 1)] {
+        let context = market(110.0, at);
+        assert_eq!(
+            quad.price(&dated(&fixed, &context), &context).unwrap(),
+            1.01
+        );
+    }
 }
 
 #[test]
@@ -283,7 +281,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                     &dated(
                         &note
                             .replace(PhoenixOptionChanges {
-                                coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                                coupon_per_period: Some(-0.02),
                                 ..Default::default()
                             })
                             .unwrap(),
@@ -307,7 +305,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                     &dated(
                         &note
                             .replace(PhoenixOptionChanges {
-                                coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                                coupon_per_period: Some(-0.02),
                                 ..Default::default()
                             })
                             .unwrap(),
@@ -331,7 +329,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                     &dated(
                         &note
                             .replace(PhoenixOptionChanges {
-                                coupon: Some(PhoenixCoupon::PerPeriod(-0.02)),
+                                coupon_per_period: Some(-0.02),
                                 ..Default::default()
                             })
                             .unwrap(),
@@ -348,9 +346,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
             )
             .unwrap(),
         ] {
-            let PhoenixCoupon::PerPeriod(value) = actual else {
-                panic!("expected a per-period coupon")
-            };
+            let value = actual;
             assert!((value + 0.02).abs() < 1e-7);
         }
     }

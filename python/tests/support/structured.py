@@ -71,7 +71,7 @@ def contract(row):
             }
         )
     if phoenix:
-        common["coupon_rate"] = number("coupon_rate")
+        common["coupon_per_period"] = number("coupon_per_period")
     else:
         common["maturity_coupon_rate"] = number("maturity_coupon_rate")
     if row["instrument"] == "TernarySnowballOption":

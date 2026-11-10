@@ -109,7 +109,7 @@ def contracts():
                 **dates,
                 **loss,
                 **state,
-                coupon_rate=0.08,
+                coupon_per_period=0.08,
                 observations=ins.autocallable_observations(
                     OBSERVATIONS, KNOCK_OUT_LEVELS, coupon_barrier_levels=[95] * 3
                 ),
@@ -157,7 +157,9 @@ class LocalVolatilityStructuredTests(unittest.TestCase):
         first = (OBSERVATIONS[0] - START).days / 365
         for name in NAMES[1:]:
             self.assertAlmostEqual(
-                high[name], (1 + 0.08 * first) * math.exp(-0.04 * first)
+                high[name],
+                (1 + 0.08 * (1 if name.startswith("phoenix") else first))
+                * math.exp(-0.04 * first),
             )
 
     def test_skew_multievent_prices_match_independent_controlled_paths(self):

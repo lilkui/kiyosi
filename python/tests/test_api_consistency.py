@@ -176,7 +176,7 @@ class ApiConsistencyTests(unittest.TestCase):
             (
                 ins.PhoenixOption,
                 {
-                    "coupon_rate": 0.1,
+                    "coupon_per_period": 0.1,
                     "initial_spot": 100,
                     "upper_strike": 100,
                     "lower_strike": 0,
@@ -2406,7 +2406,7 @@ class ObservationReplacementTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError):
             ins.PhoenixOption(
                 **history_fields(
-                    coupon_rate=0.1,
+                    coupon_per_period=0.1,
                     initial_spot=100,
                     knock_in_level=80,
                     upper_strike=100,

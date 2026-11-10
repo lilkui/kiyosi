@@ -164,7 +164,7 @@ def cases():
                     ),
                 ),
                 **downside,
-                coupon_rate=0.1,
+                coupon_per_period=0.1,
             )
         ),
         ins.BinarySnowballOption(**history_fields(**note, maturity_coupon_rate=0.1)),
@@ -185,7 +185,7 @@ def cases():
                 "FiniteDifferenceAutocallableEngine",
                 "MonteCarloAutocallableEngine",
             ),
-            1 + 0.1 * 4 / 365,
+            1.1 if isinstance(contract, ins.PhoenixOption) else 1 + 0.1 * 4 / 365,
         )
     yield (
         ins.Accumulator(

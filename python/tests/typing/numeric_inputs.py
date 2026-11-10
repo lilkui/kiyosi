@@ -30,7 +30,7 @@ def phoenix_quote(note: PhoenixOption, context: PricingContext) -> None:
     quote = implied_phoenix_coupon(QuadratureAutocallableEngine(), note, context, 1)
     assert_type(quote, PhoenixCouponQuote)
     assert_type(note.replace(**quote), PhoenixOption)
-    note.replace(coupon_rate=quote)  # ty: ignore[no-matching-overload]
+    note.replace(coupon_per_period=quote)  # ty: ignore[invalid-argument-type]
 
 
 def numeric_protocol_inputs() -> None:

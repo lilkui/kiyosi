@@ -91,7 +91,7 @@ class ImpliedCouponTests(unittest.TestCase):
                     target,
                     quote_convention=convention,
                 )
-        for field, coupon in (("coupon_rate", 0.12), ("coupon_per_period", 0.03)):
+        for field, coupon in (("coupon_per_period", 0.12), ("coupon_per_period", 0.03)):
             note = PhoenixOption(
                 **{field: coupon},
                 initial_spot=100,
@@ -326,7 +326,7 @@ class ImpliedCouponTests(unittest.TestCase):
 
         for note in (
             phoenix(),
-            phoenix(coupon_rate=Ellipsis, coupon_per_period=0.02),
+            phoenix(coupon_per_period=0.02),
         ):
             self.assertEqual(note.replace_history(), note)
             self.assertEqual(
@@ -335,9 +335,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 ),
                 note,
             )
-            field = (
-                "coupon_rate" if note.coupon_rate is not None else "coupon_per_period"
-            )
+            field = "coupon_per_period"
             original = getattr(note, field)
             replacement = note.replace(**{field: 0.18})
             self.assertEqual(getattr(replacement, field), 0.18)
@@ -364,10 +362,7 @@ class ImpliedCouponTests(unittest.TestCase):
             )
         )
         engine = QuadratureAutocallableEngine()
-        for field, note in (
-            ("coupon_rate", phoenix(coupon_rate=0.01)),
-            ("coupon_per_period", phoenix(coupon_rate=None, coupon_per_period=0.01)),
-        ):
+        for field, note in (("coupon_per_period", phoenix(coupon_per_period=0.01)),):
             for coupon in (-0.02, 0, 0.02):
                 with self.subTest(field=field, coupon=coupon):
                     changed = note.with_quoted_coupon(**{field: coupon})
@@ -383,7 +378,7 @@ class ImpliedCouponTests(unittest.TestCase):
                     self.assertEqual(set(solved), {field})
                     self.assertAlmostEqual(solved[field], coupon, delta=1e-12)
                     with self.assertRaises(TypeError):
-                        note.replace(coupon_rate=solved)
+                        note.replace(coupon_per_period=solved)
                     self.assertAlmostEqual(
                         engine.price(
                             dated_history(note.replace(**solved), context),
@@ -401,7 +396,7 @@ class ImpliedCouponTests(unittest.TestCase):
             ):
                 with self.subTest(field=field, value=value), self.assertRaises(error):
                     note.with_quoted_coupon(**{field: value})
-            for keyword in ("coupon_rate", "coupon_per_period"):
+            for keyword in ("coupon_per_period",):
                 quoted = note.with_quoted_coupon(**{keyword: 0.12})
                 self.assertEqual(getattr(quoted, keyword), 0.12)
                 self.assertEqual(quoted.barrier_state, note.barrier_state)
@@ -421,8 +416,10 @@ class ImpliedCouponTests(unittest.TestCase):
         bound = signature.bind(engine, dated_history(note, context), context, quote)
         bound.apply_defaults()
         solved = implied_phoenix_coupon(*bound.args, **bound.kwargs)
-        self.assertEqual(set(solved), {"coupon_rate"})
-        self.assertAlmostEqual(solved["coupon_rate"], note.coupon_rate, delta=1e-8)
+        self.assertEqual(set(solved), {"coupon_per_period"})
+        self.assertAlmostEqual(
+            solved["coupon_per_period"], note.coupon_per_period, delta=1e-8
+        )
         with self.assertRaises(TypeError):
             implied_phoenix_coupon(
                 engine,
@@ -529,7 +526,7 @@ class ImpliedCouponTests(unittest.TestCase):
         def note(kind, coupon, convention):
             if kind == "PhoenixOption":
                 return phoenix(
-                    coupon_rate=coupon,
+                    coupon_per_period=coupon,
                     knock_in_observation_mode="every_trading_day",
                 )
             if kind in (
@@ -650,8 +647,8 @@ class ImpliedCouponTests(unittest.TestCase):
                             **kwargs,
                         )
                         if isinstance(original, PhoenixOption):
-                            self.assertEqual(set(solved), {"coupon_rate"})
-                            actual_coupon = solved["coupon_rate"]
+                            self.assertEqual(set(solved), {"coupon_per_period"})
+                            actual_coupon = solved["coupon_per_period"]
                         else:
                             self.assertEqual(
                                 set(solved),

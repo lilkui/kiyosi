@@ -168,7 +168,7 @@ def implied_phoenix_coupon(
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
 ) -> _pricing.PhoenixCouponQuote:
-    """Solve a Phoenix coupon without changing its annual or per-period units.
+    """Solve a Phoenix coupon in absolute periodic rate units.
 
     Parameters
     ----------
@@ -196,9 +196,8 @@ def implied_phoenix_coupon(
     Returns
     -------
     PhoenixCouponQuote
-        Dictionary with exactly one key: coupon_rate for an annual rate or
-        coupon_per_period for a fixed proportion per observation. Apply with
-        instrument.replace(**quote) to retain the coupon convention.
+        Dictionary with one key, coupon_per_period: the signed coupon rate per
+        qualifying observation. Apply with instrument.with_quoted_coupon(**quote).
 
     Raises
     ------
@@ -12718,13 +12717,9 @@ class PhoenixOption:
 
     Parameters
     ----------
-    coupon_rate : float, optional
-        Finite signed annual coupon rate. Supply exactly one of coupon_rate and
-        coupon_per_period; omission, None or Ellipsis leaves a choice
-        unspecified.
-    coupon_per_period : float, optional
-        Finite signed fixed coupon proportion per qualifying observation,
-        without day accrual. The unused coupon property returns None.
+    coupon_per_period : float
+        Finite signed coupon proportion per qualifying observation, independent
+        of period length.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
@@ -12758,8 +12753,7 @@ class PhoenixOption:
     Raises
     ------
     TypeError
-        If both coupon choices or neither are supplied, or a supplied value is
-        not real.
+        If a required value is missing or a supplied representation is invalid.
     InvalidInputError
         If amounts, strikes, life times or observations are invalid.
         Observation coupon_rate must be zero; coupon_barrier_level is
@@ -12767,51 +12761,39 @@ class PhoenixOption:
 
     Notes
     -----
-    Annual coupons accrue over contractual observation periods on Actual/365
-    Fixed. Fixed per-period coupons pay once per qualifying observation, even
-    for an observation on the effective timestamp. Explicit None is not a
-    coupon value. Coupon and knock-out barriers are inclusive; knock-in is
-    strict. Past coupons are settled. There is no coupon memory or maturity
-    coupon.
+    Periodic coupons pay once per qualifying observation, including at the
+    effective timestamp, without time accrual. None is not a coupon value.
+    Coupon and knock-out barriers are inclusive; knock-in is strict.
+    Past coupons are settled. There is no coupon memory or maturity coupon.
     """
 
     @property
     def history_time(self) -> datetime | None:
         """Return the timestamp through which supplied history is known, or None."""
 
-    @overload
-    def with_quoted_coupon(
-        self, *, coupon_rate: _Real, coupon_per_period: None = None
-    ) -> Self:
-        """Return a note with an annual or per-period coupon.
+    def with_quoted_coupon(self, *, coupon_per_period: _Real) -> Self:
+        """Return a note with the supplied periodic coupon rate.
 
-        Supply exactly one coupon choice. History and other terms are preserved.
+        History and other terms are preserved.
 
         Parameters
         ----------
-        coupon_rate : float, optional
-            Finite signed annual coupon in decimal units.
-        coupon_per_period : float, optional
-            Finite signed payment per observation, as a notional proportion.
+        coupon_per_period : float
+            Finite signed payment per observation, as a proportion of initial notional.
 
         Returns
         -------
         PhoenixOption
-            Note using the selected coupon units.
+            Note using the supplied periodic coupon rate.
 
         Raises
         ------
         InvalidInputError
-            If the coupon is invalid.
+            If the coupon is non-finite.
         TypeError
-            If neither or both choices are supplied, or representations are
-            invalid.
+            If the supplied representation is invalid.
         """
 
-    @overload
-    def with_quoted_coupon(
-        self, *, coupon_rate: None = None, coupon_per_period: _Real
-    ) -> Self: ...
     @property
     def knock_in_observation_schedule(self) -> ObservationSchedule:
         """Return an owned whole-life knock-in schedule, or None without knock-in.
@@ -12825,12 +12807,10 @@ class PhoenixOption:
     def observation_clock_time(self) -> time | None:
         """Return the daily clock, or None for expiry-only monitoring."""
 
-    @overload
     def replace(
         self,
         *,
-        coupon_rate: _Real,
-        coupon_per_period: None | EllipsisType = ...,
+        coupon_per_period: _Real | EllipsisType = ...,
         initial_spot: _Real | EllipsisType = ...,
         knock_in_level: _Real | EllipsisType = ...,
         upper_strike: _Real | EllipsisType = ...,
@@ -12852,12 +12832,8 @@ class PhoenixOption:
 
         Parameters
         ----------
-        coupon_rate : float, optional
-            Absolute annual rate; omission or Ellipsis retains the coupon. None
-            requires a concrete coupon_per_period value.
         coupon_per_period : float, optional
-            Fixed per-period proportion; omission or Ellipsis retains the coupon.
-            None requires a concrete coupon_rate value.
+            Finite signed periodic coupon rate; omission or Ellipsis retains it.
         initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
@@ -12889,81 +12865,12 @@ class PhoenixOption:
         KiyosiError
             If the resulting contract fails core validation.
         TypeError
-            If a representation or field name is invalid, both coupon choices have
-            values, or an explicit None coupon has no concrete alternative.
+            If a representation or field name is invalid, including a None coupon.
         """
 
-    @overload
-    def replace(
-        self,
-        *,
-        coupon_rate: None | EllipsisType = ...,
-        coupon_per_period: _Real,
-        initial_spot: _Real | EllipsisType = ...,
-        knock_in_level: _Real | EllipsisType = ...,
-        upper_strike: _Real | EllipsisType = ...,
-        lower_strike: _Real | EllipsisType = ...,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
-        | EllipsisType = ...,
-        observation_clock_time: time | None | EllipsisType = ...,
-        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
-        | None
-        | EllipsisType = ...,
-        principal_redemption_ratio: _Real | EllipsisType = ...,
-        effective_time: datetime | EllipsisType = ...,
-        expiry_time: datetime | EllipsisType = ...,
-        observations: Iterable[AutocallableObservation] | EllipsisType = ...,
-        calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self: ...
-    @overload
-    def replace(
-        self,
-        *,
-        coupon_rate: EllipsisType = ...,
-        coupon_per_period: EllipsisType = ...,
-        initial_spot: _Real | EllipsisType = ...,
-        knock_in_level: _Real | EllipsisType = ...,
-        upper_strike: _Real | EllipsisType = ...,
-        lower_strike: _Real | EllipsisType = ...,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
-        | EllipsisType = ...,
-        observation_clock_time: time | None | EllipsisType = ...,
-        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
-        | None
-        | EllipsisType = ...,
-        principal_redemption_ratio: _Real | EllipsisType = ...,
-        effective_time: datetime | EllipsisType = ...,
-        expiry_time: datetime | EllipsisType = ...,
-        observations: Iterable[AutocallableObservation] | EllipsisType = ...,
-        calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self: ...
-    @overload
     def __init__(
         self,
         *,
-        coupon_rate: _Real,
-        coupon_per_period: None | EllipsisType = ...,
-        initial_spot: _Real,
-        knock_in_level: _Real,
-        upper_strike: _Real,
-        lower_strike: _Real,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        observation_clock_time: time | None,
-        effective_time: datetime,
-        expiry_time: datetime,
-        observations: Iterable[AutocallableObservation],
-        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_redemption_ratio: _Real = ...,
-        calendar: TradingCalendar = ...,
-        history_time: datetime | None = None,
-    ) -> None: ...
-    @overload
-    def __init__(
-        self,
-        *,
-        coupon_rate: None | EllipsisType = ...,
         coupon_per_period: _Real,
         initial_spot: _Real,
         knock_in_level: _Real,
@@ -13029,12 +12936,8 @@ class PhoenixOption:
         """Return copied Phoenix coupon thresholds in observation order."""
 
     @property
-    def coupon_rate(self) -> float | None:
-        """Return the annual coupon rate, or None for a fixed per-period coupon."""
-
-    @property
-    def coupon_per_period(self) -> float | None:
-        """Return the fixed per-period coupon, or None for an annual coupon."""
+    def coupon_per_period(self) -> float:
+        """Return the finite signed coupon proportion per qualifying observation."""
 
     @property
     def initial_spot(self) -> float:

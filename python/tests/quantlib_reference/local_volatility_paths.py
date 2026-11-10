@@ -77,7 +77,6 @@ def payoffs(path, records, initial_spot=101.0):
     knocked_in = initial_spot < 95
     note_values = None
     phoenix_coupons = 0.0
-    previous_observation = 0.0
     for index, time, discount, observation in records:
         spot = path[index]
         if accumulated is None:
@@ -95,8 +94,7 @@ def payoffs(path, records, initial_spot=101.0):
         if observation < 0:
             continue
         if spot >= 95:
-            phoenix_coupons += 0.08 * (time - previous_observation) * discount
-        previous_observation = time
+            phoenix_coupons += 0.08 * discount
         if spot >= KNOCK_OUT_LEVELS[observation]:
             coupon_note = (1 + 0.08 * time) * discount
             phoenix = discount + phoenix_coupons

@@ -170,7 +170,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         observation_clock_time=clock_time(),
                         **common,
                         **downside,
-                        coupon_rate=0.1,
+                        coupon_per_period=0.1,
                         observations=autocallable_observations(
                             [end], [100], coupon_barrier_levels=[100]
                         ),
@@ -308,7 +308,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         initial_spot=100,
                         upper_strike=100,
                         lower_strike=60,
-                        coupon_rate=0.08,
+                        coupon_per_period=0.08,
                         observations=autocallable_observations(
                             observation_times,
                             knock_out_levels,
@@ -434,7 +434,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         initial_spot=100,
                         upper_strike=100,
                         lower_strike=60,
-                        coupon_rate=0.073,
+                        coupon_per_period=0.073,
                         observations=autocallable_observations(
                             observation_times,
                             knock_out_levels,
@@ -514,7 +514,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     for convention in conventions:
                         alternate_terms = dict(terms)
                         if kind is PhoenixOption:
-                            alternate_terms["coupon_rate"] = 0.12
+                            alternate_terms["coupon_per_period"] = 0.12
                         else:
                             alternate_terms["observations"] = autocallable_observations(
                                 observation_times,
@@ -541,7 +541,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                             engine=engine,
                             note=note,
                         ):
-                            # Weak coupon exposure needs tighter price accuracy to recover the quote.
+                            # Resolve brackets finely enough for the price tolerance across coupon units.
                             return (
                                 pricing.implied_phoenix_coupon
                                 if isinstance(note, PhoenixOption)
@@ -554,7 +554,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                                 lower_bound=0,
                                 upper_bound=0.2,
                                 price_tolerance=1e-14,
-                                parameter_tolerance=1e-12,
+                                parameter_tolerance=1e-15,
                                 **convention,
                             )
 
@@ -566,7 +566,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                                     pool.map(solve, (quote, alternate_quote))
                                 )
                             field = (
-                                "coupon_rate"
+                                "coupon_per_period"
                                 if isinstance(note, PhoenixOption)
                                 else "first_observation_coupon"
                             )
@@ -647,7 +647,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 PhoenixOption,
                 {
                     **downside,
-                    "coupon_rate": 0.08,
+                    "coupon_per_period": 0.08,
                     "observations": autocallable_observations(
                         observation_times,
                         knock_out_levels,
@@ -900,7 +900,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             **history_fields(
                 observation_clock_time=None,
                 **common,
-                coupon_rate=0.08,
+                coupon_per_period=0.08,
                 initial_spot=100,
                 upper_strike=100,
                 lower_strike=60,

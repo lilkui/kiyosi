@@ -1020,10 +1020,10 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
     let last = Timestamp::new(first.date(), 10, 0, 0, 2).unwrap();
     let note = PhoenixOption::new(PhoenixTerms {
         observation_clock_time: None,
-        coupon: PhoenixCoupon::PerPeriod(0.01),
+        coupon_per_period: 0.01,
         knock_in_observation_mode: KnockInObservationMode::AtExpiry,
         ..PhoenixTerms::new(
-            kiyosi::PhoenixCoupon::Annual(0.0),
+            0.0,
             100.0,
             1.0,
             1.0,
@@ -1170,7 +1170,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         Some(vec![expiry])
     );
     let mut phoenix = PhoenixTerms::new(
-        kiyosi::PhoenixCoupon::Annual(0.1),
+        0.1,
         100.0,
         80.0,
         100.0,
