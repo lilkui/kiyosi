@@ -240,6 +240,11 @@ impl AutocallableObservation {
 /// Supply exactly one of `coupons` and `coupon_barriers`; zero coupons and
 /// unconditional Phoenix coupons require explicit zero values.
 ///
+/// Records carry no calendar. When passing [`crate::ObservationSchedule::times`],
+/// also copy [`crate::ObservationSchedule::calendar`] into the note's terms,
+/// such as [`SnowballTerms::calendar`], to preserve its observation calendar.
+/// Note terms default to weekdays, including for daily knock-in monitoring.
+///
 /// # Errors
 ///
 /// Returns [`Error::InvalidInput`] for missing or mixed coupon choices, unequal sequence lengths or invalid numeric

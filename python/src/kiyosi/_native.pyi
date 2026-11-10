@@ -12377,7 +12377,7 @@ def autocallable_observations(
     knock_out_coupon_rates: Iterable[_Real],
     coupon_barrier_levels: None = None,
 ) -> list[AutocallableObservation]:
-    """Associate parallel sequences into input observation records.
+    """Associates parallel sequences into input observation records.
 
     Parameters
     ----------
@@ -12408,6 +12408,39 @@ def autocallable_observations(
     The note constructor validates ordering, life bounds and product-specific
     constraints. Supply exactly one of knock_out_coupon_rates and
     coupon_barrier_levels.
+
+    Passing an ObservationSchedule copies its timestamps into the records;
+    the records carry no calendar. Pass calendar=schedule.calendar to the note
+    constructor to preserve its observation calendar. Omitting calendar selects
+    weekdays, including for daily knock-in monitoring.
+
+    Examples
+    --------
+    Forward a schedule's custom calendar when constructing a snowball:
+
+    >>> from datetime import datetime, time
+    >>> from kiyosi import instruments as ins, market
+    >>> start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
+    >>> calendar = market.custom_calendar(
+    ...     base=market.weekdays_calendar(),
+    ...     closed_dates=[datetime(2025, 1, 6).date()],
+    ... )
+    >>> schedule = market.ObservationSchedule(
+    ...     times=[end], start_time=start, end_time=end, calendar=calendar,
+    ... )
+    >>> records = ins.autocallable_observations(
+    ...     schedule, [110], knock_out_coupon_rates=[0.1],
+    ... )
+    >>> note = ins.SnowballOption(
+    ...     maturity_coupon_rate=0.1, initial_spot=100, knock_in_level=80,
+    ...     upper_strike=100, lower_strike=0, observation_clock_time=time(15),
+    ...     effective_time=start, expiry_time=end, observations=records,
+    ...     calendar=schedule.calendar,
+    ... )
+    >>> note.calendar == schedule.calendar
+    True
+    >>> len(note.knock_in_observation_schedule)
+    6
     """
 
 @overload

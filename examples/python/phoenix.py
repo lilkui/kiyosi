@@ -30,6 +30,7 @@ phoenix = PhoenixOption(
     observations=autocallable_observations(
         times, [103] * len(times), coupon_barrier_levels=[90] * len(times)
     ),
+    calendar=times.calendar,
 )
 
 # FCN 工厂返回 Phoenix 合约：无条件固定每期票息，到期才观察敲入。
