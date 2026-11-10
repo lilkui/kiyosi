@@ -1,6 +1,94 @@
 use kiyosi::*;
 
 #[test]
+fn touched_history_must_be_possible_at_its_own_timestamp() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_days(8)?;
+    let snapshot =
+        |at| PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?, 100.0, at);
+    for observations in [None, Some(vec![start.add_days(1)?, end])] {
+        let first = observations.as_ref().map_or(start, |times| times[0]);
+        macro_rules! check {
+            ($option:expr, $engine:expr, $expected:expr) => {{
+                let option = $option;
+                let engine = $engine;
+                let invalid =
+                    option.replace_history(Some(BarrierTouchState::Touched), Some(first))?;
+                for at in [first, first.add_micros(1)?, first.add_days(1)?] {
+                    assert!(matches!(
+                        engine.price(&invalid, &snapshot(at)?),
+                        Err(Error::InvalidInput(_))
+                    ));
+                }
+                let valid = option.replace_history(
+                    Some(BarrierTouchState::Touched),
+                    Some(first.add_micros(1)?),
+                )?;
+                assert_eq!(
+                    engine.price(&valid, &snapshot(first.add_days(1)?)?)?,
+                    $expected
+                );
+            }};
+        }
+        let mut barrier = BarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut,
+        );
+        barrier.observation_times = observations.clone();
+        check!(BarrierOption::new(barrier)?, AnalyticBarrierEngine, 0.0);
+        let mut double = DoubleBarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            80.0,
+            120.0,
+            DoubleBarrierType::KnockOut,
+        );
+        double.observation_times = observations.clone();
+        check!(
+            DoubleBarrierOption::new(double)?,
+            AnalyticDoubleBarrierEngine,
+            0.0
+        );
+        let mut binary = BinaryBarrierTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut,
+        );
+        binary.observation_times = observations.clone();
+        check!(
+            BinaryBarrierOption::cash(binary, 10.0)?,
+            AnalyticBinaryBarrierEngine,
+            0.0
+        );
+        let mut touch = TouchOptionTerms::new(start, end, 120.0, BarrierType::UpAndIn);
+        touch.observation_times = observations.clone();
+        check!(
+            TouchOption::cash(touch, 10.0)?,
+            AnalyticBinaryBarrierEngine,
+            10.0
+        );
+        let mut double_touch =
+            DoubleTouchOptionTerms::new(start, end, 80.0, 120.0, DoubleBarrierType::KnockIn);
+        double_touch.observation_times = observations;
+        check!(
+            DoubleTouchOption::cash(double_touch, 10.0)?,
+            AnalyticDoubleTouchEngine,
+            10.0
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn history_timestamps_cannot_follow_valuation_without_payloads() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let end = start.add_days(8)?;

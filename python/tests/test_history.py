@@ -43,6 +43,52 @@ def engine(instrument):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_touched_history_must_be_possible_at_its_own_timestamp(self):
+        expected_prices = {
+            i.BarrierOption: 0,
+            i.DoubleBarrierOption: 0,
+            i.cash_binary_barrier_option: 0,
+            i.asset_binary_barrier_option: 0,
+            i.cash_touch_option: 10,
+            i.asset_touch_option: 100,
+            i.cash_double_touch: 10,
+        }
+        for factory, fields in contract_inputs():
+            if factory not in expected_prices:
+                continue
+            for scheduled in (False, True):
+                first = fields["effective_time"] + timedelta(days=int(scheduled))
+                option = factory(
+                    **dict(
+                        fields,
+                        touch_state="touched",
+                        history_time=first,
+                        observation_times=[first, fields["expiry_time"]]
+                        if scheduled
+                        else None,
+                    )
+                )
+                selected = engine(option)
+                for at in (
+                    first,
+                    first + timedelta(microseconds=1),
+                    first + timedelta(days=1),
+                ):
+                    with self.subTest(
+                        contract=factory.__name__, scheduled=scheduled, valuation=at
+                    ):
+                        with self.assertRaises(InvalidInputError) as raised:
+                            selected.price(option, context(at))
+                        self.assertIs(type(raised.exception), InvalidInputError)
+                valid = option.replace_history(
+                    touch_state="touched",
+                    history_time=first + timedelta(microseconds=1),
+                )
+                self.assertEqual(
+                    selected.price(valid, context(first + timedelta(days=1))),
+                    expected_prices[factory],
+                )
+
     def test_history_timestamps_cannot_follow_valuation_without_payloads(self):
         for factory, fields in contract_inputs():
             fields = fields.copy()

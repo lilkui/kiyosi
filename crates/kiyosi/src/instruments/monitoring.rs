@@ -170,6 +170,9 @@ impl Monitoring {
     ) -> Result<(bool, bool, bool)> {
         let time = context.valuation_time();
         let prior = self.prior(time)?;
+        if let (Some(at), Some(_)) = (self.history_time, self.touch_state) {
+            self.prior(at)?;
+        }
         super::validate_history_time(
             self,
             self.touch_state.is_some(),
