@@ -253,9 +253,11 @@ macro_rules! average_option {
                 super::validate_history_replacement(
                     self.realized_average().is_some(),
                     history_supplied,
-                    (updated.history_time().is_some()
-                        && self.history_time() != updated.history_time())
-                        || self.averaging_start_time() != updated.averaging_start_time(),
+                    || {
+                        Ok((updated.history_time().is_some()
+                            && self.history_time() != updated.history_time())
+                            || self.averaging_start_time() != updated.averaging_start_time())
+                    },
                     "realized_average",
                 )?;
                 Ok(updated)

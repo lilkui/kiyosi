@@ -24,10 +24,10 @@ pub(crate) fn replacement_history_time(
 pub(crate) fn validate_history_replacement(
     known: bool,
     supplied: bool,
-    events_changed: bool,
+    events_changed: impl FnOnce() -> crate::Result<bool>,
     field: &str,
 ) -> crate::Result<()> {
-    if known && !supplied && events_changed {
+    if known && !supplied && events_changed()? {
         return Err(crate::Error::StaleHistory(
             format!("changing historical observations or history_time requires explicit {field}")
                 .into(),
@@ -52,7 +52,7 @@ pub(crate) fn validate_history_redating(
     validate_history_replacement(
         known,
         false,
-        option.history_time().is_some() && time.is_some() && option.history_time() != time,
+        || Ok(option.history_time().is_some() && time.is_some() && option.history_time() != time),
         "history payload",
     )
 }
@@ -110,4 +110,37 @@ pub(crate) fn validate_history_snapshot(
         ));
     }
     validate_history_time_bounds(option, option.history_time())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_history_replacement;
+    use crate::Error;
+
+    #[test]
+    fn history_changes_are_checked_only_when_retaining_known_history() -> crate::Result<()> {
+        for (known, supplied) in [(false, false), (false, true), (true, true)] {
+            validate_history_replacement(
+                known,
+                supplied,
+                || panic!("no historical comparison is needed"),
+                "history",
+            )?;
+        }
+        validate_history_replacement(true, false, || Ok(false), "history")?;
+        assert!(matches!(
+            validate_history_replacement(true, false, || Ok(true), "history"),
+            Err(Error::StaleHistory(_))
+        ));
+        assert!(matches!(
+            validate_history_replacement(
+                true,
+                false,
+                || Err(Error::ComputationFailure("comparison failed".into())),
+                "history",
+            ),
+            Err(Error::ComputationFailure(_))
+        ));
+        Ok(())
+    }
 }

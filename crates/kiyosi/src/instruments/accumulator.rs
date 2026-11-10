@@ -770,47 +770,52 @@ impl Accumulator {
         super::validate_history_replacement(
             self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
             history_supplied,
-            (updated.history_time().is_some() && self.history_time() != updated.history_time())
-                || self.terms.history_time.is_none() && self.expiry_time() != updated.expiry_time()
-                || (
-                    self.option_type(),
-                    self.knock_out_level(),
-                    self.effective_time(),
-                    self.observation_clock_time(),
-                ) != (
-                    updated.option_type(),
-                    updated.knock_out_level(),
-                    updated.effective_time(),
-                    updated.observation_clock_time(),
-                )
-                || !(self.knock_out_settled() == Some(true)
-                    && updated.knock_out_settled() == Some(true))
-                    && (
-                        self.strike(),
-                        self.daily_quantity(),
-                        self.acceleration_factor(),
+            || {
+                Ok((updated.history_time().is_some()
+                    && self.history_time() != updated.history_time())
+                    || self.terms.history_time.is_none()
+                        && self.expiry_time() != updated.expiry_time()
+                    || (
+                        self.option_type(),
+                        self.knock_out_level(),
+                        self.effective_time(),
+                        self.observation_clock_time(),
                     ) != (
-                        updated.strike(),
-                        updated.daily_quantity(),
-                        updated.acceleration_factor(),
+                        updated.option_type(),
+                        updated.knock_out_level(),
+                        updated.effective_time(),
+                        updated.observation_clock_time(),
                     )
-                || self.calendar() != updated.calendar()
-                    && super::historical_times(
-                        self.accumulation_schedule()?.times(),
-                        self.terms.history_time,
-                    ) != super::historical_times(
-                        updated.accumulation_schedule()?.times(),
-                        self.terms.history_time,
-                    )
-                || (self.knock_out_observation_times() != updated.knock_out_observation_times()
-                    || self.calendar() != updated.calendar())
-                    && super::historical_times(
-                        self.knock_out_observation_schedule()?.times(),
-                        self.terms.history_time,
-                    ) != super::historical_times(
-                        updated.knock_out_observation_schedule()?.times(),
-                        self.terms.history_time,
-                    ),
+                    || !(self.knock_out_settled() == Some(true)
+                        && updated.knock_out_settled() == Some(true))
+                        && (
+                            self.strike(),
+                            self.daily_quantity(),
+                            self.acceleration_factor(),
+                        ) != (
+                            updated.strike(),
+                            updated.daily_quantity(),
+                            updated.acceleration_factor(),
+                        )
+                    || self.calendar() != updated.calendar()
+                        && super::historical_times(
+                            self.accumulation_schedule()?.times(),
+                            self.terms.history_time,
+                        ) != super::historical_times(
+                            updated.accumulation_schedule()?.times(),
+                            self.terms.history_time,
+                        )
+                    || (self.knock_out_observation_times()
+                        != updated.knock_out_observation_times()
+                        || self.calendar() != updated.calendar())
+                        && super::historical_times(
+                            self.knock_out_observation_schedule()?.times(),
+                            self.terms.history_time,
+                        ) != super::historical_times(
+                            updated.knock_out_observation_schedule()?.times(),
+                            self.terms.history_time,
+                        ))
+            },
             "accumulated_quantity and knock_out_settled",
         )?;
         Ok(updated)

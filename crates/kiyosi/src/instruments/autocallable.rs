@@ -925,28 +925,31 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         super::validate_history_replacement(
             self.barrier_state().is_some(),
             supplied,
-            (updated.history_time().is_some() && self.history_time() != updated.history_time())
-                || self.history_time().is_none() && old.expiry_time != new.expiry_time
-                || (old.effective_time, knock_in(&old)) != (new.effective_time, knock_in(&new))
-                || old.daily_knock_in()
-                    && old.calendar != new.calendar
-                    && super::historical_times(
-                        self.daily_observation_schedule()?.times(),
-                        self.history_time(),
-                    ) != super::historical_times(
-                        updated.daily_observation_schedule()?.times(),
-                        self.history_time(),
-                    )
-                || !old
-                    .observations
-                    .iter()
-                    .filter(|r| self.history_time().is_none_or(|at| r.time < at))
-                    .map(|r| (r.time, r.knock_out_level))
-                    .eq(new
+            || {
+                Ok((updated.history_time().is_some()
+                    && self.history_time() != updated.history_time())
+                    || self.history_time().is_none() && old.expiry_time != new.expiry_time
+                    || (old.effective_time, knock_in(&old)) != (new.effective_time, knock_in(&new))
+                    || old.daily_knock_in()
+                        && old.calendar != new.calendar
+                        && super::historical_times(
+                            self.daily_observation_schedule()?.times(),
+                            self.history_time(),
+                        ) != super::historical_times(
+                            updated.daily_observation_schedule()?.times(),
+                            self.history_time(),
+                        )
+                    || !old
                         .observations
                         .iter()
                         .filter(|r| self.history_time().is_none_or(|at| r.time < at))
-                        .map(|r| (r.time, r.knock_out_level))),
+                        .map(|r| (r.time, r.knock_out_level))
+                        .eq(new
+                            .observations
+                            .iter()
+                            .filter(|r| self.history_time().is_none_or(|at| r.time < at))
+                            .map(|r| (r.time, r.knock_out_level))))
+            },
             "barrier_state",
         )
     }

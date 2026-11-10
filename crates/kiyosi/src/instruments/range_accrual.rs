@@ -392,25 +392,29 @@ impl RangeAccrualOption {
         super::validate_history_replacement(
             self.realized_hit_count().is_some(),
             history_supplied,
-            (updated.history_time().is_some() && self.history_time() != updated.history_time())
-                || self.terms.history_time.is_none() && self.expiry_time() != updated.expiry_time()
-                || (
-                    self.lower_bound(),
-                    self.upper_bound(),
-                    self.effective_time(),
-                    self.observation_clock_time(),
-                ) != (
-                    updated.lower_bound(),
-                    updated.upper_bound(),
-                    updated.effective_time(),
-                    updated.observation_clock_time(),
-                )
-                || self.calendar() != updated.calendar()
-                    && super::historical_times(self.schedule.times(), self.terms.history_time)
-                        != super::historical_times(
-                            updated.schedule.times(),
-                            self.terms.history_time,
-                        ),
+            || {
+                Ok((updated.history_time().is_some()
+                    && self.history_time() != updated.history_time())
+                    || self.terms.history_time.is_none()
+                        && self.expiry_time() != updated.expiry_time()
+                    || (
+                        self.lower_bound(),
+                        self.upper_bound(),
+                        self.effective_time(),
+                        self.observation_clock_time(),
+                    ) != (
+                        updated.lower_bound(),
+                        updated.upper_bound(),
+                        updated.effective_time(),
+                        updated.observation_clock_time(),
+                    )
+                    || self.calendar() != updated.calendar()
+                        && super::historical_times(self.schedule.times(), self.terms.history_time)
+                            != super::historical_times(
+                                updated.schedule.times(),
+                                self.terms.history_time,
+                            ))
+            },
             "realized_hit_count",
         )?;
         Ok(updated)
