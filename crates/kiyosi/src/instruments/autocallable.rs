@@ -675,7 +675,6 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
             self.0
                 .with_quoted_coupon(first_observation_coupon, convention),
         )
-        .and_then(|updated| updated.with_history_time(self.history_time()))
     }
 }
 
