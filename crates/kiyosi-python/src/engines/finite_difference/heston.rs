@@ -110,9 +110,11 @@ numerical_greeks_methods!(
         /// Parameters
         /// ----------
         /// instrument : EuropeanOption or AmericanOption
-        ///     Call or put within its inclusive contract life.
+        ///     European or American call or put. European valuation may precede
+        ///     effective_time; American valuation must be within contract life.
         /// context : PricingContext
-        ///     Heston market snapshot, with initial variance at valuation.
+        ///     Heston market snapshot, with initial variance at valuation. Rate/dividend
+        ///     curves must cover valuation through expiry.
         ///
         /// Returns
         /// -------
@@ -124,8 +126,8 @@ numerical_greeks_methods!(
         /// UnsupportedOperationError
         ///     For other models or instruments, including at expiry.
         /// InvalidInputError
-        ///     Outside contract life/curve coverage or for insufficient explicit
-        ///     bounds.
+        ///     Outside permitted valuation bounds or curve coverage, or for
+        ///     insufficient explicit bounds.
         /// ComputationFailureError
         ///     For unrepresentable grids or invalid numerical results.
         ///

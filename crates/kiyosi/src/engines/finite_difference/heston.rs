@@ -138,7 +138,10 @@ impl FiniteDifferenceHestonVanillaEngine {
 
     /// Prices a European or American call or put; see [`Self::new`].
     ///
-    /// Validates the model, contract life and curve coverage before expiry payoff.
+    /// Validates the model, permitted valuation bounds and curve coverage before expiry payoff.
+    /// European valuation may precede the effective time; American valuation must
+    /// be within the inclusive contract life. Both require rate/dividend coverage
+    /// from valuation through expiry; see [`OptionContract::valuation_start`].
     /// Grid coverage is checked only when that grid is needed. Initial variance
     /// is at valuation. Explicit domains must be checked by enlargement, as must
     /// automatic domains. Only rounding-sized negative prices may be clipped.
@@ -146,7 +149,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// # Errors
     ///
     /// Returns [`crate::Error::UnsupportedOperation`] for other models,
-    /// [`crate::Error::InvalidInput`] outside permitted valuation bounds/curve coverage or for explicit
+    /// [`crate::Error::InvalidInput`] outside permitted valuation bounds or curve coverage, or for explicit
     /// bounds that exclude spot, strike or initial variance, and
     /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
     /// invalid prices. Fixed grids do not report error-target nonconvergence.

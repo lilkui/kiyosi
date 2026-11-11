@@ -101,7 +101,8 @@ impl AnalyticHestonEuropeanEngine {
     ///     HestonIntegrationSettings, OptionType, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start.add_days(31)?,
+    ///     Date::new(2026, 1, 1)?.start_of_day())?;
     /// let model = HestonParameters::new(kiyosi::HestonParameterInputs {
     ///     risk_free_rate: 0.05.into(), dividend_yield: 0.02.into(),
     ///     initial_variance: 0.04, long_run_variance: 0.04,
@@ -125,13 +126,15 @@ impl AnalyticHestonEuropeanEngine {
 
     /// Prices within the permitted valuation bounds, returning intrinsic value at expiry.
     ///
-    /// Validates model applicability, contract life and rate/dividend coverage
-    /// in that order. Initial variance is at valuation. See [`Self::new`].
+    /// Validates model applicability, permitted valuation bounds and rate/dividend
+    /// coverage in that order. Valuation may precede the effective time, with curves
+    /// covering valuation through expiry; see [`crate::OptionContract::valuation_start`].
+    /// Initial variance is at valuation. See [`Self::new`] for an example.
     ///
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for other models,
-    /// [`Error::InvalidInput`] outside life or curve coverage,
+    /// [`Error::InvalidInput`] after expiry or outside curve coverage,
     /// [`Error::NonConvergence`] when the request-wide budget or floating-point
     /// resolution cannot meet the estimated error target, and
     /// [`Error::ComputationFailure`] for unrepresentable intermediates or invalid

@@ -1795,9 +1795,10 @@ class AnalyticHestonEuropeanEngine:
         Parameters
         ----------
         instrument : EuropeanOption
-            European call or put within its inclusive contract life.
+            European call or put; valuation may precede effective_time.
         context : PricingContext
-            Heston market snapshot; initial variance is at valuation.
+            Heston market snapshot; initial variance is at valuation. Rate/dividend
+            curves must cover valuation through expiry.
 
         Returns
         -------
@@ -1809,7 +1810,7 @@ class AnalyticHestonEuropeanEngine:
         UnsupportedOperationError
             For unsupported instruments or models, including at expiry.
         InvalidInputError
-            Outside contract life or curve coverage.
+            If valuation follows expiry or lies outside curve coverage.
         NonConvergenceError
             If the budget or numerical resolution cannot meet the estimated target.
         ComputationFailureError
@@ -5279,9 +5280,11 @@ class FiniteDifferenceHestonVanillaEngine:
         Parameters
         ----------
         instrument : EuropeanOption or AmericanOption
-            Call or put within its inclusive contract life.
+            European or American call or put. European valuation may precede
+            effective_time; American valuation must be within contract life.
         context : PricingContext
-            Heston market snapshot, with initial variance at valuation.
+            Heston market snapshot, with initial variance at valuation. Rate/dividend
+            curves must cover valuation through expiry.
 
         Returns
         -------
@@ -5293,8 +5296,8 @@ class FiniteDifferenceHestonVanillaEngine:
         UnsupportedOperationError
             For other models or instruments, including at expiry.
         InvalidInputError
-            Outside contract life/curve coverage or for insufficient explicit
-            bounds.
+            Outside permitted valuation bounds or curve coverage, or for
+            insufficient explicit bounds.
         ComputationFailureError
             For unrepresentable grids or invalid numerical results.
         """

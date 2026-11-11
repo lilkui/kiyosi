@@ -89,9 +89,10 @@ numerical_greeks_methods!(
         /// Parameters
         /// ----------
         /// instrument : EuropeanOption
-        ///     European call or put within its inclusive contract life.
+        ///     European call or put; valuation may precede effective_time.
         /// context : PricingContext
-        ///     Heston market snapshot; initial variance is at valuation.
+        ///     Heston market snapshot; initial variance is at valuation. Rate/dividend
+        ///     curves must cover valuation through expiry.
         ///
         /// Returns
         /// -------
@@ -103,7 +104,7 @@ numerical_greeks_methods!(
         /// UnsupportedOperationError
         ///     For unsupported instruments or models, including at expiry.
         /// InvalidInputError
-        ///     Outside contract life or curve coverage.
+        ///     If valuation follows expiry or lies outside curve coverage.
         /// NonConvergenceError
         ///     If the budget or numerical resolution cannot meet the estimated target.
         /// ComputationFailureError
