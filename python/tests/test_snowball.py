@@ -1,7 +1,6 @@
 """Basic snowball contracts through the installed Rust extension."""
 
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from datetime import time as clock_time
@@ -32,6 +31,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from quantlib_reference import structured
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 
@@ -75,7 +75,7 @@ def market(spot=100, valuation=START, volatility=0.3, rate=0.04, dividend=0.01):
     )
 
 
-class SnowballTests(unittest.TestCase):
+class SnowballTests(DomainTestCase):
     def test_current_settlement(self):
         engine = QuadratureAutocallableEngine()
         note = contract()
@@ -88,11 +88,6 @@ class SnowballTests(unittest.TestCase):
                 engine.price(dated_history(note, market(spot, END)), market(spot, END)),
                 expected,
             )
-
-    def assert_rejection(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(expected) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected)
 
     def test_core_defaults_ownership_and_native_protocol_errors(self):
         engine = QuadratureAutocallableEngine()

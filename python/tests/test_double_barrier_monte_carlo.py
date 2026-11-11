@@ -1,7 +1,6 @@
 """Double-barrier CPU Monte Carlo through the installed public Python API."""
 
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
@@ -18,6 +17,7 @@ from kiyosi import (
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import numerical_greeks
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from test_double_barrier import END, START, contract, market, reference
@@ -29,7 +29,7 @@ from test_double_barrier_finite_difference import (
 )
 
 
-class DoubleBarrierMonteCarloTests(unittest.TestCase):
+class DoubleBarrierMonteCarloTests(DomainTestCase):
     def test_tiny_volatility_payoffs_match_the_vanilla_limit(self):
         sigma = 1e-17
         engine = pricing.MonteCarloDoubleBarrierEngine(
@@ -90,11 +90,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         )
         self.assertEqual(actual.delta, expected.delta)
         self.assertEqual(actual.gamma, expected.gamma)
-
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
 
     def test_continuous_prices_and_shared_sample_greeks_match_quantlib(self):
         engine = pricing.MonteCarloDoubleBarrierEngine(

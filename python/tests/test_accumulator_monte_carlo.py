@@ -24,17 +24,13 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import MonteCarloAccumulatorEngine as MC
 from kiyosi.pricing import numerical_greeks
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
 
-class AccumulatorMonteCarloTests(unittest.TestCase):
-    def assert_rejection(self, expected_error, operation):
-        with self.assertRaises(expected_error) as error:
-            operation()
-        self.assertIs(type(error.exception), expected_error)
-
+class AccumulatorMonteCarloTests(DomainTestCase):
     def test_scalar_price_survives_confidence_interval_overflow(self):
         note = contract(
             datetime(2025, 1, 2), knock_out=200, acceleration=1, daily=0, quantity=1

@@ -2,7 +2,6 @@
 
 import importlib
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from fractions import Fraction
@@ -27,6 +26,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
@@ -44,7 +44,7 @@ GREEKS = (
 )
 
 
-class DigitalTests(unittest.TestCase):
+class DigitalTests(DomainTestCase):
     def setUp(self):
         self.terms = {
             "option_type": "call",
@@ -64,11 +64,6 @@ class DigitalTests(unittest.TestCase):
     def options(self, **changes):
         terms = dict(self.terms, **changes)
         return (CashOrNothingOption(**terms, payout=10), AssetOrNothingOption(**terms))
-
-    def assert_rejection(self, expected, call, *args, **kwargs):
-        with self.assertRaises(expected) as error:
-            call(*args, **kwargs)
-        self.assertIs(type(error.exception), expected)
 
     def test_prices_greeks_and_volatility_recovery(self):
         for cls, expected, extra in (

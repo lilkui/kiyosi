@@ -1,7 +1,6 @@
 """Autocallable CPU sampling through the installed Rust extension."""
 
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
@@ -20,17 +19,13 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, contract, market
 
 
-class AutocallableMonteCarloTests(unittest.TestCase):
-    def assert_rejection(self, expected_error, operation):
-        with self.assertRaises(expected_error) as error:
-            operation()
-        self.assertIs(type(error.exception), expected_error)
-
+class AutocallableMonteCarloTests(DomainTestCase):
     def test_terminal_price_matches_quadrature_with_sampling_error(self):
         note, context = contract(), market()
         engine = MC(path_count=32768, seed=42)

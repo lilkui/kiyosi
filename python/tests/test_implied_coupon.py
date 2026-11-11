@@ -3,7 +3,6 @@
 import inspect
 import math
 import sys
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from datetime import time as clock_time
@@ -33,6 +32,7 @@ from kiyosi.pricing import (
     implied_phoenix_coupon,
     implied_snowball_coupon,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from test_phoenix import contract as phoenix
@@ -55,7 +55,7 @@ def binary(coupon=0.08, maturity=0.06, **changes):
     )
 
 
-class ImpliedCouponTests(unittest.TestCase):
+class ImpliedCouponTests(DomainTestCase):
     def test_coupon_solvers_reprice_local_volatility_quotes(self):
         context = market().replace(
             model_parameters=LocalVolatilityParameters(
@@ -490,11 +490,6 @@ class ImpliedCouponTests(unittest.TestCase):
             self.assertAlmostEqual(
                 solved["first_observation_coupon"], 0.073, delta=1e-9
             )
-
-    def assert_rejection(self, expected_error, operation):
-        with self.assertRaises(expected_error) as error:
-            operation()
-        self.assertIs(type(error.exception), expected_error)
 
     def test_binary_recovers_both_quote_conventions(self):
         engine = QuadratureAutocallableEngine()

@@ -1,7 +1,6 @@
 """Double-barrier contracts and independent analytic references."""
 
 import math
-import unittest
 from datetime import datetime
 from itertools import product
 
@@ -21,6 +20,7 @@ from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -89,7 +89,7 @@ def reference(direction, kind, spot=100, volatility=0.2, series=20):
         del saved
 
 
-class DoubleBarrierTests(unittest.TestCase):
+class DoubleBarrierTests(DomainTestCase):
     def test_prices_greeks_and_parity_match_live_quantlib(self):
         engine = AnalyticDoubleBarrierEngine()
         for direction, kind in product(("call", "put"), ("knock_in", "knock_out")):
@@ -127,11 +127,6 @@ class DoubleBarrierTests(unittest.TestCase):
                 ),
                 delta=1e-9,
             )
-
-    def assert_rejection(self, expected_error, action):
-        with self.assertRaises(expected_error) as caught:
-            action()
-        self.assertIs(type(caught.exception), expected_error)
 
     def test_defaults_representations_core_validation_and_owned_replacement(self):
         from kiyosi.instruments import BarrierOption

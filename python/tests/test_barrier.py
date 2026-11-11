@@ -1,7 +1,6 @@
 """Single-barrier public API, event history and independent QuantLib comparisons."""
 
 import math
-import unittest
 from datetime import datetime, timedelta
 
 import QuantLib as ql
@@ -24,12 +23,13 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 
-class BarrierTests(unittest.TestCase):
+class BarrierTests(DomainTestCase):
     def terms(self, **changes):
         return {
             "option_type": "call",
@@ -79,11 +79,6 @@ class BarrierTests(unittest.TestCase):
         )
         self.assertIsNone(option.touch_state)
         self.assertEqual(touched.replace_history(touch_state=None), option)
-
-    def assert_rejection(self, expected_error, action):
-        with self.assertRaises(expected_error) as error:
-            action()
-        self.assertIs(type(error.exception), expected_error)
 
     def test_construction_representation_and_replacement_failures_preserve_owner(self):
         option = BarrierOption(**history_fields(**self.terms()))

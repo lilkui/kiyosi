@@ -3,7 +3,6 @@
 import importlib
 import math
 import sys
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
@@ -23,6 +22,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, market
 
@@ -33,7 +33,7 @@ def contract(direction="put", strike=100):
     )
 
 
-class AmericanMonteCarloTests(unittest.TestCase):
+class AmericanMonteCarloTests(DomainTestCase):
     def test_path_storage_limit_rejects_large_grids_before_sampling(self):
         context = market(rate=0.05, dividend=0)
         put = contract()
@@ -93,11 +93,6 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 )
         self.assertEqual(engine.price(ordinary, context), before)
         self.assertEqual(engine.seed, 42)
-
-    def assert_rejection(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(expected) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected)
 
     def test_step_counts_are_intervals_with_two_required_for_american_exercise(self):
         from kiyosi.pricing import MonteCarloAsianEngine

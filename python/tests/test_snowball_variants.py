@@ -2,7 +2,6 @@
 
 import inspect
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from datetime import time as clock_time
@@ -28,12 +27,13 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from test_snowball import END, START, autocallable_observations, market, structured
 
 
-class SnowballVariantTests(unittest.TestCase):
+class SnowballVariantTests(DomainTestCase):
     def test_european_snowball_signature_defaults_can_be_forwarded(self):
         factory = instruments.european_snowball
         signature = inspect.signature(factory)
@@ -192,11 +192,6 @@ class SnowballVariantTests(unittest.TestCase):
                     ),
                     0.5 + coupon * 90 / 365,
                 )
-
-    def assert_rejection(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(expected) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected)
 
     def fixed(self, kind, **changes):
         fields = {

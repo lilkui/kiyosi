@@ -28,6 +28,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -109,7 +110,7 @@ def reference(option, context):
     )
 
 
-class RangeAccrualTests(unittest.TestCase):
+class RangeAccrualTests(DomainTestCase):
     def test_deterministic_flat_curves_include_exact_bounds_after_many_observations(
         self,
     ):
@@ -444,11 +445,6 @@ class RangeAccrualTests(unittest.TestCase):
             context.model_parameters.volatility,
             delta=1e-8,
         )
-
-    def assert_rejection(self, expected_error, call, *args, **kwargs):
-        with self.assertRaises(expected_error) as raised:
-            call(*args, **kwargs)
-        self.assertIs(type(raised.exception), expected_error)
 
     def test_terms_representation_and_owning_replacement(self):
         option = contract()

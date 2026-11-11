@@ -24,6 +24,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -189,7 +190,7 @@ def exposure(option, context):
     )
 
 
-class AccumulatorQuadratureTests(unittest.TestCase):
+class AccumulatorQuadratureTests(DomainTestCase):
     def test_quadrature_tails_exclude_closed_dates_and_purchases_at_knock_out(self):
         expiry = datetime(2025, 1, 4)
         knock_out_time = datetime(2025, 1, 3)
@@ -242,11 +243,6 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     self.assertAlmostEqual(
                         engine.price(option, context), expected, delta=1e-7
                     )
-
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
 
     def test_unknown_history_requires_an_explicit_quantity_after_prior_observations(
         self,

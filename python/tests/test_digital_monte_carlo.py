@@ -1,7 +1,6 @@
 """Digital Monte Carlo terminal, likelihood and sampling contracts."""
 
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
@@ -16,6 +15,7 @@ from kiyosi import (
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import numerical_greeks
+from support.assertions import DomainTestCase
 from support.history import history_fields
 
 START, END = (datetime(2025, 1, 1), datetime(2026, 1, 1))
@@ -55,12 +55,7 @@ def options():
         yield (AssetOrNothingOption(**terms), True)
 
 
-class DigitalNumericalTests(unittest.TestCase):
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
-
+class DigitalNumericalTests(DomainTestCase):
     def test_prices_and_supported_greeks_match_analytic_contracts(self):
         for remaining in (1, 365):
             time = remaining / 365

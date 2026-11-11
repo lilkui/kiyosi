@@ -18,18 +18,14 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, market
 from test_snowball import contract as snowball
 
 
-class AutocallableFiniteDifferenceTests(unittest.TestCase):
-    def assert_rejection(self, expected_error, operation):
-        with self.assertRaises(expected_error) as error:
-            operation()
-        self.assertIs(type(error.exception), expected_error)
-
+class AutocallableFiniteDifferenceTests(DomainTestCase):
     def test_engine_defaults_and_representation_errors(self):
         engine = FD()
         self.assertEqual((engine.asset_step_count, engine.time_step_count), (800, 400))

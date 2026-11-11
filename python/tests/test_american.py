@@ -2,7 +2,6 @@
 
 import importlib
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from fractions import Fraction
@@ -28,6 +27,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.terminal import assert_terminal_greeks
 
 GREEKS = (
@@ -44,7 +44,7 @@ GREEKS = (
 )
 
 
-class AmericanTests(unittest.TestCase):
+class AmericanTests(DomainTestCase):
     def setUp(self):
         self.terms = {
             "option_type": "call",
@@ -64,11 +64,6 @@ class AmericanTests(unittest.TestCase):
             spot_price=spot,
             valuation_time=at or self.terms["effective_time"],
         )
-
-    def assert_rejection(self, expected, call, *args, **kwargs):
-        with self.assertRaises(expected) as error:
-            call(*args, **kwargs)
-        self.assertIs(type(error.exception), expected)
 
     def test_early_exercise_and_european_limits(self):
         for direction, spot, rate, dividend, expected in (

@@ -2,7 +2,6 @@
 
 import inspect
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from datetime import time as clock_time
@@ -36,6 +35,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -85,7 +85,7 @@ def contract(**changes):
     )
 
 
-class PhoenixTests(unittest.TestCase):
+class PhoenixTests(DomainTestCase):
     def test_lockout_daily_layers_agree_across_engines_and_constant_local_volatility(
         self,
     ):
@@ -318,11 +318,6 @@ class PhoenixTests(unittest.TestCase):
                 ),
                 0.25 + coupon,
             )
-
-    def assert_rejection(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(expected) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected)
 
     def test_owned_defaults_replacement_and_strict_representations(self):
         note = contract(barrier_state=None)

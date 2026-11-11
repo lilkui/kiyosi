@@ -28,6 +28,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -61,7 +62,7 @@ def touch(factory=ins.cash_touch_option, **changes):
     return factory(**history_fields(**terms))
 
 
-class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
+class BinaryBarrierFiniteDifferenceTests(DomainTestCase):
     def test_continuous_touch_settlements_match_analytics(self):
         engine = FiniteDifferenceBinaryBarrierEngine()
         for factory in (ins.cash_touch_option, ins.asset_touch_option):
@@ -106,11 +107,6 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 ),
                 0,
             )
-
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
 
     def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(self):
         coarse = FiniteDifferenceBinaryBarrierEngine(

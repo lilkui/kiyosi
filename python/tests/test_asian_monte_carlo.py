@@ -20,6 +20,7 @@ from kiyosi.market import (
     RateTermStructure,
 )
 from kiyosi.pricing import numerical_greeks
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -51,12 +52,7 @@ def option(kind, direction="call", strike=100, averaging=START, realized=None):
     )
 
 
-class AsianMonteCarloTests(unittest.TestCase):
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
-
+class AsianMonteCarloTests(DomainTestCase):
     def test_constructor_exports_defaults_and_representation_errors(self):
         cls = pricing.MonteCarloAsianEngine
         self.assertIn("MonteCarloAsianEngine", pricing.__all__)

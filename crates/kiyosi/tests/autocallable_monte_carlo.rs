@@ -1,3 +1,5 @@
+#[path = "support/autocallable.rs"]
+mod autocallable_support;
 mod support;
 use support::dated;
 
@@ -587,61 +589,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
         KnockInObservationMode::AtExpiry,
         KnockInObservationMode::EveryTradingDay,
     ] {
-        let mut snow = SnowballTerms::new(
-            0.06,
-            100.0,
-            95.0,
-            100.0,
-            60.0,
-            start,
-            end,
-            observations.clone(),
-            Some((end).time_of_day()),
-            TradingCalendar::weekdays(),
-        );
-        snow.knock_in_observation_mode = mode;
-        snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-            .then_some(snow.expiry_time.time_of_day());
-        snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
-        snow.history_time = Some(snow.effective_time);
-        let mut ternary = TernarySnowballTerms::new(
-            0.06,
-            0.01,
-            95.0,
-            start,
-            end,
-            observations.clone(),
-            Some((end).time_of_day()),
-            TradingCalendar::weekdays(),
-        );
-        ternary.knock_in_observation_mode = mode;
-        ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-            .then_some(ternary.expiry_time.time_of_day());
-        ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
-        ternary.history_time = Some(ternary.effective_time);
-        let mut phoenix = PhoenixTerms::new(
-            0.08,
-            100.0,
-            95.0,
-            100.0,
-            60.0,
-            start,
-            end,
-            autocallable_observations(
-                &[date(2, 3), date(3, 3), end],
-                &[110.0, 108.0, 105.0],
-                None,
-                Some(&[95.0; 3]),
-            )
-            .unwrap(),
-            Some((end).time_of_day()),
-            TradingCalendar::weekdays(),
-        );
-        phoenix.knock_in_observation_mode = mode;
-        phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-            .then_some(phoenix.expiry_time.time_of_day());
-        phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
-        phoenix.history_time = Some(phoenix.effective_time);
+        let (snow, ternary, phoenix) = autocallable_support::multi_event_terms(mode);
 
         check(&SnowballOption::new(snow).unwrap(), &context);
         check(&TernarySnowballOption::new(ternary).unwrap(), &context);

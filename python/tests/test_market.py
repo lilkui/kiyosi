@@ -3,7 +3,6 @@
 import math
 import numbers
 import pickle
-import unittest
 from datetime import UTC, datetime, timedelta, timezone
 
 from kiyosi import (
@@ -21,6 +20,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
+from support.assertions import DomainTestCase
 
 REFERENCE = datetime(2025, 1, 1)
 MIDDLE = REFERENCE + timedelta(days=180)
@@ -58,7 +58,7 @@ def vanilla(direction="call", strike=103):
     )
 
 
-class RateTermStructureTests(unittest.TestCase):
+class RateTermStructureTests(DomainTestCase):
     def test_public_curve_parts_reconstruct_extreme_shifts_without_loss(self):
         base = example_curve()
         for shift in (0.0, 1000.0, -1000.0):
@@ -214,11 +214,6 @@ class RateTermStructureTests(unittest.TestCase):
                 for field in ("flat_risk_free_rate", "flat_dividend_yield"):
                     with self.assertRaises(UnsupportedOperationError):
                         getattr(nodes, field)
-
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
 
     def test_log_interpolation_interval_factors_and_right_hand_forwards(self):
         curve = example_curve()

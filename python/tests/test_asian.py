@@ -2,7 +2,6 @@
 
 import importlib
 import math
-import unittest
 from datetime import datetime, timedelta
 from fractions import Fraction
 from functools import partial
@@ -32,6 +31,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -75,12 +75,7 @@ def market(at=START, rate=0.04, dividend=0.01, volatility=0.2, spot=100):
     )
 
 
-class AsianTests(unittest.TestCase):
-    def assert_rejection(self, expected, call, *args, **kwargs):
-        with self.assertRaises(expected) as error:
-            call(*args, **kwargs)
-        self.assertIs(type(error.exception), expected)
-
+class AsianTests(DomainTestCase):
     def test_owned_history_replacement_and_native_representation_errors(self):
         for kind, engine_type in PAIRS:
             option = kind(**history_fields(**terms()))

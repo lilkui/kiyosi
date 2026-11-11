@@ -3,7 +3,6 @@
 import importlib
 import math
 import numbers
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
@@ -35,6 +34,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 from test_binomial import DIGITAL, END, START, VANILLA, contract, market
@@ -57,7 +57,7 @@ def engine_for(kind, **settings):
     )(**settings)
 
 
-class FiniteDifferenceTests(unittest.TestCase):
+class FiniteDifferenceTests(DomainTestCase):
     def test_coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks(
         self,
     ):
@@ -146,11 +146,6 @@ class FiniteDifferenceTests(unittest.TestCase):
                 refined = FiniteDifferenceVanillaEngine().price(option, context)
                 expected = AnalyticEuropeanEngine().price(option, context)
                 self.assertAlmostEqual(refined / scale, expected / scale, delta=0.0001)
-
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
 
     def test_settings_defaults_representation_validation_and_immutability(self):
         @numbers.Integral.register

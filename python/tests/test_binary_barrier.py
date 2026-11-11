@@ -2,7 +2,6 @@
 
 import importlib
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
@@ -24,6 +23,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -42,7 +42,7 @@ GREEKS = (
 )
 
 
-class BinaryBarrierTests(unittest.TestCase):
+class BinaryBarrierTests(DomainTestCase):
     def terms(self, **changes):
         return {
             "option_type": "call",
@@ -87,11 +87,6 @@ class BinaryBarrierTests(unittest.TestCase):
             valuation_time=time,
             **changes,
         )
-
-    def assert_rejection(self, expected_error, action):
-        with self.assertRaises(expected_error) as error:
-            action()
-        self.assertIs(type(error.exception), expected_error)
 
     def test_strict_history_current_and_paid_cash_and_asset_settlement(self):
         engine = AnalyticBinaryBarrierEngine()

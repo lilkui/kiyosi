@@ -3,7 +3,6 @@
 import importlib
 import math
 import numbers
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
@@ -35,6 +34,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
@@ -166,7 +166,7 @@ def rollback(
     return values[0], delta, gamma
 
 
-class BinomialTests(unittest.TestCase):
+class BinomialTests(DomainTestCase):
     def test_implied_volatility_recovers_zero_and_tiny_carry_quotes(self):
         for rate, dividend in ((0, 0), (0.05, 0.05), (1e-20, 0)):
             context = market(rate=rate, dividend=dividend)
@@ -215,11 +215,6 @@ class BinomialTests(unittest.TestCase):
         )
         explicit = numerical_greeks(engine, option, context, "speed", spot_shift=0.01)
         self.assertEqual(explicit.status("speed"), "stencil_unavailable")
-
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
 
     def test_default_steps_and_european_price(self):
         option = EuropeanOption(

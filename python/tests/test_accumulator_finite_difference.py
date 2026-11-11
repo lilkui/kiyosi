@@ -1,6 +1,5 @@
 import math
 import sys
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
@@ -22,17 +21,13 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
 
-class AccumulatorFiniteDifferenceTests(unittest.TestCase):
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
-
+class AccumulatorFiniteDifferenceTests(DomainTestCase):
     def test_settings_protocols_defaults_exports_and_ownership(self):
         self.assertIn("FiniteDifferenceAccumulatorEngine", pricing.__all__)
         engine = pricing.FiniteDifferenceAccumulatorEngine()

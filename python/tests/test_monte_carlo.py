@@ -27,6 +27,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from support.assertions import DomainTestCase
 from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, market
 
@@ -37,7 +38,7 @@ def contract(direction="call", strike=100):
     )
 
 
-class MonteCarloTests(unittest.TestCase):
+class MonteCarloTests(DomainTestCase):
     def test_process_pool_configuration_preserves_seeded_prices(self):
         result = subprocess.run(
             [
@@ -82,11 +83,6 @@ class MonteCarloTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
-    def assert_rejection(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(expected) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected)
 
     def test_default_path_count_supports_both_sampling_methods(self):
         for sampling in ("pseudo_random", "sobol"):

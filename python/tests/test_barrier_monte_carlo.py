@@ -1,7 +1,6 @@
 """Single-barrier CPU Monte Carlo through the installed public Python API."""
 
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
@@ -18,12 +17,13 @@ from kiyosi import (
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import numerical_greeks
+from support.assertions import DomainTestCase
 from support.history import dated as dated_history
 from support.history import history_fields
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
-class BarrierMonteCarloTests(unittest.TestCase):
+class BarrierMonteCarloTests(DomainTestCase):
     def test_tiny_volatility_payoffs_match_the_vanilla_limit(self):
         sigma = 1e-17
         end = START + timedelta(days=365)
@@ -94,11 +94,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 )
                 self.assertEqual(actual.delta, expected.delta)
                 self.assertEqual(actual.gamma, expected.gamma)
-
-    def assert_rejection(self, expected_error, operation, *args, **kwargs):
-        with self.assertRaises(expected_error) as error:
-            operation(*args, **kwargs)
-        self.assertIs(type(error.exception), expected_error)
 
     def test_continuous_prices_and_native_greeks_match_analytic(self):
         for sampling in ("pseudo_random", "sobol"):
