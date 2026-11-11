@@ -225,6 +225,54 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(option.history_time, at)
         self.assertEqual(option.realized_average, 100)
 
+    def test_accumulator_history_refresh_requires_only_known_payloads(self):
+        start = datetime(2025, 1, 6)
+        at, later = start + timedelta(days=1), start + timedelta(days=2)
+        original = i.Accumulator(
+            strike=100,
+            knock_out_level=120,
+            daily_quantity=1,
+            acceleration_factor=2,
+            effective_time=start,
+            expiry_time=start + timedelta(days=4),
+            observation_clock_time=time(),
+            knock_out_observation_times=[],
+            accumulated_quantity=1,
+            history_time=at,
+        )
+        market = context(at, volatility=0).replace(spot_price=105)
+        selected = engine(original)
+        for method in (original.replace, original.replace_history):
+            refreshed = method(accumulated_quantity=2, history_time=later)
+            self.assertEqual(refreshed.accumulated_quantity, 2)
+            self.assertIsNone(refreshed.knock_out_settled)
+            self.assertEqual(refreshed.history_time, later)
+            self.assertAlmostEqual(
+                selected.price(refreshed, market.replace(valuation_time=later)),
+                25,
+                delta=1e-12,
+            )
+            with self.assertRaises(StaleHistoryError):
+                method(history_time=later)
+        self.assertAlmostEqual(selected.price(original, market), 25, delta=1e-12)
+        known = original.replace(knock_out_settled=False)
+        for changes in ({"accumulated_quantity": 2}, {"knock_out_settled": False}):
+            with self.assertRaises(StaleHistoryError):
+                known.replace_history(**changes, history_time=later)
+        settled = known.replace(
+            accumulated_quantity=None,
+            knock_out_settled=True,
+            knock_out_observation_times=None,
+        )
+        refreshed = settled.replace_history(knock_out_settled=True, history_time=later)
+        self.assertIsNone(refreshed.accumulated_quantity)
+        self.assertEqual(refreshed.history_time, later)
+        self.assertEqual(
+            selected.price(refreshed, market.replace(valuation_time=later)), 0
+        )
+        self.assertEqual(original.history_time, at)
+        self.assertFalse(known.knock_out_settled)
+
     def test_clearing_history_clears_only_implicit_timestamps_in_every_family(self):
         names = (
             "touch_state",

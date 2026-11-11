@@ -242,7 +242,8 @@ impl Accumulator {
     /// Omitted fields retain their values. A quantity alone (`f64` or `Option<f64>`)
     /// replaces only quantity; `None` restores unknown quantity. Time consistency
     /// is checked at pricing. The original is unchanged on success and failure.
-    /// Replaces the snapshot timestamp together with the selected history fields.
+    /// Replaces the snapshot timestamp together with every known history field.
+    /// Unknown fields may remain omitted when the timestamp changes.
     /// Pass the current timestamp explicitly to retain it.
     ///
     /// # Errors
@@ -726,8 +727,9 @@ impl Accumulator {
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: AccumulatorChanges) -> Result<Self> {
-        let history_supplied =
-            changes.accumulated_quantity.is_some() && changes.knock_out_settled.is_some();
+        let history_supplied = (self.accumulated_quantity().is_none()
+            || changes.accumulated_quantity.is_some())
+            && (self.knock_out_settled().is_none() || changes.knock_out_settled.is_some());
         let updated = Self::new(AccumulatorTerms {
             history_time: super::replacement_history_time(
                 self.history_time(),

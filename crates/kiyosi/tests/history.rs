@@ -654,6 +654,80 @@ fn cleared_average_can_shorten_expiry_before_its_old_snapshot() -> Result<()> {
 }
 
 #[test]
+fn accumulator_history_refresh_requires_only_known_payloads() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let at = start.add_days(1)?;
+    let later = start.add_days(2)?;
+    let mut terms = AccumulatorTerms::new(
+        100.0,
+        120.0,
+        1.0,
+        2.0,
+        start,
+        start.add_days(4)?,
+        start.time_of_day(),
+    );
+    terms.knock_out_observation_times = Some(vec![]);
+    terms.accumulated_quantity = Some(1.0);
+    terms.history_time = Some(at);
+    let original = Accumulator::new(terms)?;
+    let refreshed = original.replace_history(2.0, Some(later))?;
+    assert_eq!(refreshed.accumulated_quantity(), Some(2.0));
+    assert_eq!(refreshed.knock_out_settled(), None);
+    assert_eq!(refreshed.history_time(), Some(later));
+    let context = |time| {
+        PricingContext::new(
+            BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?,
+            105.0,
+            time,
+        )
+    };
+    let engine = QuadratureAccumulatorEngine::default();
+    assert!((engine.price(&refreshed, &context(later)?)? - 25.0).abs() < 1e-12);
+    assert!((engine.price(&original, &context(at)?)? - 25.0).abs() < 1e-12);
+    assert!(matches!(
+        original.replace_history(AccumulatorHistoryChanges::default(), Some(later)),
+        Err(Error::StaleHistory(_))
+    ));
+
+    let known = original.replace(AccumulatorChanges {
+        knock_out_settled: Some(Some(false)),
+        ..Default::default()
+    })?;
+    for changes in [
+        AccumulatorHistoryChanges::from(2.0),
+        AccumulatorHistoryChanges {
+            knock_out_settled: Some(Some(false)),
+            ..Default::default()
+        },
+    ] {
+        assert!(matches!(
+            known.replace_history(changes, Some(later)),
+            Err(Error::StaleHistory(_))
+        ));
+    }
+    let settled = known.replace(AccumulatorChanges {
+        accumulated_quantity: Some(None),
+        knock_out_settled: Some(Some(true)),
+        knock_out_observation_times: Some(None),
+        ..Default::default()
+    })?;
+    let refreshed = settled.replace_history(
+        AccumulatorHistoryChanges {
+            knock_out_settled: Some(Some(true)),
+            ..Default::default()
+        },
+        Some(later),
+    )?;
+    assert_eq!(refreshed.accumulated_quantity(), None);
+    assert_eq!(refreshed.history_time(), Some(later));
+    assert_eq!(engine.price(&refreshed, &context(later)?)?, 0.0);
+    assert_eq!(original.history_time(), Some(at));
+    assert_eq!(known.knock_out_settled(), Some(false));
+    Ok(())
+}
+
+#[test]
 fn partial_accumulator_history_clears_retain_the_shared_timestamp() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let at = start.add_days(4)?;
