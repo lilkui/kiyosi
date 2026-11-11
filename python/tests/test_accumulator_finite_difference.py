@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
 
+import pytest
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
@@ -21,627 +22,606 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
-from support.assertions import DomainTestCase
+from support.assertions import assert_rejection
 from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
 
-class AccumulatorFiniteDifferenceTests(DomainTestCase):
-    def test_settings_protocols_defaults_exports_and_ownership(self):
-        self.assertIn("FiniteDifferenceAccumulatorEngine", pricing.__all__)
-        engine = pricing.FiniteDifferenceAccumulatorEngine()
-        self.assertEqual(engine.asset_step_count, 800)
-        self.assertEqual(engine.time_step_count, 400)
-        self.assertEqual(engine.scheme, "rannacher")
-        self.assertIsNone(engine.asset_upper_boundary)
-        for field in ("asset_step_count", "time_step_count"):
-            for value in (True, 3.5, "800", None):
-                with (
-                    self.subTest(field=field, value=value),
-                    self.assertRaises(TypeError),
-                ):
-                    pricing.FiniteDifferenceAccumulatorEngine(**{field: value})
-            for value in (2**40, -(2**40)):
-                with self.assertRaises(OverflowError):
-                    pricing.FiniteDifferenceAccumulatorEngine(**{field: value})
-        for value in (True, "440", object()):
-            with self.assertRaises(TypeError):
-                pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=value)
-        with self.assertRaises(OverflowError):
-            pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=10**400)
-        for fields in (
-            {"asset_step_count": 2},
-            {"time_step_count": 0},
-            {"asset_upper_boundary": 0},
-            {"asset_upper_boundary": math.nan},
-            {"asset_upper_boundary": math.inf},
-        ):
-            self.assert_rejection(
-                InvalidInputError,
-                pricing.FiniteDifferenceAccumulatorEngine,
-                **fields,
-            )
-        with self.assertRaises(ValueError):
-            pricing.FiniteDifferenceAccumulatorEngine(scheme="unknown")
-        with self.assertRaises(TypeError):
-            pricing.FiniteDifferenceAccumulatorEngine(scheme=True)
-        with self.assertRaises(TypeError):
-            pricing.FiniteDifferenceAccumulatorEngine(extra=1)
-        with self.assertRaises(AttributeError):
-            engine.asset_step_count = 400
-        wrong = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_time=START,
-            expiry_time=datetime(2025, 2, 3),
+def test_settings_protocols_defaults_exports_and_ownership(subtests):
+    assert "FiniteDifferenceAccumulatorEngine" in pricing.__all__
+    engine = pricing.FiniteDifferenceAccumulatorEngine()
+    assert engine.asset_step_count == 800
+    assert engine.time_step_count == 400
+    assert engine.scheme == "rannacher"
+    assert engine.asset_upper_boundary is None
+    for field in ("asset_step_count", "time_step_count"):
+        for value in (True, 3.5, "800", None):
+            with (
+                subtests.test(field=field, value=value),
+                pytest.raises(TypeError),
+            ):
+                pricing.FiniteDifferenceAccumulatorEngine(**{field: value})
+        for value in (2**40, -(2**40)):
+            with pytest.raises(OverflowError):
+                pricing.FiniteDifferenceAccumulatorEngine(**{field: value})
+    for value in (True, "440", object()):
+        with pytest.raises(TypeError):
+            pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=value)
+    with pytest.raises(OverflowError):
+        pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=10**400)
+    for fields in (
+        {"asset_step_count": 2},
+        {"time_step_count": 0},
+        {"asset_upper_boundary": 0},
+        {"asset_upper_boundary": math.nan},
+        {"asset_upper_boundary": math.inf},
+    ):
+        assert_rejection(
+            InvalidInputError,
+            pricing.FiniteDifferenceAccumulatorEngine,
+            **fields,
         )
-        with self.assertRaises(UnsupportedOperationError):
-            engine.price(dated_history(wrong, market()), market())
-        with self.assertRaises(UnsupportedOperationError):
-            pricing.implied_volatility(
-                engine,
-                dated_history(wrong, market()),
-                market(),
-                1,
-                lower_bound=0.0,
-                upper_bound=4.0,
-            )
+    with pytest.raises(ValueError):
+        pricing.FiniteDifferenceAccumulatorEngine(scheme="unknown")
+    with pytest.raises(TypeError):
+        pricing.FiniteDifferenceAccumulatorEngine(scheme=True)
+    with pytest.raises(TypeError):
+        pricing.FiniteDifferenceAccumulatorEngine(extra=1)
+    with pytest.raises(AttributeError):
+        engine.asset_step_count = 400
+    wrong = EuropeanOption(
+        option_type="call",
+        strike=100,
+        effective_time=START,
+        expiry_time=datetime(2025, 2, 3),
+    )
+    with pytest.raises(UnsupportedOperationError):
+        engine.price(dated_history(wrong, market()), market())
+    with pytest.raises(UnsupportedOperationError):
+        pricing.implied_volatility(
+            engine,
+            dated_history(wrong, market()),
+            market(),
+            1,
+            lower_bound=0.0,
+            upper_bound=4.0,
+        )
 
-    def test_settlement_history_boundaries_and_failure_reuse(self):
-        engine = pricing.FiniteDifferenceAccumulatorEngine()
-        end = datetime(2025, 1, 6)
-        option = contract(end)
-        for spot, quantity in (
-            (90, 5),
-            (100, 4),
-            (109, 4),
-            (110, 3),
-            (111, 3),
-            (math.nextafter(100, 0), 5),
-            (math.nextafter(100, 110), 4),
-            (math.nextafter(110, 0), 4),
-            (math.nextafter(110, 120), 3),
-        ):
-            with self.subTest(spot=spot):
-                result = engine.price_with_greeks(
-                    dated_history(option, market(spot, end)),
-                    market(spot, end),
-                    greeks="all",
-                )
-                self.assertEqual(result.price, quantity * (spot - 100))
-                assert_terminal_greeks(
-                    self,
-                    result,
-                    None if min(abs(spot - 100), abs(spot - 110)) <= 0.01 else quantity,
-                )
-        self.assertEqual(
-            engine.price(
-                dated_history(option, market(110, START + timedelta(days=1))),
-                market(110, START + timedelta(days=1)),
-            ),
-            30,
-        )
-        for value in (-1, math.nan, math.inf):
-            self.assert_rejection(
-                InvalidInputError,
-                option.replace_history,
-                accumulated_quantity=value,
+
+def test_settlement_history_boundaries_and_failure_reuse(subtests):
+    engine = pricing.FiniteDifferenceAccumulatorEngine()
+    end = datetime(2025, 1, 6)
+    option = contract(end)
+    for spot, quantity in (
+        (90, 5),
+        (100, 4),
+        (109, 4),
+        (110, 3),
+        (111, 3),
+        (math.nextafter(100, 0), 5),
+        (math.nextafter(100, 110), 4),
+        (math.nextafter(110, 0), 4),
+        (math.nextafter(110, 120), 3),
+    ):
+        with subtests.test(spot=spot):
+            result = engine.price_with_greeks(
+                dated_history(option, market(spot, end)),
+                market(spot, end),
+                greeks="all",
             )
-        for value in (True, "3"):
-            with self.assertRaises(TypeError):
-                option.replace_history(
-                    accumulated_quantity=value,
-                    history_time=(option.history_time or option.effective_time)
-                    if value is not None
-                    else None,
-                )
-        self.assertEqual(option.accumulated_quantity, 3)
-        self.assertEqual(
+            assert result.price == quantity * (spot - 100)
+            assert_terminal_greeks(
+                result,
+                None if min(abs(spot - 100), abs(spot - 110)) <= 0.01 else quantity,
+            )
+    assert (
+        engine.price(
+            dated_history(option, market(110, START + timedelta(days=1))),
+            market(110, START + timedelta(days=1)),
+        )
+        == 30
+    )
+    for value in (-1, math.nan, math.inf):
+        assert_rejection(
+            InvalidInputError,
+            option.replace_history,
+            accumulated_quantity=value,
+        )
+    for value in (True, "3"):
+        with pytest.raises(TypeError):
             option.replace_history(
-                accumulated_quantity=0.25,
-                history_time=option.history_time or option.expiry_time,
-            ).accumulated_quantity,
-            0.25,
-        )
-        for instrument, context, expected_error in (
-            (
-                option,
-                market(100, START - timedelta(days=1)),
-                InvalidInputError,
-            ),
-            (
-                option,
-                market(100, datetime(2025, 1, 6, 0, 0, 0, 1)),
-                InvalidInputError,
-            ),
-            (
-                contract(end, quantity=sys.float_info.max),
-                market(111, end),
-                ComputationFailureError,
-            ),
-        ):
-            self.assert_rejection(
-                expected_error,
-                engine.price,
-                dated_history(instrument, context),
-                context,
+                accumulated_quantity=value,
+                history_time=(option.history_time or option.effective_time)
+                if value is not None
+                else None,
             )
-        self.assertEqual(
-            engine.price(dated_history(option, market(110, end)), market(110, end)), 30
-        )
-
-    def test_midnight_intraday_and_calendar_events_are_applied_once(self):
-        engine = pricing.FiniteDifferenceAccumulatorEngine(
-            asset_step_count=3200, asset_upper_boundary=440
-        )
-        option = contract(datetime(2025, 1, 6))
-        for spot, quantity in ((90, 5), (100, 4), (109, 4)):
-            at = datetime(2025, 1, 3)
-            expected = terminal_reference(
-                option.replace_history(
-                    accumulated_quantity=quantity,
-                    history_time=(option.history_time or option.effective_time)
-                    if quantity is not None
-                    else None,
-                ),
-                market(spot, at),
-            )
-            self.assertAlmostEqual(
-                engine.price(dated_history(option, market(spot, at)), market(spot, at)),
-                expected,
-                delta=0.001,
-            )
-        early = market(90, datetime(2025, 1, 3, 0, 0, 0, 1))
-        late = market(90, datetime(2025, 1, 3, 12))
-        for context in (early, late, market(90, datetime(2025, 1, 4))):
-            self.assertAlmostEqual(
-                engine.price(dated_history(option, context), context),
-                terminal_reference(option, context),
-                delta=0.001,
-            )
-        holiday = custom_calendar(
-            base=weekdays_calendar(), closed_dates=[(datetime(2025, 1, 3)).date()]
-        )
-        context = market(90, datetime(2025, 1, 3))
-        option = option.replace(
-            calendar=holiday,
-            accumulated_quantity=option.accumulated_quantity,
-            knock_out_settled=option.knock_out_settled,
-            history_time=(option.history_time or option.effective_time)
-            if option.accumulated_quantity is not None
-            or option.knock_out_settled is not None
-            else None,
-        )
-        self.assertAlmostEqual(
-            engine.price(dated_history(option, context), context),
-            terminal_reference(option, context),
-            delta=0.001,
-        )
-        weekend = contract(datetime(2025, 1, 5), calendar=all_days_calendar())
-        self.assertTrue(
-            math.isfinite(
-                engine.price(
-                    dated_history(
-                        weekend.replace(calendar=all_days_calendar()), market()
-                    ),
-                    market(),
-                )
-            )
-        )
-
-    def test_validation_precedes_state_and_bumped_failures_leave_inputs_intact(self):
-        option, context = contract(), market()
-        engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110)
-        self.assert_rejection(
-            InvalidInputError, engine.price, dated_history(option, context), context
-        )
-        # Immediate settlement needs no spatial domain.
-        self.assertEqual(
-            engine.price(
-                dated_history(option, market(110, START + timedelta(days=1))),
-                market(110, START + timedelta(days=1)),
-            ),
-            30,
-        )
-        self.assert_rejection(
-            InvalidInputError,
-            engine.price_with_greeks,
-            dated_history(option, context),
-            context,
-            [],
-        )
-        engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110.1)
-        context = market(110.05, valuation=START + timedelta(days=1, hours=12))
-        quote = engine.price(dated_history(option, context), context)
-        self.assert_rejection(
-            InvalidInputError,
-            partial(numerical_greeks, engine),
+    assert option.accumulated_quantity == 3
+    assert (
+        option.replace_history(
+            accumulated_quantity=0.25,
+            history_time=option.history_time or option.expiry_time,
+        ).accumulated_quantity
+        == 0.25
+    )
+    for instrument, context, expected_error in (
+        (
             option,
+            market(100, START - timedelta(days=1)),
+            InvalidInputError,
+        ),
+        (
+            option,
+            market(100, datetime(2025, 1, 6, 0, 0, 0, 1)),
+            InvalidInputError,
+        ),
+        (
+            contract(end, quantity=sys.float_info.max),
+            market(111, end),
+            ComputationFailureError,
+        ),
+    ):
+        assert_rejection(
+            expected_error,
+            engine.price,
+            dated_history(instrument, context),
             context,
-            "delta",
-            spot_shift=-1,
         )
-        self.assert_rejection(
-            StaleHistoryError,
-            partial(numerical_greeks, engine),
-            dated_history(option, market(valuation=START + timedelta(microseconds=1))),
-            context,
-            "speed",
-            spot_shift=0.2,
-        )
-        self.assertEqual(engine.price(dated_history(option, context), context), quote)
-        self.assertEqual(engine.asset_upper_boundary, 110.1)
-        self.assertEqual(option.accumulated_quantity, 3)
-        self.assertEqual(context.spot_price, 110.05)
-        unstable = pricing.FiniteDifferenceAccumulatorEngine(
-            asset_step_count=800, time_step_count=1, scheme="explicit_euler"
-        )
-        self.assert_rejection(
-            InvalidInputError, unstable.price, dated_history(option, market()), market()
-        )
+    assert engine.price(dated_history(option, market(110, end)), market(110, end)) == 30
 
-    def test_native_interpolation_mixed_greeks_and_event_availability(self):
-        option = contract(datetime(2025, 4, 1))
-        engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=440)
-        context = market(100.25, datetime(2025, 1, 4, 12))
-        result = engine.price_with_greeks(
-            dated_history(option, context), context, greeks="all"
+
+def test_midnight_intraday_and_calendar_events_are_applied_once():
+    engine = pricing.FiniteDifferenceAccumulatorEngine(
+        asset_step_count=3200, asset_upper_boundary=440
+    )
+    option = contract(datetime(2025, 1, 6))
+    for spot, quantity in ((90, 5), (100, 4), (109, 4)):
+        at = datetime(2025, 1, 3)
+        expected = terminal_reference(
+            option.replace_history(
+                accumulated_quantity=quantity,
+                history_time=(option.history_time or option.effective_time)
+                if quantity is not None
+                else None,
+            ),
+            market(spot, at),
         )
-        h = 0.01
-        high, low = (
-            engine.price(
-                dated_history(option, context.replace(spot_price=100.25 + sign * h)),
-                context.replace(spot_price=100.25 + sign * h),
-            )
-            for sign in (1, -1)
+        assert engine.price(
+            dated_history(option, market(spot, at)), market(spot, at)
+        ) == pytest.approx(expected, rel=0, abs=0.001)
+    early = market(90, datetime(2025, 1, 3, 0, 0, 0, 1))
+    late = market(90, datetime(2025, 1, 3, 12))
+    for context in (early, late, market(90, datetime(2025, 1, 4))):
+        assert engine.price(dated_history(option, context), context) == pytest.approx(
+            terminal_reference(option, context), rel=0, abs=0.001
         )
-        self.assertAlmostEqual(result.delta, (high - low) / (2 * h), delta=1e-6)
-        self.assertAlmostEqual(
-            result.gamma, (high - 2 * result.price + low) / h**2, delta=1e-6
+    holiday = custom_calendar(
+        base=weekdays_calendar(), closed_dates=[(datetime(2025, 1, 3)).date()]
+    )
+    context = market(90, datetime(2025, 1, 3))
+    option = option.replace(
+        calendar=holiday,
+        accumulated_quantity=option.accumulated_quantity,
+        knock_out_settled=option.knock_out_settled,
+        history_time=(option.history_time or option.effective_time)
+        if option.accumulated_quantity is not None
+        or option.knock_out_settled is not None
+        else None,
+    )
+    assert engine.price(dated_history(option, context), context) == pytest.approx(
+        terminal_reference(option, context), rel=0, abs=0.001
+    )
+    weekend = contract(datetime(2025, 1, 5), calendar=all_days_calendar())
+    assert math.isfinite(
+        engine.price(
+            dated_history(weekend.replace(calendar=all_days_calendar()), market()),
+            market(),
         )
-        for greek, dependency, field, bump, scale in (
-            ("speed", "gamma", "spot_price", h, 1),
-            ("vanna", "delta", "volatility", 0.0001, 1),
-            ("zomma", "gamma", "volatility", 0.0001, 1),
-        ):
-            bumped = []
-            center = context.spot_price if field == "spot_price" else 0.2
-            actual_bump = (center + bump) - center
-            for sign in (1, -1):
-                changes = {field: center + sign * actual_bump}
-                shifted = (
-                    context.replace(**changes)
-                    if field == "spot_price"
-                    else context.replace(
-                        model_parameters=context.model_parameters.replace(**changes)
-                    )
+    )
+
+
+def test_validation_precedes_state_and_bumped_failures_leave_inputs_intact():
+    option, context = contract(), market()
+    engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110)
+    assert_rejection(
+        InvalidInputError, engine.price, dated_history(option, context), context
+    )
+    # Immediate settlement needs no spatial domain.
+    assert (
+        engine.price(
+            dated_history(option, market(110, START + timedelta(days=1))),
+            market(110, START + timedelta(days=1)),
+        )
+        == 30
+    )
+    assert_rejection(
+        InvalidInputError,
+        engine.price_with_greeks,
+        dated_history(option, context),
+        context,
+        [],
+    )
+    engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110.1)
+    context = market(110.05, valuation=START + timedelta(days=1, hours=12))
+    quote = engine.price(dated_history(option, context), context)
+    assert_rejection(
+        InvalidInputError,
+        partial(numerical_greeks, engine),
+        option,
+        context,
+        "delta",
+        spot_shift=-1,
+    )
+    assert_rejection(
+        StaleHistoryError,
+        partial(numerical_greeks, engine),
+        dated_history(option, market(valuation=START + timedelta(microseconds=1))),
+        context,
+        "speed",
+        spot_shift=0.2,
+    )
+    assert engine.price(dated_history(option, context), context) == quote
+    assert engine.asset_upper_boundary == 110.1
+    assert option.accumulated_quantity == 3
+    assert context.spot_price == 110.05
+    unstable = pricing.FiniteDifferenceAccumulatorEngine(
+        asset_step_count=800, time_step_count=1, scheme="explicit_euler"
+    )
+    assert_rejection(
+        InvalidInputError, unstable.price, dated_history(option, market()), market()
+    )
+
+
+def test_native_interpolation_mixed_greeks_and_event_availability():
+    option = contract(datetime(2025, 4, 1))
+    engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=440)
+    context = market(100.25, datetime(2025, 1, 4, 12))
+    result = engine.price_with_greeks(
+        dated_history(option, context), context, greeks="all"
+    )
+    h = 0.01
+    high, low = (
+        engine.price(
+            dated_history(option, context.replace(spot_price=100.25 + sign * h)),
+            context.replace(spot_price=100.25 + sign * h),
+        )
+        for sign in (1, -1)
+    )
+    assert result.delta == pytest.approx((high - low) / (2 * h), rel=0, abs=1e-6)
+    assert result.gamma == pytest.approx(
+        (high - 2 * result.price + low) / h**2, rel=0, abs=1e-6
+    )
+    for greek, dependency, field, bump, scale in (
+        ("speed", "gamma", "spot_price", h, 1),
+        ("vanna", "delta", "volatility", 0.0001, 1),
+        ("zomma", "gamma", "volatility", 0.0001, 1),
+    ):
+        bumped = []
+        center = context.spot_price if field == "spot_price" else 0.2
+        actual_bump = (center + bump) - center
+        for sign in (1, -1):
+            changes = {field: center + sign * actual_bump}
+            shifted = (
+                context.replace(**changes)
+                if field == "spot_price"
+                else context.replace(
+                    model_parameters=context.model_parameters.replace(**changes)
                 )
-                bumped.append(
-                    getattr(
-                        engine.price_with_greeks(
-                            dated_history(option, shifted), shifted, dependency
-                        ),
-                        dependency,
-                    )
-                )
-            self.assertAlmostEqual(
-                getattr(result, greek),
-                (bumped[0] - bumped[1]) / (2 * actual_bump * scale),
-                delta=1e-10,
             )
-        for greek, dependency in (("charm", "delta"), ("color", "gamma")):
-            before, after = [
-                engine.price_with_greeks(
-                    dated_history(
-                        option,
-                        context.replace(
-                            valuation_time=context.valuation_time
-                            + timedelta(days=offset)
-                        ),
-                    ),
-                    context.replace(
-                        valuation_time=context.valuation_time + timedelta(days=offset)
+            bumped.append(
+                getattr(
+                    engine.price_with_greeks(
+                        dated_history(option, shifted), shifted, dependency
                     ),
                     dependency,
                 )
-                for offset in (-1, 1)
-            ]
-            self.assertAlmostEqual(
-                getattr(result, greek),
-                (getattr(after, dependency) - getattr(before, dependency)) / (2 / 365),
-                delta=1e-10,
             )
-        for bump in (200, 1e-300):
-            native = numerical_greeks(
+        assert getattr(result, greek) == pytest.approx(
+            (bumped[0] - bumped[1]) / (2 * actual_bump * scale), rel=0, abs=1e-10
+        )
+    for greek, dependency in (("charm", "delta"), ("color", "gamma")):
+        before, after = [
+            engine.price_with_greeks(
+                dated_history(
+                    option,
+                    context.replace(
+                        valuation_time=context.valuation_time + timedelta(days=offset)
+                    ),
+                ),
+                context.replace(
+                    valuation_time=context.valuation_time + timedelta(days=offset)
+                ),
+                dependency,
+            )
+            for offset in (-1, 1)
+        ]
+        assert getattr(result, greek) == pytest.approx(
+            (getattr(after, dependency) - getattr(before, dependency)) / (2 / 365),
+            rel=0,
+            abs=1e-10,
+        )
+    for bump in (200, 1e-300):
+        native = numerical_greeks(
+            engine,
+            dated_history(option, context),
+            context,
+            ["delta", "gamma", "speed"],
+            spot_shift=bump,
+        )
+        assert result.delta is not None
+        assert native.delta is None
+        assert result.gamma is not None
+        assert native.gamma is None
+        assert native.speed is None
+    for spot in (100, 110):
+        boundary = engine.price_with_greeks(
+            dated_history(option, market(spot, START + timedelta(days=1))),
+            market(spot, START + timedelta(days=1)),
+            greeks="all",
+        )
+        for greek in (
+            "delta",
+            "gamma",
+            "speed",
+            "vanna",
+            "zomma",
+            "theta",
+            "charm",
+            "color",
+        ):
+            assert getattr(boundary, greek) is None
+        assert boundary.vega is not None
+        assert boundary.rho is not None
+    sunday = engine.price_with_greeks(
+        dated_history(option, market(90, datetime(2025, 1, 5, 23, 59, 59))),
+        market(90, datetime(2025, 1, 5, 23, 59, 59)),
+        greeks="all",
+    )
+    assert math.isfinite(sunday.require("theta"))
+    small = engine.price_with_greeks(
+        dated_history(option, market(90, volatility=0.0001)),
+        market(90, volatility=0.0001),
+        [
+            "vega",
+            "vanna",
+            "zomma",
+        ],
+        volatility_shift=0.0001,
+    )
+    assert small.vega is None
+    assert small.vanna is None
+    assert small.zomma is None
+
+
+def test_node_curves_terminal_forward_and_coverage_order():
+    end = datetime(2026, 1, 1)
+    risk = RateTermStructure(
+        reference_time=START,
+        times=[datetime(2025, 7, 1), end],
+        factors=[0.97, 0.94],
+    )
+    dividend = RateTermStructure(
+        reference_time=START,
+        times=[datetime(2025, 7, 1), end],
+        factors=[0.99, 0.98],
+    )
+    context = market(100, START).replace(
+        model_parameters=market().model_parameters.replace(
+            risk_free_rate=risk, dividend_yield=dividend
+        )
+    )
+    option = contract(end, knock_out=399, daily=0, quantity=2).replace(
+        effective_time=START - timedelta(days=1),
+        accumulated_quantity=2,
+        knock_out_settled=False,
+    )
+    engine = pricing.FiniteDifferenceAccumulatorEngine(
+        asset_upper_boundary=400, time_step_count=800
+    )
+    assert engine.price(dated_history(option, context), context) == pytest.approx(
+        2 * (98 - 94), rel=0, abs=0.002
+    )
+    short = RateTermStructure(
+        reference_time=START, times=[datetime(2025, 2, 3)], factors=[0.99]
+    )
+    context = context.replace(
+        model_parameters=context.model_parameters.replace(risk_free_rate=short)
+    )
+    assert_rejection(
+        InvalidInputError, engine.price, dated_history(option, context), context
+    )
+    assert (
+        engine.price(
+            dated_history(option, context.replace(spot_price=399)),
+            context.replace(spot_price=399),
+        )
+        == 598
+    )
+
+
+def test_implied_solver_identifiability_protocols_and_failure_state():
+    engine = pricing.FiniteDifferenceAccumulatorEngine()
+    option = contract(datetime(2025, 1, 6))
+    context = market(100, datetime(2025, 1, 3, 12), volatility=0.4)
+    quote = engine.price(dated_history(option, context), context)
+    assert pricing.implied_volatility(
+        engine,
+        dated_history(option, context),
+        context,
+        quote,
+        lower_bound=0.2,
+        upper_bound=0.6,
+    ) == pytest.approx(0.4, rel=0, abs=1e-6)
+    assert_rejection(
+        RootNotBracketedError,
+        pricing.implied_volatility,
+        engine,
+        dated_history(option, context),
+        context,
+        1e10,
+        lower_bound=0.2,
+        upper_bound=0.6,
+    )
+    assert_rejection(
+        NonConvergenceError,
+        pricing.implied_volatility,
+        engine,
+        dated_history(option, context),
+        context,
+        quote,
+        lower_bound=0.2,
+        upper_bound=0.6,
+        max_iterations=1,
+        price_tolerance=1e-30,
+        parameter_tolerance=1e-30,
+    )
+    for instrument, scenario in (
+        (option, market(110, START + timedelta(days=1))),
+        (option, market(90, option.expiry_time)),
+        (contract(daily=0, quantity=0), market()),
+        (contract(daily=0), market(90, rate=0, dividend=0)),
+    ):
+        assert_rejection(
+            UnsupportedOperationError,
+            pricing.implied_volatility,
+            engine,
+            dated_history(instrument, scenario),
+            scenario,
+            engine.price(dated_history(instrument, scenario), scenario),
+            lower_bound=0.0,
+            upper_bound=4.0,
+        )
+    for value in (None, True, "1"):
+        with pytest.raises(TypeError):
+            pricing.implied_volatility(
                 engine,
                 dated_history(option, context),
                 context,
-                ["delta", "gamma", "speed"],
-                spot_shift=bump,
+                value,
+                lower_bound=0.0,
+                upper_bound=4.0,
             )
-            self.assertIsNotNone(result.delta)
-            self.assertIsNone(native.delta)
-            self.assertIsNotNone(result.gamma)
-            self.assertIsNone(native.gamma)
-            self.assertIsNone(native.speed)
-        for spot in (100, 110):
-            boundary = engine.price_with_greeks(
-                dated_history(option, market(spot, START + timedelta(days=1))),
-                market(spot, START + timedelta(days=1)),
-                greeks="all",
-            )
-            for greek in (
-                "delta",
-                "gamma",
-                "speed",
-                "vanna",
-                "zomma",
-                "theta",
-                "charm",
-                "color",
-            ):
-                self.assertIsNone(getattr(boundary, greek))
-            self.assertIsNotNone(boundary.vega)
-            self.assertIsNotNone(boundary.rho)
-        sunday = engine.price_with_greeks(
-            dated_history(option, market(90, datetime(2025, 1, 5, 23, 59, 59))),
-            market(90, datetime(2025, 1, 5, 23, 59, 59)),
-            greeks="all",
-        )
-        self.assertTrue(math.isfinite(sunday.require("theta")))
-        small = engine.price_with_greeks(
-            dated_history(option, market(90, volatility=0.0001)),
-            market(90, volatility=0.0001),
-            [
-                "vega",
-                "vanna",
-                "zomma",
-            ],
-            volatility_shift=0.0001,
-        )
-        self.assertIsNone(small.vega)
-        self.assertIsNone(small.vanna)
-        self.assertIsNone(small.zomma)
-
-    def test_node_curves_terminal_forward_and_coverage_order(self):
-        end = datetime(2026, 1, 1)
-        risk = RateTermStructure(
-            reference_time=START,
-            times=[datetime(2025, 7, 1), end],
-            factors=[0.97, 0.94],
-        )
-        dividend = RateTermStructure(
-            reference_time=START,
-            times=[datetime(2025, 7, 1), end],
-            factors=[0.99, 0.98],
-        )
-        context = market(100, START).replace(
-            model_parameters=market().model_parameters.replace(
-                risk_free_rate=risk, dividend_yield=dividend
-            )
-        )
-        option = contract(end, knock_out=399, daily=0, quantity=2).replace(
-            effective_time=START - timedelta(days=1),
-            accumulated_quantity=2,
-            knock_out_settled=False,
-        )
-        engine = pricing.FiniteDifferenceAccumulatorEngine(
-            asset_upper_boundary=400, time_step_count=800
-        )
-        self.assertAlmostEqual(
-            engine.price(dated_history(option, context), context),
-            2 * (98 - 94),
-            delta=0.002,
-        )
-        short = RateTermStructure(
-            reference_time=START, times=[datetime(2025, 2, 3)], factors=[0.99]
-        )
-        context = context.replace(
-            model_parameters=context.model_parameters.replace(risk_free_rate=short)
-        )
-        self.assert_rejection(
-            InvalidInputError, engine.price, dated_history(option, context), context
-        )
-        self.assertEqual(
-            engine.price(
-                dated_history(option, context.replace(spot_price=399)),
-                context.replace(spot_price=399),
-            ),
-            598,
-        )
-
-    def test_implied_solver_identifiability_protocols_and_failure_state(self):
-        engine = pricing.FiniteDifferenceAccumulatorEngine()
-        option = contract(datetime(2025, 1, 6))
-        context = market(100, datetime(2025, 1, 3, 12), volatility=0.4)
-        quote = engine.price(dated_history(option, context), context)
-        self.assertAlmostEqual(
+    for value in (True, 1.5):
+        with pytest.raises(TypeError):
             pricing.implied_volatility(
                 engine,
                 dated_history(option, context),
                 context,
                 quote,
-                lower_bound=0.2,
-                upper_bound=0.6,
-            ),
-            0.4,
-            delta=1e-6,
-        )
-        self.assert_rejection(
-            RootNotBracketedError,
-            pricing.implied_volatility,
-            engine,
-            dated_history(option, context),
-            context,
-            1e10,
-            lower_bound=0.2,
-            upper_bound=0.6,
-        )
-        self.assert_rejection(
-            NonConvergenceError,
-            pricing.implied_volatility,
+                max_iterations=value,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
+    with pytest.raises(OverflowError):
+        pricing.implied_volatility(
             engine,
             dated_history(option, context),
             context,
             quote,
-            lower_bound=0.2,
-            upper_bound=0.6,
-            max_iterations=1,
-            price_tolerance=1e-30,
-            parameter_tolerance=1e-30,
-        )
-        for instrument, scenario in (
-            (option, market(110, START + timedelta(days=1))),
-            (option, market(90, option.expiry_time)),
-            (contract(daily=0, quantity=0), market()),
-            (contract(daily=0), market(90, rate=0, dividend=0)),
-        ):
-            self.assert_rejection(
-                UnsupportedOperationError,
-                pricing.implied_volatility,
-                engine,
-                dated_history(instrument, scenario),
-                scenario,
-                engine.price(dated_history(instrument, scenario), scenario),
-                lower_bound=0.0,
-                upper_bound=4.0,
-            )
-        for value in (None, True, "1"):
-            with self.assertRaises(TypeError):
-                pricing.implied_volatility(
-                    engine,
-                    dated_history(option, context),
-                    context,
-                    value,
-                    lower_bound=0.0,
-                    upper_bound=4.0,
-                )
-        for value in (True, 1.5):
-            with self.assertRaises(TypeError):
-                pricing.implied_volatility(
-                    engine,
-                    dated_history(option, context),
-                    context,
-                    quote,
-                    max_iterations=value,
-                    lower_bound=0.0,
-                    upper_bound=4.0,
-                )
-        with self.assertRaises(OverflowError):
-            pricing.implied_volatility(
-                engine,
-                dated_history(option, context),
-                context,
-                quote,
-                max_iterations=2**40,
-                lower_bound=0.0,
-                upper_bound=4.0,
-            )
-        self.assert_rejection(
-            InvalidInputError,
-            pricing.implied_volatility,
-            engine,
-            dated_history(option, context),
-            context,
-            math.nan,
+            max_iterations=2**40,
             lower_bound=0.0,
             upper_bound=4.0,
         )
-        self.assertEqual(engine.price(dated_history(option, context), context), quote)
-        self.assertEqual(context.model_parameters.volatility, 0.4)
+    assert_rejection(
+        InvalidInputError,
+        pricing.implied_volatility,
+        engine,
+        dated_history(option, context),
+        context,
+        math.nan,
+        lower_bound=0.0,
+        upper_bound=4.0,
+    )
+    assert engine.price(dated_history(option, context), context) == quote
+    assert context.model_parameters.volatility == 0.4
 
-    def test_speed_propagates_nonfinite_shifted_prices_and_preserves_inputs(self):
-        engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=440)
-        option = contract(datetime(2025, 1, 6), daily=0, quantity=sys.float_info.max)
-        context = market(100, datetime(2025, 1, 3, 12))
-        quote = engine.price(dated_history(option, context), context)
-        for spot in (98, 102):
-            self.assert_rejection(
-                ComputationFailureError,
-                engine.price,
-                dated_history(option, context.replace(spot_price=spot)),
-                context.replace(spot_price=spot),
-            )
-        self.assert_rejection(
+
+def test_speed_propagates_nonfinite_shifted_prices_and_preserves_inputs():
+    engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=440)
+    option = contract(datetime(2025, 1, 6), daily=0, quantity=sys.float_info.max)
+    context = market(100, datetime(2025, 1, 3, 12))
+    quote = engine.price(dated_history(option, context), context)
+    for spot in (98, 102):
+        assert_rejection(
             ComputationFailureError,
-            partial(numerical_greeks, engine),
-            dated_history(option, context),
-            context,
-            "speed",
-            spot_shift=2,
+            engine.price,
+            dated_history(option, context.replace(spot_price=spot)),
+            context.replace(spot_price=spot),
         )
-        self.assertEqual(engine.price(dated_history(option, context), context), quote)
-        self.assertEqual(option.accumulated_quantity, sys.float_info.max)
-        self.assertEqual(context.spot_price, 100)
+    assert_rejection(
+        ComputationFailureError,
+        partial(numerical_greeks, engine),
+        dated_history(option, context),
+        context,
+        "speed",
+        spot_shift=2,
+    )
+    assert engine.price(dated_history(option, context), context) == quote
+    assert option.accumulated_quantity == sys.float_info.max
+    assert context.spot_price == 100
 
-    def test_quantity_affinity_and_concurrent_shared_engine(self):
-        engine, context = pricing.FiniteDifferenceAccumulatorEngine(), market(90)
-        values = [
-            engine.price(dated_history(contract(quantity=q), context), context)
-            for q in (0, 3, 6)
-        ]
-        self.assertAlmostEqual(
-            values[2] - values[1], values[1] - values[0], delta=1e-10
-        )
-        self.assertEqual(
-            engine.price(
-                dated_history(contract(daily=0, quantity=0), context), context
-            ),
-            0,
-        )
-        self.assertEqual(
-            engine.price(
-                dated_history(contract(daily=0), market(90, rate=0, dividend=0)),
-                market(90, rate=0, dividend=0),
-            ),
-            -30,
-        )
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(
-                pool.map(
-                    lambda _: engine.price(dated_history(contract(), context), context),
-                    range(2),
-                )
+
+def test_quantity_affinity_and_concurrent_shared_engine():
+    engine, context = pricing.FiniteDifferenceAccumulatorEngine(), market(90)
+    values = [
+        engine.price(dated_history(contract(quantity=q), context), context)
+        for q in (0, 3, 6)
+    ]
+    assert values[2] - values[1] == pytest.approx(
+        values[1] - values[0], rel=0, abs=1e-10
+    )
+    assert (
+        engine.price(dated_history(contract(daily=0, quantity=0), context), context)
+        == 0
+    )
+    assert engine.price(
+        dated_history(contract(daily=0), market(90, rate=0, dividend=0)),
+        market(90, rate=0, dividend=0),
+    ) == (-30)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(
+            pool.map(
+                lambda _: engine.price(dated_history(contract(), context), context),
+                range(2),
             )
-        self.assertEqual(results, [values[1]] * 2)
+        )
+    assert results == [values[1]] * 2
 
-    def test_quantlib_terminal_portfolios_and_separate_grid_convergence(self):
 
-        from support.structured import contract, market, references, settings
+def test_quantlib_terminal_portfolios_and_separate_grid_convergence(subtests):
 
-        rows = [
-            row
-            for row in references()
-            if row["engine"] == "FiniteDifferenceAccumulatorEngine"
-        ]
-        self.assertEqual(len(rows), 18)
-        for row in rows:
-            option, context, fine = contract(row), market(row), settings(row)
-            budget = float(row["tolerances"]["price"]) + float(
-                row["inputs"]["uncertainty_price"]
+    from support.structured import contract, market, references, settings
+
+    rows = [
+        row
+        for row in references()
+        if row["engine"] == "FiniteDifferenceAccumulatorEngine"
+    ]
+    assert len(rows) == 18
+    for row in rows:
+        option, context, fine = contract(row), market(row), settings(row)
+        budget = float(row["tolerances"]["price"]) + float(
+            row["inputs"]["uncertainty_price"]
+        )
+        with subtests.test(case=row["case_id"]):
+            refined = pricing.FiniteDifferenceAccumulatorEngine(**fine).price(
+                dated_history(option, context), context
             )
-            with self.subTest(case=row["case_id"]):
-                refined = pricing.FiniteDifferenceAccumulatorEngine(**fine).price(
-                    dated_history(option, context), context
-                )
-                self.assertAlmostEqual(
-                    refined, float(row["outputs"]["price"]), delta=budget
-                )
-                if row["inputs"]["convergence"]:
-                    for configuration in (
-                        {**fine, "asset_step_count": fine["asset_step_count"] // 2},
-                        {**fine, "time_step_count": fine["time_step_count"] // 2},
-                        {
-                            **fine,
-                            "asset_step_count": fine["asset_step_count"] * 2,
-                            "asset_upper_boundary": fine["asset_upper_boundary"] * 2,
-                        },
-                    ):
-                        self.assertAlmostEqual(
-                            pricing.FiniteDifferenceAccumulatorEngine(
-                                **configuration
-                            ).price(dated_history(option, context), context),
-                            refined,
-                            delta=budget,
-                        )
+            assert refined == pytest.approx(
+                float(row["outputs"]["price"]), rel=0, abs=budget
+            )
+            if row["inputs"]["convergence"]:
+                for configuration in (
+                    {**fine, "asset_step_count": fine["asset_step_count"] // 2},
+                    {**fine, "time_step_count": fine["time_step_count"] // 2},
+                    {
+                        **fine,
+                        "asset_step_count": fine["asset_step_count"] * 2,
+                        "asset_upper_boundary": fine["asset_upper_boundary"] * 2,
+                    },
+                ):
+                    assert pricing.FiniteDifferenceAccumulatorEngine(
+                        **configuration
+                    ).price(dated_history(option, context), context) == pytest.approx(
+                        refined, rel=0, abs=budget
+                    )

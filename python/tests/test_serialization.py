@@ -4,11 +4,11 @@ import copy
 import inspect
 import multiprocessing
 import pickle
-import unittest
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from datetime import time as clock_time
 
+import pytest
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi import market as m
@@ -234,403 +234,397 @@ def values():
         )
 
 
-class SerializationTests(unittest.TestCase):
-    def test_owned_collection_properties_reject_silent_edits(self):
-        surface = m.LocalVolatilitySurface(
-            times=[START, END], spots=[80, 120], values=[[0.2, 0.3], [0.3, 0.4]]
-        )
-        with self.assertRaises(TypeError):
-            surface.values[0][0] = 0.5
-        observation = i.AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
-        note = i.BinarySnowballOption(
-            calendar=m.weekdays_calendar(),
-            maturity_coupon_rate=0.1,
-            effective_time=START,
-            expiry_time=END,
-            observations=[observation],
-        )
-        updated = observation.replace(coupon_rate=0.2)
-        with self.assertRaises(TypeError):
-            note.observations[0] = updated
-        editable = list(note.observations)
-        editable[0] = updated
-        replacement = note.replace(observations=editable)
-        self.assertEqual(replacement.observations, (updated,))
-        self.assertEqual(note.observations, (observation,))
-        self.assertEqual(surface.values, ((0.2, 0.3), (0.3, 0.4)))
+def test_owned_collection_properties_reject_silent_edits():
+    surface = m.LocalVolatilitySurface(
+        times=[START, END], spots=[80, 120], values=[[0.2, 0.3], [0.3, 0.4]]
+    )
+    with pytest.raises(TypeError):
+        surface.values[0][0] = 0.5
+    observation = i.AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
+    note = i.BinarySnowballOption(
+        calendar=m.weekdays_calendar(),
+        maturity_coupon_rate=0.1,
+        effective_time=START,
+        expiry_time=END,
+        observations=[observation],
+    )
+    updated = observation.replace(coupon_rate=0.2)
+    with pytest.raises(TypeError):
+        note.observations[0] = updated
+    editable = list(note.observations)
+    editable[0] = updated
+    replacement = note.replace(observations=editable)
+    assert replacement.observations == ((updated,))
+    assert note.observations == ((observation,))
+    assert surface.values == (((0.2, 0.3), (0.3, 0.4)))
 
-    def test_results_compare_by_value_including_metadata_and_uncertainty(self):
-        option = i.EuropeanOption(
-            option_type="call", strike=100, effective_time=START, expiry_time=END
-        )
-        context = m.PricingContext(
-            model_parameters=m.BlackScholesMertonParameters(
-                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
-            ),
-            spot_price=110,
-            valuation_time=END,
-        )
-        engine = p.AnalyticEuropeanEngine()
-        result = engine.price_with_greeks(
-            dated_history(option, context), context, "delta"
-        )
-        restored = pickle.loads(pickle.dumps(result))
-        self.assertIsNot(result, restored)
-        self.assertEqual(result, restored)
-        self.assertNotEqual(
-            result,
-            engine.price_with_greeks(
-                dated_history(option.replace(strike=99), context), context, "delta"
-            ),
-        )
-        self.assertNotEqual(
-            result,
-            engine.price_with_greeks(
-                dated_history(option.replace(option_type="put", strike=120), context),
-                context,
-                "delta",
-            ),
-        )
-        theta = engine.price_with_greeks(
-            dated_history(option, context), context, "theta"
-        )
-        self.assertNotEqual(
-            theta,
-            engine.price_with_greeks(dated_history(option, context), context, "color"),
-        )
-        digital = i.CashOrNothingOption(
-            option_type="call",
-            strike=100,
-            payout=10,
-            effective_time=START,
-            expiry_time=END,
-        )
-        unsupported = p.CoxRossRubinsteinDigitalEngine().price_with_greeks(
-            dated_history(digital, context), context, ["delta", "theta"]
-        )
-        self.assertEqual(theta.price, unsupported.price)
-        self.assertIsNone(theta.theta)
-        self.assertIsNone(unsupported.theta)
-        self.assertNotEqual(theta, unsupported)
-        estimate = p.MonteCarloVanillaEngine(
-            path_count=32, seed=42
-        ).price_with_statistics(dated_history(option, context), context)
-        other = p.MonteCarloVanillaEngine(
-            path_count=32, seed=42, sampling="sobol"
-        ).price_with_statistics(dated_history(option, context), context)
-        self.assertEqual(estimate, pickle.loads(pickle.dumps(estimate)))
-        self.assertEqual(estimate.price, other.price)
-        self.assertNotEqual(estimate, other)
-        self.assertNotEqual(estimate, result)
-        self.assertNotEqual(result, object())
 
-    def test_values_round_trip_and_immutable_copies_keep_identity(self):
-        for value in values():
-            with self.subTest(value=type(value).__name__):
-                self.assertIs(copy.copy(value), value)
-                self.assertIs(copy.deepcopy(value), value)
-                restored = pickle.loads(pickle.dumps(value))
-                self.assertEqual(restored, value)
-                self.assertIsNot(restored, value)
-        for name in p.__all__:
-            if name.endswith("Engine"):
-                engine = getattr(p, name)()
-                restored = pickle.loads(pickle.dumps(engine))
-                self.assertIs(type(restored), type(engine))
-                for field in inspect.signature(type(engine)).parameters:
-                    self.assertEqual(getattr(restored, field), getattr(engine, field))
+def test_results_compare_by_value_including_metadata_and_uncertainty():
+    option = i.EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    context = m.PricingContext(
+        model_parameters=m.BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ),
+        spot_price=110,
+        valuation_time=END,
+    )
+    engine = p.AnalyticEuropeanEngine()
+    result = engine.price_with_greeks(dated_history(option, context), context, "delta")
+    restored = pickle.loads(pickle.dumps(result))
+    assert result is not restored
+    assert result == restored
+    assert result != engine.price_with_greeks(
+        dated_history(option.replace(strike=99), context), context, "delta"
+    )
+    assert result != engine.price_with_greeks(
+        dated_history(option.replace(option_type="put", strike=120), context),
+        context,
+        "delta",
+    )
+    theta = engine.price_with_greeks(dated_history(option, context), context, "theta")
+    assert theta != engine.price_with_greeks(
+        dated_history(option, context), context, "color"
+    )
+    digital = i.CashOrNothingOption(
+        option_type="call",
+        strike=100,
+        payout=10,
+        effective_time=START,
+        expiry_time=END,
+    )
+    unsupported = p.CoxRossRubinsteinDigitalEngine().price_with_greeks(
+        dated_history(digital, context), context, ["delta", "theta"]
+    )
+    assert theta.price == unsupported.price
+    assert theta.theta is None
+    assert unsupported.theta is None
+    assert theta != unsupported
+    estimate = p.MonteCarloVanillaEngine(path_count=32, seed=42).price_with_statistics(
+        dated_history(option, context), context
+    )
+    other = p.MonteCarloVanillaEngine(
+        path_count=32, seed=42, sampling="sobol"
+    ).price_with_statistics(dated_history(option, context), context)
+    assert estimate == pickle.loads(pickle.dumps(estimate))
+    assert estimate.price == other.price
+    assert estimate != other
+    assert estimate != result
+    assert result != object()
 
-    def test_repr_exposes_terms_settings_and_results(self):
-        for value in values():
-            with self.subTest(value=type(value).__name__):
-                text = repr(value)
-                self.assertIn(type(value).__name__, text)
-                self.assertNotIn("object at 0x", text)
-                self.assertEqual(repr(pickle.loads(pickle.dumps(value))), text)
-        vanilla = i.EuropeanOption(
-            option_type="call", strike=100, effective_time=START, expiry_time=END
-        )
-        self.assertIn("strike=100.0", repr(vanilla))
-        self.assertIn("option_type='call'", repr(vanilla))
-        for name in p.__all__:
-            if name.endswith("Engine"):
-                engine = getattr(p, name)()
-                with self.subTest(engine=name):
-                    text = repr(engine)
-                    self.assertIn(name, text)
-                    self.assertNotIn("object at 0x", text)
-                    self.assertEqual(repr(pickle.loads(pickle.dumps(engine))), text)
-        self.assertIn(
-            "asset_step_count=123",
-            repr(p.FiniteDifferenceVanillaEngine(asset_step_count=123)),
-        )
-        context = m.PricingContext(
-            model_parameters=m.BlackScholesMertonParameters(
-                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
-            ),
-            spot_price=100,
-            valuation_time=START,
-        )
-        self.assertIn("spot_price=100.0", repr(context))
-        result = p.AnalyticEuropeanEngine().price_with_greeks(
-            dated_history(vanilla, context), context, "delta"
-        )
-        self.assertIn("price=", repr(result))
-        self.assertIn("'delta':", repr(result))
-        self.assertEqual(repr(pickle.loads(pickle.dumps(result))), repr(result))
-        estimate = p.MonteCarloVanillaEngine(
-            path_count=16, seed=42, max_active_workers=1
-        ).price_with_statistics(dated_history(vanilla, context), context)
-        self.assertIn("standard_error=", repr(estimate))
-        self.assertEqual(repr(pickle.loads(pickle.dumps(estimate))), repr(estimate))
 
-    def test_range_accrual_repr_identifies_observation_clock(self):
-        morning = i.RangeAccrualOption(
-            notional=1000,
-            annual_coupon_rate=0.12,
-            lower_bound=90,
-            upper_bound=110,
-            effective_time=START,
-            expiry_time=END,
-            observation_clock_time=clock_time(9, 0, 0, 123456),
-        )
-        afternoon = morning.replace(observation_clock_time=clock_time(15, 0, 0, 654321))
-        for option in (morning, afternoon):
-            self.assertIn(
-                f"observation_clock_time={option.observation_clock_time!r}",
-                repr(option),
-            )
-        self.assertNotEqual(repr(morning), repr(afternoon))
-
-    def test_repr_bounds_large_surfaces_and_handles_extreme_curve_shifts(self):
-        from datetime import timedelta
-
-        surface = m.LocalVolatilitySurface(
-            times=[START + timedelta(days=n) for n in range(20)],
-            spots=list(range(1, 21)),
-            values=[[0.2] * 20 for _ in range(20)],
-        )
-        self.assertLess(len(repr(surface)), 2000)
-        self.assertIn("...", repr(surface))
-        curve = m.RateTermStructure(
-            reference_time=START, times=[END], factors=[0.99]
-        ).shifted(-1e6)
-        self.assertIn(".shifted(-1000000.0)", repr(curve))
-        self.assertEqual(repr(pickle.loads(pickle.dumps(curve))), repr(curve))
-
-    def test_repr_memory_is_bounded_for_surfaces_contexts_and_contract_calendars(self):
-        import tracemalloc
-        from datetime import timedelta
-
-        surface = m.LocalVolatilitySurface(
-            times=[START + timedelta(days=n) for n in range(500)],
-            spots=list(range(1, 501)),
-            values=[[0.2] * 500 for _ in range(500)],
-        )
-        model = m.LocalVolatilityParameters(
-            risk_free_rate=0.05, dividend_yield=0.02, surface=surface
-        )
-        context = m.PricingContext(
-            model_parameters=model, spot_price=100, valuation_time=START
-        )
-        calendar = m.custom_calendar(
-            base=m.weekdays_calendar(),
-            closed_dates=[(START - timedelta(days=n + 1)).date() for n in range(5000)],
-        )
-        contracts = [
-            value.replace(calendar=calendar)
-            for value in values()
-            if isinstance(
-                value,
-                (
-                    i.Accumulator,
-                    i.RangeAccrualOption,
-                    i.SnowballOption,
-                    i.BinarySnowballOption,
-                    i.TernarySnowballOption,
-                    i.PhoenixOption,
-                ),
-            )
-        ]
-        for value in (surface, model, context, *contracts):
-            with self.subTest(value=type(value).__name__):
-                tracemalloc.start()
-                try:
-                    text = repr(value)
-                    _, peak = tracemalloc.get_traced_memory()
-                finally:
-                    tracemalloc.stop()
-                self.assertIn("...", text)
-                self.assertLess(peak, 256 * 1024)
-
-    def test_repr_bounds_large_contract_schedules(self):
-        from datetime import timedelta
-
-        times = [START + timedelta(days=n) for n in range(1000)]
-        observations = [
-            i.AutocallableObservation.snowball(time, 110, coupon_rate=0)
-            for time in times
-        ]
-        for original in values():
-            if isinstance(original, i.Accumulator):
-                option = original.replace(
-                    expiry_time=times[-1],
-                    knock_out_observation_times=times,
-                    accumulated_quantity=original.accumulated_quantity,
-                    knock_out_settled=original.knock_out_settled,
-                    calendar=m.all_days_calendar(),
-                    history_time=(original.history_time or original.effective_time)
-                    if original.accumulated_quantity is not None
-                    or original.knock_out_settled is not None
-                    else None,
-                )
-            elif isinstance(
-                original,
-                (
-                    i.SnowballOption,
-                    i.BinarySnowballOption,
-                    i.TernarySnowballOption,
-                    i.PhoenixOption,
-                ),
-            ):
-                option = original.replace(
-                    expiry_time=times[-1],
-                    observations=[
-                        i.AutocallableObservation.phoenix(
-                            time, 110, coupon_barrier_level=0
-                        )
-                        for time in times
-                    ]
-                    if isinstance(original, i.PhoenixOption)
-                    else observations,
-                    barrier_state=original.barrier_state,
-                    calendar=m.all_days_calendar(),
-                    history_time=(original.history_time or original.effective_time)
-                    if original.barrier_state is not None
-                    else None,
-                )
-            else:
-                continue
-            with self.subTest(contract=type(option).__name__):
-                text = repr(option)
-                self.assertIn(type(option).__name__, text)
-                self.assertIn("...", text)
-                self.assertLess(len(text), 2000)
-                self.assertEqual(pickle.loads(pickle.dumps(option)), option)
-
-    def test_calendar_repr_identifies_base_and_overrides(self):
-        from datetime import timedelta
-
-        base = m.weekdays_calendar()
-        calendar = m.custom_calendar(
-            base=base,
-            closed_dates=[START.date()],
-            open_dates=[datetime(2025, 1, 4).date()],
-        )
-        self.assertIn("kind='weekdays'", repr(base))
-        self.assertIn("kind='custom'", repr(calendar))
-        self.assertIn("base=TradingCalendar", repr(calendar))
-        self.assertIn("closed_dates=[datetime.date(2025, 1, 2)]", repr(calendar))
-        self.assertIn("open_dates=[datetime.date(2025, 1, 4)]", repr(calendar))
-        self.assertNotEqual(repr(calendar), repr(base))
-        self.assertFalse(calendar.is_trading_day(START.date()))
-        self.assertEqual(repr(pickle.loads(pickle.dumps(calendar))), repr(calendar))
-        large = m.custom_calendar(
-            base=base,
-            closed_dates=[START.date() + timedelta(days=n) for n in range(100)],
-        )
-        self.assertLess(len(repr(large)), 1000)
-        self.assertIn("...", repr(large))
-
-    def test_nondefault_engine_settings_survive_serialization(self):
-        cases = (
-            (
-                p.MonteCarloVanillaEngine,
-                {
-                    "path_count": 128,
-                    "step_count": 4,
-                    "seed": 77,
-                    "max_active_workers": 1,
-                    "sampling": "sobol",
-                    "antithetic": True,
-                },
-            ),
-            (
-                p.FiniteDifferenceVanillaEngine,
-                {
-                    "asset_step_count": 120,
-                    "time_step_count": 30,
-                    "scheme": "implicit_euler",
-                    "asset_upper_boundary": 500,
-                },
-            ),
-        )
-        for factory, fields in cases:
-            engine = factory(**history_fields(**fields))
+def test_values_round_trip_and_immutable_copies_keep_identity(subtests):
+    for value in values():
+        with subtests.test(value=type(value).__name__):
+            assert copy.copy(value) is value
+            assert copy.deepcopy(value) is value
+            restored = pickle.loads(pickle.dumps(value))
+            assert restored == value
+            assert restored is not value
+    for name in p.__all__:
+        if name.endswith("Engine"):
+            engine = getattr(p, name)()
             restored = pickle.loads(pickle.dumps(engine))
-            for name, expected in fields.items():
-                with self.subTest(engine=factory.__name__, field=name):
-                    self.assertEqual(getattr(restored, name), expected)
+            assert type(restored) is type(engine)
+            for field in inspect.signature(type(engine)).parameters:
+                assert getattr(restored, field) == getattr(engine, field)
 
-    def test_spawn_transports_contracts_contexts_engines_and_results(self):
-        option = i.EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_time=START,
-            expiry_time=END,
+
+def test_repr_exposes_terms_settings_and_results(subtests):
+    for value in values():
+        with subtests.test(value=type(value).__name__):
+            text = repr(value)
+            assert type(value).__name__ in text
+            assert "object at 0x" not in text
+            assert repr(pickle.loads(pickle.dumps(value))) == text
+    vanilla = i.EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    assert "strike=100.0" in repr(vanilla)
+    assert "option_type='call'" in repr(vanilla)
+    for name in p.__all__:
+        if name.endswith("Engine"):
+            engine = getattr(p, name)()
+            with subtests.test(engine=name):
+                text = repr(engine)
+                assert name in text
+                assert "object at 0x" not in text
+                assert repr(pickle.loads(pickle.dumps(engine))) == text
+    assert "asset_step_count=123" in repr(
+        p.FiniteDifferenceVanillaEngine(asset_step_count=123)
+    )
+    context = m.PricingContext(
+        model_parameters=m.BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ),
+        spot_price=100,
+        valuation_time=START,
+    )
+    assert "spot_price=100.0" in repr(context)
+    result = p.AnalyticEuropeanEngine().price_with_greeks(
+        dated_history(vanilla, context), context, "delta"
+    )
+    assert "price=" in repr(result)
+    assert "'delta':" in repr(result)
+    assert repr(pickle.loads(pickle.dumps(result))) == repr(result)
+    estimate = p.MonteCarloVanillaEngine(
+        path_count=16, seed=42, max_active_workers=1
+    ).price_with_statistics(dated_history(vanilla, context), context)
+    assert "standard_error=" in repr(estimate)
+    assert repr(pickle.loads(pickle.dumps(estimate))) == repr(estimate)
+
+
+def test_range_accrual_repr_identifies_observation_clock():
+    morning = i.RangeAccrualOption(
+        notional=1000,
+        annual_coupon_rate=0.12,
+        lower_bound=90,
+        upper_bound=110,
+        effective_time=START,
+        expiry_time=END,
+        observation_clock_time=clock_time(9, 0, 0, 123456),
+    )
+    afternoon = morning.replace(observation_clock_time=clock_time(15, 0, 0, 654321))
+    for option in (morning, afternoon):
+        assert (f"observation_clock_time={option.observation_clock_time!r}") in repr(
+            option
         )
-        context = m.PricingContext(
-            model_parameters=m.BlackScholesMertonParameters(
-                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+    assert repr(morning) != repr(afternoon)
+
+
+def test_repr_bounds_large_surfaces_and_handles_extreme_curve_shifts():
+    from datetime import timedelta
+
+    surface = m.LocalVolatilitySurface(
+        times=[START + timedelta(days=n) for n in range(20)],
+        spots=list(range(1, 21)),
+        values=[[0.2] * 20 for _ in range(20)],
+    )
+    assert len(repr(surface)) < 2000
+    assert "..." in repr(surface)
+    curve = m.RateTermStructure(
+        reference_time=START, times=[END], factors=[0.99]
+    ).shifted(-1e6)
+    assert ".shifted(-1000000.0)" in repr(curve)
+    assert repr(pickle.loads(pickle.dumps(curve))) == repr(curve)
+
+
+def test_repr_memory_is_bounded_for_surfaces_contexts_and_contract_calendars(subtests):
+    import tracemalloc
+    from datetime import timedelta
+
+    surface = m.LocalVolatilitySurface(
+        times=[START + timedelta(days=n) for n in range(500)],
+        spots=list(range(1, 501)),
+        values=[[0.2] * 500 for _ in range(500)],
+    )
+    model = m.LocalVolatilityParameters(
+        risk_free_rate=0.05, dividend_yield=0.02, surface=surface
+    )
+    context = m.PricingContext(
+        model_parameters=model, spot_price=100, valuation_time=START
+    )
+    calendar = m.custom_calendar(
+        base=m.weekdays_calendar(),
+        closed_dates=[(START - timedelta(days=n + 1)).date() for n in range(5000)],
+    )
+    contracts = [
+        value.replace(calendar=calendar)
+        for value in values()
+        if isinstance(
+            value,
+            (
+                i.Accumulator,
+                i.RangeAccrualOption,
+                i.SnowballOption,
+                i.BinarySnowballOption,
+                i.TernarySnowballOption,
+                i.PhoenixOption,
             ),
-            spot_price=100,
-            valuation_time=START,
         )
-        engine = p.AnalyticEuropeanEngine()
-        expected = price_in_worker(engine, option, context)
-        with ProcessPoolExecutor(
-            max_workers=1, mp_context=multiprocessing.get_context("spawn")
-        ) as pool:
-            actual = pool.submit(price_in_worker, engine, option, context).result(
-                timeout=30
+    ]
+    for value in (surface, model, context, *contracts):
+        with subtests.test(value=type(value).__name__):
+            tracemalloc.start()
+            try:
+                text = repr(value)
+                _, peak = tracemalloc.get_traced_memory()
+            finally:
+                tracemalloc.stop()
+            assert "..." in text
+            assert peak < 256 * 1024
+
+
+def test_repr_bounds_large_contract_schedules(subtests):
+    from datetime import timedelta
+
+    times = [START + timedelta(days=n) for n in range(1000)]
+    observations = [
+        i.AutocallableObservation.snowball(time, 110, coupon_rate=0) for time in times
+    ]
+    for original in values():
+        if isinstance(original, i.Accumulator):
+            option = original.replace(
+                expiry_time=times[-1],
+                knock_out_observation_times=times,
+                accumulated_quantity=original.accumulated_quantity,
+                knock_out_settled=original.knock_out_settled,
+                calendar=m.all_days_calendar(),
+                history_time=(original.history_time or original.effective_time)
+                if original.accumulated_quantity is not None
+                or original.knock_out_settled is not None
+                else None,
             )
-        self.assertEqual(actual.price, expected.price)
-        self.assertEqual(actual.delta, expected.delta)
-        self.assertIsNone(actual.gamma)
-        estimate = p.MonteCarloVanillaEngine(
-            path_count=64, seed=42
-        ).price_with_statistics(dated_history(option, context), context)
-        restored = pickle.loads(pickle.dumps(estimate))
-        self.assertEqual(
-            (restored.price, restored.standard_error, restored.confidence_interval),
-            (estimate.price, estimate.standard_error, estimate.confidence_interval),
+        elif isinstance(
+            original,
+            (
+                i.SnowballOption,
+                i.BinarySnowballOption,
+                i.TernarySnowballOption,
+                i.PhoenixOption,
+            ),
+        ):
+            option = original.replace(
+                expiry_time=times[-1],
+                observations=[
+                    i.AutocallableObservation.phoenix(time, 110, coupon_barrier_level=0)
+                    for time in times
+                ]
+                if isinstance(original, i.PhoenixOption)
+                else observations,
+                barrier_state=original.barrier_state,
+                calendar=m.all_days_calendar(),
+                history_time=(original.history_time or original.effective_time)
+                if original.barrier_state is not None
+                else None,
+            )
+        else:
+            continue
+        with subtests.test(contract=type(option).__name__):
+            text = repr(option)
+            assert type(option).__name__ in text
+            assert "..." in text
+            assert len(text) < 2000
+            assert pickle.loads(pickle.dumps(option)) == option
+
+
+def test_calendar_repr_identifies_base_and_overrides():
+    from datetime import timedelta
+
+    base = m.weekdays_calendar()
+    calendar = m.custom_calendar(
+        base=base,
+        closed_dates=[START.date()],
+        open_dates=[datetime(2025, 1, 4).date()],
+    )
+    assert "kind='weekdays'" in repr(base)
+    assert "kind='custom'" in repr(calendar)
+    assert "base=TradingCalendar" in repr(calendar)
+    assert "closed_dates=[datetime.date(2025, 1, 2)]" in repr(calendar)
+    assert "open_dates=[datetime.date(2025, 1, 4)]" in repr(calendar)
+    assert repr(calendar) != repr(base)
+    assert not (calendar.is_trading_day(START.date()))
+    assert repr(pickle.loads(pickle.dumps(calendar))) == repr(calendar)
+    large = m.custom_calendar(
+        base=base,
+        closed_dates=[START.date() + timedelta(days=n) for n in range(100)],
+    )
+    assert len(repr(large)) < 1000
+    assert "..." in repr(large)
+
+
+def test_nondefault_engine_settings_survive_serialization(subtests):
+    cases = (
+        (
+            p.MonteCarloVanillaEngine,
+            {
+                "path_count": 128,
+                "step_count": 4,
+                "seed": 77,
+                "max_active_workers": 1,
+                "sampling": "sobol",
+                "antithetic": True,
+            },
+        ),
+        (
+            p.FiniteDifferenceVanillaEngine,
+            {
+                "asset_step_count": 120,
+                "time_step_count": 30,
+                "scheme": "implicit_euler",
+                "asset_upper_boundary": 500,
+            },
+        ),
+    )
+    for factory, fields in cases:
+        engine = factory(**history_fields(**fields))
+        restored = pickle.loads(pickle.dumps(engine))
+        for name, expected in fields.items():
+            with subtests.test(engine=factory.__name__, field=name):
+                assert getattr(restored, name) == expected
+
+
+def test_spawn_transports_contracts_contexts_engines_and_results():
+    option = i.EuropeanOption(
+        option_type="call",
+        strike=100,
+        effective_time=START,
+        expiry_time=END,
+    )
+    context = m.PricingContext(
+        model_parameters=m.BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ),
+        spot_price=100,
+        valuation_time=START,
+    )
+    engine = p.AnalyticEuropeanEngine()
+    expected = price_in_worker(engine, option, context)
+    with ProcessPoolExecutor(
+        max_workers=1, mp_context=multiprocessing.get_context("spawn")
+    ) as pool:
+        actual = pool.submit(price_in_worker, engine, option, context).result(
+            timeout=30
+        )
+    assert actual.price == expected.price
+    assert actual.delta == expected.delta
+    assert actual.gamma is None
+    estimate = p.MonteCarloVanillaEngine(path_count=64, seed=42).price_with_statistics(
+        dated_history(option, context), context
+    )
+    restored = pickle.loads(pickle.dumps(estimate))
+    assert (
+        (restored.price, restored.standard_error, restored.confidence_interval)
+    ) == ((estimate.price, estimate.standard_error, estimate.confidence_interval))
+
+
+def test_reconstruction_retains_domain_validation():
+    from kiyosi._serialization import _restore
+
+    with pytest.raises(InvalidInputError):
+        _restore(
+            i.EuropeanOption,
+            {
+                "option_type": "call",
+                "strike": -1,
+                "effective_time": START,
+                "expiry_time": END,
+            },
         )
 
-    def test_reconstruction_retains_domain_validation(self):
-        from kiyosi._serialization import _restore
 
-        with self.assertRaises(InvalidInputError):
-            _restore(
-                i.EuropeanOption,
-                {
-                    "option_type": "call",
-                    "strike": -1,
-                    "effective_time": START,
-                    "expiry_time": END,
-                },
-            )
+def test_estimate_reconstruction_validates_sampling_seeds(subtests):
+    from kiyosi import _native
 
-    def test_estimate_reconstruction_validates_sampling_seeds(self):
-        from kiyosi import _native
-
-        fields = {"price": 10, "standard_error": 0, "uncertainty_status": "available"}
-        for seed in (None, 0, 2**64 - 1):
-            estimate = _native._monte_carlo_estimate(**fields, seed=seed)
-            self.assertEqual(estimate.seed, seed)
-            self.assertEqual(pickle.loads(pickle.dumps(estimate)), estimate)
-        for seed in (True, 1.5, "42"):
-            with self.subTest(seed=seed), self.assertRaises(TypeError):
-                _native._monte_carlo_estimate(**fields, seed=seed)
-        for seed in (-1, 2**64):
-            with self.subTest(seed=seed), self.assertRaises(OverflowError):
-                _native._monte_carlo_estimate(**fields, seed=seed)
+    fields = {"price": 10, "standard_error": 0, "uncertainty_status": "available"}
+    for seed in (None, 0, 2**64 - 1):
+        estimate = _native._monte_carlo_estimate(**fields, seed=seed)
+        assert estimate.seed == seed
+        assert pickle.loads(pickle.dumps(estimate)) == estimate
+    for seed in (True, 1.5, "42"):
+        with subtests.test(seed=seed), pytest.raises(TypeError):
+            _native._monte_carlo_estimate(**fields, seed=seed)
+    for seed in (-1, 2**64):
+        with subtests.test(seed=seed), pytest.raises(OverflowError):
+            _native._monte_carlo_estimate(**fields, seed=seed)

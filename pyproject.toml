@@ -24,7 +24,11 @@ Repository = "https://github.com/lilkui/kiyosi"
 Issues = "https://github.com/lilkui/kiyosi/issues"
 
 [project.optional-dependencies]
-test = ["QuantLib==1.43"]
+test = ["pytest>=9,<10", "QuantLib==1.43"]
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]
+pythonpath = ["python/tests"]
 
 [tool.maturin]
 manifest-path = "crates/kiyosi-python/Cargo.toml"
@@ -51,7 +55,7 @@ test-sources = [
     "tools/generate_sse_calendar.py",
 ]
 test-extras = ["test"]
-test-command = 'python -m unittest discover -s python/tests -p "test_*.py"'
+test-command = "python -m pytest python/tests"
 
 [tool.cibuildwheel.linux]
 manylinux-x86_64-image = "manylinux_2_28"

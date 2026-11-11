@@ -2,9 +2,9 @@
 
 import json
 import math
-import unittest
 from pathlib import Path
 
+import pytest
 from kiyosi import instruments as ins
 from kiyosi import pricing
 from support.history import dated as dated_history
@@ -54,78 +54,65 @@ def engine(name, space=1600, time=1600, upper=440):
     )
 
 
-class LocalVolatilityDoubleReferenceTests(unittest.TestCase):
-    def test_skew_prices_match_paths_with_separate_monitoring_error(self):
-        evidence = json.loads(
-            (
-                Path(__file__).parent
-                / "quantlib_reference/local_volatility_double.json"
-            ).read_text()
-        )
-        coarse, fine = [evidence[key]["results"] for key in ["coarse", "fine"]]
-        for scheduled in [False, True]:
-            for name, contract in contracts(scheduled).items():
-                with self.subTest(name=name, scheduled=scheduled):
-                    label = "scheduled" if scheduled else "continuous_1"
-                    ref = fine[label][name]
-                    expected = ref["price"]
-                    if scheduled:
-                        bias = abs(expected - coarse[label][name]["price"])
-                    else:
-                        # Measured nested-monitoring changes scale approximately with sqrt(dt).
-                        # Extrapolation is an estimate with a separate residual budget, not an exact bridge.
-                        divisor = math.sqrt(2) - 1
-                        correction = fine["monitoring_1_2"][name]
-                        expected -= correction["price"] / divisor
-                        previous = (
-                            coarse[label][name]["price"]
-                            - coarse["monitoring_1_2"][name]["price"] / divisor
-                        )
-                        bias = (
-                            abs(expected - previous)
-                            + 5 * correction["standard_error"] / divisor
-                        )
-                        first = abs(correction["price"])
-                        second = abs(fine["monitoring_2_4"][name]["price"])
-                        self.assertLess(first, second)
-                    budget = 5 * ref["standard_error"] + bias + 0.003
-                    self.assertAlmostEqual(
-                        engine(name).price(dated_history(contract, market()), market()),
-                        expected,
-                        delta=budget,
-                    )
-
-    def test_double_boundaries_refine_and_supply_fixed_surface_greeks(self):
-        for scheduled in [False, True]:
-            for name, contract in contracts(scheduled).items():
-                with self.subTest(name=name, scheduled=scheduled):
-                    e = engine(name)
-                    result = e.price_with_greeks(
-                        dated_history(contract, market()), market(), ["delta", "gamma"]
-                    )
-                    for other in [
-                        engine(name, time=800),
-                        engine(name, space=800),
-                        engine(name, space=2400, upper=660),
-                    ]:
-                        self.assertAlmostEqual(
-                            other.price(dated_history(contract, market()), market()),
-                            result.price,
-                            delta=0.005,
-                        )
-                    up, down = [
-                        e.price(dated_history(contract, market(spot)), market(spot))
-                        for spot in [101.1, 100.9]
-                    ]
-                    self.assertAlmostEqual(
-                        result.delta, (up - down) / 0.2, delta=0.0002
-                    )
-                    self.assertAlmostEqual(
-                        result.gamma,
-                        (up + down - 2 * result.price) / 0.01,
-                        delta=0.0002,
-                    )
+@pytest.mark.parametrize("scheduled", [False, True])
+def test_skew_prices_match_paths_with_separate_monitoring_error(subtests, scheduled):
+    evidence = json.loads(
+        (
+            Path(__file__).parent / "quantlib_reference/local_volatility_double.json"
+        ).read_text()
+    )
+    coarse, fine = [evidence[key]["results"] for key in ["coarse", "fine"]]
+    for name, contract in contracts(scheduled).items():
+        with subtests.test(name=name, scheduled=scheduled):
+            label = "scheduled" if scheduled else "continuous_1"
+            ref = fine[label][name]
+            expected = ref["price"]
+            if scheduled:
+                bias = abs(expected - coarse[label][name]["price"])
+            else:
+                # Measured nested-monitoring changes scale approximately with sqrt(dt).
+                # Extrapolation is an estimate with a separate residual budget, not an exact bridge.
+                divisor = math.sqrt(2) - 1
+                correction = fine["monitoring_1_2"][name]
+                expected -= correction["price"] / divisor
+                previous = (
+                    coarse[label][name]["price"]
+                    - coarse["monitoring_1_2"][name]["price"] / divisor
+                )
+                bias = (
+                    abs(expected - previous)
+                    + 5 * correction["standard_error"] / divisor
+                )
+                first = abs(correction["price"])
+                second = abs(fine["monitoring_2_4"][name]["price"])
+                assert first < second
+            budget = 5 * ref["standard_error"] + bias + 0.003
+            assert engine(name).price(
+                dated_history(contract, market()), market()
+            ) == pytest.approx(expected, rel=0, abs=budget)
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.mark.parametrize("scheduled", [False, True])
+def test_double_boundaries_refine_and_supply_fixed_surface_greeks(subtests, scheduled):
+    for name, contract in contracts(scheduled).items():
+        with subtests.test(name=name, scheduled=scheduled):
+            e = engine(name)
+            result = e.price_with_greeks(
+                dated_history(contract, market()), market(), ["delta", "gamma"]
+            )
+            for other in [
+                engine(name, time=800),
+                engine(name, space=800),
+                engine(name, space=2400, upper=660),
+            ]:
+                assert other.price(
+                    dated_history(contract, market()), market()
+                ) == pytest.approx(result.price, rel=0, abs=0.005)
+            up, down = [
+                e.price(dated_history(contract, market(spot)), market(spot))
+                for spot in [101.1, 100.9]
+            ]
+            assert result.delta == pytest.approx((up - down) / 0.2, rel=0, abs=0.0002)
+            assert result.gamma == pytest.approx(
+                (up + down - 2 * result.price) / 0.01, rel=0, abs=0.0002
+            )

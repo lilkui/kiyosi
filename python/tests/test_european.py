@@ -3,11 +3,11 @@
 import importlib
 import math
 import numbers
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
 from fractions import Fraction
 
+import pytest
 import QuantLib as ql
 from kiyosi import ComputationFailureError, InvalidInputError
 from kiyosi.instruments import EuropeanOption
@@ -16,272 +16,277 @@ from kiyosi.market import (
     PricingContext,
 )
 from kiyosi.pricing import AnalyticEuropeanEngine
+from support.assertions import assert_decimal_equal
 
 
-class EuropeanTests(unittest.TestCase):
-    def setUp(self):
-        self.parameters = BlackScholesMertonParameters(
-            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
-        )
+@pytest.fixture
+def base_parameters():
+    return BlackScholesMertonParameters(
+        risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+    )
 
-    def option(self, **changes):
+
+def make_option(**changes):
+    values = {
+        "option_type": "call",
+        "strike": 100.0,
+        "effective_time": datetime(2025, 1, 1),
+        "expiry_time": datetime(2026, 1, 1),
+    }
+    values.update(changes)
+    return EuropeanOption(**values)
+
+
+@pytest.fixture
+def make_context(base_parameters):
+    def create(**changes):
         values = {
-            "option_type": "call",
-            "strike": 100.0,
-            "effective_time": datetime(2025, 1, 1),
-            "expiry_time": datetime(2026, 1, 1),
-        }
-        values.update(changes)
-        return EuropeanOption(**values)
-
-    def context(self, **changes):
-        values = {
-            "model_parameters": self.parameters,
+            "model_parameters": base_parameters,
             "spot_price": 100.0,
             "valuation_time": datetime(2025, 1, 1),
         }
         values.update(changes)
         return PricingContext(**values)
 
-    def test_call_and_put_prices(self):
-        parameters = BlackScholesMertonParameters(
-            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
-        )
-        context = PricingContext(
-            model_parameters=parameters,
-            spot_price=100.0,
-            valuation_time=datetime(2025, 1, 1),
-        )
-        for direction, expected in (
-            ("call", 9.227005508154036),
-            ("put", 6.330080627549918),
-        ):
-            with self.subTest(direction=direction):
-                option = EuropeanOption(
-                    option_type=direction,
-                    strike=100.0,
-                    effective_time=datetime(2025, 1, 1),
-                    expiry_time=datetime(2026, 1, 1),
-                )
-                self.assertAlmostEqual(
-                    AnalyticEuropeanEngine().price(option, context),
-                    expected,
-                    delta=1e-12,
-                )
+    return create
 
-    def test_existing_scenarios_against_live_quantlib(self):
-        oracle = importlib.import_module("quantlib_reference.oracle")
-        oracle.require_version()
-        config = oracle.load_fixture("scenarios.json")
-        for scenario in config["scenarios"]:
-            inputs = scenario["inputs"]
-            with self.subTest(case=scenario["case_id"]), ql.SavedSettings():
-                expected = oracle.vanilla_option(inputs).NPV()
-                model = BlackScholesMertonParameters(
-                    risk_free_rate=inputs["rate"],
-                    dividend_yield=inputs["dividend"],
-                    volatility=inputs["volatility"],
-                )
-                option = self.option(
-                    option_type=inputs["option"],
-                    strike=inputs["strike"],
-                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                )
-                context = self.context(
-                    model_parameters=model,
-                    spot_price=inputs["spot"],
-                    valuation_time=datetime.fromisoformat(inputs["valuation"]),
-                )
-                tolerance = scenario["tolerances"]["price"]
-                self.assertAlmostEqual(
-                    AnalyticEuropeanEngine().price(option, context),
-                    expected,
-                    delta=tolerance,
-                )
 
-    def test_valuation_and_expiry_boundaries(self):
-        option, engine = self.option(), AnalyticEuropeanEngine()
-        noon = self.context(valuation_time=datetime(2025, 1, 1, 12))
-        self.assertLess(
-            engine.price(option, noon), engine.price(option, self.context())
-        )
-        expiry = self.context(spot_price=110, valuation_time=option.expiry_time)
-        self.assertEqual(engine.price(option, expiry), 10)
-        same_day = self.option(effective_time=option.expiry_time)
-        self.assertEqual(engine.price(same_day, expiry), 10)
-        for at in (
-            datetime(2026, 1, 1, 0, 0, 0, 1),
-            datetime(2026, 1, 2),
-        ):
-            context = self.context(valuation_time=at)
-            with self.subTest(at=at), self.assertRaises(InvalidInputError) as error:
-                engine.price(option, context)
-            self.assertIs(type(error.exception), InvalidInputError)
+@pytest.mark.parametrize(
+    "direction,expected", (("call", 9.227005508154036), ("put", 6.330080627549918))
+)
+def test_call_and_put_prices(direction, expected):
+    parameters = BlackScholesMertonParameters(
+        risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+    )
+    context = PricingContext(
+        model_parameters=parameters,
+        spot_price=100.0,
+        valuation_time=datetime(2025, 1, 1),
+    )
+    option = EuropeanOption(
+        option_type=direction,
+        strike=100.0,
+        effective_time=datetime(2025, 1, 1),
+        expiry_time=datetime(2026, 1, 1),
+    )
+    assert AnalyticEuropeanEngine().price(option, context) == pytest.approx(
+        expected, rel=0, abs=1e-12
+    )
 
-    def test_timezone_free_datetimes_use_stored_components(self):
-        class ShadowedTime(datetime):
-            year = property(lambda self: 67562)
-            hour = property(lambda self: 25)
-            microsecond = property(lambda self: 1000001)
-            tzinfo = property(lambda self: UTC)
 
-        local = ShadowedTime(2025, 1, 1, 8, 9, 10, 123456)
-        expected = datetime(2025, 1, 1, 8, 9, 10, 123456)
-        self.assertEqual(self.context(valuation_time=local).valuation_time, expected)
-        self.assertEqual(self.option(effective_time=local).effective_time, expected)
-        for time in (
-            datetime(1, 1, 1),
-            datetime(1600, 1, 1),
-            datetime(2500, 1, 1),
-            datetime(9999, 12, 31),
-            datetime.max,
-        ):
-            self.assertEqual(self.context(valuation_time=time).valuation_time, time)
-        for bad in (
-            "2025-01-01",
-            None,
-            1,
-            date(2025, 1, 1),
-            datetime(2025, 1, 1, tzinfo=UTC),
-        ):
-            with self.subTest(bad=bad), self.assertRaises(TypeError):
-                self.context(valuation_time=bad)
-            with self.subTest(bad=bad), self.assertRaises(TypeError):
-                self.option(effective_time=bad)
-
-    def test_strict_numeric_protocol_and_native_conversion_failures(self):
-        for field in ("risk_free_rate", "dividend_yield", "volatility"):
-            for bad in (True, False, "0.2", None, complex(1)):
-                values = {
-                    "risk_free_rate": 0.05,
-                    "dividend_yield": 0.02,
-                    "volatility": 0.2,
-                }
-                values[field] = bad
-                with self.subTest(field=field, bad=bad), self.assertRaises(TypeError):
-                    BlackScholesMertonParameters(**values)
-        for bad in (True, "100", None):
-            with self.assertRaises(TypeError):
-                self.option(strike=bad)
-            with self.assertRaises(TypeError):
-                self.context(spot_price=bad)
-        with self.assertRaises(OverflowError):
-            self.option(strike=10**1000)
-        self.assertEqual(self.option(strike=Fraction(201, 2)).strike, 100.5)
-
-        @numbers.Real.register
-        class BrokenReal:
-            def __float__(self):
-                raise MemoryError("conversion failed")
-
-        with self.assertRaises(MemoryError):
-            self.option(strike=BrokenReal())
-        with self.assertRaises(TypeError):
-            self.option(option_type=1)
-        with self.assertRaises(ValueError):
-            self.option(option_type="Call")
-        with self.assertRaises(TypeError):
-            EuropeanOption("call", 100, datetime(2025, 1, 1), datetime(2026, 1, 1))
-
-    def test_domain_errors_and_failed_construction_preserve_inputs(self):
-        context, option = self.context(), self.option()
-        for bad in (0, -1, math.nan, math.inf, -math.inf):
-            factories = (
-                (
-                    lambda bad=bad: self.option(strike=bad),
-                    InvalidInputError,
-                ),
-                (
-                    lambda bad=bad: self.context(spot_price=bad),
-                    InvalidInputError,
-                ),
-                (
-                    lambda bad=bad: BlackScholesMertonParameters(
-                        risk_free_rate=0, dividend_yield=0, volatility=bad
-                    ),
-                    InvalidInputError,
-                ),
-            )
-            for make, expected_error in factories if bad != 0 else factories[:2]:
-                with (
-                    self.subTest(bad=bad, expected_error=expected_error),
-                    self.assertRaises(expected_error) as error,
-                ):
-                    make()
-                self.assertIs(type(error.exception), expected_error)
-        for field, expected_error in (
-            ("risk_free_rate", InvalidInputError),
-            ("dividend_yield", InvalidInputError),
-        ):
-            values = {"risk_free_rate": 0, "dividend_yield": 0, "volatility": 0.2}
-            values[field] = math.inf
-            with self.assertRaises(expected_error) as error:
-                BlackScholesMertonParameters(**values)
-            self.assertIs(type(error.exception), expected_error)
-        with self.assertRaises(InvalidInputError) as error:
-            self.option(effective_time=datetime(2027, 1, 1))
-        self.assertIs(type(error.exception), InvalidInputError)
-        self.assertAlmostEqual(
-            AnalyticEuropeanEngine().price(option, context), 9.227005508154036
-        )
-
-    def test_owned_readonly_values_and_concurrent_pricing(self):
-        context, option, engine = (
-            self.context(),
-            self.option(),
-            AnalyticEuropeanEngine(),
-        )
-        saved = context.model_parameters
-        with self.assertRaises(AttributeError):
-            context.spot_price = 200
-        with self.assertRaises(AttributeError):
-            saved.volatility = 0
-        with self.assertRaises(AttributeError):
-            option.strike = 0
-        expected = engine.price(option, context)
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            futures = [pool.submit(engine.price, option, context) for _ in range(16)]
-            prices = [future.result() for future in futures]
-            distinct = list(
-                pool.map(
-                    lambda _: AnalyticEuropeanEngine().price(
-                        self.option(), self.context()
-                    ),
-                    range(16),
-                )
-            )
-        self.assertEqual(prices, [expected] * 16)
-        self.assertEqual(distinct, prices)
-        del context
-        self.assertEqual(saved.volatility, 0.2)
-
-    def test_extreme_numerical_regressions(self):
-        # Independent high-precision references for tail prices and extreme scales.
-        for direction, spot, strike, sigma, expected in (
-            ("call", 100, 100.00000000013, 1e-13, 4.6459080591698985e-51),
-            ("put", 100, 99.99999999987, 1e-13, 4.645908058131258e-51),
-            ("call", 100, 100.00099900499002, 1e-6, 8.276374696508508e-29),
-            ("call", 100, 100.00100100501001, 1e-6, 6.749830430787083e-29),
-            ("put", 100, 99.99700004499955, 1e-6, 1.6319322561070434e-203),
-            ("call", 1e300, 1e304, 0.2, 1.1367038364232515e-163),
-            ("put", 1e304, 1e300, 0.2, 1.1367038364232515e-163),
-            ("call", 100, 100, 1e-200, 3.989422804014327e-199),
-        ):
+def test_existing_scenarios_against_live_quantlib(make_context, subtests):
+    oracle = importlib.import_module("quantlib_reference.oracle")
+    oracle.require_version()
+    config = oracle.load_fixture("scenarios.json")
+    for scenario in config["scenarios"]:
+        inputs = scenario["inputs"]
+        with subtests.test(case=scenario["case_id"]), ql.SavedSettings():
+            expected = oracle.vanilla_option(inputs).NPV()
             model = BlackScholesMertonParameters(
-                risk_free_rate=0, dividend_yield=0, volatility=sigma
+                risk_free_rate=inputs["rate"],
+                dividend_yield=inputs["dividend"],
+                volatility=inputs["volatility"],
             )
-            with self.subTest(direction=direction, strike=strike, sigma=sigma):
-                actual = AnalyticEuropeanEngine().price(
-                    self.option(option_type=direction, strike=strike),
-                    self.context(model_parameters=model, spot_price=spot),
-                )
-                self.assertTrue(math.isclose(actual, expected, rel_tol=1e-8))
-        model = BlackScholesMertonParameters(
-            risk_free_rate=-1000, dividend_yield=0, volatility=0.3
+            option = make_option(
+                option_type=inputs["option"],
+                strike=inputs["strike"],
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+            )
+            context = make_context(
+                model_parameters=model,
+                spot_price=inputs["spot"],
+                valuation_time=datetime.fromisoformat(inputs["valuation"]),
+            )
+            tolerance = scenario["tolerances"]["price"]
+            assert AnalyticEuropeanEngine().price(option, context) == pytest.approx(
+                expected, rel=0, abs=tolerance
+            )
+
+
+def test_valuation_and_expiry_boundaries(make_context, subtests):
+    option, engine = make_option(), AnalyticEuropeanEngine()
+    noon = make_context(valuation_time=datetime(2025, 1, 1, 12))
+    assert engine.price(option, noon) < engine.price(option, make_context())
+    expiry = make_context(spot_price=110, valuation_time=option.expiry_time)
+    assert engine.price(option, expiry) == 10
+    same_day = make_option(effective_time=option.expiry_time)
+    assert engine.price(same_day, expiry) == 10
+    for at in (
+        datetime(2026, 1, 1, 0, 0, 0, 1),
+        datetime(2026, 1, 2),
+    ):
+        context = make_context(valuation_time=at)
+        with subtests.test(at=at), pytest.raises(InvalidInputError) as error:
+            engine.price(option, context)
+        assert type(error.value) is InvalidInputError
+
+
+def test_timezone_free_datetimes_use_stored_components(make_context, subtests):
+    class ShadowedTime(datetime):
+        year = property(lambda self: 67562)
+        hour = property(lambda self: 25)
+        microsecond = property(lambda self: 1000001)
+        tzinfo = property(lambda self: UTC)
+
+    local = ShadowedTime(2025, 1, 1, 8, 9, 10, 123456)
+    expected = datetime(2025, 1, 1, 8, 9, 10, 123456)
+    assert make_context(valuation_time=local).valuation_time == expected
+    assert make_option(effective_time=local).effective_time == expected
+    for time in (
+        datetime(1, 1, 1),
+        datetime(1600, 1, 1),
+        datetime(2500, 1, 1),
+        datetime(9999, 12, 31),
+        datetime.max,
+    ):
+        assert make_context(valuation_time=time).valuation_time == time
+    for bad in (
+        "2025-01-01",
+        None,
+        1,
+        date(2025, 1, 1),
+        datetime(2025, 1, 1, tzinfo=UTC),
+    ):
+        with subtests.test(bad=bad), pytest.raises(TypeError):
+            make_context(valuation_time=bad)
+        with subtests.test(bad=bad), pytest.raises(TypeError):
+            make_option(effective_time=bad)
+
+
+def test_strict_numeric_protocol_and_native_conversion_failures(make_context, subtests):
+    for field in ("risk_free_rate", "dividend_yield", "volatility"):
+        for bad in (True, False, "0.2", None, complex(1)):
+            values = {
+                "risk_free_rate": 0.05,
+                "dividend_yield": 0.02,
+                "volatility": 0.2,
+            }
+            values[field] = bad
+            with subtests.test(field=field, bad=bad), pytest.raises(TypeError):
+                BlackScholesMertonParameters(**values)
+    for bad in (True, "100", None):
+        with pytest.raises(TypeError):
+            make_option(strike=bad)
+        with pytest.raises(TypeError):
+            make_context(spot_price=bad)
+    with pytest.raises(OverflowError):
+        make_option(strike=10**1000)
+    assert make_option(strike=Fraction(201, 2)).strike == 100.5
+
+    @numbers.Real.register
+    class BrokenReal:
+        def __float__(self):
+            raise MemoryError("conversion failed")
+
+    with pytest.raises(MemoryError):
+        make_option(strike=BrokenReal())
+    with pytest.raises(TypeError):
+        make_option(option_type=1)
+    with pytest.raises(ValueError):
+        make_option(option_type="Call")
+    with pytest.raises(TypeError):
+        EuropeanOption("call", 100, datetime(2025, 1, 1), datetime(2026, 1, 1))
+
+
+def test_domain_errors_and_failed_construction_preserve_inputs(make_context, subtests):
+    context, option = make_context(), make_option()
+    for bad in (0, -1, math.nan, math.inf, -math.inf):
+        factories = (
+            (
+                lambda bad=bad: make_option(strike=bad),
+                InvalidInputError,
+            ),
+            (
+                lambda bad=bad: make_context(spot_price=bad),
+                InvalidInputError,
+            ),
+            (
+                lambda bad=bad: BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=bad
+                ),
+                InvalidInputError,
+            ),
         )
-        with self.assertRaises(ComputationFailureError) as error:
-            AnalyticEuropeanEngine().price(
-                self.option(option_type="put"), self.context(model_parameters=model)
+        for make, expected_error in factories if bad != 0 else factories[:2]:
+            with (
+                subtests.test(bad=bad, expected_error=expected_error),
+                pytest.raises(expected_error) as error,
+            ):
+                make()
+            assert type(error.value) is expected_error
+    for field, expected_error in (
+        ("risk_free_rate", InvalidInputError),
+        ("dividend_yield", InvalidInputError),
+    ):
+        values = {"risk_free_rate": 0, "dividend_yield": 0, "volatility": 0.2}
+        values[field] = math.inf
+        with pytest.raises(expected_error) as error:
+            BlackScholesMertonParameters(**values)
+        assert type(error.value) is expected_error
+    with pytest.raises(InvalidInputError) as error:
+        make_option(effective_time=datetime(2027, 1, 1))
+    assert type(error.value) is InvalidInputError
+    assert_decimal_equal(
+        AnalyticEuropeanEngine().price(option, context), 9.227005508154036
+    )
+
+
+def test_owned_readonly_values_and_concurrent_pricing(make_context):
+    context, option, engine = (
+        make_context(),
+        make_option(),
+        AnalyticEuropeanEngine(),
+    )
+    saved = context.model_parameters
+    with pytest.raises(AttributeError):
+        context.spot_price = 200
+    with pytest.raises(AttributeError):
+        saved.volatility = 0
+    with pytest.raises(AttributeError):
+        option.strike = 0
+    expected = engine.price(option, context)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [pool.submit(engine.price, option, context) for _ in range(16)]
+        prices = [future.result() for future in futures]
+        distinct = list(
+            pool.map(
+                lambda _: AnalyticEuropeanEngine().price(make_option(), make_context()),
+                range(16),
             )
-        self.assertIs(type(error.exception), ComputationFailureError)
+        )
+    assert prices == [expected] * 16
+    assert distinct == prices
+    del context
+    assert saved.volatility == 0.2
+
+
+def test_extreme_numerical_regressions(make_context, subtests):
+    # Independent high-precision references for tail prices and extreme scales.
+    for direction, spot, strike, sigma, expected in (
+        ("call", 100, 100.00000000013, 1e-13, 4.6459080591698985e-51),
+        ("put", 100, 99.99999999987, 1e-13, 4.645908058131258e-51),
+        ("call", 100, 100.00099900499002, 1e-6, 8.276374696508508e-29),
+        ("call", 100, 100.00100100501001, 1e-6, 6.749830430787083e-29),
+        ("put", 100, 99.99700004499955, 1e-6, 1.6319322561070434e-203),
+        ("call", 1e300, 1e304, 0.2, 1.1367038364232515e-163),
+        ("put", 1e304, 1e300, 0.2, 1.1367038364232515e-163),
+        ("call", 100, 100, 1e-200, 3.989422804014327e-199),
+    ):
+        model = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=sigma
+        )
+        with subtests.test(direction=direction, strike=strike, sigma=sigma):
+            actual = AnalyticEuropeanEngine().price(
+                make_option(option_type=direction, strike=strike),
+                make_context(model_parameters=model, spot_price=spot),
+            )
+            assert math.isclose(actual, expected, rel_tol=1e-8)
+    model = BlackScholesMertonParameters(
+        risk_free_rate=-1000, dividend_yield=0, volatility=0.3
+    )
+    with pytest.raises(ComputationFailureError) as error:
+        AnalyticEuropeanEngine().price(
+            make_option(option_type="put"), make_context(model_parameters=model)
+        )
+    assert type(error.value) is ComputationFailureError

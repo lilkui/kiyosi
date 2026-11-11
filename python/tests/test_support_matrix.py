@@ -1,9 +1,9 @@
 """CPU product/engine dispatch and terminal contracts through the public API."""
 
-import unittest
 from datetime import datetime, timedelta
 from datetime import time as clock_time
 
+import pytest
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi import instruments as ins
 from kiyosi.market import (
@@ -15,6 +15,7 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
+from support.assertions import assert_decimal_equal
 from support.history import dated as dated_history
 from support.history import history_fields
 
@@ -304,127 +305,144 @@ def terminal_delta(instrument):
     return 0
 
 
-class SupportMatrixTests(unittest.TestCase):
-    def test_monte_carlo_terminal_statistics_and_seeds_match_settlement(self):
-        for instrument, names, expected in self.cases:
-            for name in names:
-                if not name.startswith("MonteCarlo"):
-                    continue
-                context = self.context_for(name)
-                option = dated_history(instrument, context)
-                for sampling in ("pseudo_random", "sobol"):
-                    engine = self.engines[name].replace(sampling=sampling)
-                    with self.subTest(
-                        instrument=type(option).__name__, engine=name, sampling=sampling
-                    ):
-                        price, seed = engine.price_with_seed(option, context)
-                        self.assertAlmostEqual(price, expected, delta=1e-12)
-                        self.assertIsNone(seed)
-                        if isinstance(option, ins.AmericanOption):
-                            continue
-                        estimate = engine.price_with_statistics(option, context)
-                        self.assertAlmostEqual(estimate.price, expected, delta=1e-12)
-                        self.assertIsNone(estimate.seed)
-                        self.assertEqual(
-                            estimate.standard_error,
-                            0 if sampling == "pseudo_random" else None,
-                        )
-                        self.assertEqual(
-                            estimate.uncertainty_status,
-                            "available"
-                            if sampling == "pseudo_random"
-                            else "unsupported_sampling",
-                        )
+@pytest.fixture(scope="module")
+def base_cases():
+    return terminal_cases()
 
-    def test_empty_greek_requests_return_price_only_for_every_engine(self):
-        for instrument, names, expected in self.cases:
-            for name in names:
-                context = self.context_for(name)
-                option = dated_history(instrument, context)
-                with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    result = self.engines[name].price_with_greeks(option, context, [])
-                    self.assertAlmostEqual(result.price, expected, delta=1e-12)
-                    self.assertEqual(result.requested, ())
-                    self.assertEqual(result.status("delta"), "not_requested")
-                    self.assertIsNone(result.delta)
-                    self.assertIsNone(result.seed)
 
-    def test_empty_requests_price_before_expiry_and_validate_controls(self):
-        for instrument, names, _ in self.cases[:4]:
-            for name in names:
-                context = self.context_for(name).replace(
-                    valuation_time=instrument.effective_time
-                )
-                engine = self.engines[name]
-                if name.startswith("MonteCarlo"):
-                    engine = (
-                        engine.replace(path_count=32, seed=42, step_count=4)
-                        if name == "MonteCarloVanillaEngine"
-                        else engine.replace(path_count=32, seed=42)
+@pytest.fixture(scope="module")
+def base_engines():
+    return {
+        name: getattr(pricing, name)()
+        for name in pricing.__all__
+        if name.endswith("Engine")
+    }
+
+
+@pytest.fixture(scope="module")
+def base_context():
+    return PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        ),
+        spot_price=105,
+        valuation_time=datetime(2026, 1, 1),
+    )
+
+
+def test_monte_carlo_terminal_statistics_and_seeds_match_settlement(
+    base_cases, base_engines, context_for, subtests
+):
+    for instrument, names, expected in base_cases:
+        for name in names:
+            if not name.startswith("MonteCarlo"):
+                continue
+            context = context_for(name)
+            option = dated_history(instrument, context)
+            for sampling in ("pseudo_random", "sobol"):
+                engine = base_engines[name].replace(sampling=sampling)
+                with subtests.test(
+                    instrument=type(option).__name__, engine=name, sampling=sampling
+                ):
+                    price, seed = engine.price_with_seed(option, context)
+                    assert price == pytest.approx(expected, rel=0, abs=1e-12)
+                    assert seed is None
+                    if isinstance(option, ins.AmericanOption):
+                        continue
+                    estimate = engine.price_with_statistics(option, context)
+                    assert estimate.price == pytest.approx(expected, rel=0, abs=1e-12)
+                    assert estimate.seed is None
+                    assert estimate.standard_error == (
+                        0 if sampling == "pseudo_random" else None
                     )
-                with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    result = engine.price_with_greeks(instrument, context, [])
-                    self.assertEqual(result.price, engine.price(instrument, context))
-                    self.assertEqual(result.requested, ())
-                    self.assertEqual(result.status("vega"), "not_requested")
-                    with self.assertRaises(InvalidInputError):
-                        engine.price_with_greeks(instrument, context, [], spot_shift=0)
-                    if name not in HESTON_ENGINES:
-                        scalar = pricing.numerical_greeks(
-                            engine, instrument, context, []
-                        )
-                        self.assertEqual(scalar.price, result.price)
-                        self.assertEqual(scalar.requested, ())
+                    assert estimate.uncertainty_status == (
+                        "available"
+                        if sampling == "pseudo_random"
+                        else "unsupported_sampling"
+                    )
 
-    @classmethod
-    def setUpClass(cls):
-        cls.cases = terminal_cases()
-        cls.engines = {
-            name: getattr(pricing, name)()
-            for name in pricing.__all__
-            if name.endswith("Engine")
-        }
-        cls.context = PricingContext(
-            model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
-            ),
-            spot_price=105,
-            valuation_time=datetime(2026, 1, 1),
-        )
 
-    def test_every_exported_engine_has_an_accepted_product(self):
-        self.assertEqual(
-            set(self.engines), {name for _, names, _ in self.cases for name in names}
-        )
+def test_empty_greek_requests_return_price_only_for_every_engine(
+    base_cases, base_engines, context_for, subtests
+):
+    for instrument, names, expected in base_cases:
+        for name in names:
+            context = context_for(name)
+            option = dated_history(instrument, context)
+            with subtests.test(instrument=type(instrument).__name__, engine=name):
+                result = base_engines[name].price_with_greeks(option, context, [])
+                assert result.price == pytest.approx(expected, rel=0, abs=1e-12)
+                assert result.requested == (())
+                assert result.status("delta") == "not_requested"
+                assert result.delta is None
+                assert result.seed is None
 
-    def test_heston_model_is_rejected_by_other_engines_even_at_expiry(self):
-        context = self.context_for("AnalyticHestonEuropeanEngine")
-        for instrument, supported, _ in self.cases:
-            for name in supported:
-                if name in HESTON_ENGINES:
-                    continue
-                with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    with self.assertRaises(UnsupportedOperationError):
-                        self.engines[name].price(
-                            dated_history(instrument, context), context
-                        )
-                    with self.assertRaises(UnsupportedOperationError):
-                        self.engines[name].price_with_greeks(
-                            dated_history(instrument, context), context, "delta"
-                        )
-                    with self.assertRaises(UnsupportedOperationError):
-                        pricing.implied_volatility(
-                            self.engines[name],
-                            dated_history(instrument, context),
-                            context,
-                            1,
-                            lower_bound=0.0,
-                            upper_bound=4.0,
-                        )
 
-    def context_for(self, name):
+def test_empty_requests_price_before_expiry_and_validate_controls(
+    base_cases, base_engines, context_for, subtests
+):
+    for instrument, names, _ in base_cases[:4]:
+        for name in names:
+            context = context_for(name).replace(
+                valuation_time=instrument.effective_time
+            )
+            engine = base_engines[name]
+            if name.startswith("MonteCarlo"):
+                engine = (
+                    engine.replace(path_count=32, seed=42, step_count=4)
+                    if name == "MonteCarloVanillaEngine"
+                    else engine.replace(path_count=32, seed=42)
+                )
+            with subtests.test(instrument=type(instrument).__name__, engine=name):
+                result = engine.price_with_greeks(instrument, context, [])
+                assert result.price == engine.price(instrument, context)
+                assert result.requested == (())
+                assert result.status("vega") == "not_requested"
+                with pytest.raises(InvalidInputError):
+                    engine.price_with_greeks(instrument, context, [], spot_shift=0)
+                if name not in HESTON_ENGINES:
+                    scalar = pricing.numerical_greeks(engine, instrument, context, [])
+                    assert scalar.price == result.price
+                    assert scalar.requested == (())
+
+
+def test_every_exported_engine_has_an_accepted_product(base_cases, base_engines):
+    assert set(base_engines) == ({name for _, names, _ in base_cases for name in names})
+
+
+def test_heston_model_is_rejected_by_other_engines_even_at_expiry(
+    base_cases, base_engines, context_for, subtests
+):
+    context = context_for("AnalyticHestonEuropeanEngine")
+    for instrument, supported, _ in base_cases:
+        for name in supported:
+            if name in HESTON_ENGINES:
+                continue
+            with subtests.test(instrument=type(instrument).__name__, engine=name):
+                with pytest.raises(UnsupportedOperationError):
+                    base_engines[name].price(
+                        dated_history(instrument, context), context
+                    )
+                with pytest.raises(UnsupportedOperationError):
+                    base_engines[name].price_with_greeks(
+                        dated_history(instrument, context), context, "delta"
+                    )
+                with pytest.raises(UnsupportedOperationError):
+                    pricing.implied_volatility(
+                        base_engines[name],
+                        dated_history(instrument, context),
+                        context,
+                        1,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
+                    )
+
+
+@pytest.fixture
+def context_for(base_context):
+    def create(name):
         if name in HESTON_ENGINES:
-            return self.context.replace(
+            return base_context.replace(
                 model_parameters=HestonParameters(
                     risk_free_rate=0.04,
                     dividend_yield=0.01,
@@ -435,265 +453,286 @@ class SupportMatrixTests(unittest.TestCase):
                     correlation=-0.7,
                 )
             )
-        return self.context
+        return base_context
 
-    def test_scalar_operations_preserve_expired_contract_errors(self):
-        for instrument, supported, _ in self.cases:
-            for name in supported:
-                expired = self.context_for(name).replace(
-                    valuation_time=datetime(2026, 1, 2)
+    return create
+
+
+def test_scalar_operations_preserve_expired_contract_errors(
+    base_cases, base_context, base_engines, context_for, subtests
+):
+    for instrument, supported, _ in base_cases:
+        for name in supported:
+            expired = context_for(name).replace(valuation_time=datetime(2026, 1, 2))
+            engine = base_engines[name]
+            with subtests.test(instrument=type(instrument).__name__, engine=name):
+                with pytest.raises(InvalidInputError):
+                    engine.price(dated_history(instrument, expired), expired)
+                with pytest.raises(
+                    UnsupportedOperationError
+                    if name in HESTON_ENGINES
+                    else InvalidInputError
+                ):
+                    pricing.implied_volatility(
+                        engine,
+                        dated_history(instrument, expired),
+                        expired,
+                        1,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
+                    )
+    assert base_context.valuation_time == datetime(2026, 1, 1)
+
+
+def test_solver_rejects_unregistered_engine_representations(
+    base_cases, base_context, subtests
+):
+    instrument = base_cases[0][0]
+    for engine in (
+        None,
+        True,
+        100,
+        "engine",
+        object(),
+        base_context,
+        instrument,
+        pricing.AnalyticEuropeanEngine,
+    ):
+        with subtests.test(engine=engine), pytest.raises(TypeError):
+            pricing.implied_volatility(
+                engine,
+                dated_history(instrument, base_context),
+                base_context,
+                1,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
+
+
+def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(
+    base_cases, base_context, base_engines, context_for, subtests
+):
+    for instrument, supported, expected in base_cases:
+        for name in supported:
+            engine = base_engines[name]
+            if name.startswith("MonteCarlo"):
+                engine = engine.with_resolved_seed()
+            context = context_for(name)
+            with subtests.test(instrument=type(instrument).__name__, engine=name):
+                assert_decimal_equal(
+                    engine.price(dated_history(instrument, context), context), expected
                 )
-                engine = self.engines[name]
-                with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    with self.assertRaises(InvalidInputError):
-                        engine.price(dated_history(instrument, expired), expired)
-                    with self.assertRaises(
-                        UnsupportedOperationError
-                        if name in HESTON_ENGINES
-                        else InvalidInputError
-                    ):
-                        pricing.implied_volatility(
-                            engine,
-                            dated_history(instrument, expired),
-                            expired,
-                            1,
-                            lower_bound=0.0,
-                            upper_bound=4.0,
+                request = [] if name in HESTON_ENGINES else ["delta"]
+                if name in HESTON_ENGINES:
+                    with pytest.raises(UnsupportedOperationError):
+                        engine.price_with_greeks(
+                            dated_history(instrument, context), context, ["delta"]
                         )
-        self.assertEqual(self.context.valuation_time, datetime(2026, 1, 1))
+                result = engine.price_with_greeks(
+                    dated_history(instrument, context), context, request
+                )
+                assert_decimal_equal(result.price, expected)
+                if name in HESTON_ENGINES:
+                    assert result.delta is None
+                else:
+                    assert result.delta == pytest.approx(
+                        terminal_delta(instrument), rel=0, abs=1e-10
+                    )
+                assert result.requested == tuple(request)
+                assert result.status("delta") == (
+                    "not_requested" if name in HESTON_ENGINES else "available"
+                )
+                assert result.status("gamma") == "not_requested"
+                with pytest.raises(UnsupportedOperationError) as error:
+                    pricing.implied_volatility(
+                        engine,
+                        dated_history(instrument, base_context),
+                        base_context,
+                        expected,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
+                    )
+                assert type(error.value) is UnsupportedOperationError
 
-    def test_solver_rejects_unregistered_engine_representations(self):
-        instrument = self.cases[0][0]
-        for engine in (
+
+def test_local_volatility_status_preserves_requests_across_fd_products(
+    base_cases, base_context, base_engines, subtests
+):
+    local = base_context.replace(
+        model_parameters=LocalVolatilityParameters(
+            risk_free_rate=0.04,
+            dividend_yield=0.01,
+            surface=LocalVolatilitySurface(
+                times=[datetime(2025, 1, 1), datetime(2026, 1, 1)],
+                spots=[80, 120],
+                values=[[0.2, 0.2], [0.2, 0.2]],
+            ),
+        )
+    )
+    for instrument, supported, _ in base_cases:
+        for name in supported:
+            if not name.startswith("FiniteDifference") or name in HESTON_ENGINES:
+                continue
+            with subtests.test(instrument=type(instrument).__name__, engine=name):
+                result = base_engines[name].price_with_greeks(
+                    dated_history(instrument, local), local, ["delta", "vega"]
+                )
+                assert result.requested == (("delta", "vega"))
+                assert result.supported == (("delta", "gamma"))
+                assert result.status("delta") == "available"
+                assert result.delta == pytest.approx(
+                    terminal_delta(instrument), rel=0, abs=1e-10
+                )
+                assert result.status("vega") == "unsupported"
+                assert result.status("gamma") == "not_requested"
+
+
+def test_other_product_engine_pairs_raise_domain_errors(
+    base_cases, base_context, base_engines, subtests
+):
+    for instrument, supported, _ in base_cases:
+        for name, engine in base_engines.items():
+            if name in supported:
+                continue
+            with subtests.test(instrument=type(instrument).__name__, engine=name):
+                with pytest.raises(UnsupportedOperationError):
+                    engine.price(dated_history(instrument, base_context), base_context)
+                with pytest.raises(UnsupportedOperationError):
+                    engine.price_with_greeks(
+                        dated_history(instrument, base_context),
+                        base_context,
+                        ["delta"],
+                    )
+                with pytest.raises(UnsupportedOperationError):
+                    pricing.implied_volatility(
+                        engine,
+                        dated_history(instrument, base_context),
+                        base_context,
+                        1,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
+                    )
+
+
+def test_invalid_instrument_representations_keep_native_errors(
+    base_context, base_engines, subtests
+):
+    for name, engine in base_engines.items():
+        for instrument in (
             None,
             True,
             100,
-            "engine",
+            "option",
             object(),
-            self.context,
-            instrument,
-            pricing.AnalyticEuropeanEngine,
+            base_context,
+            engine,
         ):
-            with self.subTest(engine=engine), self.assertRaises(TypeError):
-                pricing.implied_volatility(
-                    engine,
-                    dated_history(instrument, self.context),
-                    self.context,
-                    1,
-                    lower_bound=0.0,
-                    upper_bound=4.0,
-                )
-
-    def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(self):
-        for instrument, supported, expected in self.cases:
-            for name in supported:
-                engine = self.engines[name]
-                if name.startswith("MonteCarlo"):
-                    engine = engine.with_resolved_seed()
-                context = self.context_for(name)
-                with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    self.assertAlmostEqual(
-                        engine.price(dated_history(instrument, context), context),
-                        expected,
+            with subtests.test(engine=name, instrument=instrument):
+                with pytest.raises(TypeError):
+                    engine.price(dated_history(instrument, base_context), base_context)
+                with pytest.raises(TypeError):
+                    engine.price_with_greeks(
+                        dated_history(instrument, base_context),
+                        base_context,
+                        ["delta"],
                     )
-                    request = [] if name in HESTON_ENGINES else ["delta"]
-                    if name in HESTON_ENGINES:
-                        with self.assertRaises(UnsupportedOperationError):
-                            engine.price_with_greeks(
-                                dated_history(instrument, context), context, ["delta"]
-                            )
-                    result = engine.price_with_greeks(
-                        dated_history(instrument, context), context, request
+                with pytest.raises(TypeError):
+                    pricing.implied_volatility(
+                        engine,
+                        dated_history(instrument, base_context),
+                        base_context,
+                        1,
+                        lower_bound=0.0,
+                        upper_bound=4.0,
                     )
-                    self.assertAlmostEqual(result.price, expected)
-                    if name in HESTON_ENGINES:
-                        self.assertIsNone(result.delta)
-                    else:
-                        self.assertAlmostEqual(
-                            result.delta, terminal_delta(instrument), delta=1e-10
-                        )
-                    self.assertEqual(result.requested, tuple(request))
-                    self.assertEqual(
-                        result.status("delta"),
-                        "not_requested" if name in HESTON_ENGINES else "available",
+
+
+def test_autocallable_instrument_conversion_precedes_greek_name_validation(
+    base_cases, base_context, base_engines, subtests
+):
+    for name, engine in base_engines.items():
+        if not name.endswith("AutocallableEngine"):
+            continue
+        for instrument, expected_error in (
+            (base_cases[0][0], UnsupportedOperationError),
+            (object(), TypeError),
+        ):
+            with subtests.test(engine=name, instrument=type(instrument).__name__):
+                with pytest.raises(expected_error) as error:
+                    engine.price_with_greeks(
+                        dated_history(instrument, base_context),
+                        base_context,
+                        ["invalid"],
                     )
-                    self.assertEqual(result.status("gamma"), "not_requested")
-                    with self.assertRaises(UnsupportedOperationError) as error:
-                        pricing.implied_volatility(
-                            engine,
-                            dated_history(instrument, self.context),
-                            self.context,
-                            expected,
-                            lower_bound=0.0,
-                            upper_bound=4.0,
-                        )
-                    self.assertIs(type(error.exception), UnsupportedOperationError)
+                assert type(error.value) is expected_error
 
-    def test_local_volatility_status_preserves_requests_across_fd_products(self):
-        local = self.context.replace(
-            model_parameters=LocalVolatilityParameters(
-                risk_free_rate=0.04,
-                dividend_yield=0.01,
-                surface=LocalVolatilitySurface(
-                    times=[datetime(2025, 1, 1), datetime(2026, 1, 1)],
-                    spots=[80, 120],
-                    values=[[0.2, 0.2], [0.2, 0.2]],
-                ),
-            )
-        )
-        for instrument, supported, _ in self.cases:
-            for name in supported:
-                if not name.startswith("FiniteDifference") or name in HESTON_ENGINES:
-                    continue
-                with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    result = self.engines[name].price_with_greeks(
-                        dated_history(instrument, local), local, ["delta", "vega"]
-                    )
-                    self.assertEqual(result.requested, ("delta", "vega"))
-                    self.assertEqual(result.supported, ("delta", "gamma"))
-                    self.assertEqual(result.status("delta"), "available")
-                    self.assertAlmostEqual(
-                        result.delta, terminal_delta(instrument), delta=1e-10
-                    )
-                    self.assertEqual(result.status("vega"), "unsupported")
-                    self.assertEqual(result.status("gamma"), "not_requested")
 
-    def test_other_product_engine_pairs_raise_domain_errors(self):
-        for instrument, supported, _ in self.cases:
-            for name, engine in self.engines.items():
-                if name in supported:
-                    continue
-                with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    with self.assertRaises(UnsupportedOperationError):
-                        engine.price(
-                            dated_history(instrument, self.context), self.context
-                        )
-                    with self.assertRaises(UnsupportedOperationError):
-                        engine.price_with_greeks(
-                            dated_history(instrument, self.context),
-                            self.context,
-                            ["delta"],
-                        )
-                    with self.assertRaises(UnsupportedOperationError):
-                        pricing.implied_volatility(
-                            engine,
-                            dated_history(instrument, self.context),
-                            self.context,
-                            1,
-                            lower_bound=0.0,
-                            upper_bound=4.0,
-                        )
-
-    def test_invalid_instrument_representations_keep_native_errors(self):
-        for name, engine in self.engines.items():
-            for instrument in (
-                None,
-                True,
-                100,
-                "option",
-                object(),
-                self.context,
-                engine,
-            ):
-                with self.subTest(engine=name, instrument=instrument):
-                    with self.assertRaises(TypeError):
-                        engine.price(
-                            dated_history(instrument, self.context), self.context
-                        )
-                    with self.assertRaises(TypeError):
-                        engine.price_with_greeks(
-                            dated_history(instrument, self.context),
-                            self.context,
-                            ["delta"],
-                        )
-                    with self.assertRaises(TypeError):
-                        pricing.implied_volatility(
-                            engine,
-                            dated_history(instrument, self.context),
-                            self.context,
-                            1,
-                            lower_bound=0.0,
-                            upper_bound=4.0,
-                        )
-
-    def test_autocallable_instrument_conversion_precedes_greek_name_validation(self):
-        for name, engine in self.engines.items():
-            if not name.endswith("AutocallableEngine"):
+def test_statistics_reject_unsupported_products_as_domain_errors(
+    base_cases, base_context, base_engines, subtests
+):
+    products = {
+        "MonteCarloVanillaEngine": (ins.EuropeanOption,),
+        "MonteCarloAccumulatorEngine": (ins.Accumulator,),
+        "MonteCarloAutocallableEngine": (
+            ins.SnowballOption,
+            ins.BinarySnowballOption,
+            ins.TernarySnowballOption,
+            ins.PhoenixOption,
+        ),
+    }
+    for name, accepted in products.items():
+        engine = base_engines[name]
+        for instrument, _, _ in base_cases:
+            if isinstance(instrument, accepted):
                 continue
-            for instrument, expected_error in (
-                (self.cases[0][0], UnsupportedOperationError),
-                (object(), TypeError),
+            with (
+                subtests.test(engine=name, instrument=type(instrument).__name__),
+                pytest.raises(UnsupportedOperationError),
             ):
-                with self.subTest(engine=name, instrument=type(instrument).__name__):
-                    with self.assertRaises(expected_error) as error:
-                        engine.price_with_greeks(
-                            dated_history(instrument, self.context),
-                            self.context,
-                            ["invalid"],
-                        )
-                    self.assertIs(type(error.exception), expected_error)
+                engine.price_with_statistics(
+                    dated_history(instrument, base_context), base_context
+                )
+        with pytest.raises(TypeError):
+            engine.price_with_statistics(
+                dated_history(object(), base_context), base_context
+            )
 
-    def test_statistics_reject_unsupported_products_as_domain_errors(self):
-        products = {
-            "MonteCarloVanillaEngine": (ins.EuropeanOption,),
-            "MonteCarloAccumulatorEngine": (ins.Accumulator,),
-            "MonteCarloAutocallableEngine": (
+
+def test_coupon_solver_rejects_unsupported_products_and_engines(
+    base_cases, base_context, base_engines, subtests
+):
+    for solver, accepted, keywords in (
+        (
+            pricing.implied_snowball_coupon,
+            (
                 ins.SnowballOption,
                 ins.BinarySnowballOption,
                 ins.TernarySnowballOption,
-                ins.PhoenixOption,
             ),
-        }
-        for name, accepted in products.items():
-            engine = self.engines[name]
-            for instrument, _, _ in self.cases:
-                if isinstance(instrument, accepted):
-                    continue
-                with (
-                    self.subTest(engine=name, instrument=type(instrument).__name__),
-                    self.assertRaises(UnsupportedOperationError),
-                ):
-                    engine.price_with_statistics(
-                        dated_history(instrument, self.context), self.context
-                    )
-            with self.assertRaises(TypeError):
-                engine.price_with_statistics(
-                    dated_history(object(), self.context), self.context
-                )
-
-    def test_coupon_solver_rejects_unsupported_products_and_engines(self):
-        for solver, accepted, keywords in (
-            (
-                pricing.implied_snowball_coupon,
-                (
-                    ins.SnowballOption,
-                    ins.BinarySnowballOption,
-                    ins.TernarySnowballOption,
-                ),
-                {"quote_convention": "preserve_maturity_coupon"},
-            ),
-            (pricing.implied_phoenix_coupon, (ins.PhoenixOption,), {}),
-        ):
-            note = next(
-                product for product, _, _ in self.cases if isinstance(product, accepted)
-            )
-            for name, engine in self.engines.items():
-                if name.endswith("AutocallableEngine"):
-                    for product, _, _ in self.cases:
-                        if isinstance(product, accepted):
-                            continue
-                        with (
-                            self.subTest(
-                                solver=solver.__name__,
-                                engine=name,
-                                instrument=type(product).__name__,
-                            ),
-                            self.assertRaises(UnsupportedOperationError),
-                        ):
-                            solver(engine, product, self.context, 1, **keywords)
-                else:
+            {"quote_convention": "preserve_maturity_coupon"},
+        ),
+        (pricing.implied_phoenix_coupon, (ins.PhoenixOption,), {}),
+    ):
+        note = next(
+            product for product, _, _ in base_cases if isinstance(product, accepted)
+        )
+        for name, engine in base_engines.items():
+            if name.endswith("AutocallableEngine"):
+                for product, _, _ in base_cases:
+                    if isinstance(product, accepted):
+                        continue
                     with (
-                        self.subTest(solver=solver.__name__, engine=name),
-                        self.assertRaises(UnsupportedOperationError),
+                        subtests.test(
+                            solver=solver.__name__,
+                            engine=name,
+                            instrument=type(product).__name__,
+                        ),
+                        pytest.raises(UnsupportedOperationError),
                     ):
-                        solver(engine, note, self.context, 1, **keywords)
+                        solver(engine, product, base_context, 1, **keywords)
+            else:
+                with (
+                    subtests.test(solver=solver.__name__, engine=name),
+                    pytest.raises(UnsupportedOperationError),
+                ):
+                    solver(engine, note, base_context, 1, **keywords)

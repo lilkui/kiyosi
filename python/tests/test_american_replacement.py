@@ -1,55 +1,49 @@
 """Validated American option replacements and ownership."""
 
-import unittest
 from datetime import datetime
 
+import pytest
 from kiyosi import InvalidInputError
 from kiyosi.instruments import AmericanOption, EuropeanOption
 
 
-class AmericanReplacementTests(unittest.TestCase):
-    option_class = AmericanOption
-
-    def test_replacements_validate_and_preserve_originals(self):
-        terms = {
-            "option_type": "put",
-            "strike": 100,
-            "effective_time": datetime(2025, 1, 1),
-            "expiry_time": datetime(2026, 1, 1),
-        }
-        original = self.option_class(**terms)
-        self.assertEqual(original.replace(), original)
-        updated = original.replace(
-            option_type="call",
-            strike=105,
-            effective_time=datetime(2026, 1, 1),
-            expiry_time=datetime(2027, 1, 1),
-        )
-        self.assertEqual(updated.option_type, "call")
-        self.assertEqual(updated.strike, 105)
-        self.assertEqual(updated.effective_time, datetime(2026, 1, 1))
-        self.assertEqual(updated.expiry_time, datetime(2027, 1, 1))
-        for fields, expected_error in (
-            ({"strike": 0}, InvalidInputError),
-            ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
-        ):
-            with self.assertRaises(expected_error) as error:
-                original.replace(**fields)
-            self.assertIs(type(error.exception), expected_error)
-        for fields in (
-            {"strike": True},
-            {"strike": None},
-            {"option_type": 1},
-            {"expiry_time": None},
-            {"effective_time": datetime(2025, 1, 1).date()},
-            {"unknown": 1},
-        ):
-            with self.assertRaises(TypeError):
-                original.replace(**fields)
-        self.assertEqual(original, self.option_class(**terms))
-        del original
-        self.assertEqual(updated.strike, 105)
-
-
-class EuropeanReplacementTests(AmericanReplacementTests):
-    option_class = EuropeanOption
+@pytest.mark.parametrize("option_class", [AmericanOption, EuropeanOption])
+def test_replacements_validate_and_preserve_originals(option_class):
+    terms = {
+        "option_type": "put",
+        "strike": 100,
+        "effective_time": datetime(2025, 1, 1),
+        "expiry_time": datetime(2026, 1, 1),
+    }
+    original = option_class(**terms)
+    assert original.replace() == original
+    updated = original.replace(
+        option_type="call",
+        strike=105,
+        effective_time=datetime(2026, 1, 1),
+        expiry_time=datetime(2027, 1, 1),
+    )
+    assert updated.option_type == "call"
+    assert updated.strike == 105
+    assert updated.effective_time == datetime(2026, 1, 1)
+    assert updated.expiry_time == datetime(2027, 1, 1)
+    for fields, expected_error in (
+        ({"strike": 0}, InvalidInputError),
+        ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
+    ):
+        with pytest.raises(expected_error) as error:
+            original.replace(**fields)
+        assert type(error.value) is expected_error
+    for fields in (
+        {"strike": True},
+        {"strike": None},
+        {"option_type": 1},
+        {"expiry_time": None},
+        {"effective_time": datetime(2025, 1, 1).date()},
+        {"unknown": 1},
+    ):
+        with pytest.raises(TypeError):
+            original.replace(**fields)
+    assert original == option_class(**terms)
+    del original
+    assert updated.strike == 105

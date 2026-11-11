@@ -2,11 +2,11 @@
 
 import json
 import math
-import unittest
 from datetime import datetime, timedelta
 from datetime import time as clock_time
 from pathlib import Path
 
+import pytest
 import QuantLib as ql
 from kiyosi import instruments as ins
 from kiyosi import pricing
@@ -26,6 +26,7 @@ from quantlib_reference.local_volatility_paths import (
     payoffs,
     trading_dates,
 )
+from support.assertions import assert_decimal_equal
 from support.history import dated as dated_history
 from support.history import history_fields
 
@@ -137,122 +138,116 @@ def engine(name, space=1600, time=1600, upper=440):
     )
 
 
-class LocalVolatilityStructuredTests(unittest.TestCase):
-    def test_independent_payoff_evaluator_on_known_paths(self):
-        grid = ql.TimeGrid([(day - START.date()).days / 365 for day in trading_dates()])
-        records = events(grid)
-        maturity = (END - START).days / 365
-        discount = math.exp(-0.04 * maturity)
-        low = dict(zip(NAMES, payoffs([80.0] * len(grid), records), strict=True))
-        self.assertAlmostEqual(
-            low["accumulator"], -(4 + 2 * len(records)) * 20 * discount
+def test_independent_payoff_evaluator_on_known_paths():
+    grid = ql.TimeGrid([(day - START.date()).days / 365 for day in trading_dates()])
+    records = events(grid)
+    maturity = (END - START).days / 365
+    discount = math.exp(-0.04 * maturity)
+    low = dict(zip(NAMES, payoffs([80.0] * len(grid), records), strict=True))
+    assert_decimal_equal(low["accumulator"], -(4 + 2 * len(records)) * 20 * discount)
+    for name in [
+        "snowball_daily",
+        "snowball_terminal",
+        "phoenix_daily",
+        "phoenix_terminal",
+    ]:
+        assert_decimal_equal(low[name], 0.8 * discount)
+    assert_decimal_equal(low["binary_snowball"], (1 + 0.06 * maturity) * discount)
+    for name in ["ternary_daily", "ternary_terminal"]:
+        assert_decimal_equal(low[name], (1 + 0.01 * maturity) * discount)
+    high = dict(zip(NAMES, payoffs([111.0] * len(grid), records), strict=True))
+    assert_decimal_equal(high["accumulator"], 44 * math.exp(-0.04 / 365))
+    first = (OBSERVATIONS[0] - START).days / 365
+    for name in NAMES[1:]:
+        assert_decimal_equal(
+            high[name],
+            (1 + 0.08 * (1 if name.startswith("phoenix") else first))
+            * math.exp(-0.04 * first),
         )
-        for name in [
-            "snowball_daily",
-            "snowball_terminal",
-            "phoenix_daily",
-            "phoenix_terminal",
-        ]:
-            self.assertAlmostEqual(low[name], 0.8 * discount)
-        self.assertAlmostEqual(low["binary_snowball"], (1 + 0.06 * maturity) * discount)
-        for name in ["ternary_daily", "ternary_terminal"]:
-            self.assertAlmostEqual(low[name], (1 + 0.01 * maturity) * discount)
-        high = dict(zip(NAMES, payoffs([111.0] * len(grid), records), strict=True))
-        self.assertAlmostEqual(high["accumulator"], 44 * math.exp(-0.04 / 365))
-        first = (OBSERVATIONS[0] - START).days / 365
-        for name in NAMES[1:]:
-            self.assertAlmostEqual(
-                high[name],
-                (1 + 0.08 * (1 if name.startswith("phoenix") else first))
-                * math.exp(-0.04 * first),
+
+
+def test_skew_multievent_prices_match_independent_controlled_paths(subtests):
+    evidence = json.loads(
+        (
+            Path(__file__).parent
+            / "quantlib_reference/local_volatility_structured.json"
+        ).read_text()
+    )
+    for name, contract in contracts().items():
+        with subtests.test(product=name):
+            ref = evidence["reference"]["results"][name]
+            bias = evidence["time_refinement"][-1]["results"][name]
+            budget = (
+                5 * ref["standard_error"]
+                + ref["control_reference_error"]
+                + 2 * (abs(bias["fine_minus_coarse"]) + 5 * bias["standard_error"])
+                + (0.5 if name == "accumulator" else 0.0001)
+            )
+            actual = engine(name).price(dated_history(contract, market()), market())
+            assert actual == pytest.approx(ref["price"], rel=0, abs=budget)
+
+
+def test_skew_refines_time_space_domain_and_preserves_surface_greeks(subtests):
+    for name, contract in contracts().items():
+        with subtests.test(product=name):
+            e = engine(name)
+            result = e.price_with_greeks(
+                dated_history(contract, market()), market(), ["delta", "gamma"]
+            )
+            budget = 0.5 if name == "accumulator" else 0.00015
+            for other in [
+                engine(name, time=800),
+                engine(name, space=800),
+                engine(name, space=2400, upper=660),
+            ]:
+                assert other.price(
+                    dated_history(contract, market()), market()
+                ) == pytest.approx(result.price, rel=0, abs=budget)
+            up, down = [
+                e.price(dated_history(contract, market(spot)), market(spot))
+                for spot in [101.1, 100.9]
+            ]
+            assert result.delta == pytest.approx(
+                (up - down) / 0.2,
+                rel=0,
+                abs=(0.02 if name == "accumulator" else 0.00001),
+            )
+            assert result.gamma == pytest.approx(
+                (up + down - 2 * result.price) / 0.01,
+                rel=0,
+                abs=(0.02 if name == "accumulator" else 0.00001),
             )
 
-    def test_skew_multievent_prices_match_independent_controlled_paths(self):
-        evidence = json.loads(
-            (
-                Path(__file__).parent
-                / "quantlib_reference/local_volatility_structured.json"
-            ).read_text()
+
+def test_structured_greeks_match_independent_common_random_paths(subtests):
+    evidence = json.loads(
+        (
+            Path(__file__).parent
+            / "quantlib_reference/local_volatility_structured.json"
+        ).read_text()
+    )
+    fine = evidence["sensitivities"]["fine"]["results"]
+    coarse = evidence["sensitivities"]["coarse"]["results"]
+    for name, contract in contracts().items():
+        actual = engine(name).price_with_greeks(
+            dated_history(contract, market(103)), market(103), ["delta", "gamma"]
         )
-        for name, contract in contracts().items():
-            with self.subTest(product=name):
-                ref = evidence["reference"]["results"][name]
-                bias = evidence["time_refinement"][-1]["results"][name]
-                budget = (
-                    5 * ref["standard_error"]
-                    + ref["control_reference_error"]
-                    + 2 * (abs(bias["fine_minus_coarse"]) + 5 * bias["standard_error"])
-                    + (0.5 if name == "accumulator" else 0.0001)
+        for greek in ["delta", "gamma"]:
+            with subtests.test(product=name, greek=greek):
+                ref = fine[f"{greek}_2"][name]
+                small = fine[f"{greek}_1"][name]
+                previous = coarse[f"{greek}_2"][name]
+                # Wider common-random bumps reduce variance; keep their measured O(h²) bias.
+                budget = 5 * ref["standard_error"] + 4 / 3 * abs(
+                    ref["value"] - small["value"]
                 )
-                actual = engine(name).price(dated_history(contract, market()), market())
-                self.assertAlmostEqual(actual, ref["price"], delta=budget)
-
-    def test_skew_refines_time_space_domain_and_preserves_surface_greeks(self):
-        for name, contract in contracts().items():
-            with self.subTest(product=name):
-                e = engine(name)
-                result = e.price_with_greeks(
-                    dated_history(contract, market()), market(), ["delta", "gamma"]
+                assert budget < abs(ref["value"])
+                assert ref["value"] == pytest.approx(
+                    previous["value"],
+                    rel=0,
+                    abs=5
+                    * math.hypot(ref["standard_error"], previous["standard_error"]),
                 )
-                budget = 0.5 if name == "accumulator" else 0.00015
-                for other in [
-                    engine(name, time=800),
-                    engine(name, space=800),
-                    engine(name, space=2400, upper=660),
-                ]:
-                    self.assertAlmostEqual(
-                        other.price(dated_history(contract, market()), market()),
-                        result.price,
-                        delta=budget,
-                    )
-                up, down = [
-                    e.price(dated_history(contract, market(spot)), market(spot))
-                    for spot in [101.1, 100.9]
-                ]
-                self.assertAlmostEqual(
-                    result.delta,
-                    (up - down) / 0.2,
-                    delta=0.02 if name == "accumulator" else 0.00001,
+                assert getattr(actual, greek) == pytest.approx(
+                    ref["value"], rel=0, abs=budget
                 )
-                self.assertAlmostEqual(
-                    result.gamma,
-                    (up + down - 2 * result.price) / 0.01,
-                    delta=0.02 if name == "accumulator" else 0.00001,
-                )
-
-    def test_structured_greeks_match_independent_common_random_paths(self):
-        evidence = json.loads(
-            (
-                Path(__file__).parent
-                / "quantlib_reference/local_volatility_structured.json"
-            ).read_text()
-        )
-        fine = evidence["sensitivities"]["fine"]["results"]
-        coarse = evidence["sensitivities"]["coarse"]["results"]
-        for name, contract in contracts().items():
-            actual = engine(name).price_with_greeks(
-                dated_history(contract, market(103)), market(103), ["delta", "gamma"]
-            )
-            for greek in ["delta", "gamma"]:
-                with self.subTest(product=name, greek=greek):
-                    ref = fine[f"{greek}_2"][name]
-                    small = fine[f"{greek}_1"][name]
-                    previous = coarse[f"{greek}_2"][name]
-                    # Wider common-random bumps reduce variance; keep their measured O(h²) bias.
-                    budget = 5 * ref["standard_error"] + 4 / 3 * abs(
-                        ref["value"] - small["value"]
-                    )
-                    self.assertLess(budget, abs(ref["value"]))
-                    self.assertAlmostEqual(
-                        ref["value"],
-                        previous["value"],
-                        delta=5
-                        * math.hypot(ref["standard_error"], previous["standard_error"]),
-                    )
-                    self.assertAlmostEqual(
-                        getattr(actual, greek), ref["value"], delta=budget
-                    )
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -2,10 +2,11 @@
 
 from typing import get_args
 
+import pytest
 from kiyosi import Greek
 
 
-def assert_terminal_greeks(test, result, delta):
+def assert_terminal_greeks(result, delta):
     for greek in get_args(Greek):
         if (
             greek not in result.requested
@@ -23,9 +24,9 @@ def assert_terminal_greeks(test, result, delta):
                 )
             )
         ):
-            test.assertIsNone(getattr(result, greek), greek)
+            assert getattr(result, greek) is None, greek
         else:
             expected = delta if greek == "delta" else 0
-            test.assertAlmostEqual(
-                result.require(greek), expected, delta=1e-8, msg=greek
+            assert result.require(greek) == pytest.approx(expected, rel=0, abs=1e-8), (
+                greek
             )

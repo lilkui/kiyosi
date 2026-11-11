@@ -3,27 +3,29 @@
 import subprocess
 import sys
 import textwrap
-import unittest
+
+import pytest
 
 
-class CancellationTests(unittest.TestCase):
-    def test_signals_cancel_numerical_requests_without_poisoning_engines(self):
-        for case in (
-            "serial_mc",
-            "parallel_mc",
-            "seeded_mc",
-            "tree",
-            "fd",
-            "quadrature",
-            "heston_fd",
-            "custom_handler",
-        ):
-            with self.subTest(engine=case):
-                result = subprocess.run(
-                    [
-                        sys.executable,
-                        "-c",
-                        textwrap.dedent("""
+@pytest.mark.parametrize(
+    "case",
+    (
+        "serial_mc",
+        "parallel_mc",
+        "seeded_mc",
+        "tree",
+        "fd",
+        "quadrature",
+        "heston_fd",
+        "custom_handler",
+    ),
+)
+def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent("""
                         import signal
                         import threading
                         import sys
@@ -84,12 +86,12 @@ class CancellationTests(unittest.TestCase):
                         assert replay.price(vanilla, context) == baseline
                         print("cancelled and replayed")
                     """),
-                        case,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    check=False,
-                )
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertEqual(result.stdout.strip(), "cancelled and replayed")
+            case,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "cancelled and replayed"

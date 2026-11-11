@@ -1,10 +1,10 @@
 """Validated immutable edits of every exotic contract family."""
 
 import inspect
-import unittest
 from datetime import datetime
 from datetime import time as clock_time
 
+import pytest
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi.market import all_days_calendar, weekdays_calendar
@@ -314,75 +314,176 @@ NULLABLE = {
 }
 
 
-class ContractReplacementTests(unittest.TestCase):
-    def test_monitoring_schedules_round_trip_for_continuous_and_scheduled_contracts(
-        self,
-    ):
-        times = (datetime(2025, 1, 4), END)
-        for factory, fields in contract_inputs():
-            if "touch_state" not in fields:
+def test_monitoring_schedules_round_trip_for_continuous_and_scheduled_contracts(
+    subtests,
+):
+    times = (datetime(2025, 1, 4), END)
+    for factory, fields in contract_inputs():
+        if "touch_state" not in fields:
+            continue
+        with subtests.test(contract=factory.__name__):
+            continuous = factory(
+                **(fields | {"touch_state": None, "calendar": all_days_calendar()})
+            )
+            assert continuous.observation_schedule is None
+            assert (
+                continuous.replace(observation_times=continuous.observation_schedule)
+                == continuous
+            )
+            scheduled = continuous.replace(observation_times=times)
+            schedule = scheduled.observation_schedule
+            assert schedule.times == times
+            assert scheduled.replace(observation_times=schedule) == scheduled
+            assert (
+                factory(
+                    **fields
+                    | {
+                        "touch_state": None,
+                        "observation_times": schedule,
+                        "calendar": scheduled.calendar,
+                    }
+                )
+                == scheduled
+            )
+            assert scheduled.replace(observation_times=None) == continuous
+
+
+def test_reactivation_with_changed_rules_requires_explicit_quantity():
+    active = next(value for value in contracts() if isinstance(value, i.Accumulator))
+    active = active.replace(
+        knock_out_observation_times=None,
+        accumulated_quantity=active.accumulated_quantity,
+        knock_out_settled=active.knock_out_settled,
+    )
+    settled = active.replace_history(knock_out_settled=True)
+    with pytest.raises(InvalidInputError):
+        settled.replace(knock_out_settled=False, daily_quantity=2)
+    reactivated = settled.replace(
+        knock_out_settled=False, daily_quantity=2, accumulated_quantity=0
+    )
+    assert not (reactivated.knock_out_settled)
+    assert reactivated.accumulated_quantity == 0
+    assert settled.replace(daily_quantity=2).knock_out_settled
+    assert settled.knock_out_settled
+    assert settled.accumulated_quantity == 3
+
+
+def test_event_changes_require_an_explicit_history_choice(subtests):
+    for original in contracts():
+        if hasattr(original, "realized_average"):
+            original = original.replace_history(
+                realized_average=100, history_time=datetime(2025, 1, 6, 12)
+            )
+        history = {
+            field: getattr(original, field)
+            for field in (
+                "touch_state",
+                "barrier_state",
+                "realized_average",
+                "realized_hit_count",
+                "accumulated_quantity",
+                "knock_out_settled",
+            )
+            if hasattr(original, field)
+        }
+        if hasattr(original, "barrier_level"):
+            updates = {"barrier_level": original.barrier_level + 5}
+        elif hasattr(original, "lower_barrier"):
+            updates = {"lower_barrier": original.lower_barrier - 5}
+        elif isinstance(original, i.Accumulator):
+            updates = {"daily_quantity": original.daily_quantity + 1}
+        elif isinstance(original, i.RangeAccrualOption):
+            updates = {"lower_bound": original.lower_bound - 5}
+        elif hasattr(original, "averaging_start_time"):
+            from datetime import timedelta
+
+            updates = {
+                "averaging_start_time": original.averaging_start_time
+                + timedelta(days=1)
+            }
+        else:
+            original = original.replace(
+                observations=[
+                    original.observations[0].replace(time=datetime(2025, 1, 3)),
+                    *original.observations,
+                ],
+                barrier_state=original.barrier_state,
+            )
+            updates = {
+                "observations": [
+                    r.replace(knock_out_level=r.knock_out_level + 5)
+                    for r in original.observations
+                ]
+            }
+        with subtests.test(contract=type(original).__name__):
+            saved = original.replace()
+            with pytest.raises(InvalidInputError):
+                original.replace(**updates)
+            kept = original.replace(**updates, **history)
+            assert ({field: getattr(kept, field) for field in history}) == history
+            cleared_history = {field: None for field in history}
+            cleared = original.replace(**updates, **cleared_history)
+            assert (
+                {field: getattr(cleared, field) for field in history}
+            ) == cleared_history
+            unknown = original.replace(**cleared_history)
+            assert unknown.replace(**updates) == cleared
+            assert original == saved
+
+
+def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests):
+    from kiyosi._serialization import _reduce
+
+    for original in contracts():
+        _, (factory, initial) = _reduce(original)
+        with subtests.test(contract=type(original).__name__, operation="omission"):
+            assert original.replace() == original
+            assert original.replace() is not original
+            forwarded = {
+                name: field.default
+                for name, field in inspect.signature(
+                    original.replace
+                ).parameters.items()
+            }
+            assert original.replace(**forwarded) == original
+        for name in inspect.signature(original.replace).parameters:
+            if name in ("observation_mode", "observation_times"):
                 continue
-            with self.subTest(contract=factory.__name__):
-                continuous = factory(
-                    **(fields | {"touch_state": None, "calendar": all_days_calendar()})
+            value = UPDATES.get(name)
+            if name == "observations" and isinstance(original, i.PhoenixOption):
+                value = [
+                    i.AutocallableObservation.phoenix(END, 115, coupon_barrier_level=0)
+                ]
+            if name == "barrier_type":
+                value = (
+                    "knock_out"
+                    if isinstance(original, i.DoubleTouchOption)
+                    else "knock_in"
+                    if isinstance(original, i.DoubleBarrierOption)
+                    else "down_and_out"
+                    if isinstance(original, i.TouchOption)
+                    else "down_and_in"
                 )
-                self.assertIsNone(continuous.observation_schedule)
-                self.assertEqual(
-                    continuous.replace(
-                        observation_times=continuous.observation_schedule
-                    ),
-                    continuous,
-                )
-                scheduled = continuous.replace(observation_times=times)
-                schedule = scheduled.observation_schedule
-                self.assertEqual(schedule.times, times)
-                self.assertEqual(
-                    scheduled.replace(observation_times=schedule), scheduled
-                )
-                self.assertEqual(
-                    factory(
-                        **(
-                            fields
-                            | {
-                                "touch_state": None,
-                                "observation_times": schedule,
-                                "calendar": scheduled.calendar,
-                            }
-                        )
-                    ),
-                    scheduled,
-                )
-                self.assertEqual(scheduled.replace(observation_times=None), continuous)
-
-    def test_reactivation_with_changed_rules_requires_explicit_quantity(self):
-        active = next(
-            value for value in contracts() if isinstance(value, i.Accumulator)
-        )
-        active = active.replace(
-            knock_out_observation_times=None,
-            accumulated_quantity=active.accumulated_quantity,
-            knock_out_settled=active.knock_out_settled,
-        )
-        settled = active.replace_history(knock_out_settled=True)
-        with self.assertRaises(InvalidInputError):
-            settled.replace(knock_out_settled=False, daily_quantity=2)
-        reactivated = settled.replace(
-            knock_out_settled=False, daily_quantity=2, accumulated_quantity=0
-        )
-        self.assertFalse(reactivated.knock_out_settled)
-        self.assertEqual(reactivated.accumulated_quantity, 0)
-        self.assertTrue(settled.replace(daily_quantity=2).knock_out_settled)
-        self.assertTrue(settled.knock_out_settled)
-        self.assertEqual(settled.accumulated_quantity, 3)
-
-    def test_event_changes_require_an_explicit_history_choice(self):
-        for original in contracts():
-            if hasattr(original, "realized_average"):
-                original = original.replace_history(
-                    realized_average=100, history_time=datetime(2025, 1, 6, 12)
-                )
-            history = {
-                field: getattr(original, field)
+            with subtests.test(contract=type(original).__name__, field=name):
+                updates = {name: value}
+                if name == "barrier_state":
+                    updates["history_time"] = original.history_time
+                if name == "knock_in_observation_mode":
+                    updates["observation_clock_time"] = None
+                if isinstance(original, (i.BinaryBarrierOption, i.TouchOption)):
+                    if name == "payoff_type":
+                        value = "asset" if original.payoff_type == "cash" else "cash"
+                        updates = {
+                            name: value,
+                            "payout": None if value == "asset" else 10,
+                        }
+                    elif name == "payout" and original.payoff_type == "asset":
+                        updates["payoff_type"] = "cash"
+                if name == "effective_time" and isinstance(
+                    original,
+                    (i.GeometricAveragePriceOption, i.ArithmeticAveragePriceOption),
+                ):
+                    updates["averaging_start_time"] = value
                 for field in (
                     "touch_state",
                     "barrier_state",
@@ -390,113 +491,27 @@ class ContractReplacementTests(unittest.TestCase):
                     "realized_hit_count",
                     "accumulated_quantity",
                     "knock_out_settled",
-                )
-                if hasattr(original, field)
-            }
-            if hasattr(original, "barrier_level"):
-                updates = {"barrier_level": original.barrier_level + 5}
-            elif hasattr(original, "lower_barrier"):
-                updates = {"lower_barrier": original.lower_barrier - 5}
-            elif isinstance(original, i.Accumulator):
-                updates = {"daily_quantity": original.daily_quantity + 1}
-            elif isinstance(original, i.RangeAccrualOption):
-                updates = {"lower_bound": original.lower_bound - 5}
-            elif hasattr(original, "averaging_start_time"):
-                from datetime import timedelta
-
-                updates = {
-                    "averaging_start_time": original.averaging_start_time
-                    + timedelta(days=1)
-                }
-            else:
-                original = original.replace(
-                    observations=[
-                        original.observations[0].replace(time=datetime(2025, 1, 3)),
-                        *original.observations,
-                    ],
-                    barrier_state=original.barrier_state,
-                )
-                updates = {
-                    "observations": [
-                        r.replace(knock_out_level=r.knock_out_level + 5)
-                        for r in original.observations
-                    ]
-                }
-            with self.subTest(contract=type(original).__name__):
-                saved = original.replace()
-                with self.assertRaises(InvalidInputError):
-                    original.replace(**updates)
-                kept = original.replace(**updates, **history)
-                self.assertEqual(
-                    {field: getattr(kept, field) for field in history}, history
-                )
-                cleared_history = {field: None for field in history}
-                cleared = original.replace(**updates, **cleared_history)
-                self.assertEqual(
-                    {field: getattr(cleared, field) for field in history},
-                    cleared_history,
-                )
-                unknown = original.replace(**cleared_history)
-                self.assertEqual(unknown.replace(**updates), cleared)
-                self.assertEqual(original, saved)
-
-    def test_every_field_replaces_without_mutating_omitted_terms_or_history(self):
-        from kiyosi._serialization import _reduce
-
-        for original in contracts():
-            _, (factory, initial) = _reduce(original)
-            with self.subTest(contract=type(original).__name__, operation="omission"):
-                self.assertEqual(original.replace(), original)
-                self.assertIsNot(original.replace(), original)
-                forwarded = {
-                    name: field.default
-                    for name, field in inspect.signature(
-                        original.replace
-                    ).parameters.items()
-                }
-                self.assertEqual(original.replace(**forwarded), original)
-            for name in inspect.signature(original.replace).parameters:
-                if name in ("observation_mode", "observation_times"):
-                    continue
-                value = UPDATES.get(name)
-                if name == "observations" and isinstance(original, i.PhoenixOption):
-                    value = [
-                        i.AutocallableObservation.phoenix(
-                            END, 115, coupon_barrier_level=0
-                        )
-                    ]
-                if name == "barrier_type":
-                    value = (
-                        "knock_out"
-                        if isinstance(original, i.DoubleTouchOption)
-                        else "knock_in"
-                        if isinstance(original, i.DoubleBarrierOption)
-                        else "down_and_out"
-                        if isinstance(original, i.TouchOption)
-                        else "down_and_in"
+                ):
+                    if hasattr(original, field):
+                        updates.setdefault(field, getattr(original, field))
+                if name == "realized_average":
+                    updates["history_time"] = original.expiry_time
+                changed = original.replace(**updates)
+                if isinstance(original, i.DoubleTouchOption) and name == "barrier_type":
+                    assert not (changed.is_one_touch)
+                else:
+                    assert getattr(changed, name) == (
+                        tuple(value) if isinstance(value, list) else value
                     )
-                with self.subTest(contract=type(original).__name__, field=name):
-                    updates = {name: value}
-                    if name == "barrier_state":
-                        updates["history_time"] = original.history_time
-                    if name == "knock_in_observation_mode":
-                        updates["observation_clock_time"] = None
-                    if isinstance(original, (i.BinaryBarrierOption, i.TouchOption)):
-                        if name == "payoff_type":
-                            value = (
-                                "asset" if original.payoff_type == "cash" else "cash"
-                            )
-                            updates = {
-                                name: value,
-                                "payout": None if value == "asset" else 10,
-                            }
-                        elif name == "payout" and original.payoff_type == "asset":
-                            updates["payoff_type"] = "cash"
-                    if name == "effective_time" and isinstance(
-                        original,
-                        (i.GeometricAveragePriceOption, i.ArithmeticAveragePriceOption),
-                    ):
-                        updates["averaging_start_time"] = value
+                expected = initial | updates
+                if name == "knock_in_observation_mode":
+                    expected["observation_clock_time"] = None
+                if not (
+                    isinstance(original, i.DoubleTouchOption) and name == "barrier_type"
+                ):
+                    assert changed == factory(**expected)
+                if name == "history_time" and any(
+                    getattr(original, field, None) is not None
                     for field in (
                         "touch_state",
                         "barrier_state",
@@ -504,182 +519,150 @@ class ContractReplacementTests(unittest.TestCase):
                         "realized_hit_count",
                         "accumulated_quantity",
                         "knock_out_settled",
-                    ):
-                        if hasattr(original, field):
-                            updates.setdefault(field, getattr(original, field))
-                    if name == "realized_average":
-                        updates["history_time"] = original.expiry_time
-                    changed = original.replace(**updates)
-                    if (
-                        isinstance(original, i.DoubleTouchOption)
-                        and name == "barrier_type"
-                    ):
-                        self.assertFalse(changed.is_one_touch)
-                    else:
-                        self.assertEqual(
-                            getattr(changed, name),
-                            tuple(value) if isinstance(value, list) else value,
-                        )
-                    expected = initial | updates
-                    if name == "knock_in_observation_mode":
-                        expected["observation_clock_time"] = None
-                    if not (
-                        isinstance(original, i.DoubleTouchOption)
-                        and name == "barrier_type"
-                    ):
-                        self.assertEqual(changed, factory(**expected))
-                    if name == "history_time" and any(
-                        getattr(original, field, None) is not None
-                        for field in (
-                            "touch_state",
-                            "barrier_state",
-                            "realized_average",
-                            "realized_hit_count",
-                            "accumulated_quantity",
-                            "knock_out_settled",
-                        )
-                    ):
-                        with self.assertRaises(InvalidInputError):
-                            original.replace(**(updates | {name: None}))
-                    elif name in NULLABLE:
-                        self.assertIsNone(
-                            getattr(original.replace(**(updates | {name: None})), name)
-                        )
-                    self.assertEqual(original, factory(**initial))
-
-    def test_settlement_replacements_roundtrip_and_switch_cash_and_asset(self):
-        for asset in contracts():
-            if (
-                not isinstance(asset, (i.BinaryBarrierOption, i.TouchOption))
-                or asset.payout is not None
-            ):
-                continue
-            with self.subTest(contract=type(asset).__name__):
-                self.assertEqual(asset.replace(payout=asset.payout), asset)
-                cash = asset.replace(payoff_type="cash", payout=10)
-                self.assertEqual(cash.payout, 10)
-                self.assertEqual(cash.payoff_type, "cash")
-                self.assertEqual(cash.replace(), cash)
-                self.assertEqual(cash.replace(payoff_type="asset"), asset)
-                with self.assertRaises(TypeError):
-                    cash.replace(payout=None)
-                self.assertIsNone(asset.payout)
-                with self.assertRaises(InvalidInputError):
-                    asset.replace(payoff_type="cash", payout=-1)
-                self.assertIsNone(asset.payout)
-                self.assertEqual(cash.payout, 10)
-
-    def test_validation_representation_errors_and_failure_state(self):
-        for original in contracts():
-            fields = inspect.signature(original.replace).parameters
-            invalid = (
-                "strike"
-                if "strike" in fields
-                else "payout"
-                if "payout" in fields
-                else "notional"
-                if "notional" in fields
-                else "initial_spot"
-                if "initial_spot" in fields
-                else "maturity_coupon_rate"
-            )
-            value = float("nan") if invalid == "maturity_coupon_rate" else -1
-            with self.subTest(contract=type(original).__name__):
-                with self.assertRaises(InvalidInputError):
-                    updates = {invalid: value}
-                    if invalid == "payout" and isinstance(original, i.TouchOption):
-                        updates["payoff_type"] = "cash"
-                    original.replace(**updates)
-                for field in fields:
-                    with self.subTest(field=field), self.assertRaises(TypeError):
-                        original.replace(
-                            **{field: 1 if field == "knock_out_settled" else True}
-                        )
-                    nullable_payout = field == "payout" and isinstance(
-                        original, (i.BinaryBarrierOption, i.TouchOption)
                     )
-                    if (
-                        field not in NULLABLE
-                        and field != "realized_average"
-                        and not nullable_payout
-                    ):
-                        error = (
-                            InvalidInputError
-                            if field == "observation_clock_time"
-                            and isinstance(
-                                original,
-                                (
-                                    i.SnowballOption,
-                                    i.PhoenixOption,
-                                    i.TernarySnowballOption,
-                                ),
-                            )
-                            else TypeError
-                        )
-                        with self.assertRaises(error):
-                            original.replace(**{field: None})
-                with self.assertRaises(TypeError):
-                    original.replace(unknown=1)
-                with self.assertRaises(TypeError):
-                    original.replace(1)
-                if "observation_times" in fields:
-                    with self.assertRaises(InvalidInputError):
-                        original.replace(observation_times=[END])
-                    scheduled = original.replace(
-                        observation_times=[END],
-                        touch_state=original.touch_state,
+                ):
+                    with pytest.raises(InvalidInputError):
+                        original.replace(**(updates | {name: None}))
+                elif name in NULLABLE:
+                    assert (
+                        getattr(original.replace(**updates | {name: None}), name)
+                        is None
                     )
-                    self.assertEqual(scheduled.observation_times, (END,))
-                    self.assertEqual(scheduled.observation_mode, "scheduled")
+                assert original == factory(**initial)
 
-    def test_monitoring_schedule_selects_mode_and_preserves_history_validation(self):
-        for original in contracts():
-            if not hasattr(original, "observation_mode"):
-                continue
-            with self.subTest(contract=type(original).__name__):
+
+def test_settlement_replacements_roundtrip_and_switch_cash_and_asset(subtests):
+    for asset in contracts():
+        if (
+            not isinstance(asset, (i.BinaryBarrierOption, i.TouchOption))
+            or asset.payout is not None
+        ):
+            continue
+        with subtests.test(contract=type(asset).__name__):
+            assert asset.replace(payout=asset.payout) == asset
+            cash = asset.replace(payoff_type="cash", payout=10)
+            assert cash.payout == 10
+            assert cash.payoff_type == "cash"
+            assert cash.replace() == cash
+            assert cash.replace(payoff_type="asset") == asset
+            with pytest.raises(TypeError):
+                cash.replace(payout=None)
+            assert asset.payout is None
+            with pytest.raises(InvalidInputError):
+                asset.replace(payoff_type="cash", payout=-1)
+            assert asset.payout is None
+            assert cash.payout == 10
+
+
+def test_validation_representation_errors_and_failure_state(subtests):
+    for original in contracts():
+        fields = inspect.signature(original.replace).parameters
+        invalid = (
+            "strike"
+            if "strike" in fields
+            else "payout"
+            if "payout" in fields
+            else "notional"
+            if "notional" in fields
+            else "initial_spot"
+            if "initial_spot" in fields
+            else "maturity_coupon_rate"
+        )
+        value = float("nan") if invalid == "maturity_coupon_rate" else -1
+        with subtests.test(contract=type(original).__name__):
+            with pytest.raises(InvalidInputError):
+                updates = {invalid: value}
+                if invalid == "payout" and isinstance(original, i.TouchOption):
+                    updates["payoff_type"] = "cash"
+                original.replace(**updates)
+            for field in fields:
+                with subtests.test(field=field), pytest.raises(TypeError):
+                    original.replace(
+                        **{field: 1 if field == "knock_out_settled" else True}
+                    )
+                nullable_payout = field == "payout" and isinstance(
+                    original, (i.BinaryBarrierOption, i.TouchOption)
+                )
+                if (
+                    field not in NULLABLE
+                    and field != "realized_average"
+                    and not nullable_payout
+                ):
+                    error = (
+                        InvalidInputError
+                        if field == "observation_clock_time"
+                        and isinstance(
+                            original,
+                            (
+                                i.SnowballOption,
+                                i.PhoenixOption,
+                                i.TernarySnowballOption,
+                            ),
+                        )
+                        else TypeError
+                    )
+                    with pytest.raises(error):
+                        original.replace(**{field: None})
+            with pytest.raises(TypeError):
+                original.replace(unknown=1)
+            with pytest.raises(TypeError):
+                original.replace(1)
+            if "observation_times" in fields:
+                with pytest.raises(InvalidInputError):
+                    original.replace(observation_times=[END])
                 scheduled = original.replace(
-                    observation_times=[END], touch_state=original.touch_state
+                    observation_times=[END],
+                    touch_state=original.touch_state,
                 )
-                self.assertEqual(scheduled.observation_mode, "scheduled")
-                self.assertEqual(scheduled.observation_times, (END,))
-                self.assertEqual(scheduled.replace(), scheduled)
-                self.assertEqual(scheduled.replace(observation_times=...), scheduled)
-                with self.assertRaises(InvalidInputError):
-                    scheduled.replace(observation_times=[])
-                with self.assertRaises(InvalidInputError):
-                    scheduled.replace(observation_times=None)
-                continuous = scheduled.replace(
-                    observation_times=None, touch_state=scheduled.touch_state
-                )
-                self.assertEqual(continuous, original)
-                self.assertEqual(continuous.observation_mode, "continuous")
-                self.assertIsNone(continuous.observation_times)
-                cleared = scheduled.replace(observation_times=None, touch_state=None)
-                self.assertIsNone(cleared.touch_state)
-                self.assertEqual(
-                    scheduled.replace_history(touch_state=None).replace(
-                        observation_times=None
-                    ),
-                    cleared,
-                )
-                self.assertEqual(scheduled.observation_times, (END,))
+                assert scheduled.observation_times == ((END,))
+                assert scheduled.observation_mode == "scheduled"
 
-    def test_replaced_phoenix_observations_are_owned_and_coupon_is_periodic(
-        self,
-    ):
-        note = next(
-            value for value in contracts() if isinstance(value, i.PhoenixOption)
-        )
-        records = [i.AutocallableObservation.phoenix(END, 115, coupon_barrier_level=0)]
-        changed = note.replace(
-            observations=records,
-            coupon_per_period=0.02,
-            barrier_state=note.barrier_state,
-        )
-        records.clear()
-        self.assertEqual(changed.knock_out_levels, (115,))
-        self.assertEqual(changed.coupon_per_period, 0.02)
-        self.assertEqual(note.coupon_per_period, 0.1)
-        self.assertEqual(note.knock_out_levels, (110, 110))
-        with self.assertRaises(TypeError):
-            note.replace(coupon_rate=0.1, coupon_per_period=0.02)
+
+def test_monitoring_schedule_selects_mode_and_preserves_history_validation(subtests):
+    for original in contracts():
+        if not hasattr(original, "observation_mode"):
+            continue
+        with subtests.test(contract=type(original).__name__):
+            scheduled = original.replace(
+                observation_times=[END], touch_state=original.touch_state
+            )
+            assert scheduled.observation_mode == "scheduled"
+            assert scheduled.observation_times == ((END,))
+            assert scheduled.replace() == scheduled
+            assert scheduled.replace(observation_times=...) == scheduled
+            with pytest.raises(InvalidInputError):
+                scheduled.replace(observation_times=[])
+            with pytest.raises(InvalidInputError):
+                scheduled.replace(observation_times=None)
+            continuous = scheduled.replace(
+                observation_times=None, touch_state=scheduled.touch_state
+            )
+            assert continuous == original
+            assert continuous.observation_mode == "continuous"
+            assert continuous.observation_times is None
+            cleared = scheduled.replace(observation_times=None, touch_state=None)
+            assert cleared.touch_state is None
+            assert (
+                scheduled.replace_history(touch_state=None).replace(
+                    observation_times=None
+                )
+                == cleared
+            )
+            assert scheduled.observation_times == ((END,))
+
+
+def test_replaced_phoenix_observations_are_owned_and_coupon_is_periodic():
+    note = next(value for value in contracts() if isinstance(value, i.PhoenixOption))
+    records = [i.AutocallableObservation.phoenix(END, 115, coupon_barrier_level=0)]
+    changed = note.replace(
+        observations=records,
+        coupon_per_period=0.02,
+        barrier_state=note.barrier_state,
+    )
+    records.clear()
+    assert changed.knock_out_levels == ((115,))
+    assert changed.coupon_per_period == 0.02
+    assert note.coupon_per_period == 0.1
+    assert note.knock_out_levels == ((110, 110))
+    with pytest.raises(TypeError):
+        note.replace(coupon_rate=0.1, coupon_per_period=0.02)

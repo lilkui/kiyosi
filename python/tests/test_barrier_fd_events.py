@@ -1,8 +1,8 @@
 import math
-import unittest
 from datetime import datetime, timedelta
 from itertools import product
 
+import pytest
 from kiyosi import pricing
 from kiyosi.instruments import (
     AssetOrNothingOption,
@@ -134,280 +134,274 @@ def two_observation_reference(spot, up, barrier, timing, count=1024):
     )
 
 
-class BarrierFiniteDifferenceEventTests(unittest.TestCase):
-    def test_terminal_projection_converges_across_grid_placements(self):
-        market = context()
-        for up in (False, True):
-            direction = "call" if up else "put"
-            common = {
-                "option_type": direction,
-                "effective_time": START,
-                "expiry_time": END,
-            }
-            vanilla = pricing.AnalyticEuropeanEngine().price_with_greeks(
-                EuropeanOption(strike=100, **common), market, ["delta", "gamma"]
-            )
-            previous = [1.0] * 3
-            for count in (200, 400, 800):
-                engine = pricing.FiniteDifferenceBarrierEngine(
-                    asset_step_count=count,
-                    time_step_count=2000,
-                    asset_upper_boundary=400,
-                )
-                worst = [0.0] * 3
-                for offset in (-0.25, 0, 0.125, 0.25, 0.5):
-                    barrier = (110 if up else 90) + offset
-                    cash = pricing.AnalyticDigitalEngine().price_with_greeks(
-                        CashOrNothingOption(strike=barrier, payout=1, **common),
-                        market,
-                        ["delta", "gamma"],
-                    )
-                    asset = pricing.AnalyticDigitalEngine().price_with_greeks(
-                        AssetOrNothingOption(strike=barrier, **common),
-                        market,
-                        ["delta", "gamma"],
-                    )
-                    contract = option(up, barrier)
-                    actual = engine.price_with_greeks(
-                        contract, market, ["delta", "gamma"]
-                    )
-                    self.assertEqual(actual.price, engine.price(contract, market))
-                    for index, measure in enumerate(MEASURES):
-                        expected = (
-                            getattr(vanilla, measure)
-                            - (1 if up else -1)
-                            * (getattr(asset, measure) - 100 * getattr(cash, measure))
-                            + 2 * getattr(cash, measure)
-                        )
-                        worst[index] = max(
-                            worst[index], abs(getattr(actual, measure) - expected)
-                        )
-                refinement = 200 / count
-                limits = (
-                    0.012 * refinement**2,
-                    0.00013 * refinement,
-                    0.00004 * refinement**2,
-                )
-                for index, measure in enumerate(MEASURES):
-                    with self.subTest(up=up, count=count, measure=measure):
-                        self.assertLess(worst[index], limits[index])
-                        self.assertLess(worst[index], previous[index])
-                previous = worst
-
-    def test_projection_preserves_large_finite_rebates(self):
-        engine = pricing.FiniteDifferenceBarrierEngine(
-            asset_step_count=40,
-            time_step_count=2000,
-            scheme="implicit_euler",
-            asset_upper_boundary=400,
+@pytest.mark.parametrize("up", (False, True))
+@pytest.mark.parametrize("count", (200, 400, 800))
+def test_terminal_projection_converges_across_grid_placements(subtests, up, count):
+    market = context()
+    direction = "call" if up else "put"
+    common = {
+        "option_type": direction,
+        "effective_time": START,
+        "expiry_time": END,
+    }
+    vanilla = pricing.AnalyticEuropeanEngine().price_with_greeks(
+        EuropeanOption(strike=100, **common), market, ["delta", "gamma"]
+    )
+    previous = [1.0] * 3
+    engine = pricing.FiniteDifferenceBarrierEngine(
+        asset_step_count=count,
+        time_step_count=2000,
+        asset_upper_boundary=400,
+    )
+    worst = [0.0] * 3
+    for offset in (-0.25, 0, 0.125, 0.25, 0.5):
+        barrier = (110 if up else 90) + offset
+        cash = pricing.AnalyticDigitalEngine().price_with_greeks(
+            CashOrNothingOption(strike=barrier, payout=1, **common),
+            market,
+            ["delta", "gamma"],
         )
-        market = context()
-
-        def price(rebate):
-            contract = BarrierOption(
-                option_type="call",
-                strike=100,
-                effective_time=START,
-                expiry_time=END,
-                barrier_level=110,
-                barrier_type="up_and_out",
-                rebate=rebate,
-                observation_times=[END],
-            )
-            return engine.price(contract, market)
-
-        self.assertAlmostEqual(price(1e308) / 1e308, price(1) - price(0), delta=1e-12)
-
-    def test_restarts_match_implicit_half_steps_without_extra_observations(self):
-        end = START + timedelta(days=360)
-        for up, timing in product((False, True), ("at_hit", "at_expiry")):
-            contract = BarrierOption(
-                option_type="call" if up else "put",
-                strike=100,
-                effective_time=START,
-                expiry_time=end,
-                barrier_level=110.125 if up else 90.125,
-                barrier_type="up_and_out" if up else "down_and_out",
-                rebate=2,
-                rebate_timing=timing,
-                calendar=all_days_calendar(),
-                observation_times=[
-                    START + timedelta(days=i) for i in (90, 180, 270, 360)
-                ],
-            )
-            results = [
-                pricing.FiniteDifferenceBarrierEngine(
-                    asset_step_count=200,
-                    time_step_count=steps,
-                    scheme=scheme,
-                    asset_upper_boundary=400,
-                ).price_with_greeks(contract, context(), ["delta", "gamma"])
-                for scheme, steps in (("rannacher", 4), ("implicit_euler", 8))
-            ]
-            for measure in MEASURES:
-                with self.subTest(up=up, timing=timing, measure=measure):
-                    self.assertAlmostEqual(
-                        getattr(results[0], measure),
-                        getattr(results[1], measure),
-                        delta=1e-12,
-                    )
-
-    def test_two_observations_match_independent_integration(self):
-        market = context()
-        for up, timing in product((False, True), ("at_hit", "at_expiry")):
-            barrier = 110.125 if up else 90.125
-            expected = two_observation_reference(100.25, up, barrier, timing)
-            self.assertAlmostEqual(
-                expected,
-                two_observation_reference(100.25, up, barrier, timing, 2048),
-                delta=1e-9,
-            )
-            h = 0.025
-            low = two_observation_reference(100.25 - h, up, barrier, timing)
-            high = two_observation_reference(100.25 + h, up, barrier, timing)
-            reference = (
-                expected,
-                (high - low) / (2 * h),
-                (high - 2 * expected + low) / h**2,
-            )
-            # Check the independent derivative stencil before using it as a reference.
-            low = two_observation_reference(100.25 - h / 2, up, barrier, timing)
-            high = two_observation_reference(100.25 + h / 2, up, barrier, timing)
-            self.assertAlmostEqual(reference[1], (high - low) / h, delta=1e-7)
-            self.assertAlmostEqual(
-                reference[2], (high - 2 * expected + low) / (h / 2) ** 2, delta=1e-8
-            )
-            contract = option(
-                up, barrier, dates=(START + timedelta(days=180), END), timing=timing
-            )
-            for scheme in (
-                "explicit_euler",
-                "implicit_euler",
-                "crank_nicolson",
-                "rannacher",
-            ):
-                count = 200 if scheme == "explicit_euler" else 800
-                actual = pricing.FiniteDifferenceBarrierEngine(
-                    asset_step_count=count,
-                    time_step_count=2000,
-                    scheme=scheme,
-                    asset_upper_boundary=400,
-                ).price_with_greeks(contract, market, ["delta", "gamma"])
-                for measure, value, limit in zip(
-                    MEASURES, reference, (0.0008, 0.00003, 0.000003), strict=True
-                ):
-                    with self.subTest(
-                        up=up, timing=timing, scheme=scheme, measure=measure
-                    ):
-                        self.assertAlmostEqual(
-                            getattr(actual, measure),
-                            value,
-                            delta=limit * (800 / count) ** 2,
-                        )
-
-                if scheme == "rannacher":
-                    previous = [math.inf] * 3
-                    for steps in (16, 64, 256):
-                        refined = pricing.FiniteDifferenceBarrierEngine(
-                            asset_step_count=800,
-                            time_step_count=steps,
-                            asset_upper_boundary=400,
-                        ).price_with_greeks(contract, market, ["delta", "gamma"])
-                        errors = [
-                            abs(getattr(refined, measure) - getattr(actual, measure))
-                            for measure in MEASURES
-                        ]
-                        for measure, error, prior in zip(
-                            MEASURES, errors, previous, strict=True
-                        ):
-                            with self.subTest(
-                                up=up, timing=timing, steps=steps, measure=measure
-                            ):
-                                self.assertLess(error, prior)
-                        previous = errors
-                    for error, limit in zip(previous, (2e-6, 5e-7, 3e-8), strict=True):
-                        self.assertLess(error, limit)
-
-    def test_current_observations_use_actual_spot_before_projection(self):
-        engine = pricing.FiniteDifferenceBarrierEngine(
-            asset_step_count=200, time_step_count=2000, asset_upper_boundary=400
+        asset = pricing.AnalyticDigitalEngine().price_with_greeks(
+            AssetOrNothingOption(strike=barrier, **common),
+            market,
+            ["delta", "gamma"],
         )
-        for up, knock_in in product((False, True), repeat=2):
-            barrier = 110.125 if up else 90.125
-            future = option(up, barrier, knock_in=knock_in)
-            current = option(up, barrier, dates=(START, END), knock_in=knock_in)
-            for spot in (
-                math.nextafter(barrier, 0 if up else math.inf),
-                barrier,
-                math.nextafter(barrier, math.inf if up else 0),
-            ):
-                market = context(spot)
-                touched = spot >= barrier if up else spot <= barrier
-                actual = engine.price_with_greeks(current, market, ["delta", "gamma"])
-                with self.subTest(up=up, knock_in=knock_in, spot=spot):
-                    if touched:
-                        expected = (
-                            pricing.AnalyticEuropeanEngine().price(
-                                EuropeanOption(
-                                    option_type="call" if up else "put",
-                                    strike=100,
-                                    effective_time=START,
-                                    expiry_time=END,
-                                ),
-                                market,
-                            )
-                            if knock_in
-                            else 2 * math.exp(-0.04)
-                        )
-                        self.assertAlmostEqual(actual.price, expected, delta=1e-12)
-                    else:
-                        expected = engine.price_with_greeks(
-                            future, market, ["delta", "gamma"]
-                        )
-                        self.assertEqual(actual.price, expected.price)
-                        self.assertIsNone(actual.delta)
-                        self.assertIsNone(actual.gamma)
-
-    def test_projection_preserves_vanishing_volatility_settlement_and_rebate_timing(
-        self,
-    ):
-        for up, hit, timing in product(
-            (False, True), (False, True), ("at_hit", "at_expiry")
-        ):
-            market = context(120 if up == hit else 80, deterministic=True)
-            contract = BarrierOption(
-                option_type="put" if up else "call",
-                strike=100,
-                effective_time=START,
-                expiry_time=END,
-                barrier_level=110.125 if up else 90.125,
-                barrier_type="up_and_out" if up else "down_and_out",
-                rebate=2,
-                rebate_timing=timing,
-                observation_times=[START + timedelta(days=180), END],
-            )
+        contract = option(up, barrier)
+        actual = engine.price_with_greeks(contract, market, ["delta", "gamma"])
+        assert actual.price == engine.price(contract, market)
+        for index, measure in enumerate(MEASURES):
             expected = (
-                2 * math.exp(-0.04 * (180 / 365 if timing == "at_hit" else 1))
-                if hit
-                else 20 * math.exp(-0.04)
+                getattr(vanilla, measure)
+                - (1 if up else -1)
+                * (getattr(asset, measure) - 100 * getattr(cash, measure))
+                + 2 * getattr(cash, measure)
             )
-            for scheme in (
-                "explicit_euler",
-                "implicit_euler",
-                "crank_nicolson",
-                "rannacher",
+            worst[index] = max(worst[index], abs(getattr(actual, measure) - expected))
+    refinement = 200 / count
+    limits = (
+        0.012 * refinement**2,
+        0.00013 * refinement,
+        0.00004 * refinement**2,
+    )
+    for index, measure in enumerate(MEASURES):
+        with subtests.test(up=up, count=count, measure=measure):
+            assert worst[index] < limits[index]
+            assert worst[index] < previous[index]
+    previous = worst
+
+
+def test_projection_preserves_large_finite_rebates():
+    engine = pricing.FiniteDifferenceBarrierEngine(
+        asset_step_count=40,
+        time_step_count=2000,
+        scheme="implicit_euler",
+        asset_upper_boundary=400,
+    )
+    market = context()
+
+    def price(rebate):
+        contract = BarrierOption(
+            option_type="call",
+            strike=100,
+            effective_time=START,
+            expiry_time=END,
+            barrier_level=110,
+            barrier_type="up_and_out",
+            rebate=rebate,
+            observation_times=[END],
+        )
+        return engine.price(contract, market)
+
+    assert price(1e308) / 1e308 == pytest.approx(price(1) - price(0), rel=0, abs=1e-12)
+
+
+def test_restarts_match_implicit_half_steps_without_extra_observations(subtests):
+    end = START + timedelta(days=360)
+    for up, timing in product((False, True), ("at_hit", "at_expiry")):
+        contract = BarrierOption(
+            option_type="call" if up else "put",
+            strike=100,
+            effective_time=START,
+            expiry_time=end,
+            barrier_level=110.125 if up else 90.125,
+            barrier_type="up_and_out" if up else "down_and_out",
+            rebate=2,
+            rebate_timing=timing,
+            calendar=all_days_calendar(),
+            observation_times=[START + timedelta(days=i) for i in (90, 180, 270, 360)],
+        )
+        results = [
+            pricing.FiniteDifferenceBarrierEngine(
+                asset_step_count=200,
+                time_step_count=steps,
+                scheme=scheme,
+                asset_upper_boundary=400,
+            ).price_with_greeks(contract, context(), ["delta", "gamma"])
+            for scheme, steps in (("rannacher", 4), ("implicit_euler", 8))
+        ]
+        for measure in MEASURES:
+            with subtests.test(up=up, timing=timing, measure=measure):
+                assert getattr(results[0], measure) == pytest.approx(
+                    getattr(results[1], measure), rel=0, abs=1e-12
+                )
+
+
+def test_two_observations_match_independent_integration(subtests):
+    market = context()
+    for up, timing in product((False, True), ("at_hit", "at_expiry")):
+        barrier = 110.125 if up else 90.125
+        expected = two_observation_reference(100.25, up, barrier, timing)
+        assert expected == pytest.approx(
+            two_observation_reference(100.25, up, barrier, timing, 2048),
+            rel=0,
+            abs=1e-9,
+        )
+        h = 0.025
+        low = two_observation_reference(100.25 - h, up, barrier, timing)
+        high = two_observation_reference(100.25 + h, up, barrier, timing)
+        reference = (
+            expected,
+            (high - low) / (2 * h),
+            (high - 2 * expected + low) / h**2,
+        )
+        # Check the independent derivative stencil before using it as a reference.
+        low = two_observation_reference(100.25 - h / 2, up, barrier, timing)
+        high = two_observation_reference(100.25 + h / 2, up, barrier, timing)
+        assert reference[1] == pytest.approx((high - low) / h, rel=0, abs=1e-7)
+        assert reference[2] == pytest.approx(
+            (high - 2 * expected + low) / (h / 2) ** 2, rel=0, abs=1e-8
+        )
+        contract = option(
+            up, barrier, dates=(START + timedelta(days=180), END), timing=timing
+        )
+        for scheme in (
+            "explicit_euler",
+            "implicit_euler",
+            "crank_nicolson",
+            "rannacher",
+        ):
+            count = 200 if scheme == "explicit_euler" else 800
+            actual = pricing.FiniteDifferenceBarrierEngine(
+                asset_step_count=count,
+                time_step_count=2000,
+                scheme=scheme,
+                asset_upper_boundary=400,
+            ).price_with_greeks(contract, market, ["delta", "gamma"])
+            for measure, value, limit in zip(
+                MEASURES, reference, (0.0008, 0.00003, 0.000003), strict=True
             ):
-                actual = pricing.FiniteDifferenceBarrierEngine(
-                    asset_step_count=800,
-                    time_step_count=2000,
-                    scheme=scheme,
-                    asset_upper_boundary=400,
-                ).price_with_greeks(contract, market, ["delta", "gamma"])
-                with self.subTest(up=up, hit=hit, timing=timing, scheme=scheme):
-                    self.assertAlmostEqual(actual.price, expected, delta=1e-5)
-                    self.assertAlmostEqual(
-                        actual.delta,
-                        0 if hit else (-1 if up else 1) * math.exp(-0.04),
-                        delta=1e-6,
+                with subtests.test(
+                    up=up, timing=timing, scheme=scheme, measure=measure
+                ):
+                    assert getattr(actual, measure) == pytest.approx(
+                        value, rel=0, abs=limit * (800 / count) ** 2
                     )
-                    self.assertAlmostEqual(actual.gamma, 0, delta=2e-10)
+
+            if scheme == "rannacher":
+                previous = [math.inf] * 3
+                for steps in (16, 64, 256):
+                    refined = pricing.FiniteDifferenceBarrierEngine(
+                        asset_step_count=800,
+                        time_step_count=steps,
+                        asset_upper_boundary=400,
+                    ).price_with_greeks(contract, market, ["delta", "gamma"])
+                    errors = [
+                        abs(getattr(refined, measure) - getattr(actual, measure))
+                        for measure in MEASURES
+                    ]
+                    for measure, error, prior in zip(
+                        MEASURES, errors, previous, strict=True
+                    ):
+                        with subtests.test(
+                            up=up, timing=timing, steps=steps, measure=measure
+                        ):
+                            assert error < prior
+                    previous = errors
+                for error, limit in zip(previous, (2e-6, 5e-7, 3e-8), strict=True):
+                    assert error < limit
+
+
+def test_current_observations_use_actual_spot_before_projection(subtests):
+    engine = pricing.FiniteDifferenceBarrierEngine(
+        asset_step_count=200, time_step_count=2000, asset_upper_boundary=400
+    )
+    for up, knock_in in product((False, True), repeat=2):
+        barrier = 110.125 if up else 90.125
+        future = option(up, barrier, knock_in=knock_in)
+        current = option(up, barrier, dates=(START, END), knock_in=knock_in)
+        for spot in (
+            math.nextafter(barrier, 0 if up else math.inf),
+            barrier,
+            math.nextafter(barrier, math.inf if up else 0),
+        ):
+            market = context(spot)
+            touched = spot >= barrier if up else spot <= barrier
+            actual = engine.price_with_greeks(current, market, ["delta", "gamma"])
+            with subtests.test(up=up, knock_in=knock_in, spot=spot):
+                if touched:
+                    expected = (
+                        pricing.AnalyticEuropeanEngine().price(
+                            EuropeanOption(
+                                option_type="call" if up else "put",
+                                strike=100,
+                                effective_time=START,
+                                expiry_time=END,
+                            ),
+                            market,
+                        )
+                        if knock_in
+                        else 2 * math.exp(-0.04)
+                    )
+                    assert actual.price == pytest.approx(expected, rel=0, abs=1e-12)
+                else:
+                    expected = engine.price_with_greeks(
+                        future, market, ["delta", "gamma"]
+                    )
+                    assert actual.price == expected.price
+                    assert actual.delta is None
+                    assert actual.gamma is None
+
+
+def test_projection_preserves_vanishing_volatility_settlement_and_rebate_timing(
+    subtests,
+):
+    for up, hit, timing in product(
+        (False, True), (False, True), ("at_hit", "at_expiry")
+    ):
+        market = context(120 if up == hit else 80, deterministic=True)
+        contract = BarrierOption(
+            option_type="put" if up else "call",
+            strike=100,
+            effective_time=START,
+            expiry_time=END,
+            barrier_level=110.125 if up else 90.125,
+            barrier_type="up_and_out" if up else "down_and_out",
+            rebate=2,
+            rebate_timing=timing,
+            observation_times=[START + timedelta(days=180), END],
+        )
+        expected = (
+            2 * math.exp(-0.04 * (180 / 365 if timing == "at_hit" else 1))
+            if hit
+            else 20 * math.exp(-0.04)
+        )
+        for scheme in (
+            "explicit_euler",
+            "implicit_euler",
+            "crank_nicolson",
+            "rannacher",
+        ):
+            actual = pricing.FiniteDifferenceBarrierEngine(
+                asset_step_count=800,
+                time_step_count=2000,
+                scheme=scheme,
+                asset_upper_boundary=400,
+            ).price_with_greeks(contract, market, ["delta", "gamma"])
+            with subtests.test(up=up, hit=hit, timing=timing, scheme=scheme):
+                assert actual.price == pytest.approx(expected, rel=0, abs=1e-5)
+                assert actual.delta == pytest.approx(
+                    (0 if hit else (-1 if up else 1) * math.exp(-0.04)),
+                    rel=0,
+                    abs=1e-6,
+                )
+                assert actual.gamma == pytest.approx(0, rel=0, abs=2e-10)

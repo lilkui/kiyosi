@@ -2,11 +2,11 @@
 
 import inspect
 import math
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
 import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
@@ -28,6 +28,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from price_differences import price_differences
+from support.assertions import assert_rejection
 from support.history import dated as dated_history
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
@@ -288,1019 +289,939 @@ def scheduled_reference(dates, count=1024):
     )
 
 
-class DoubleTouchTests(unittest.TestCase):
-    def assert_core_error(self, expected_error, operation):
-        with self.assertRaises(expected_error) as caught:
-            operation()
-        self.assertIs(type(caught.exception), expected_error)
+def test_factories_defaults_owning_schedules_and_history():
+    option = contract()
+    assert isinstance(option, DoubleTouchOption)
+    assert option.is_one_touch
+    assert option.settlement_timing == "at_expiry"
+    assert option.observation_mode == "continuous"
+    assert option.touch_state is None
+    assert option.observation_times is None
+    assert option.payout == 1
+    replaced = option.replace_history(
+        touch_state="untouched",
+        history_time=option.history_time or option.expiry_time,
+    )
+    assert replaced.touch_state == "untouched"
+    assert option.touch_state is None
+    assert replaced.replace_history(touch_state=None) == option
+    dates = [FIRST, END]
+    scheduled = contract(cash_double_no_touch, observation_times=dates)
+    dates.clear()
+    copy = list(scheduled.observation_times)
+    copy.clear()
+    assert scheduled.observation_times == ((FIRST, END))
+    assert not (scheduled.is_one_touch)
+    assert scheduled.settlement_timing == "at_expiry"
+    assert "DoubleTouchOption" in repr(scheduled)
+    with pytest.raises(AttributeError):
+        option.payout = 2
 
-    def test_factories_defaults_owning_schedules_and_history(self):
-        option = contract()
-        self.assertIsInstance(option, DoubleTouchOption)
-        self.assertTrue(option.is_one_touch)
-        self.assertEqual(option.settlement_timing, "at_expiry")
-        self.assertEqual(option.observation_mode, "continuous")
-        self.assertIsNone(option.touch_state)
-        self.assertIsNone(option.observation_times)
-        self.assertEqual(option.payout, 1)
-        replaced = option.replace_history(
-            touch_state="untouched",
+
+def test_protocols_domain_errors_and_failed_replace_preserve_inputs(subtests):
+    for factory in (cash_double_touch, cash_double_no_touch):
+        for key in ("payout", "lower_barrier", "upper_barrier"):
+            for value in (True, "100", object()):
+                with (
+                    subtests.test(factory=factory, key=key, value=value),
+                    pytest.raises(TypeError),
+                ):
+                    contract(factory, **{key: value})
+            for value in (0, -1, math.inf, math.nan):
+                assert_rejection(
+                    InvalidInputError,
+                    lambda factory=factory, key=key, value=value: contract(
+                        factory, **{key: value}
+                    ),
+                )
+        for changes, expected_error in (
+            ({"lower_barrier": 120}, InvalidInputError),
+            ({"lower_barrier": 121}, InvalidInputError),
+            (
+                {"expiry_time": START - timedelta(days=1)},
+                InvalidInputError,
+            ),
+            ({"observation_times": []}, InvalidInputError),
+            (
+                {
+                    "observation_times": [END, FIRST],
+                },
+                InvalidInputError,
+            ),
+        ):
+            assert_rejection(
+                expected_error,
+                lambda factory=factory, changes=changes: contract(factory, **changes),
+            )
+    with pytest.raises(TypeError):
+        contract(cash_double_no_touch, settlement_timing="at_hit")
+    with pytest.raises(ValueError):
+        contract(settlement_timing="later")
+    option = contract()
+    with pytest.raises(TypeError):
+        option.replace_history(
+            touch_state=True,
             history_time=option.history_time or option.expiry_time,
         )
-        self.assertEqual(replaced.touch_state, "untouched")
-        self.assertIsNone(option.touch_state)
-        self.assertEqual(replaced.replace_history(touch_state=None), option)
-        dates = [FIRST, END]
-        scheduled = contract(cash_double_no_touch, observation_times=dates)
-        dates.clear()
-        copy = list(scheduled.observation_times)
-        copy.clear()
-        self.assertEqual(scheduled.observation_times, (FIRST, END))
-        self.assertFalse(scheduled.is_one_touch)
-        self.assertEqual(scheduled.settlement_timing, "at_expiry")
-        self.assertIn("DoubleTouchOption", repr(scheduled))
-        with self.assertRaises(AttributeError):
-            option.payout = 2
+    assert option == contract()
 
-    def test_protocols_domain_errors_and_failed_replace_preserve_inputs(self):
-        for factory in (cash_double_touch, cash_double_no_touch):
-            for key in ("payout", "lower_barrier", "upper_barrier"):
-                for value in (True, "100", object()):
-                    with (
-                        self.subTest(factory=factory, key=key, value=value),
-                        self.assertRaises(TypeError),
-                    ):
-                        contract(factory, **{key: value})
-                for value in (0, -1, math.inf, math.nan):
-                    self.assert_core_error(
-                        InvalidInputError,
-                        lambda factory=factory, key=key, value=value: contract(
-                            factory, **{key: value}
-                        ),
-                    )
-            for changes, expected_error in (
-                ({"lower_barrier": 120}, InvalidInputError),
-                ({"lower_barrier": 121}, InvalidInputError),
-                (
-                    {"expiry_time": START - timedelta(days=1)},
-                    InvalidInputError,
-                ),
-                ({"observation_times": []}, InvalidInputError),
-                (
-                    {
-                        "observation_times": [END, FIRST],
-                    },
-                    InvalidInputError,
-                ),
-            ):
-                self.assert_core_error(
-                    expected_error,
-                    lambda factory=factory, changes=changes: contract(
-                        factory, **changes
-                    ),
-                )
-        with self.assertRaises(TypeError):
-            contract(cash_double_no_touch, settlement_timing="at_hit")
-        with self.assertRaises(ValueError):
-            contract(settlement_timing="later")
-        option = contract()
-        with self.assertRaises(TypeError):
-            option.replace_history(
-                touch_state=True,
-                history_time=option.history_time or option.expiry_time,
-            )
-        self.assertEqual(option, contract())
 
-    def test_continuous_prices_match_independent_series_and_converge(self):
+def test_continuous_prices_match_independent_series_and_converge():
+    options = (
+        contract(),
+        contract(settlement_timing="at_hit"),
+        contract(cash_double_no_touch),
+    )
+    reference = continuous_reference()
+    for left, right in zip(reference, continuous_reference(count=2048), strict=True):
+        assert left == pytest.approx(right, rel=0, abs=1e-9)
+    coarse = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=80, time_step_count=100
+    )
+    fine = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=800, time_step_count=1600
+    )
+    for option, expected in zip(options, reference, strict=True):
+        actual = fine.price(dated_history(option, market()), market())
+        assert abs(actual - expected) < abs(
+            coarse.price(dated_history(option, market()), market()) - expected
+        )
+        assert actual == pytest.approx(expected, rel=0, abs=1e-5)
+    scaled = (
+        contract(payout=7.5),
+        contract(payout=7.5, settlement_timing="at_hit"),
+        contract(cash_double_no_touch, payout=7.5),
+    )
+    for option, expected in zip(scaled, reference, strict=True):
+        assert fine.price(dated_history(option, market()), market()) == pytest.approx(
+            7.5 * expected, rel=0, abs=7.5e-5
+        )
+    assert fine.price(dated_history(options[0], market()), market()) + fine.price(
+        dated_history(options[2], market()), market()
+    ) == pytest.approx(math.exp(-0.03), rel=0, abs=1e-8)
+    # Nonzero log drift and a negative rate exercise the tilted series separately.
+    for rate, dividend in ((0.04, 0.0), (-0.01, 0.02)):
+        expected = continuous_reference(rate=rate, dividend=dividend)
+        for option, value in zip(options, expected, strict=True):
+            assert fine.price(
+                dated_history(option, market(rate=rate, dividend=dividend)),
+                market(rate=rate, dividend=dividend),
+            ) == pytest.approx(value, rel=0, abs=1e-5)
+
+
+def test_scheduled_one_two_fixings_early_window_and_outside_continuation():
+    engine = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=1600, time_step_count=1600, asset_upper_boundary=400
+    )
+    for dates in ([END], [FIRST, END], [FIRST]):
+        changes = {
+            "lower_barrier": 80.125,
+            "upper_barrier": 120.125,
+            "observation_times": dates,
+        }
         options = (
-            contract(),
-            contract(settlement_timing="at_hit"),
-            contract(cash_double_no_touch),
+            contract(**changes),
+            contract(**changes, settlement_timing="at_hit"),
+            contract(cash_double_no_touch, **changes),
         )
-        reference = continuous_reference()
-        for left, right in zip(
-            reference, continuous_reference(count=2048), strict=True
-        ):
-            self.assertAlmostEqual(left, right, delta=1e-9)
-        coarse = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=80, time_step_count=100
-        )
-        fine = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=800, time_step_count=1600
-        )
-        for option, expected in zip(options, reference, strict=True):
-            actual = fine.price(dated_history(option, market()), market())
-            self.assertLess(
-                abs(actual - expected),
-                abs(coarse.price(dated_history(option, market()), market()) - expected),
-            )
-            self.assertAlmostEqual(actual, expected, delta=1e-5)
-        scaled = (
-            contract(payout=7.5),
-            contract(payout=7.5, settlement_timing="at_hit"),
-            contract(cash_double_no_touch, payout=7.5),
-        )
-        for option, expected in zip(scaled, reference, strict=True):
-            self.assertAlmostEqual(
-                fine.price(dated_history(option, market()), market()),
-                7.5 * expected,
-                delta=7.5e-5,
-            )
-        self.assertAlmostEqual(
-            fine.price(dated_history(options[0], market()), market())
-            + fine.price(dated_history(options[2], market()), market()),
-            math.exp(-0.03),
-            delta=1e-8,
-        )
-        # Nonzero log drift and a negative rate exercise the tilted series separately.
-        for rate, dividend in ((0.04, 0.0), (-0.01, 0.02)):
-            expected = continuous_reference(rate=rate, dividend=dividend)
-            for option, value in zip(options, expected, strict=True):
-                self.assertAlmostEqual(
-                    fine.price(
-                        dated_history(option, market(rate=rate, dividend=dividend)),
-                        market(rate=rate, dividend=dividend),
-                    ),
-                    value,
-                    delta=1e-5,
-                )
+        expected = scheduled_reference(dates)
+        for a, b in zip(expected, scheduled_reference(dates, 2048), strict=True):
+            assert a == pytest.approx(b, rel=0, abs=1e-10)
+        for option, value in zip(options, expected, strict=True):
+            assert engine.price(
+                dated_history(option, market(100.25)), market(100.25)
+            ) == pytest.approx(value, rel=0, abs=3e-5)
+    future = contract(
+        cash_double_no_touch,
+        lower_barrier=80.125,
+        upper_barrier=120.125,
+        observation_times=[END],
+    )
+    assert engine.price(
+        dated_history(future, market(125)), market(125)
+    ) == pytest.approx(math.exp(-0.03) * survival_at_fixing(125, 1), rel=0, abs=3e-5)
 
-    def test_scheduled_one_two_fixings_early_window_and_outside_continuation(self):
-        engine = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=1600, time_step_count=1600, asset_upper_boundary=400
-        )
-        for dates in ([END], [FIRST, END], [FIRST]):
-            changes = {
-                "lower_barrier": 80.125,
-                "upper_barrier": 120.125,
-                "observation_times": dates,
-            }
-            options = (
-                contract(**changes),
-                contract(**changes, settlement_timing="at_hit"),
-                contract(cash_double_no_touch, **changes),
-            )
-            expected = scheduled_reference(dates)
-            for a, b in zip(expected, scheduled_reference(dates, 2048), strict=True):
-                self.assertAlmostEqual(a, b, delta=1e-10)
-            for option, value in zip(options, expected, strict=True):
-                self.assertAlmostEqual(
-                    engine.price(dated_history(option, market(100.25)), market(100.25)),
-                    value,
-                    delta=3e-5,
-                )
-        future = contract(
-            cash_double_no_touch,
-            lower_barrier=80.125,
-            upper_barrier=120.125,
-            observation_times=[END],
-        )
-        self.assertAlmostEqual(
-            engine.price(dated_history(future, market(125)), market(125)),
-            math.exp(-0.03) * survival_at_fixing(125, 1),
-            delta=3e-5,
-        )
 
-    def test_history_current_touch_past_payments_and_expiry(self):
-        engine = pricing.FiniteDifferenceDoubleTouchEngine()
-        later = START + timedelta(days=1)
-        for timing in ("at_hit", "at_expiry"):
-            option = contract(payout=3, settlement_timing=timing)
-            for spot in (79, 80, 120, 121):
-                self.assertAlmostEqual(
-                    engine.price(dated_history(option, market(spot)), market(spot)),
-                    3 if timing == "at_hit" else 3 * math.exp(-0.03),
-                    delta=1e-12,
-                )
-                self.assert_core_error(
-                    MissingHistoryError,
-                    lambda spot=spot, option=option: engine.price(
-                        dated_history(option, market(spot, time=later)),
-                        market(spot, time=later),
-                    ),
-                )
-            known = option.replace_history(
-                touch_state="touched",
-                history_time=option.expiry_time,
+def test_history_current_touch_past_payments_and_expiry():
+    engine = pricing.FiniteDifferenceDoubleTouchEngine()
+    later = START + timedelta(days=1)
+    for timing in ("at_hit", "at_expiry"):
+        option = contract(payout=3, settlement_timing=timing)
+        for spot in (79, 80, 120, 121):
+            assert engine.price(
+                dated_history(option, market(spot)), market(spot)
+            ) == pytest.approx(
+                (3 if timing == "at_hit" else 3 * math.exp(-0.03)), rel=0, abs=1e-12
             )
-            self.assert_core_error(
-                InvalidInputError,
-                lambda known=known: engine.price(
-                    dated_history(known, market()), market()
+            assert_rejection(
+                MissingHistoryError,
+                lambda spot=spot, option=option: engine.price(
+                    dated_history(option, market(spot, time=later)),
+                    market(spot, time=later),
                 ),
             )
-            expected = 0 if timing == "at_hit" else 3 * math.exp(-0.03 * 364 / 365)
-            self.assertAlmostEqual(
-                engine.price(
-                    dated_history(known, market(time=later)), market(time=later)
-                ),
+        known = option.replace_history(
+            touch_state="touched",
+            history_time=option.expiry_time,
+        )
+        assert_rejection(
+            InvalidInputError,
+            lambda known=known: engine.price(dated_history(known, market()), market()),
+        )
+        expected = 0 if timing == "at_hit" else 3 * math.exp(-0.03 * 364 / 365)
+        assert engine.price(
+            dated_history(known, market(time=later)), market(time=later)
+        ) == pytest.approx(expected, rel=0, abs=1e-12)
+        assert_rejection(
+            UnsupportedOperationError,
+            lambda known=known, expected=expected: pricing.implied_volatility(
+                engine,
+                dated_history(known, market(time=later)),
+                market(time=later),
                 expected,
-                delta=1e-12,
-            )
-            self.assert_core_error(
-                UnsupportedOperationError,
-                lambda known=known, expected=expected: pricing.implied_volatility(
-                    engine,
-                    dated_history(known, market(time=later)),
-                    market(time=later),
-                    expected,
-                    lower_bound=0.0,
-                    upper_bound=4.0,
-                ),
-            )
-        no_touch = contract(cash_double_no_touch, payout=3)
-        for spot in (80, 120):
-            self.assertEqual(
-                engine.price(dated_history(no_touch, market(spot)), market(spot)), 0
-            )
-        for option in (
-            no_touch,
-            contract(payout=3),
-            contract(payout=3, settlement_timing="at_hit"),
-        ):
-            known = option.replace_history(
-                touch_state="untouched",
-                history_time=option.history_time or option.expiry_time,
-            )
-            result = engine.price_with_greeks(
-                dated_history(known, market(time=END)), market(time=END), greeks="all"
-            )
-            self.assertEqual(result.price, 0 if known.is_one_touch else 3)
-            assert_terminal_greeks(self, result, 0)
-            for spot in (80, 120):
-                self.assertEqual(
-                    engine.price(
-                        dated_history(known, market(spot, time=END)),
-                        market(spot, time=END),
-                    ),
-                    3 if known.is_one_touch else 0,
-                )
-
-    def test_early_window_utc_fixing_calendar_and_fixed_cash_greeks(self):
-        engine = pricing.FiniteDifferenceDoubleTouchEngine()
-        option = contract(
-            cash_double_no_touch,
-            payout=2,
-            observation_times=[FIRST],
-        )
-        event = datetime.combine(FIRST, datetime.min.time())
-        self.assertEqual(
-            engine.price(
-                dated_history(option, market(120, time=event)), market(120, time=event)
-            ),
-            0,
-        )
-        after = event + timedelta(seconds=1)
-        self.assert_core_error(
-            MissingHistoryError,
-            lambda: engine.price(
-                dated_history(option, market(130, time=after)), market(130, time=after)
+                lower_bound=0.0,
+                upper_bound=4.0,
             ),
         )
+    no_touch = contract(cash_double_no_touch, payout=3)
+    for spot in (80, 120):
+        assert engine.price(dated_history(no_touch, market(spot)), market(spot)) == 0
+    for option in (
+        no_touch,
+        contract(payout=3),
+        contract(payout=3, settlement_timing="at_hit"),
+    ):
         known = option.replace_history(
             touch_state="untouched",
             history_time=option.history_time or option.expiry_time,
         )
-        for offset in (timedelta(seconds=1), timedelta(hours=12)):
-            time = event + offset
-            remaining = (
-                datetime.combine(END, datetime.min.time()) - time
-            ).total_seconds() / (86400 * 365)
-            expected = 2 * math.exp(-0.03 * remaining)
-            context = market(130, time=time)
-            result = engine.price_with_greeks(
-                dated_history(known, context), context, greeks="all"
-            )
-            self.assertAlmostEqual(result.price, expected, delta=1e-12)
-            self.assertEqual(result.delta, 0)
-            self.assertEqual(result.vega, 0)
-            self.assertAlmostEqual(result.rho, -remaining * expected, delta=0.000001)
-            self.assert_core_error(
-                UnsupportedOperationError,
-                lambda context=context, expected=expected: pricing.implied_volatility(
-                    engine,
-                    dated_history(known, context),
-                    context,
-                    expected,
-                    lower_bound=0.0,
-                    upper_bound=4.0,
-                ),
-            )
-        with self.assertRaises(InvalidInputError):
-            contract(
-                cash_double_no_touch,
-                observation_times=[datetime(2025, 1, 4)],
-            )
-
-    def test_greeks_iv_boundary_and_time_stencils(self):
-        engine = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=800, time_step_count=1600
+        result = engine.price_with_greeks(
+            dated_history(known, market(time=END)), market(time=END), greeks="all"
         )
-        for option in (
-            contract(touch_state="untouched"),
-            contract(settlement_timing="at_hit", touch_state="untouched"),
-            contract(cash_double_no_touch, touch_state="untouched"),
+        assert result.price == (0 if known.is_one_touch else 3)
+        assert_terminal_greeks(result, 0)
+        for spot in (80, 120):
+            assert engine.price(
+                dated_history(known, market(spot, time=END)),
+                market(spot, time=END),
+            ) == (3 if known.is_one_touch else 0)
+
+
+def test_early_window_utc_fixing_calendar_and_fixed_cash_greeks():
+    engine = pricing.FiniteDifferenceDoubleTouchEngine()
+    option = contract(
+        cash_double_no_touch,
+        payout=2,
+        observation_times=[FIRST],
+    )
+    event = datetime.combine(FIRST, datetime.min.time())
+    assert (
+        engine.price(
+            dated_history(option, market(120, time=event)), market(120, time=event)
+        )
+        == 0
+    )
+    after = event + timedelta(seconds=1)
+    assert_rejection(
+        MissingHistoryError,
+        lambda: engine.price(
+            dated_history(option, market(130, time=after)), market(130, time=after)
+        ),
+    )
+    known = option.replace_history(
+        touch_state="untouched",
+        history_time=option.history_time or option.expiry_time,
+    )
+    for offset in (timedelta(seconds=1), timedelta(hours=12)):
+        time = event + offset
+        remaining = (
+            datetime.combine(END, datetime.min.time()) - time
+        ).total_seconds() / (86400 * 365)
+        expected = 2 * math.exp(-0.03 * remaining)
+        context = market(130, time=time)
+        result = engine.price_with_greeks(
+            dated_history(known, context), context, greeks="all"
+        )
+        assert result.price == pytest.approx(expected, rel=0, abs=1e-12)
+        assert result.delta == 0
+        assert result.vega == 0
+        assert result.rho == pytest.approx(-remaining * expected, rel=0, abs=0.000001)
+        assert_rejection(
+            UnsupportedOperationError,
+            lambda context=context, expected=expected: pricing.implied_volatility(
+                engine,
+                dated_history(known, context),
+                context,
+                expected,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            ),
+        )
+    with pytest.raises(InvalidInputError):
+        contract(
+            cash_double_no_touch,
+            observation_times=[datetime(2025, 1, 4)],
+        )
+
+
+def test_greeks_iv_boundary_and_time_stencils():
+    engine = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=800, time_step_count=1600
+    )
+    for option in (
+        contract(touch_state="untouched"),
+        contract(settlement_timing="at_hit", touch_state="untouched"),
+        contract(cash_double_no_touch, touch_state="untouched"),
+    ):
+        result = engine.price_with_greeks(
+            dated_history(option, market()), market(), greeks="all"
+        )
+        bumped = price_differences(engine, option, market())
+        for name in (
+            "delta",
+            "gamma",
+            "vega",
+            "rho",
+            "theta",
+            "charm",
+            "color",
+            "speed",
+            "vanna",
+            "zomma",
         ):
-            result = engine.price_with_greeks(
-                dated_history(option, market()), market(), greeks="all"
+            assert getattr(result, name) == pytest.approx(
+                getattr(bumped, name), rel=0, abs=1e-5
             )
-            bumped = price_differences(engine, option, market())
-            for name in (
-                "delta",
-                "gamma",
-                "vega",
-                "rho",
-                "theta",
-                "charm",
-                "color",
-                "speed",
-                "vanna",
-                "zomma",
-            ):
-                self.assertAlmostEqual(
-                    getattr(result, name), getattr(bumped, name), delta=1e-5
-                )
-            solved = pricing.implied_volatility(
+        solved = pricing.implied_volatility(
+            engine,
+            dated_history(option, market()),
+            market(),
+            result.price,
+            lower_bound=0.15,
+            upper_bound=0.25,
+        )
+        assert solved == pytest.approx(0.2, rel=0, abs=1e-6)
+        assert_rejection(
+            RootNotBracketedError,
+            lambda option=option: pricing.implied_volatility(
                 engine,
                 dated_history(option, market()),
                 market(),
-                result.price,
+                2,
                 lower_bound=0.15,
                 upper_bound=0.25,
-            )
-            self.assertAlmostEqual(solved, 0.2, delta=1e-6)
-            self.assert_core_error(
-                RootNotBracketedError,
-                lambda option=option: pricing.implied_volatility(
-                    engine,
-                    dated_history(option, market()),
-                    market(),
-                    2,
-                    lower_bound=0.15,
-                    upper_bound=0.25,
-                ),
-            )
-            for spot in (80, 120):
-                boundary = engine.price_with_greeks(
-                    dated_history(option, market(spot)), market(spot), greeks="all"
-                )
-                self.assertIsNone(boundary.delta)
-                self.assertIsNone(boundary.gamma)
-                self.assertEqual(boundary.vega, 0)
-        scheduled = contract(
-            cash_double_no_touch,
-            observation_times=[FIRST, END],
-            touch_state="untouched",
-        )
-        result = engine.price_with_greeks(
-            dated_history(scheduled, market(time=FIRST)),
-            market(time=FIRST),
-            ["theta", "charm", "color"],
-        )
-        self.assertIsNone(result.theta)
-        self.assertIsNone(result.charm)
-        self.assertIsNone(result.color)
-
-    def test_near_barrier_greeks_converge_to_independent_series(self):
-        options = (
-            contract(touch_state="untouched"),
-            contract(settlement_timing="at_hit", touch_state="untouched"),
-            contract(cash_double_no_touch, touch_state="untouched"),
-        )
-        # Absolute budgets use the library's per-unit, per-percent and per-day Greek units.
-        budgets = {
-            "delta": 1e-7,
-            "gamma": 1e-7,
-            "speed": 1e-5,
-            "theta": 0.00000365,
-            "charm": 0.00000365,
-            "color": 0.00000365,
-            "vega": 0.000001,
-            "vanna": 0.00001,
-            "zomma": 0.0001,
-            "rho": 0.000001,
-        }
-        coarse = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=800, time_step_count=200
-        )
-        fine = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=19200, time_step_count=1600
-        )
-        for spot in (80.02, 119.98):
-            expected = reference_greeks(spot)
-            more_terms = cash_reference(spot, count=128)
-            integrated = continuous_reference(spot, count=16384)
-            for index, option in enumerate(options):
-                with self.subTest(spot=spot, option=option):
-                    reference = expected[index]
-                    price = cash_reference(spot)[index].price
-                    self.assertAlmostEqual(price, integrated[index], delta=1e-9)
-                    for name in ("gamma", "speed"):
-                        self.assertAlmostEqual(
-                            reference[name],
-                            getattr(more_terms[index], name),
-                            delta=1e-14,
-                        )
-                    rough = coarse.price_with_greeks(
-                        dated_history(option, market(spot)), market(spot), greeks="all"
-                    )
-                    refined = fine.price_with_greeks(
-                        dated_history(option, market(spot)), market(spot), greeks="all"
-                    )
-                    self.assertAlmostEqual(refined.price, price, delta=1e-7)
-                    for name, budget in budgets.items():
-                        with self.subTest(greek=name, budget=budget):
-                            rough_error = abs(getattr(rough, name) - reference[name])
-                            refined_error = abs(
-                                getattr(refined, name) - reference[name]
-                            )
-                            self.assertLess(refined_error, rough_error)
-                            self.assertLess(refined_error, budget)
-                            if name in ("gamma", "speed"):
-                                self.assertGreater(rough_error, budget)
-
-    def test_node_curves_and_early_at_hit_curve_horizon(self):
-        from kiyosi.instruments import CashOrNothingOption
-
-        engine = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=1600, time_step_count=1600, asset_upper_boundary=400
-        )
-        for early in (False, True):
-            horizon = FIRST if early else END
-            rate = RateTermStructure(
-                reference_time=START,
-                times=[FIRST] if early else [FIRST, END],
-                factors=[0.97] if early else [0.97, 0.99],
-            )
-            context = market(125, rate=rate)
-            fields = {
-                "lower_barrier": 80.125,
-                "upper_barrier": 120.125,
-                "observation_times": [horizon],
-            }
-            touched = sum(
-                pricing.AnalyticDigitalEngine().price(
-                    dated_history(
-                        CashOrNothingOption(
-                            option_type=direction,
-                            strike=level,
-                            payout=1,
-                            effective_time=START,
-                            expiry_time=horizon,
-                        ),
-                        context,
-                    ),
-                    context,
-                )
-                for direction, level in (("put", 80.125), ("call", 120.125))
-            )
-            option = contract(settlement_timing="at_hit", **fields)
-            self.assertAlmostEqual(
-                engine.price(dated_history(option, context), context),
-                touched,
-                delta=3e-5,
-            )
-            if early:
-                self.assert_core_error(
-                    InvalidInputError,
-                    lambda fields=fields, context=context: engine.price(
-                        dated_history(contract(**fields), context), context
-                    ),
-                )
-            else:
-                no = contract(cash_double_no_touch, **fields)
-                self.assertAlmostEqual(
-                    engine.price(dated_history(no, context), context),
-                    0.99 - touched,
-                    delta=3e-5,
-                )
-
-    def test_narrow_band_tiny_volatility_settings_and_concurrency(self):
-        engine = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=160, time_step_count=800
-        )
-        option = contract(cash_double_no_touch, lower_barrier=99.5, upper_barrier=100.5)
-        self.assertLess(engine.price(dated_history(option, market()), market()), 1e-8)
-        self.assertAlmostEqual(
-            engine.price(
-                dated_history(option, market(volatility=1e-12, dividend=0.03)),
-                market(volatility=1e-12, dividend=0.03),
             ),
-            math.exp(-0.03),
-            delta=1e-8,
         )
-        self.assert_core_error(
-            InvalidInputError,
-            lambda: pricing.FiniteDifferenceDoubleTouchEngine(asset_step_count=2),
-        )
-        with self.assertRaises(TypeError):
-            pricing.FiniteDifferenceDoubleTouchEngine(asset_step_count=True)
-        with self.assertRaises(TypeError):
-            pricing.FiniteDifferenceDoubleTouchEngine(time_step_count=1.5)
-        unstable = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=400, time_step_count=1, scheme="explicit_euler"
-        )
-        self.assert_core_error(
-            InvalidInputError,
-            lambda: unstable.price(dated_history(option, market()), market()),
-        )
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            values = list(
-                executor.map(
-                    lambda _: engine.price(dated_history(option, market()), market()),
-                    range(4),
-                )
+        for spot in (80, 120):
+            boundary = engine.price_with_greeks(
+                dated_history(option, market(spot)), market(spot), greeks="all"
             )
-        self.assertEqual(
-            values, [engine.price(dated_history(option, market()), market())] * 4
-        )
+            assert boundary.delta is None
+            assert boundary.gamma is None
+            assert boundary.vega == 0
+    scheduled = contract(
+        cash_double_no_touch,
+        observation_times=[FIRST, END],
+        touch_state="untouched",
+    )
+    result = engine.price_with_greeks(
+        dated_history(scheduled, market(time=FIRST)),
+        market(time=FIRST),
+        ["theta", "charm", "color"],
+    )
+    assert result.theta is None
+    assert result.charm is None
+    assert result.color is None
 
 
-class AnalyticDoubleTouchTests(unittest.TestCase):
-    def test_analytic_exit_density_series_and_discounted_peaks(self):
-        engine = pricing.AnalyticDoubleTouchEngine()
-        for sigma in (0.25, 0.6):
-            for rate in (-0.03, 0.03):
-                expected = continuous_reference(
-                    volatility=sigma, rate=rate, count=8192
-                )[1]
-                actual = engine.price(
-                    dated_history(
-                        contract(settlement_timing="at_hit"),
-                        market(rate=rate, volatility=sigma),
-                    ),
-                    market(rate=rate, volatility=sigma),
+@pytest.mark.parametrize("spot", (80.02, 119.98))
+def test_near_barrier_greeks_converge_to_independent_series(subtests, spot):
+    options = (
+        contract(touch_state="untouched"),
+        contract(settlement_timing="at_hit", touch_state="untouched"),
+        contract(cash_double_no_touch, touch_state="untouched"),
+    )
+    # Absolute budgets use the library's per-unit, per-percent and per-day Greek units.
+    budgets = {
+        "delta": 1e-7,
+        "gamma": 1e-7,
+        "speed": 1e-5,
+        "theta": 0.00000365,
+        "charm": 0.00000365,
+        "color": 0.00000365,
+        "vega": 0.000001,
+        "vanna": 0.00001,
+        "zomma": 0.0001,
+        "rho": 0.000001,
+    }
+    coarse = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=800, time_step_count=200
+    )
+    fine = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=19200, time_step_count=1600
+    )
+    expected = reference_greeks(spot)
+    more_terms = cash_reference(spot, count=128)
+    integrated = continuous_reference(spot, count=16384)
+    for index, option in enumerate(options):
+        with subtests.test(spot=spot, option=option):
+            reference = expected[index]
+            price = cash_reference(spot)[index].price
+            assert price == pytest.approx(integrated[index], rel=0, abs=1e-9)
+            for name in ("gamma", "speed"):
+                assert reference[name] == pytest.approx(
+                    getattr(more_terms[index], name), rel=0, abs=1e-14
                 )
-                self.assertAlmostEqual(actual, expected, delta=1e-11)
-        for payout in (1, 1e300):
-            band, x = math.log(120 / 80), math.log(100 / 80)
-            expected = math.exp(
-                math.log(payout)
-                + math.log(math.cosh(200 * (x - band / 2)))
-                - math.log(math.cosh(100 * band))
+            rough = coarse.price_with_greeks(
+                dated_history(option, market(spot)), market(spot), greeks="all"
             )
-            actual = engine.price(
-                dated_history(
-                    contract(payout=payout, settlement_timing="at_hit"),
-                    market(rate=800, dividend=799.98),
+            refined = fine.price_with_greeks(
+                dated_history(option, market(spot)), market(spot), greeks="all"
+            )
+            assert refined.price == pytest.approx(price, rel=0, abs=1e-7)
+            for name, budget in budgets.items():
+                with subtests.test(greek=name, budget=budget):
+                    rough_error = abs(getattr(rough, name) - reference[name])
+                    refined_error = abs(getattr(refined, name) - reference[name])
+                    assert refined_error < rough_error
+                    assert refined_error < budget
+                    if name in ("gamma", "speed"):
+                        assert rough_error > budget
+
+
+@pytest.mark.parametrize("early", (False, True))
+def test_node_curves_and_early_at_hit_curve_horizon(early):
+    from kiyosi.instruments import CashOrNothingOption
+
+    engine = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=1600, time_step_count=1600, asset_upper_boundary=400
+    )
+    horizon = FIRST if early else END
+    rate = RateTermStructure(
+        reference_time=START,
+        times=[FIRST] if early else [FIRST, END],
+        factors=[0.97] if early else [0.97, 0.99],
+    )
+    context = market(125, rate=rate)
+    fields = {
+        "lower_barrier": 80.125,
+        "upper_barrier": 120.125,
+        "observation_times": [horizon],
+    }
+    touched = sum(
+        pricing.AnalyticDigitalEngine().price(
+            dated_history(
+                CashOrNothingOption(
+                    option_type=direction,
+                    strike=level,
+                    payout=1,
+                    effective_time=START,
+                    expiry_time=horizon,
                 ),
-                market(rate=800, dividend=799.98),
+                context,
+            ),
+            context,
+        )
+        for direction, level in (("put", 80.125), ("call", 120.125))
+    )
+    option = contract(settlement_timing="at_hit", **fields)
+    assert engine.price(dated_history(option, context), context) == pytest.approx(
+        touched, rel=0, abs=3e-5
+    )
+    if early:
+        assert_rejection(
+            InvalidInputError,
+            lambda fields=fields, context=context: engine.price(
+                dated_history(contract(**fields), context), context
+            ),
+        )
+    else:
+        no = contract(cash_double_no_touch, **fields)
+        assert engine.price(dated_history(no, context), context) == pytest.approx(
+            0.99 - touched, rel=0, abs=3e-5
+        )
+
+
+def test_narrow_band_tiny_volatility_settings_and_concurrency():
+    engine = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=160, time_step_count=800
+    )
+    option = contract(cash_double_no_touch, lower_barrier=99.5, upper_barrier=100.5)
+    assert engine.price(dated_history(option, market()), market()) < 1e-8
+    assert engine.price(
+        dated_history(option, market(volatility=1e-12, dividend=0.03)),
+        market(volatility=1e-12, dividend=0.03),
+    ) == pytest.approx(math.exp(-0.03), rel=0, abs=1e-8)
+    assert_rejection(
+        InvalidInputError,
+        lambda: pricing.FiniteDifferenceDoubleTouchEngine(asset_step_count=2),
+    )
+    with pytest.raises(TypeError):
+        pricing.FiniteDifferenceDoubleTouchEngine(asset_step_count=True)
+    with pytest.raises(TypeError):
+        pricing.FiniteDifferenceDoubleTouchEngine(time_step_count=1.5)
+    unstable = pricing.FiniteDifferenceDoubleTouchEngine(
+        asset_step_count=400, time_step_count=1, scheme="explicit_euler"
+    )
+    assert_rejection(
+        InvalidInputError,
+        lambda: unstable.price(dated_history(option, market()), market()),
+    )
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        values = list(
+            executor.map(
+                lambda _: engine.price(dated_history(option, market()), market()),
+                range(4),
             )
-            self.assertAlmostEqual(actual / expected, 1, delta=1e-10)
+        )
+    assert values == [engine.price(dated_history(option, market()), market())] * 4
+
+
+def test_analytic_exit_density_series_and_discounted_peaks():
+    engine = pricing.AnalyticDoubleTouchEngine()
+    for sigma in (0.25, 0.6):
         for rate in (-0.03, 0.03):
-            k = math.sqrt(2 * abs(rate)) / 0.2
-            half_band = math.log(100.5 / 99.5) / 2
-            offset = math.log(100 / 99.5) - half_band
-            transform = math.cosh if rate > 0 else math.cos
-            expected = transform(k * offset) / transform(k * half_band)
+            expected = continuous_reference(volatility=sigma, rate=rate, count=8192)[1]
             actual = engine.price(
                 dated_history(
-                    contract(
-                        lower_barrier=99.5,
-                        upper_barrier=100.5,
-                        settlement_timing="at_hit",
-                    ),
-                    market(rate=rate, dividend=rate - 0.02),
+                    contract(settlement_timing="at_hit"),
+                    market(rate=rate, volatility=sigma),
+                ),
+                market(rate=rate, volatility=sigma),
+            )
+            assert actual == pytest.approx(expected, rel=0, abs=1e-11)
+    for payout in (1, 1e300):
+        band, x = math.log(120 / 80), math.log(100 / 80)
+        expected = math.exp(
+            math.log(payout)
+            + math.log(math.cosh(200 * (x - band / 2)))
+            - math.log(math.cosh(100 * band))
+        )
+        actual = engine.price(
+            dated_history(
+                contract(payout=payout, settlement_timing="at_hit"),
+                market(rate=800, dividend=799.98),
+            ),
+            market(rate=800, dividend=799.98),
+        )
+        assert actual / expected == pytest.approx(1, rel=0, abs=1e-10)
+    for rate in (-0.03, 0.03):
+        k = math.sqrt(2 * abs(rate)) / 0.2
+        half_band = math.log(100.5 / 99.5) / 2
+        offset = math.log(100 / 99.5) - half_band
+        transform = math.cosh if rate > 0 else math.cos
+        expected = transform(k * offset) / transform(k * half_band)
+        actual = engine.price(
+            dated_history(
+                contract(
+                    lower_barrier=99.5,
+                    upper_barrier=100.5,
+                    settlement_timing="at_hit",
                 ),
                 market(rate=rate, dividend=rate - 0.02),
-            )
-            self.assertAlmostEqual(actual, expected, delta=1e-11)
-        for payout in (1, 1e300):
-            option = contract(
-                lower_barrier=70,
-                upper_barrier=140,
-                payout=payout,
-                expiry_time=START + timedelta(days=1),
-                settlement_timing="at_hit",
-            )
-            self.assertEqual(
-                engine.price(
-                    dated_history(
-                        option, market(rate=1e-10, dividend=0.03, volatility=0.01)
-                    ),
-                    market(rate=1e-10, dividend=0.03, volatility=0.01),
+            ),
+            market(rate=rate, dividend=rate - 0.02),
+        )
+        assert actual == pytest.approx(expected, rel=0, abs=1e-11)
+    for payout in (1, 1e300):
+        option = contract(
+            lower_barrier=70,
+            upper_barrier=140,
+            payout=payout,
+            expiry_time=START + timedelta(days=1),
+            settlement_timing="at_hit",
+        )
+        assert (
+            engine.price(
+                dated_history(
+                    option, market(rate=1e-10, dividend=0.03, volatility=0.01)
                 ),
-                0,
+                market(rate=1e-10, dividend=0.03, volatility=0.01),
             )
+            == 0
+        )
 
-    def test_analytic_early_at_hit_payments_avoid_negative_rate_cancellation(self):
-        engine = pricing.AnalyticDoubleTouchEngine()
-        for up in (True, False):
-            for sigma in (0.001, 1e-6, 1e-12):
-                rate = -40
-                dividend = rate - 0.03 if up else rate + 0.03 - sigma**2
-                drift = rate - dividend - sigma**2 / 2
-                towards = drift if up else -drift
-                option = contract(
-                    lower_barrier=80 if up else 100 / 1.003,
-                    upper_barrier=100.3 if up else 125,
-                    settlement_timing="at_hit",
+
+@pytest.mark.parametrize("up", (True, False))
+@pytest.mark.parametrize("sigma", (0.001, 1e-06, 1e-12))
+def test_analytic_early_at_hit_payments_avoid_negative_rate_cancellation(up, sigma):
+    engine = pricing.AnalyticDoubleTouchEngine()
+    rate = -40
+    dividend = rate - 0.03 if up else rate + 0.03 - sigma**2
+    drift = rate - dividend - sigma**2 / 2
+    towards = drift if up else -drift
+    option = contract(
+        lower_barrier=80 if up else 100 / 1.003,
+        upper_barrier=100.3 if up else 125,
+        settlement_timing="at_hit",
+    )
+    # The far barrier and hits after expiry contribute below 1e-140.
+    expected = math.exp(
+        -2
+        * rate
+        * math.log(1.003)
+        / (towards + math.sqrt(towards**2 + 2 * rate * sigma**2))
+    )
+    actual = engine.price(
+        dated_history(
+            option,
+            market(rate=rate, dividend=dividend, volatility=sigma),
+        ),
+        market(rate=rate, dividend=dividend, volatility=sigma),
+    )
+    assert actual / expected == pytest.approx(1, rel=0, abs=1e-9)
+
+
+def test_analytic_discount_and_payout_scaling_preserve_representable_prices(subtests):
+    engine = pricing.AnalyticDoubleTouchEngine()
+    # Independent driftless Fourier survival/exit series with cash in the exponent.
+    for rate, payout, one, no, hit in (
+        (
+            -800,
+            1e-300,
+            1.6945880848984272e47,
+            1.0317864872142041e47,
+            1.5506138528255889e44,
+        ),
+        (800, 1e300, 2.2797808602039585e-48, 1.3880937239736419e-48, None),
+    ):
+        context = market(rate=rate, dividend=rate - 0.02)
+        for factory, timing, expected in (
+            (cash_double_touch, "at_expiry", one),
+            (cash_double_no_touch, "at_expiry", no),
+            (cash_double_touch, "at_hit", hit),
+        ):
+            if expected is None:
+                continue
+            changes = (
+                {"settlement_timing": timing} if factory is cash_double_touch else {}
+            )
+            option = contract(factory, payout=payout, **changes)
+            with subtests.test(rate=rate, factory=factory, timing=timing):
+                actual = engine.price(dated_history(option, context), context)
+                assert actual / expected == pytest.approx(
+                    1, rel=0, abs=(1e-8 if timing == "at_hit" else 1e-11)
                 )
-                # The far barrier and hits after expiry contribute below 1e-140.
-                expected = math.exp(
-                    -2
-                    * rate
-                    * math.log(1.003)
-                    / (towards + math.sqrt(towards**2 + 2 * rate * sigma**2))
+                if rate < 0:
+                    with pytest.raises(ComputationFailureError):
+                        engine.price(
+                            dated_history(
+                                contract(factory, payout=1, **changes), context
+                            ),
+                            context,
+                        )
+
+
+def test_analytic_expiry_payments_match_live_quantlib(subtests):
+    saved = ql.SavedSettings()
+    try:
+        start = ql.Date(1, 1, 2025)
+        ql.Settings.instance().evaluationDate = start
+        dc = ql.Actual365Fixed()
+        for days, rate, dividend, volatility in (
+            (365, 0.03, 0.01, 0.2),
+            (365, -0.01, 0.02, 0.5),
+            (7, 0.04, 0.0, 0.2),
+        ):
+            for spot in (80.02, 100, 119.98):
+                process = ql.BlackScholesMertonProcess(
+                    ql.QuoteHandle(ql.SimpleQuote(spot)),
+                    ql.YieldTermStructureHandle(ql.FlatForward(start, dividend, dc)),
+                    ql.YieldTermStructureHandle(ql.FlatForward(start, rate, dc)),
+                    ql.BlackVolTermStructureHandle(
+                        ql.BlackConstantVol(start, ql.NullCalendar(), volatility, dc)
+                    ),
                 )
-                with self.subTest(up=up, sigma=sigma):
-                    actual = engine.price(
+                for factory, kind in (
+                    (cash_double_touch, ql.DoubleBarrier.KnockIn),
+                    (cash_double_no_touch, ql.DoubleBarrier.KnockOut),
+                ):
+                    reference = ql.DoubleBarrierOption(
+                        kind,
+                        80,
+                        120,
+                        0,
+                        ql.CashOrNothingPayoff(ql.Option.Call, 0, 7.5),
+                        ql.EuropeanExercise(start + days),
+                    )
+                    reference.setPricingEngine(
+                        ql.AnalyticDoubleBarrierBinaryEngine(process)
+                    )
+                    option = contract(
+                        factory,
+                        payout=7.5,
+                        expiry_time=START + timedelta(days=days),
+                    )
+                    actual = pricing.AnalyticDoubleTouchEngine().price(
                         dated_history(
                             option,
-                            market(rate=rate, dividend=dividend, volatility=sigma),
-                        ),
-                        market(rate=rate, dividend=dividend, volatility=sigma),
-                    )
-                    self.assertAlmostEqual(actual / expected, 1, delta=1e-9)
-
-    def test_analytic_discount_and_payout_scaling_preserve_representable_prices(self):
-        engine = pricing.AnalyticDoubleTouchEngine()
-        # Independent driftless Fourier survival/exit series with cash in the exponent.
-        for rate, payout, one, no, hit in (
-            (
-                -800,
-                1e-300,
-                1.6945880848984272e47,
-                1.0317864872142041e47,
-                1.5506138528255889e44,
-            ),
-            (800, 1e300, 2.2797808602039585e-48, 1.3880937239736419e-48, None),
-        ):
-            context = market(rate=rate, dividend=rate - 0.02)
-            for factory, timing, expected in (
-                (cash_double_touch, "at_expiry", one),
-                (cash_double_no_touch, "at_expiry", no),
-                (cash_double_touch, "at_hit", hit),
-            ):
-                if expected is None:
-                    continue
-                changes = (
-                    {"settlement_timing": timing}
-                    if factory is cash_double_touch
-                    else {}
-                )
-                option = contract(factory, payout=payout, **changes)
-                with self.subTest(rate=rate, factory=factory, timing=timing):
-                    actual = engine.price(dated_history(option, context), context)
-                    self.assertAlmostEqual(
-                        actual / expected,
-                        1,
-                        delta=1e-8 if timing == "at_hit" else 1e-11,
-                    )
-                    if rate < 0:
-                        with self.assertRaises(ComputationFailureError):
-                            engine.price(
-                                dated_history(
-                                    contract(factory, payout=1, **changes), context
-                                ),
-                                context,
-                            )
-
-    def test_analytic_expiry_payments_match_live_quantlib(self):
-        saved = ql.SavedSettings()
-        try:
-            start = ql.Date(1, 1, 2025)
-            ql.Settings.instance().evaluationDate = start
-            dc = ql.Actual365Fixed()
-            for days, rate, dividend, volatility in (
-                (365, 0.03, 0.01, 0.2),
-                (365, -0.01, 0.02, 0.5),
-                (7, 0.04, 0.0, 0.2),
-            ):
-                for spot in (80.02, 100, 119.98):
-                    process = ql.BlackScholesMertonProcess(
-                        ql.QuoteHandle(ql.SimpleQuote(spot)),
-                        ql.YieldTermStructureHandle(
-                            ql.FlatForward(start, dividend, dc)
-                        ),
-                        ql.YieldTermStructureHandle(ql.FlatForward(start, rate, dc)),
-                        ql.BlackVolTermStructureHandle(
-                            ql.BlackConstantVol(
-                                start, ql.NullCalendar(), volatility, dc
-                            )
-                        ),
-                    )
-                    for factory, kind in (
-                        (cash_double_touch, ql.DoubleBarrier.KnockIn),
-                        (cash_double_no_touch, ql.DoubleBarrier.KnockOut),
-                    ):
-                        reference = ql.DoubleBarrierOption(
-                            kind,
-                            80,
-                            120,
-                            0,
-                            ql.CashOrNothingPayoff(ql.Option.Call, 0, 7.5),
-                            ql.EuropeanExercise(start + days),
-                        )
-                        reference.setPricingEngine(
-                            ql.AnalyticDoubleBarrierBinaryEngine(process)
-                        )
-                        option = contract(
-                            factory,
-                            payout=7.5,
-                            expiry_time=START + timedelta(days=days),
-                        )
-                        actual = pricing.AnalyticDoubleTouchEngine().price(
-                            dated_history(
-                                option,
-                                market(
-                                    spot,
-                                    rate=rate,
-                                    dividend=dividend,
-                                    volatility=volatility,
-                                ),
-                            ),
                             market(
                                 spot,
                                 rate=rate,
                                 dividend=dividend,
                                 volatility=volatility,
                             ),
-                        )
-                        with self.subTest(
-                            days=days, rate=rate, spot=spot, factory=factory
-                        ):
-                            self.assertAlmostEqual(actual, reference.NPV(), delta=1e-10)
-        finally:
-            del saved
-
-    def test_analytic_three_cashflows_match_independent_series_and_scale(self):
-        engine = pricing.AnalyticDoubleTouchEngine()
-        for rate, dividend in ((0.03, 0.01), (0.04, 0), (-0.01, 0.02), (0, 0.01)):
-            reference = continuous_reference(rate=rate, dividend=dividend, count=8192)
-            for factory, timing, expected in zip(
-                (cash_double_touch, cash_double_touch, cash_double_no_touch),
-                ("at_expiry", "at_hit", "at_expiry"),
-                reference,
-                strict=True,
-            ):
-                changes = (
-                    {"settlement_timing": timing}
-                    if factory is cash_double_touch
-                    else {}
-                )
-                for payout in (1, 7.5):
-                    option = contract(factory, payout=payout, **changes)
-                    with self.subTest(rate=rate, option=option):
-                        self.assertAlmostEqual(
-                            engine.price(
-                                dated_history(
-                                    option, market(rate=rate, dividend=dividend)
-                                ),
-                                market(rate=rate, dividend=dividend),
-                            ),
-                            payout * expected,
-                            delta=payout * 1e-10,
-                        )
-
-    def test_analytic_history_current_boundaries_and_expiry(self):
-        engine = pricing.AnalyticDoubleTouchEngine()
-        for option in (
-            contract(payout=3),
-            contract(payout=3, settlement_timing="at_hit"),
-            contract(cash_double_no_touch, payout=3),
-        ):
-            at_hit = option.settlement_timing == "at_hit"
-            for spot in (79, 80, 120, 121):
-                expected = (
-                    (3 if at_hit else 3 * math.exp(-0.03)) if option.is_one_touch else 0
-                )
-                self.assertAlmostEqual(
-                    engine.price(dated_history(option, market(spot)), market(spot)),
-                    expected,
-                    delta=1e-12,
-                )
-                with self.assertRaises(InvalidInputError):
-                    engine.price(
-                        dated_history(
-                            option, market(spot, time=START + timedelta(days=1))
                         ),
-                        market(spot, time=START + timedelta(days=1)),
+                        market(
+                            spot,
+                            rate=rate,
+                            dividend=dividend,
+                            volatility=volatility,
+                        ),
                     )
-            prior = option.replace_history(
-                touch_state="touched",
-                history_time=option.expiry_time,
+                    with subtests.test(
+                        days=days, rate=rate, spot=spot, factory=factory
+                    ):
+                        assert actual == pytest.approx(
+                            reference.NPV(), rel=0, abs=1e-10
+                        )
+    finally:
+        del saved
+
+
+@pytest.mark.parametrize(
+    "rate,dividend", ((0.03, 0.01), (0.04, 0), (-0.01, 0.02), (0, 0.01))
+)
+def test_analytic_three_cashflows_match_independent_series_and_scale(
+    subtests, rate, dividend
+):
+    engine = pricing.AnalyticDoubleTouchEngine()
+    reference = continuous_reference(rate=rate, dividend=dividend, count=8192)
+    for factory, timing, expected in zip(
+        (cash_double_touch, cash_double_touch, cash_double_no_touch),
+        ("at_expiry", "at_hit", "at_expiry"),
+        reference,
+        strict=True,
+    ):
+        changes = {"settlement_timing": timing} if factory is cash_double_touch else {}
+        for payout in (1, 7.5):
+            option = contract(factory, payout=payout, **changes)
+            with subtests.test(rate=rate, option=option):
+                assert engine.price(
+                    dated_history(option, market(rate=rate, dividend=dividend)),
+                    market(rate=rate, dividend=dividend),
+                ) == pytest.approx(payout * expected, rel=0, abs=payout * 1e-10)
+
+
+def test_analytic_history_current_boundaries_and_expiry():
+    engine = pricing.AnalyticDoubleTouchEngine()
+    for option in (
+        contract(payout=3),
+        contract(payout=3, settlement_timing="at_hit"),
+        contract(cash_double_no_touch, payout=3),
+    ):
+        at_hit = option.settlement_timing == "at_hit"
+        for spot in (79, 80, 120, 121):
+            expected = (
+                (3 if at_hit else 3 * math.exp(-0.03)) if option.is_one_touch else 0
             )
-            with self.assertRaises(InvalidInputError):
-                engine.price(dated_history(prior, market()), market())
-            later = market(time=START + timedelta(days=1))
+            assert engine.price(
+                dated_history(option, market(spot)), market(spot)
+            ) == pytest.approx(expected, rel=0, abs=1e-12)
+            with pytest.raises(InvalidInputError):
+                engine.price(
+                    dated_history(option, market(spot, time=START + timedelta(days=1))),
+                    market(spot, time=START + timedelta(days=1)),
+                )
+        prior = option.replace_history(
+            touch_state="touched",
+            history_time=option.expiry_time,
+        )
+        with pytest.raises(InvalidInputError):
+            engine.price(dated_history(prior, market()), market())
+        later = market(time=START + timedelta(days=1))
+        expected = (
+            0 if at_hit or not option.is_one_touch else 3 * math.exp(-0.03 * 364 / 365)
+        )
+        assert engine.price(dated_history(prior, later), later) == pytest.approx(
+            expected, rel=0, abs=1e-12
+        )
+        with pytest.raises(UnsupportedOperationError):
+            pricing.implied_volatility(
+                engine,
+                dated_history(prior, later),
+                later,
+                expected,
+                lower_bound=0.0,
+                upper_bound=4.0,
+            )
+        known = option.replace_history(
+            touch_state="untouched",
+            history_time=option.history_time or option.expiry_time,
+        )
+        for spot in (80, 100, 120):
+            terminal = engine.price_with_greeks(
+                dated_history(known, market(spot, time=END)),
+                market(spot, time=END),
+                greeks="all",
+            )
+            assert terminal.price == (3 if option.is_one_touch == (spot != 100) else 0)
+            assert_terminal_greeks(terminal, None if spot in (80, 120) else 0)
+        assert option.touch_state is None
+
+
+def test_analytic_schedules_validate_then_resolve_or_reject():
+    engine = pricing.AnalyticDoubleTouchEngine()
+    for option in (
+        contract(observation_times=[FIRST]),
+        contract(
+            observation_times=[FIRST],
+            settlement_timing="at_hit",
+        ),
+        contract(
+            cash_double_no_touch,
+            observation_times=[FIRST],
+        ),
+    ):
+        with pytest.raises(UnsupportedOperationError):
+            engine.price(dated_history(option, market(125)), market(125))
+        after = FIRST + timedelta(days=1)
+        with pytest.raises(InvalidInputError):
+            engine.price(dated_history(option, market(time=after)), market(time=after))
+        known = option.replace_history(
+            touch_state="untouched",
+            history_time=option.history_time or option.expiry_time,
+        )
+        for spot in (80, 120):
             expected = (
                 0
-                if at_hit or not option.is_one_touch
-                else 3 * math.exp(-0.03 * 364 / 365)
+                if not option.is_one_touch
+                else (
+                    1
+                    if option.settlement_timing == "at_hit"
+                    else math.exp(-0.03 * (END - FIRST).days / 365)
+                )
             )
-            self.assertAlmostEqual(
-                engine.price(dated_history(prior, later), later), expected, delta=1e-12
-            )
-            with self.assertRaises(UnsupportedOperationError):
+            assert engine.price(
+                dated_history(known, market(spot, time=FIRST)),
+                market(spot, time=FIRST),
+            ) == pytest.approx(expected, rel=0, abs=1e-12)
+        expected = (
+            0 if option.is_one_touch else math.exp(-0.03 * (END - after).days / 365)
+        )
+        assert engine.price(
+            dated_history(known, market(125, time=after)),
+            market(125, time=after),
+        ) == pytest.approx(expected, rel=0, abs=1e-12)
+    with pytest.raises(InvalidInputError):
+        contract(observation_times=[datetime(2025, 1, 4)])
+
+
+def test_analytic_node_curves_and_numerical_failures():
+    engine = pricing.AnalyticDoubleTouchEngine()
+    curve = RateTermStructure(
+        reference_time=START,
+        times=[END, END + (END - START)],
+        factors=[0.97, (0.97) * 0.5],
+    )
+    for rates in ({"rate": curve}, {"dividend": curve}):
+        for spot in (100, 120):
+            context = market(spot, **rates)
+            option = contract()
+            with pytest.raises(UnsupportedOperationError):
+                engine.price(dated_history(option, context), context)
+            with pytest.raises(UnsupportedOperationError):
+                engine.price_with_greeks(
+                    dated_history(option, context), context, greeks="all"
+                )
+            with pytest.raises(UnsupportedOperationError):
                 pricing.implied_volatility(
                     engine,
-                    dated_history(prior, later),
-                    later,
-                    expected,
+                    dated_history(option, context),
+                    context,
+                    math.nan,
                     lower_bound=0.0,
                     upper_bound=4.0,
                 )
-            known = option.replace_history(
-                touch_state="untouched",
-                history_time=option.history_time or option.expiry_time,
-            )
-            for spot in (80, 100, 120):
-                terminal = engine.price_with_greeks(
-                    dated_history(known, market(spot, time=END)),
-                    market(spot, time=END),
-                    greeks="all",
-                )
-                self.assertEqual(
-                    terminal.price, 3 if option.is_one_touch == (spot != 100) else 0
-                )
-                assert_terminal_greeks(self, terminal, None if spot in (80, 120) else 0)
-            self.assertIsNone(option.touch_state)
-
-    def test_analytic_schedules_validate_then_resolve_or_reject(self):
-        engine = pricing.AnalyticDoubleTouchEngine()
-        for option in (
-            contract(observation_times=[FIRST]),
-            contract(
-                observation_times=[FIRST],
-                settlement_timing="at_hit",
-            ),
-            contract(
-                cash_double_no_touch,
-                observation_times=[FIRST],
-            ),
-        ):
-            with self.assertRaises(UnsupportedOperationError):
-                engine.price(dated_history(option, market(125)), market(125))
-            after = FIRST + timedelta(days=1)
-            with self.assertRaises(InvalidInputError):
-                engine.price(
-                    dated_history(option, market(time=after)), market(time=after)
-                )
-            known = option.replace_history(
-                touch_state="untouched",
-                history_time=option.history_time or option.expiry_time,
-            )
-            for spot in (80, 120):
-                expected = (
-                    0
-                    if not option.is_one_touch
-                    else (
-                        1
-                        if option.settlement_timing == "at_hit"
-                        else math.exp(-0.03 * (END - FIRST).days / 365)
-                    )
-                )
-                self.assertAlmostEqual(
-                    engine.price(
-                        dated_history(known, market(spot, time=FIRST)),
-                        market(spot, time=FIRST),
-                    ),
-                    expected,
-                    delta=1e-12,
-                )
-            expected = (
-                0 if option.is_one_touch else math.exp(-0.03 * (END - after).days / 365)
-            )
-            self.assertAlmostEqual(
-                engine.price(
-                    dated_history(known, market(125, time=after)),
-                    market(125, time=after),
-                ),
-                expected,
-                delta=1e-12,
-            )
-        with self.assertRaises(InvalidInputError):
-            contract(observation_times=[datetime(2025, 1, 4)])
-
-    def test_analytic_node_curves_and_numerical_failures(self):
-        engine = pricing.AnalyticDoubleTouchEngine()
-        curve = RateTermStructure(
-            reference_time=START,
-            times=[END, END + (END - START)],
-            factors=[0.97, (0.97) * 0.5],
+    with pytest.raises(ComputationFailureError):
+        engine.price(
+            dated_history(contract(), market(volatility=1e308)),
+            market(volatility=1e308),
         )
-        for rates in ({"rate": curve}, {"dividend": curve}):
-            for spot in (100, 120):
-                context = market(spot, **rates)
-                option = contract()
-                with self.assertRaises(UnsupportedOperationError):
-                    engine.price(dated_history(option, context), context)
-                with self.assertRaises(UnsupportedOperationError):
-                    engine.price_with_greeks(
-                        dated_history(option, context), context, greeks="all"
-                    )
-                with self.assertRaises(UnsupportedOperationError):
-                    pricing.implied_volatility(
-                        engine,
-                        dated_history(option, context),
-                        context,
-                        math.nan,
-                        lower_bound=0.0,
-                        upper_bound=4.0,
-                    )
-        with self.assertRaises(ComputationFailureError):
-            engine.price(
-                dated_history(contract(), market(volatility=1e308)),
-                market(volatility=1e308),
-            )
-        for day in (START - timedelta(days=1), END + timedelta(days=1)):
-            with self.assertRaises(InvalidInputError):
-                engine.price(
-                    dated_history(contract(), market(time=day)), market(time=day)
-                )
+    for day in (START - timedelta(days=1), END + timedelta(days=1)):
+        with pytest.raises(InvalidInputError):
+            engine.price(dated_history(contract(), market(time=day)), market(time=day))
 
-    def test_analytic_greeks_iv_signatures_and_concurrent_pricing(self):
-        engine = pricing.AnalyticDoubleTouchEngine()
-        budgets = {
-            "delta": 1e-7,
-            "gamma": 1e-7,
-            "speed": 1e-5,
-            "theta": 0.00000365,
-            "charm": 0.00000365,
-            "color": 0.00000365,
-            "vega": 0.000001,
-            "vanna": 0.00001,
-            "zomma": 0.0001,
-            "rho": 0.000001,
-        }
-        self.assertEqual(str(inspect.signature(type(engine))), "()")
-        signature = inspect.signature(numerical_greeks)
-        for name in (
-            "spot_shift",
-            "volatility_shift",
-            "rate_shift",
-            "time_shift",
-        ):
-            self.assertIs(
-                signature.parameters[name].kind, inspect.Parameter.KEYWORD_ONLY
+
+def test_analytic_greeks_iv_signatures_and_concurrent_pricing(subtests):
+    engine = pricing.AnalyticDoubleTouchEngine()
+    budgets = {
+        "delta": 1e-7,
+        "gamma": 1e-7,
+        "speed": 1e-5,
+        "theta": 0.00000365,
+        "charm": 0.00000365,
+        "color": 0.00000365,
+        "vega": 0.000001,
+        "vanna": 0.00001,
+        "zomma": 0.0001,
+        "rho": 0.000001,
+    }
+    assert str(inspect.signature(type(engine))) == "()"
+    signature = inspect.signature(numerical_greeks)
+    for name in (
+        "spot_shift",
+        "volatility_shift",
+        "rate_shift",
+        "time_shift",
+    ):
+        assert signature.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+        assert signature.parameters[name].default is Ellipsis
+    options = (
+        contract(touch_state="untouched"),
+        contract(settlement_timing="at_hit", touch_state="untouched"),
+        contract(cash_double_no_touch, touch_state="untouched"),
+    )
+    for spot in (80.02, 100, 119.98):
+        for option, expected in zip(options, reference_greeks(spot), strict=True):
+            result = engine.price_with_greeks(
+                dated_history(option, market(spot)), market(spot), greeks="all"
             )
-            self.assertIs(signature.parameters[name].default, Ellipsis)
-        options = (
-            contract(touch_state="untouched"),
-            contract(settlement_timing="at_hit", touch_state="untouched"),
-            contract(cash_double_no_touch, touch_state="untouched"),
+            for name, value in expected.items():
+                with subtests.test(spot=spot, option=option, greek=name):
+                    if name == "speed" and spot != 100:
+                        assert result.speed is None
+                        continue
+                    assert getattr(result, name) == pytest.approx(
+                        value, rel=0, abs=budgets[name]
+                    )
+    for option in options:
+        price = engine.price(dated_history(option, market()), market())
+        default = engine.price_with_greeks(
+            dated_history(option, market()), market(), greeks="all"
         )
-        for spot in (80.02, 100, 119.98):
-            for option, expected in zip(options, reference_greeks(spot), strict=True):
-                result = engine.price_with_greeks(
-                    dated_history(option, market(spot)), market(spot), greeks="all"
-                )
-                for name, value in expected.items():
-                    with self.subTest(spot=spot, option=option, greek=name):
-                        if name == "speed" and spot != 100:
-                            self.assertIsNone(result.speed)
-                            continue
-                        self.assertAlmostEqual(
-                            getattr(result, name), value, delta=budgets[name]
-                        )
-        for option in options:
-            price = engine.price(dated_history(option, market()), market())
-            default = engine.price_with_greeks(
-                dated_history(option, market()), market(), greeks="all"
+        explicit = numerical_greeks(
+            engine,
+            dated_history(option, market()),
+            market(),
+            greeks="all",
+            spot_shift=0.01,
+            volatility_shift=0.0001,
+            rate_shift=0.0001,
+            time_shift=timedelta(days=1),
+        )
+        for name in reference_greeks(100)[0]:
+            assert getattr(default, name) == getattr(explicit, name)
+        assert pricing.implied_volatility(
+            engine,
+            dated_history(option, market()),
+            market(),
+            price,
+            lower_bound=0.15,
+            upper_bound=0.25,
+        ) == pytest.approx(0.2, rel=0, abs=1e-7)
+        for spot in (80, 120):
+            result = engine.price_with_greeks(
+                dated_history(option, market(spot)), market(spot), greeks="all"
             )
-            explicit = numerical_greeks(
-                engine,
-                dated_history(option, market()),
-                market(),
-                greeks="all",
-                spot_shift=0.01,
-                volatility_shift=0.0001,
-                rate_shift=0.0001,
-                time_shift=timedelta(days=1),
+            assert result.delta is None
+            assert result.vega == 0
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        values = list(
+            executor.map(
+                lambda _: engine.price(dated_history(options[0], market()), market()),
+                range(4),
             )
-            for name in reference_greeks(100)[0]:
-                self.assertEqual(getattr(default, name), getattr(explicit, name))
-            self.assertAlmostEqual(
-                pricing.implied_volatility(
-                    engine,
-                    dated_history(option, market()),
-                    market(),
-                    price,
-                    lower_bound=0.15,
-                    upper_bound=0.25,
-                ),
-                0.2,
-                delta=1e-7,
-            )
-            for spot in (80, 120):
-                result = engine.price_with_greeks(
-                    dated_history(option, market(spot)), market(spot), greeks="all"
-                )
-                self.assertIsNone(result.delta)
-                self.assertEqual(result.vega, 0)
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            values = list(
-                executor.map(
-                    lambda _: engine.price(
-                        dated_history(options[0], market()), market()
-                    ),
-                    range(4),
-                )
-            )
-        self.assertEqual(values, [values[0]] * 4)
-        self.assertAlmostEqual(values[0], 0.6031839700294364, delta=1e-12)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        )
+    assert values == [values[0]] * 4
+    assert values[0] == pytest.approx(0.6031839700294364, rel=0, abs=1e-12)

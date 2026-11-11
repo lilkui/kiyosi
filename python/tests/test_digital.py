@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from fractions import Fraction
 from functools import partial
 
+import pytest
 import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
@@ -26,7 +27,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
-from support.assertions import DomainTestCase
+from support.assertions import assert_rejection
 from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
@@ -44,599 +45,595 @@ GREEKS = (
 )
 
 
-class DigitalTests(DomainTestCase):
-    def setUp(self):
-        self.terms = {
-            "option_type": "call",
-            "strike": 100,
-            "effective_time": datetime(2025, 1, 1),
-            "expiry_time": datetime(2026, 1, 1),
-        }
-        self.context = PricingContext(
-            model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
-            ),
-            spot_price=100,
-            valuation_time=self.terms["effective_time"],
-        )
-        self.engine = AnalyticDigitalEngine()
+@pytest.fixture
+def base_terms():
+    return {
+        "option_type": "call",
+        "strike": 100,
+        "effective_time": datetime(2025, 1, 1),
+        "expiry_time": datetime(2026, 1, 1),
+    }
 
-    def options(self, **changes):
-        terms = dict(self.terms, **changes)
+
+@pytest.fixture
+def base_context(base_terms):
+    return PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ),
+        spot_price=100,
+        valuation_time=base_terms["effective_time"],
+    )
+
+
+@pytest.fixture
+def base_engine():
+    return AnalyticDigitalEngine()
+
+
+@pytest.fixture
+def make_options(base_terms):
+    def create(**changes):
+        terms = dict(base_terms, **changes)
         return (CashOrNothingOption(**terms, payout=10), AssetOrNothingOption(**terms))
 
-    def test_prices_greeks_and_volatility_recovery(self):
-        for cls, expected, extra in (
-            (CashOrNothingOption, 4.945810910532236, {"payout": 10}),
-            (AssetOrNothingOption, 58.6851146134764, {}),
+    return create
+
+
+@pytest.mark.parametrize(
+    "cls,expected,extra",
+    (
+        (CashOrNothingOption, 4.945810910532236, {"payout": 10}),
+        (AssetOrNothingOption, 58.6851146134764, {}),
+    ),
+)
+def test_prices_greeks_and_volatility_recovery(
+    base_context, base_engine, base_terms, cls, expected, extra
+):
+    option = cls(**history_fields(**base_terms, **extra))
+    result = base_engine.price_with_greeks(option, base_context, greeks="all")
+    assert result.price == pytest.approx(expected, rel=0, abs=1e-12)
+    assert implied_volatility(
+        base_engine,
+        option,
+        base_context,
+        result.price,
+        lower_bound=0.1,
+        upper_bound=0.22,
+    ) == pytest.approx(0.2, rel=0, abs=1e-7)
+    for name in GREEKS:
+        selected = base_engine.price_with_greeks(option, base_context, name)
+        assert getattr(selected, name) == getattr(result, name)
+        assert selected.require(name) == getattr(result, name)
+        assert getattr(selected, "gamma" if name == "delta" else "delta") is None
+    assert option.option_type == "call"
+    assert option.strike == 100
+    assert option.effective_time == base_terms["effective_time"]
+    assert option.expiry_time == base_terms["expiry_time"]
+    assert option == cls(**history_fields(**base_terms, **extra))
+    with pytest.raises(AttributeError):
+        option.strike = 105
+
+
+def test_live_quantlib_prices_greeks_and_scalar_differences(base_engine, subtests):
+
+    digital = importlib.import_module("quantlib_reference.digital")
+    oracle = importlib.import_module("quantlib_reference.oracle")
+    differences = importlib.import_module("price_differences").price_differences
+    oracle.require_version()
+    config = oracle.load_fixture("digital.json")
+    for identifier, inputs in digital.scenarios(config):
+        cls = (
+            CashOrNothingOption if inputs["payoff"] == "cash" else AssetOrNothingOption
+        )
+        option = cls(
+            **history_fields(
+                option_type=inputs["option"],
+                strike=inputs["strike"],
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+                **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
+            )
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=inputs["rate"],
+                dividend_yield=inputs["dividend"],
+                volatility=inputs["volatility"],
+            ),
+            spot_price=inputs["spot"],
+            valuation_time=datetime.fromisoformat(inputs["valuation"]),
+        )
+        with ql.SavedSettings():
+            reference, uncertainty = oracle.reference(inputs, digital.STABILITY)
+        # Reference time Greeks are unavailable when a whole-day stencil reaches expiry.
+        smooth = (option.expiry_time - context.valuation_time).days > 2
+        names = tuple(reference.keys() - {"price"}) if smooth else ("delta", "gamma")
+        result = base_engine.price_with_greeks(option, context, names)
+        for name, expected in reference.items():
+            if name != "price" and name not in names:
+                continue
+            with subtests.test(case=identifier, measure=name):
+                assert getattr(result, name) == pytest.approx(
+                    expected,
+                    rel=0,
+                    abs=config["profile_defaults"]["tolerances"][name]
+                    + uncertainty[f"uncertainty_{name}"],
+                )
+        if smooth:
+            for bump in (0.01, 0.02):
+                numeric = differences(
+                    base_engine, option, context, names, spot_shift=bump
+                )
+                for name in names:
+                    with subtests.test(case=identifier, measure=name, bump=bump):
+                        assert getattr(numeric, name) == pytest.approx(
+                            reference[name],
+                            rel=0,
+                            abs=config["profile_defaults"]["numerical_tolerances"][name]
+                            + uncertainty[f"uncertainty_{name}"],
+                        )
+
+
+def test_strict_expiry_payoffs_and_valuation_boundaries(
+    base_context, base_engine, base_terms, make_options
+):
+    end = base_terms["expiry_time"]
+    for direction in ("call", "put"):
+        for spot in (
+            99,
+            math.nextafter(100, 0),
+            100,
+            math.nextafter(100, 101),
+            101,
         ):
-            option = cls(**history_fields(**self.terms, **extra))
-            result = self.engine.price_with_greeks(option, self.context, greeks="all")
-            self.assertAlmostEqual(result.price, expected, delta=1e-12)
-            self.assertAlmostEqual(
-                implied_volatility(
-                    self.engine,
-                    option,
-                    self.context,
-                    result.price,
-                    lower_bound=0.1,
-                    upper_bound=0.22,
-                ),
-                0.2,
-                delta=1e-7,
-            )
-            for name in GREEKS:
-                selected = self.engine.price_with_greeks(option, self.context, name)
-                self.assertEqual(getattr(selected, name), getattr(result, name))
-                self.assertEqual(selected.require(name), getattr(result, name))
-                self.assertIsNone(
-                    getattr(selected, "gamma" if name == "delta" else "delta")
+            context = base_context.replace(valuation_time=end, spot_price=spot)
+            for option in make_options(option_type=direction):
+                pays = spot > 100 if direction == "call" else spot < 100
+                expected = (
+                    (spot if isinstance(option, AssetOrNothingOption) else 10)
+                    if pays
+                    else 0
                 )
-            self.assertEqual(option.option_type, "call")
-            self.assertEqual(option.strike, 100)
-            self.assertEqual(option.effective_time, self.terms["effective_time"])
-            self.assertEqual(option.expiry_time, self.terms["expiry_time"])
-            self.assertEqual(option, cls(**history_fields(**self.terms, **extra)))
-            with self.assertRaises(AttributeError):
-                option.strike = 105
-
-    def test_live_quantlib_prices_greeks_and_scalar_differences(self):
-
-        digital = importlib.import_module("quantlib_reference.digital")
-        oracle = importlib.import_module("quantlib_reference.oracle")
-        differences = importlib.import_module("price_differences").price_differences
-        oracle.require_version()
-        config = oracle.load_fixture("digital.json")
-        for identifier, inputs in digital.scenarios(config):
-            cls = (
-                CashOrNothingOption
-                if inputs["payoff"] == "cash"
-                else AssetOrNothingOption
-            )
-            option = cls(
-                **history_fields(
-                    option_type=inputs["option"],
-                    strike=inputs["strike"],
-                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                    **(
-                        {"payout": inputs["payout"]}
-                        if inputs["payoff"] == "cash"
-                        else {}
-                    ),
+                result = base_engine.price_with_greeks(option, context, greeks="all")
+                assert base_engine.price(option, context) == expected
+                assert result.price == expected
+                assert_terminal_greeks(
+                    result,
+                    None
+                    if abs(spot - 100) <= 0.01
+                    else int(pays and isinstance(option, AssetOrNothingOption)),
                 )
-            )
-            context = PricingContext(
-                model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=inputs["rate"],
-                    dividend_yield=inputs["dividend"],
-                    volatility=inputs["volatility"],
-                ),
-                spot_price=inputs["spot"],
-                valuation_time=datetime.fromisoformat(inputs["valuation"]),
-            )
-            with ql.SavedSettings():
-                reference, uncertainty = oracle.reference(inputs, digital.STABILITY)
-            # Reference time Greeks are unavailable when a whole-day stencil reaches expiry.
-            smooth = (option.expiry_time - context.valuation_time).days > 2
-            names = (
-                tuple(reference.keys() - {"price"}) if smooth else ("delta", "gamma")
-            )
-            result = self.engine.price_with_greeks(option, context, names)
-            for name, expected in reference.items():
-                if name != "price" and name not in names:
-                    continue
-                with self.subTest(case=identifier, measure=name):
-                    self.assertAlmostEqual(
-                        getattr(result, name),
-                        expected,
-                        delta=config["profile_defaults"]["tolerances"][name]
-                        + uncertainty[f"uncertainty_{name}"],
-                    )
-            if smooth:
-                for bump in (0.01, 0.02):
-                    numeric = differences(
-                        self.engine, option, context, names, spot_shift=bump
-                    )
-                    for name in names:
-                        with self.subTest(case=identifier, measure=name, bump=bump):
-                            self.assertAlmostEqual(
-                                getattr(numeric, name),
-                                reference[name],
-                                delta=config["profile_defaults"][
-                                    "numerical_tolerances"
-                                ][name]
-                                + uncertainty[f"uncertainty_{name}"],
-                            )
-
-    def test_strict_expiry_payoffs_and_valuation_boundaries(self):
-        end = self.terms["expiry_time"]
-        for direction in ("call", "put"):
-            for spot in (
-                99,
-                math.nextafter(100, 0),
-                100,
-                math.nextafter(100, 101),
-                101,
-            ):
-                context = self.context.replace(valuation_time=end, spot_price=spot)
-                for option in self.options(option_type=direction):
-                    pays = spot > 100 if direction == "call" else spot < 100
-                    expected = (
-                        (spot if isinstance(option, AssetOrNothingOption) else 10)
-                        if pays
-                        else 0
-                    )
-                    result = self.engine.price_with_greeks(
-                        option, context, greeks="all"
-                    )
-                    self.assertEqual(self.engine.price(option, context), expected)
-                    self.assertEqual(result.price, expected)
-                    assert_terminal_greeks(
-                        self,
-                        result,
-                        None
-                        if abs(spot - 100) <= 0.01
-                        else int(pays and isinstance(option, AssetOrNothingOption)),
-                    )
-                    self.assert_rejection(
-                        UnsupportedOperationError,
-                        implied_volatility,
-                        self.engine,
-                        option,
-                        context,
-                        expected,
-                        lower_bound=0.0,
-                        upper_bound=4.0,
-                    )
-        for option in self.options():
-            time = datetime(2026, 1, 1, 0, 0, 0, 1)
-            outside = self.context.replace(valuation_time=time)
-            self.assert_rejection(InvalidInputError, self.engine.price, option, outside)
-            self.assert_rejection(
-                InvalidInputError,
-                self.engine.price_with_greeks,
-                option,
-                outside,
-                [],
-            )
-            self.assert_rejection(
-                InvalidInputError,
-                implied_volatility,
-                self.engine,
-                option,
-                outside,
-                0,
-                lower_bound=0.0,
-                upper_bound=4.0,
-            )
-
-    def test_constructor_domains_and_native_representation_errors(self):
-        for cls in (CashOrNothingOption, AssetOrNothingOption):
-            extra = {"payout": 10} if cls is CashOrNothingOption else {}
-            for strike in (0, -1, math.nan, math.inf):
-                self.assert_rejection(
-                    InvalidInputError,
-                    cls,
-                    **dict(self.terms, strike=strike),
-                    **extra,
-                )
-            self.assert_rejection(
-                InvalidInputError,
-                cls,
-                **dict(self.terms, expiry_time=datetime(2024, 1, 1)),
-                **extra,
-            )
-            for field in ("strike", *extra):
-                for value in (True, "1", None, 1j):
-                    with (
-                        self.subTest(field=field, value=value),
-                        self.assertRaises(TypeError),
-                    ):
-                        cls(**history_fields(**(self.terms | extra | {field: value})))
-                with self.assertRaises(OverflowError):
-                    cls(**history_fields(**(self.terms | extra | {field: 10**1000})))
-            for value in (True, 1, None):
-                with self.assertRaises(TypeError):
-                    cls(
-                        **history_fields(**dict(self.terms, option_type=value), **extra)
-                    )
-            with self.assertRaises(ValueError):
-                cls(**history_fields(**dict(self.terms, option_type="Call"), **extra))
-            for field in ("effective_time", "expiry_time"):
-                for value in ("2025-01-01", None, datetime(2025, 1, 1).date()):
-                    with self.assertRaises(TypeError):
-                        cls(
-                            **history_fields(
-                                **dict(self.terms, **{field: value}), **extra
-                            )
-                        )
-            with self.assertRaises(TypeError):
-                cls("call", 100, datetime(2025, 1, 1), datetime(2026, 1, 1))
-        for payout in (0, -1, math.nan, math.inf):
-            self.assert_rejection(
-                InvalidInputError,
-                CashOrNothingOption,
-                **self.terms,
-                payout=payout,
-            )
-        # All representation checks precede the core's payout-first domain validation.
-        with self.assertRaises(TypeError):
-            CashOrNothingOption(**dict(self.terms, strike=True), payout=0)
-        self.assert_rejection(
-            InvalidInputError,
-            CashOrNothingOption,
-            **dict(self.terms, strike=0),
-            payout=0,
-        )
-        valid = CashOrNothingOption(
-            **dict(self.terms, strike=Fraction(201, 2)), payout=Fraction(3, 2)
-        )
-        self.assertEqual(valid.strike, 100.5)
-        self.assertEqual(valid.payout, 1.5)
-
-    def test_requests_settings_solver_errors_and_failure_state(self):
-        for option in self.options():
-            quote = self.engine.price(option, self.context)
-            for changes in (
-                {},
-                {"greeks": True},
-                {"greeks": [1]},
-            ):
-                with self.assertRaises(TypeError):
-                    numerical_greeks(self.engine, option, self.context, **changes)
-            with self.assertRaises(ValueError):
-                self.engine.price_with_greeks(option, self.context, "Delta")
-            for field in (
-                "spot_shift",
-                "volatility_shift",
-                "rate_shift",
-                "time_shift",
-            ):
-                for value in (True, "1") + (
-                    ()
-                    if field in ("spot_shift", "volatility_shift", "time_shift")
-                    else (None,)
-                ):
-                    with self.assertRaises(TypeError):
-                        numerical_greeks(
-                            self.engine, option, self.context, "delta", **{field: value}
-                        )
-                for value in (0, -1):
-                    self.assert_rejection(
-                        InvalidInputError,
-                        partial(numerical_greeks, self.engine),
-                        option,
-                        self.context,
-                        "delta",
-                        **{
-                            field: timedelta(days=value)
-                            if field == "time_shift"
-                            else value
-                        },
-                    )
-            with self.assertRaises(TypeError):
-                numerical_greeks(
-                    self.engine, option, self.context, "delta", time_shift=1.5
-                )
-            with self.assertRaises(TypeError):
-                numerical_greeks(
-                    self.engine, option, self.context, "delta", time_shift=2**40
-                )
-            for settings in (
-                {"lower_bound": -0.1},
-                {"lower_bound": 4},
-                {"upper_bound": math.inf},
-                {"max_iterations": 0},
-                {"price_tolerance": 0},
-                {"parameter_tolerance": math.nan},
-            ):
-                self.assert_rejection(
-                    InvalidInputError,
+                assert_rejection(
+                    UnsupportedOperationError,
                     implied_volatility,
-                    self.engine,
+                    base_engine,
                     option,
-                    self.context,
-                    quote,
-                    **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
-                )
-            for value, expected_error in (
-                (math.nan, InvalidInputError),
-                (-1, RootNotBracketedError),
-                (1000, RootNotBracketedError),
-            ):
-                self.assert_rejection(
-                    expected_error,
-                    implied_volatility,
-                    self.engine,
-                    option,
-                    self.context,
-                    value,
+                    context,
+                    expected,
                     lower_bound=0.0,
                     upper_bound=4.0,
                 )
-            for settings in ({"lower_bound": True}, {"max_iterations": 1.0}):
-                with self.assertRaises(TypeError):
-                    implied_volatility(
-                        self.engine,
-                        option,
-                        self.context,
-                        quote,
-                        **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
-                    )
-            self.assertEqual(self.engine.price(option, self.context), quote)
-            self.assertEqual(self.context.model_parameters.volatility, 0.2)
-            with self.assertRaises(UnsupportedOperationError):
-                AnalyticEuropeanEngine().price(option, self.context)
-        with self.assertRaises(UnsupportedOperationError):
-            self.engine.price(EuropeanOption(**self.terms), self.context)
+    for option in make_options():
+        time = datetime(2026, 1, 1, 0, 0, 0, 1)
+        outside = base_context.replace(valuation_time=time)
+        assert_rejection(InvalidInputError, base_engine.price, option, outside)
+        assert_rejection(
+            InvalidInputError,
+            base_engine.price_with_greeks,
+            option,
+            outside,
+            [],
+        )
+        assert_rejection(
+            InvalidInputError,
+            implied_volatility,
+            base_engine,
+            option,
+            outside,
+            0,
+            lower_bound=0.0,
+            upper_bound=4.0,
+        )
 
-    def test_curves_coverage_time_knots_and_concurrency(self):
-        start, end = self.terms["effective_time"], self.terms["expiry_time"]
-        knot = start + timedelta(days=180)
-        curve = RateTermStructure(
-            reference_time=start,
-            times=[knot, end],
-            factors=[
-                math.exp(-0.02 * 180 / 365),
-                math.exp(-0.02 * 180 / 365 - 0.08 * 185 / 365),
-            ],
-        )
-        model = self.context.model_parameters.replace(risk_free_rate=curve)
-        context = self.context.replace(model_parameters=model, valuation_time=knot)
-        flat = context.replace(
-            model_parameters=model.replace(
-                risk_free_rate=RateTermStructure.flat(0.08, reference_time=knot)
+
+def test_constructor_domains_and_native_representation_errors(base_terms, subtests):
+    for cls in (CashOrNothingOption, AssetOrNothingOption):
+        extra = {"payout": 10} if cls is CashOrNothingOption else {}
+        for strike in (0, -1, math.nan, math.inf):
+            assert_rejection(
+                InvalidInputError,
+                cls,
+                **dict(base_terms, strike=strike),
+                **extra,
             )
+        assert_rejection(
+            InvalidInputError,
+            cls,
+            **dict(base_terms, expiry_time=datetime(2024, 1, 1)),
+            **extra,
         )
-        short = RateTermStructure(reference_time=start, times=[knot], factors=[0.99])
-        uncovered = self.context.replace(
-            model_parameters=model.replace(dividend_yield=short)
+        for field in ("strike", *extra):
+            for value in (True, "1", None, 1j):
+                with (
+                    subtests.test(field=field, value=value),
+                    pytest.raises(TypeError),
+                ):
+                    cls(**history_fields(**(base_terms | extra | {field: value})))
+            with pytest.raises(OverflowError):
+                cls(**history_fields(**(base_terms | extra | {field: 10**1000})))
+        for value in (True, 1, None):
+            with pytest.raises(TypeError):
+                cls(**history_fields(**dict(base_terms, option_type=value), **extra))
+        with pytest.raises(ValueError):
+            cls(**history_fields(**dict(base_terms, option_type="Call"), **extra))
+        for field in ("effective_time", "expiry_time"):
+            for value in ("2025-01-01", None, datetime(2025, 1, 1).date()):
+                with pytest.raises(TypeError):
+                    cls(**history_fields(**dict(base_terms, **{field: value}), **extra))
+        with pytest.raises(TypeError):
+            cls("call", 100, datetime(2025, 1, 1), datetime(2026, 1, 1))
+    for payout in (0, -1, math.nan, math.inf):
+        assert_rejection(
+            InvalidInputError,
+            CashOrNothingOption,
+            **base_terms,
+            payout=payout,
         )
-        for option in self.options():
-            actual = self.engine.price_with_greeks(option, context, greeks="all")
-            expected = self.engine.price_with_greeks(option, flat, greeks="all")
-            for name in ("price", *GREEKS):
-                self.assertAlmostEqual(
-                    getattr(actual, name), getattr(expected, name), delta=1e-10
+    # All representation checks precede the core's payout-first domain validation.
+    with pytest.raises(TypeError):
+        CashOrNothingOption(**dict(base_terms, strike=True), payout=0)
+    assert_rejection(
+        InvalidInputError,
+        CashOrNothingOption,
+        **dict(base_terms, strike=0),
+        payout=0,
+    )
+    valid = CashOrNothingOption(
+        **dict(base_terms, strike=Fraction(201, 2)), payout=Fraction(3, 2)
+    )
+    assert valid.strike == 100.5
+    assert valid.payout == 1.5
+
+
+def test_requests_settings_solver_errors_and_failure_state(
+    base_context, base_engine, base_terms, make_options
+):
+    for option in make_options():
+        quote = base_engine.price(option, base_context)
+        for changes in (
+            {},
+            {"greeks": True},
+            {"greeks": [1]},
+        ):
+            with pytest.raises(TypeError):
+                numerical_greeks(base_engine, option, base_context, **changes)
+        with pytest.raises(ValueError):
+            base_engine.price_with_greeks(option, base_context, "Delta")
+        for field in (
+            "spot_shift",
+            "volatility_shift",
+            "rate_shift",
+            "time_shift",
+        ):
+            for value in (True, "1") + (
+                ()
+                if field in ("spot_shift", "volatility_shift", "time_shift")
+                else (None,)
+            ):
+                with pytest.raises(TypeError):
+                    numerical_greeks(
+                        base_engine, option, base_context, "delta", **{field: value}
+                    )
+            for value in (0, -1):
+                assert_rejection(
+                    InvalidInputError,
+                    partial(numerical_greeks, base_engine),
+                    option,
+                    base_context,
+                    "delta",
+                    **{
+                        field: timedelta(days=value) if field == "time_shift" else value
+                    },
                 )
-            self.assert_rejection(
-                InvalidInputError, self.engine.price, option, uncovered
+        with pytest.raises(TypeError):
+            numerical_greeks(base_engine, option, base_context, "delta", time_shift=1.5)
+        with pytest.raises(TypeError):
+            numerical_greeks(
+                base_engine, option, base_context, "delta", time_shift=2**40
             )
-            self.assert_rejection(
+        for settings in (
+            {"lower_bound": -0.1},
+            {"lower_bound": 4},
+            {"upper_bound": math.inf},
+            {"max_iterations": 0},
+            {"price_tolerance": 0},
+            {"parameter_tolerance": math.nan},
+        ):
+            assert_rejection(
                 InvalidInputError,
                 implied_volatility,
-                self.engine,
+                base_engine,
                 option,
-                uncovered,
-                0,
+                base_context,
+                quote,
+                **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
+            )
+        for value, expected_error in (
+            (math.nan, InvalidInputError),
+            (-1, RootNotBracketedError),
+            (1000, RootNotBracketedError),
+        ):
+            assert_rejection(
+                expected_error,
+                implied_volatility,
+                base_engine,
+                option,
+                base_context,
+                value,
                 lower_bound=0.0,
                 upper_bound=4.0,
             )
-            with ThreadPoolExecutor(max_workers=4) as pool:
-                prices = list(
-                    pool.map(
-                        lambda _, option=option: self.engine.price(option, context),
-                        range(16),
-                    )
+        for settings in ({"lower_bound": True}, {"max_iterations": 1.0}):
+            with pytest.raises(TypeError):
+                implied_volatility(
+                    base_engine,
+                    option,
+                    base_context,
+                    quote,
+                    **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
                 )
-            self.assertEqual(prices, [actual.price] * 16)
+        assert base_engine.price(option, base_context) == quote
+        assert base_context.model_parameters.volatility == 0.2
+        with pytest.raises(UnsupportedOperationError):
+            AnalyticEuropeanEngine().price(option, base_context)
+    with pytest.raises(UnsupportedOperationError):
+        base_engine.price(EuropeanOption(**base_terms), base_context)
 
-    def test_scaled_discounts_and_overflowing_settlements(self):
-        for rate in (710, 740, 750, -710, -750):
-            amount = 1e300 if rate > 0 else 1e-300
-            context = self.context.replace(
-                spot_price=amount,
-                model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=rate, dividend_yield=rate, volatility=0.2
-                ),
-            )
-            discounted = math.exp(math.log(amount) - rate)
-            for direction, sign in (("call", 1), ("put", -1)):
-                terms = dict(self.terms, option_type=direction, strike=amount)
-                for option, argument in (
-                    (CashOrNothingOption(**terms, payout=amount), sign * 0.1),
-                    (AssetOrNothingOption(**terms), -sign * 0.1),
-                ):
-                    expected = discounted * 0.5 * math.erfc(argument / math.sqrt(2))
-                    self.assertTrue(
-                        math.isclose(
-                            self.engine.price(option, context), expected, rel_tol=2e-12
-                        )
-                    )
-        for direction in ("call", "put"):
-            for asset in (False, True):
-                for overflow in (False, True):
-                    rate = -1 if overflow else -0.05
-                    amount = 1.75e308
-                    spot = amount if asset else 100
-                    context = self.context.replace(
-                        spot_price=spot,
-                        model_parameters=BlackScholesMertonParameters(
-                            risk_free_rate=rate + 0.02 if asset else rate,
-                            dividend_yield=rate if asset else rate - 0.06,
-                            volatility=0.2,
-                        ),
-                    )
-                    terms = dict(self.terms, option_type=direction, strike=spot)
-                    option = (
-                        AssetOrNothingOption(**terms)
-                        if asset
-                        else CashOrNothingOption(**terms, payout=amount)
-                    )
-                    if overflow:
-                        self.assert_rejection(
-                            ComputationFailureError,
-                            self.engine.price,
-                            option,
-                            context,
-                        )
-                    else:
-                        probability = 0.5 * math.erfc(
-                            (-0.2 if direction == "call" else 0.2) / math.sqrt(2)
-                        )
-                        self.assertTrue(
-                            math.isclose(
-                                self.engine.price(option, context),
-                                amount * (math.exp(0.05) * probability),
-                                rel_tol=1e-10,
-                            )
-                        )
-        for direction in ("call", "put"):
-            context = self.context.replace(
-                spot_price=1e-300,
-                model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=-710, dividend_yield=-710, volatility=0.2
-                ),
-            )
-            terms = dict(
-                self.terms,
-                option_type=direction,
-                strike=1e-304 if direction == "call" else 1e-296,
-            )
-            for option in (
-                CashOrNothingOption(**terms, payout=1e-300),
-                AssetOrNothingOption(**terms),
-            ):
-                self.assertTrue(
-                    math.isclose(
-                        self.engine.price(option, context),
-                        math.exp(math.log(1e-300) + 710),
-                        rel_tol=1e-12,
-                    )
-                )
 
-    def test_selected_overflow_tiny_volatility_and_scaled_tail_greeks(self):
-        option = CashOrNothingOption(**dict(self.terms, strike=1e-200), payout=1e100)
-        context = self.context.replace(
-            spot_price=1e-200,
-            model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0, dividend_yield=0, volatility=0.2
-            ),
+def test_curves_coverage_time_knots_and_concurrency(
+    base_context, base_engine, base_terms, make_options
+):
+    start, end = base_terms["effective_time"], base_terms["expiry_time"]
+    knot = start + timedelta(days=180)
+    curve = RateTermStructure(
+        reference_time=start,
+        times=[knot, end],
+        factors=[
+            math.exp(-0.02 * 180 / 365),
+            math.exp(-0.02 * 180 / 365 - 0.08 * 185 / 365),
+        ],
+    )
+    model = base_context.model_parameters.replace(risk_free_rate=curve)
+    context = base_context.replace(model_parameters=model, valuation_time=knot)
+    flat = context.replace(
+        model_parameters=model.replace(
+            risk_free_rate=RateTermStructure.flat(0.08, reference_time=knot)
         )
-        result = self.engine.price_with_greeks(option, context, "delta")
-        self.assertTrue(
-            math.isclose(result.delta, 1.984762737385059e300, rel_tol=1e-12)
-        )
-        self.assertIsNone(result.gamma)
-        self.assert_rejection(
-            ComputationFailureError,
-            self.engine.price_with_greeks,
+    )
+    short = RateTermStructure(reference_time=start, times=[knot], factors=[0.99])
+    uncovered = base_context.replace(
+        model_parameters=model.replace(dividend_yield=short)
+    )
+    for option in make_options():
+        actual = base_engine.price_with_greeks(option, context, greeks="all")
+        expected = base_engine.price_with_greeks(option, flat, greeks="all")
+        for name in ("price", *GREEKS):
+            assert getattr(actual, name) == pytest.approx(
+                getattr(expected, name), rel=0, abs=1e-10
+            )
+        assert_rejection(InvalidInputError, base_engine.price, option, uncovered)
+        assert_rejection(
+            InvalidInputError,
+            implied_volatility,
+            base_engine,
             option,
-            context,
-            "gamma",
+            uncovered,
+            0,
+            lower_bound=0.0,
+            upper_bound=4.0,
         )
-        for sigma in (1e-200, math.ulp(0.0)):
-            context = self.context.replace(
-                valuation_time=datetime(2026, 1, 1) - timedelta(microseconds=1),
-                model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=0, dividend_yield=0, volatility=sigma
-                ),
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            prices = list(
+                pool.map(
+                    lambda _, option=option: base_engine.price(option, context),
+                    range(16),
+                )
             )
-            for direction in ("call", "put"):
-                for option in self.options(option_type=direction):
-                    self.assertEqual(
-                        self.engine.price(option, context),
-                        50 if isinstance(option, AssetOrNothingOption) else 5,
-                    )
-                    if sigma == 1e-200:
-                        result = self.engine.price_with_greeks(option, context, "gamma")
-                        expected_sign = (
-                            1 if isinstance(option, AssetOrNothingOption) else -1
-                        ) * (1 if direction == "call" else -1)
-                        self.assertTrue(math.isfinite(result.gamma))
-                        self.assertEqual(math.copysign(1, result.gamma), expected_sign)
-                        self.assertGreater(abs(result.gamma), 1e200)
-                    else:
-                        self.assert_rejection(
-                            ComputationFailureError,
-                            self.engine.price_with_greeks,
-                            option,
-                            context,
-                            "gamma",
-                        )
-        # Independent high-precision tail references, r = q = -710.
-        for direction, log_strike, expected in (
-            ("call", 8, 8.923870780328184e-38),
-            ("put", -8, -2.9638565030696756e-41),
-        ):
-            for rate in (-710, -700):
-                for spot in (1, 1e-200):
-                    option = AssetOrNothingOption(
-                        **dict(
-                            self.terms,
-                            option_type=direction,
-                            strike=spot * math.exp(log_strike),
-                        )
-                    )
-                    context = self.context.replace(
-                        spot_price=spot,
-                        model_parameters=BlackScholesMertonParameters(
-                            risk_free_rate=rate, dividend_yield=rate, volatility=0.2
-                        ),
-                    )
-                    result = self.engine.price_with_greeks(option, context, "delta")
-                    self.assertTrue(
-                        math.isclose(
-                            result.delta,
-                            expected * math.exp(-rate - 710),
-                            rel_tol=1e-10,
-                        )
-                    )
+        assert prices == [actual.price] * 16
 
-    def test_native_speed_large_scales_and_single_bump_availability(self):
-        context = self.context.replace(spot_price=100000)
-        for option, expected in (
-            (
-                CashOrNothingOption(**dict(self.terms, strike=100000), payout=1e8),
-                -4.204659661267558e-6,
+
+def test_scaled_discounts_and_overflowing_settlements(
+    base_context, base_engine, base_terms
+):
+    for rate in (710, 740, 750, -710, -750):
+        amount = 1e300 if rate > 0 else 1e-300
+        context = base_context.replace(
+            spot_price=amount,
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=rate, dividend_yield=rate, volatility=0.2
             ),
-            (
-                AssetOrNothingOption(**dict(self.terms, strike=100000)),
-                -4.631047683255255e-9,
+        )
+        discounted = math.exp(math.log(amount) - rate)
+        for direction, sign in (("call", 1), ("put", -1)):
+            terms = dict(base_terms, option_type=direction, strike=amount)
+            for option, argument in (
+                (CashOrNothingOption(**terms, payout=amount), sign * 0.1),
+                (AssetOrNothingOption(**terms), -sign * 0.1),
+            ):
+                expected = discounted * 0.5 * math.erfc(argument / math.sqrt(2))
+                assert math.isclose(
+                    base_engine.price(option, context), expected, rel_tol=2e-12
+                )
+    for direction in ("call", "put"):
+        for asset in (False, True):
+            for overflow in (False, True):
+                rate = -1 if overflow else -0.05
+                amount = 1.75e308
+                spot = amount if asset else 100
+                context = base_context.replace(
+                    spot_price=spot,
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate + 0.02 if asset else rate,
+                        dividend_yield=rate if asset else rate - 0.06,
+                        volatility=0.2,
+                    ),
+                )
+                terms = dict(base_terms, option_type=direction, strike=spot)
+                option = (
+                    AssetOrNothingOption(**terms)
+                    if asset
+                    else CashOrNothingOption(**terms, payout=amount)
+                )
+                if overflow:
+                    assert_rejection(
+                        ComputationFailureError,
+                        base_engine.price,
+                        option,
+                        context,
+                    )
+                else:
+                    probability = 0.5 * math.erfc(
+                        (-0.2 if direction == "call" else 0.2) / math.sqrt(2)
+                    )
+                    assert math.isclose(
+                        base_engine.price(option, context),
+                        amount * (math.exp(0.05) * probability),
+                        rel_tol=1e-10,
+                    )
+    for direction in ("call", "put"):
+        context = base_context.replace(
+            spot_price=1e-300,
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=-710, dividend_yield=-710, volatility=0.2
             ),
+        )
+        terms = dict(
+            base_terms,
+            option_type=direction,
+            strike=1e-304 if direction == "call" else 1e-296,
+        )
+        for option in (
+            CashOrNothingOption(**terms, payout=1e-300),
+            AssetOrNothingOption(**terms),
         ):
-            result = self.engine.price_with_greeks(option, context, "speed")
-            self.assertTrue(math.isclose(result.speed, expected, rel_tol=1e-7))
-            self.assertIsNone(result.gamma)
-        option = CashOrNothingOption(**dict(self.terms, strike=1.5), payout=1)
-        context = self.context.replace(spot_price=1.5)
-        native = self.engine.price_with_greeks(option, context, "speed")
-        self.assertTrue(math.isfinite(native.require("speed")))
-        scalar = numerical_greeks(self.engine, option, context, "speed", spot_shift=1)
-        self.assertIsNone(scalar.speed)
+            assert math.isclose(
+                base_engine.price(option, context),
+                math.exp(math.log(1e-300) + 710),
+                rel_tol=1e-12,
+            )
 
-    def test_expiry_reaching_time_stencils_use_scalar_derivatives_on_both_sides(self):
 
-        differences = importlib.import_module("price_differences").price_differences
-        context = self.context.replace(
-            spot_price=1, valuation_time=datetime(2025, 12, 31)
+def test_selected_overflow_tiny_volatility_and_scaled_tail_greeks(
+    base_context, base_engine, base_terms, make_options
+):
+    option = CashOrNothingOption(**dict(base_terms, strike=1e-200), payout=1e100)
+    context = base_context.replace(
+        spot_price=1e-200,
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        ),
+    )
+    result = base_engine.price_with_greeks(option, context, "delta")
+    assert math.isclose(result.delta, 1.984762737385059e300, rel_tol=1e-12)
+    assert result.gamma is None
+    assert_rejection(
+        ComputationFailureError,
+        base_engine.price_with_greeks,
+        option,
+        context,
+        "gamma",
+    )
+    for sigma in (1e-200, math.ulp(0.0)):
+        context = base_context.replace(
+            valuation_time=datetime(2026, 1, 1) - timedelta(microseconds=1),
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=sigma
+            ),
         )
         for direction in ("call", "put"):
-            for option in self.options(option_type=direction, strike=1):
-                actual = self.engine.price_with_greeks(
-                    option, context, ["charm", "color"]
+            for option in make_options(option_type=direction):
+                assert base_engine.price(option, context) == (
+                    50 if isinstance(option, AssetOrNothingOption) else 5
                 )
-                expected = differences(self.engine, option, context, ["charm", "color"])
-                self.assertAlmostEqual(actual.charm, expected.charm, delta=3.65e-7)
-                self.assertAlmostEqual(actual.color, expected.color, delta=0.0000365)
+                if sigma == 1e-200:
+                    result = base_engine.price_with_greeks(option, context, "gamma")
+                    expected_sign = (
+                        1 if isinstance(option, AssetOrNothingOption) else -1
+                    ) * (1 if direction == "call" else -1)
+                    assert math.isfinite(result.gamma)
+                    assert math.copysign(1, result.gamma) == expected_sign
+                    assert abs(result.gamma) > 1e200
+                else:
+                    assert_rejection(
+                        ComputationFailureError,
+                        base_engine.price_with_greeks,
+                        option,
+                        context,
+                        "gamma",
+                    )
+    # Independent high-precision tail references, r = q = -710.
+    for direction, log_strike, expected in (
+        ("call", 8, 8.923870780328184e-38),
+        ("put", -8, -2.9638565030696756e-41),
+    ):
+        for rate in (-710, -700):
+            for spot in (1, 1e-200):
+                option = AssetOrNothingOption(
+                    **dict(
+                        base_terms,
+                        option_type=direction,
+                        strike=spot * math.exp(log_strike),
+                    )
+                )
+                context = base_context.replace(
+                    spot_price=spot,
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=rate, volatility=0.2
+                    ),
+                )
+                result = base_engine.price_with_greeks(option, context, "delta")
+                assert math.isclose(
+                    result.delta,
+                    expected * math.exp(-rate - 710),
+                    rel_tol=1e-10,
+                )
+
+
+def test_native_speed_large_scales_and_single_bump_availability(
+    base_context, base_engine, base_terms
+):
+    context = base_context.replace(spot_price=100000)
+    for option, expected in (
+        (
+            CashOrNothingOption(**dict(base_terms, strike=100000), payout=1e8),
+            -4.204659661267558e-6,
+        ),
+        (
+            AssetOrNothingOption(**dict(base_terms, strike=100000)),
+            -4.631047683255255e-9,
+        ),
+    ):
+        result = base_engine.price_with_greeks(option, context, "speed")
+        assert math.isclose(result.speed, expected, rel_tol=1e-7)
+        assert result.gamma is None
+    option = CashOrNothingOption(**dict(base_terms, strike=1.5), payout=1)
+    context = base_context.replace(spot_price=1.5)
+    native = base_engine.price_with_greeks(option, context, "speed")
+    assert math.isfinite(native.require("speed"))
+    scalar = numerical_greeks(base_engine, option, context, "speed", spot_shift=1)
+    assert scalar.speed is None
+
+
+@pytest.mark.parametrize("direction", ("call", "put"))
+def test_expiry_reaching_time_stencils_use_scalar_derivatives_on_both_sides(
+    base_context, base_engine, make_options, direction
+):
+
+    differences = importlib.import_module("price_differences").price_differences
+    context = base_context.replace(spot_price=1, valuation_time=datetime(2025, 12, 31))
+    for option in make_options(option_type=direction, strike=1):
+        actual = base_engine.price_with_greeks(option, context, ["charm", "color"])
+        expected = differences(base_engine, option, context, ["charm", "color"])
+        assert actual.charm == pytest.approx(expected.charm, rel=0, abs=3.65e-7)
+        assert actual.color == pytest.approx(expected.color, rel=0, abs=0.0000365)
