@@ -1,13 +1,11 @@
 # Triage Labels
 
-The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
-
-| Label in mattpocock/skills | Label in our tracker | Meaning |
+| Canonical role | Local status | Meaning |
 | --- | --- | --- |
-| `needs-triage` | `needs-triage` | Maintainer needs to evaluate this issue |
-| `needs-info` | `needs-info` | Waiting on reporter for more information |
-| `ready-for-agent` | `ready-for-agent` | Fully specified, ready for an AFK agent |
+| `needs-triage` | `needs-triage` | Maintainer needs to evaluate the issue |
+| `needs-info` | `needs-info` | Waiting on the reporter for more information |
+| `ready-for-agent` | `ready-for-agent` | Fully specified and ready for an agent |
 | `ready-for-human` | `ready-for-human` | Requires human implementation |
 | `wontfix` | `wontfix` | Will not be actioned |
 
-When a skill mentions a role, use the corresponding label string from this table.
+When a skill refers to a canonical role, use its corresponding local status.

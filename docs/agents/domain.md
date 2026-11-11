@@ -1,32 +1,21 @@
 # Domain Docs
 
-How the engineering skills should consume this repo's domain documentation when exploring the codebase.
+This repository uses a single-context layout: `GLOSSARY.md` at the root and
+architecture decision records in `docs/adr/`.
 
-## Before exploring, read these
+## Before exploring
 
-- **`CONTEXT.md`** at the repo root, or
-- **`CONTEXT-MAP.md`** at the repo root if it exists: it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
-- **`docs/adr/`**: read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
-
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill creates them lazily when terms or decisions actually get resolved.
-
-## File structure
-
-Single-context repo (most repos):
-
-```
-/
-├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
-└── src/
-```
+Read `GLOSSARY.md` and any ADRs in `docs/adr/` relevant to the work. If they
+do not exist, proceed without raising their absence; domain-modeling work can
+create them when terminology or decisions are resolved.
 
 ## Use the glossary's vocabulary
 
-When your output names a domain concept, use the term as defined in `CONTEXT.md`. If the concept isn't in the glossary yet, note it for `/domain-modeling`.
+Use the glossary's terms for domain concepts in issues, proposals, hypotheses
+and tests. If a needed concept is absent, reconsider the terminology or note
+the gap for domain modeling.
 
 ## Flag ADR conflicts
 
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding.
+Explicitly identify proposals that contradict an existing ADR and explain why
+the decision may be worth reopening.
