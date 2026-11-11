@@ -83,7 +83,8 @@ impl HestonFiniteDifferenceSettings {
 /// the Feller condition, zero parameters and correlation endpoints. With zero
 /// volatility of volatility, pricing uses the deterministic variance path in
 /// one dimension. Absorbing zero variance uses optimal
-/// deterministic exercise. Nonempty Greek requests and implied-parameter solvers return [`crate::Error::UnsupportedOperation`].
+/// deterministic exercise. Requested Greeks have [`crate::GreekStatus::Unsupported`];
+/// implied-parameter solvers return [`crate::Error::UnsupportedOperation`].
 ///
 /// Domain truncation and discretization both require convergence checks. No
 /// automatic error estimate or refinement is performed. Shared and independent
@@ -161,12 +162,13 @@ impl FiniteDifferenceHestonVanillaEngine {
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
-    /// Returns the price for an empty Greek request; see [`Self::new`].
+    /// Returns the price with requested Greeks marked unsupported; see [`Self::new`].
+    ///
+    /// Use [`PricingResult::require`] to reject an unavailable Greek.
     ///
     /// # Errors
     ///
-    /// Checks Heston applicability and propagates
-    /// [`Self::price`] errors. Nonempty requests return [`crate::Error::UnsupportedOperation`].
+    /// Checks Heston applicability and propagates [`Self::price`] errors.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
         option: &I,
@@ -179,7 +181,6 @@ impl FiniteDifferenceHestonVanillaEngine {
         let settings = crate::NumericalShiftSettings::default();
         <Self as PricingEngine<I>>::validate_applicability(self, context)?;
         settings.validate()?;
-        request.validate_support(GreeksRequest::new([]))?;
         PricingResult::new(self.price(option, context)?)
             .map(|result| result.with_request(request, GreeksRequest::new([])))
     }

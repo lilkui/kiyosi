@@ -89,6 +89,20 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
     .unwrap();
     for direction in [OptionType::Call, OptionType::Put] {
         for option in options(direction) {
+            let context = market(95.0, 0.0, 0.0, 0.0);
+            let result = engine
+                .price_with_greeks_with_settings(
+                    &option,
+                    &context,
+                    GreeksRequest::new([Greek::Rho]),
+                    NumericalShiftSettings {
+                        rate_shift: 1000.0,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            assert_eq!(result.price(), engine.price(&option, &context).unwrap());
+            assert_eq!(result.status(Greek::Rho), GreekStatus::Unsupported);
             for sigma in [1e-200, f64::from_bits(1)] {
                 let context = market(100.0, 0.0, 0.0, sigma)
                     .replace(PricingContextChanges {
@@ -103,10 +117,11 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
                     engine.price(&option, &context).unwrap(),
                     option.payout().unwrap_or(100.0) / 2.0
                 );
-                assert!(matches!(
-                    engine.price_with_greeks(&option, &context, GreeksRequest::new([Greek::Rho])),
-                    Err(Error::UnsupportedOperation(_))
-                ));
+                let result = engine
+                    .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Rho]))
+                    .unwrap();
+                assert_eq!(result.price(), engine.price(&option, &context).unwrap());
+                assert_eq!(result.status(Greek::Rho), kiyosi::GreekStatus::Unsupported);
                 assert!(matches!(
                     engine
                         .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Gamma]))

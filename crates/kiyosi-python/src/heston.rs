@@ -33,10 +33,10 @@ use pyo3::prelude::*;
 /// Zero parameters and violations of the Feller condition (2 * kappa * theta
 /// >= xi**2) are accepted. AnalyticHestonEuropeanEngine prices European
 /// options; FiniteDifferenceHestonVanillaEngine prices European and American
-/// options. Nonempty Greek requests and implied-parameter solvers are
-/// unsupported. Numeric conversion rejects booleans. Replacement validates in
-/// Rust before returning a new owned model; the original is unchanged on
-/// failure.
+/// options. Requested Greeks have status "unsupported"; implied-parameter solvers
+/// raise UnsupportedOperationError. Numeric conversion rejects booleans.
+/// Replacement validates in Rust before returning a new owned model; the original
+/// is unchanged on failure.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]

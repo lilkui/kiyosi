@@ -16,7 +16,7 @@ from support.history import dated as dated_history
 from support.history import history_fields
 
 
-def test_greek_requests_reject_disjoint_support_and_preserve_partial_results(subtests):
+def test_greek_requests_report_disjoint_support_and_preserve_partial_results(subtests):
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
     vanilla = ins.EuropeanOption(
         option_type="call", strike=100, effective_time=start, expiry_time=end
@@ -133,16 +133,19 @@ def test_greek_requests_reject_disjoint_support_and_preserve_partial_results(sub
             with subtests.test(engine=engine, at=at):
                 context = snapshot.replace(valuation_time=at)
                 option = dated_history(instrument, context)
-                with pytest.raises(UnsupportedOperationError):
-                    engine.price_with_greeks(option, context, "vega")
+                result = engine.price_with_greeks(option, context, "vega")
+                assert result.price == engine.price(option, context)
+                assert result.vega is None
+                assert result.status("vega") == "unsupported"
+                assert result.status("delta") == "not_requested"
                 result = engine.price_with_greeks(option, context, [])
                 assert result.price == engine.price(option, context)
-                if partial:
-                    result = engine.price_with_greeks(
-                        option, context, ["delta", "vega"]
-                    )
-                    assert result.status("delta") == "available"
-                    assert result.status("vega") == "unsupported"
+                result = engine.price_with_greeks(option, context, ["delta", "vega"])
+                assert result.price == engine.price(option, context)
+                assert result.status("delta") == (
+                    "available" if partial else "unsupported"
+                )
+                assert result.status("vega") == "unsupported"
 
 
 def test_autocallable_constructors_require_an_explicit_observation_clock(subtests):
@@ -1818,16 +1821,16 @@ def test_greek_status_distinguishes_requests_support_and_stencils():
             correlation=-0.7,
         )
     )
-    with pytest.raises(UnsupportedOperationError):
-        pricing.AnalyticHestonEuropeanEngine().price_with_greeks(
-            option, heston, "delta"
-        )
+    unsupported = pricing.AnalyticHestonEuropeanEngine().price_with_greeks(
+        option, heston, "delta"
+    )
     from kiyosi import GreekUnavailableError
 
     for value, measure, status in (
         (result, "gamma", "not_requested"),
         (terminal, "delta", "undefined"),
         (collapsed, "delta", "stencil_unavailable"),
+        (unsupported, "delta", "unsupported"),
     ):
         with pytest.raises(GreekUnavailableError) as caught:
             value.require(measure)

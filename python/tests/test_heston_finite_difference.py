@@ -212,8 +212,10 @@ def test_expiry_applicability_errors_and_state(subtests):
     )
     with pytest.raises(UnsupportedOperationError):
         engine.price(option(), bsm)
-    with pytest.raises(UnsupportedOperationError):
-        engine.price_with_greeks(option(), snapshot, "delta")
+    result = engine.price_with_greeks(option(), snapshot, "delta")
+    assert result.price == engine.price(option(), snapshot)
+    assert result.delta is None
+    assert result.status("delta") == "unsupported"
     with pytest.raises(UnsupportedOperationError):
         implied_volatility(
             engine, option(), snapshot, 9, lower_bound=0.0, upper_bound=4.0

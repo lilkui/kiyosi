@@ -151,12 +151,6 @@ def test_only_requested_node_greeks_are_returned():
         for name in OTHER_GREEKS:
             assert getattr(result, name) is None
         for name in ("delta", "gamma", *OTHER_GREEKS):
-            if name in OTHER_GREEKS:
-                with pytest.raises(UnsupportedOperationError):
-                    engine.price_with_greeks(
-                        dated_history(contract, context), context, name
-                    )
-                continue
             selected = engine.price_with_greeks(
                 dated_history(contract, context),
                 context,
@@ -164,6 +158,8 @@ def test_only_requested_node_greeks_are_returned():
             )
             assert getattr(selected, name) == getattr(result, name)
             assert selected.price == result.price
+            if name in OTHER_GREEKS:
+                assert selected.status(name) == "unsupported"
 
 
 @pytest.mark.parametrize("kind", KINDS)

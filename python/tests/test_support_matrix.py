@@ -522,12 +522,7 @@ def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(
                 assert_decimal_equal(
                     engine.price(dated_history(instrument, context), context), expected
                 )
-                request = [] if name in HESTON_ENGINES else ["delta"]
-                if name in HESTON_ENGINES:
-                    with pytest.raises(UnsupportedOperationError):
-                        engine.price_with_greeks(
-                            dated_history(instrument, context), context, ["delta"]
-                        )
+                request = ["delta"]
                 result = engine.price_with_greeks(
                     dated_history(instrument, context), context, request
                 )
@@ -540,7 +535,7 @@ def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(
                     )
                 assert result.requested == tuple(request)
                 assert result.status("delta") == (
-                    "not_requested" if name in HESTON_ENGINES else "available"
+                    "unsupported" if name in HESTON_ENGINES else "available"
                 )
                 assert result.status("gamma") == "not_requested"
                 with pytest.raises(UnsupportedOperationError) as error:

@@ -60,7 +60,7 @@ fn autocallable_calendars_control_knock_in_after_record_conversion() -> Result<(
 }
 
 #[test]
-fn greek_requests_reject_disjoint_support_and_preserve_partial_results() -> Result<()> {
+fn greek_requests_report_disjoint_support_and_preserve_partial_results() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let end = start.add_days(365)?;
     let bsm = PricingContext::new(
@@ -125,35 +125,50 @@ fn greek_requests_reject_disjoint_support_and_preserve_partial_results() -> Resu
                 })?;
                 let option = dated(&$option, &context);
                 let request = GreeksRequest::new([Greek::Vega]);
-                assert!(matches!(
-                    engine.price_with_greeks(&option, &context, request),
-                    Err(Error::UnsupportedOperation(_))
-                ));
-                assert!(matches!(
+                let price = engine.price(&option, &context)?;
+                for result in [
+                    engine.price_with_greeks(&option, &context, request)?,
                     PricingEngine::price_with_greeks_with_settings(
                         &engine,
                         &option,
                         &context,
                         request,
-                        Default::default()
-                    ),
-                    Err(Error::UnsupportedOperation(_))
-                ));
+                        Default::default(),
+                    )?,
+                ] {
+                    assert_eq!(result.price(), price);
+                    assert_eq!(result.get(Greek::Vega), None);
+                    assert_eq!(result.status(Greek::Vega), GreekStatus::Unsupported);
+                    assert_eq!(result.status(Greek::Delta), GreekStatus::NotRequested);
+                    assert!(matches!(
+                        result.require(Greek::Vega),
+                        Err(Error::GreekUnavailable {
+                            greek: Greek::Vega,
+                            status: GreekStatus::Unsupported
+                        })
+                    ));
+                }
                 assert_eq!(
                     engine
                         .price_with_greeks(&option, &context, GreeksRequest::new([]))?
                         .price(),
-                    engine.price(&option, &context)?
+                    price
                 );
-                if $partial {
-                    let result = engine.price_with_greeks(
-                        &option,
-                        &context,
-                        GreeksRequest::new([Greek::Delta, Greek::Vega]),
-                    )?;
-                    assert_eq!(result.status(Greek::Vega), GreekStatus::Unsupported);
-                    assert_eq!(result.status(Greek::Delta), GreekStatus::Available);
-                }
+                let result = engine.price_with_greeks(
+                    &option,
+                    &context,
+                    GreeksRequest::new([Greek::Delta, Greek::Vega]),
+                )?;
+                assert_eq!(result.price(), price);
+                assert_eq!(result.status(Greek::Vega), GreekStatus::Unsupported);
+                assert_eq!(
+                    result.status(Greek::Delta),
+                    if $partial {
+                        GreekStatus::Available
+                    } else {
+                        GreekStatus::Unsupported
+                    }
+                );
             }
         }};
     }
@@ -1273,10 +1288,9 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
         ),
         ..Default::default()
     })?;
-    assert!(matches!(
-        AnalyticHestonEuropeanEngine::default().price_with_greeks(&option, &heston, request),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    let unsupported =
+        AnalyticHestonEuropeanEngine::default().price_with_greeks(&option, &heston, request)?;
+    assert_eq!(unsupported.status(Greek::Delta), GreekStatus::Unsupported);
     let custom = PricingResult::new(10.0)?
         .with_greek(Greek::Delta, 0.5)?
         .with_request(

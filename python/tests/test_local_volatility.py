@@ -478,8 +478,11 @@ def test_unsupported_greeks_solvers_expiry_and_coverage():
             assert result.theta is None
             assert result.speed is None
             assert result.delta == baseline.delta
-        with pytest.raises(UnsupportedOperationError):
-            engine().price_with_greeks(dated_history(option(), rolled), rolled, "theta")
+        result = engine().price_with_greeks(
+            dated_history(option(), rolled), rolled, "theta"
+        )
+        assert result.price == baseline.price
+        assert result.status("theta") == "unsupported"
         with pytest.raises(UnsupportedOperationError):
             pricing.implied_volatility(
                 engine(),

@@ -171,6 +171,12 @@ def test_requests_lifetimes_tiny_volatility_and_greek_overflow():
         for engine in (
             pricing.MonteCarloDigitalEngine(path_count=2, seed=42, antithetic=True),
         ):
+            deterministic = market(spot=95, volatility=0, rate=0, dividend=0)
+            result = engine.price_with_greeks(
+                option, deterministic, "rho", rate_shift=1000
+            )
+            assert result.price == engine.price(option, deterministic)
+            assert result.status("rho") == "unsupported"
             controlled = numerical_greeks(
                 engine,
                 option,
@@ -183,8 +189,9 @@ def test_requests_lifetimes_tiny_volatility_and_greek_overflow():
             )
             assert controlled.price == engine.price(option, market())
             assert controlled.status("rho") == "available"
-            with pytest.raises(UnsupportedOperationError):
-                engine.price_with_greeks(option, market(), "rho")
+            result = engine.price_with_greeks(option, market(), "rho")
+            assert result.price == controlled.price
+            assert result.status("rho") == "unsupported"
             with pytest.raises(TypeError):
                 numerical_greeks(engine, option, market(), "delta", spot_shift=True)
             assert_rejection(
@@ -204,8 +211,9 @@ def test_requests_lifetimes_tiny_volatility_and_greek_overflow():
                 path_count=2, seed=42, antithetic=True
             )
             assert engine.price(option, context) == (50 if asset else 5)
-            with pytest.raises(UnsupportedOperationError):
-                engine.price_with_greeks(option, context, "rho")
+            result = engine.price_with_greeks(option, context, "rho")
+            assert result.price == engine.price(option, context)
+            assert result.status("rho") == "unsupported"
             assert_rejection(
                 ComputationFailureError,
                 engine.price_with_greeks,

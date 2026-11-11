@@ -80,7 +80,9 @@ impl Greek {
 ///
 /// Select measures explicitly with [`Self::new`] or [`Self::all`].
 /// Empty requests select price only; every sensitivity is not requested.
-/// Built-in engines reject nonempty requests with no engine/model-supported measure.
+/// Unsupported measures remain absent with [`GreekStatus::Unsupported`], including
+/// requests with no engine/model-supported measure. Use [`PricingResult::require`]
+/// to reject a measure unavailable in the result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GreeksRequest([bool; Greek::ALL.len()]);
 impl GreeksRequest {
@@ -107,19 +109,6 @@ impl GreeksRequest {
     /// Reports whether this Greek was requested; see [`Self::all`].
     pub fn has(self, greek: Greek) -> bool {
         self.0[greek as usize]
-    }
-
-    pub(crate) fn validate_support(self, supported: Self) -> Result<()> {
-        if self != Self::new([])
-            && !Greek::ALL
-                .into_iter()
-                .any(|g| self.has(g) && supported.has(g))
-        {
-            return Err(Error::UnsupportedOperation(
-                "none of the requested Greeks are supported by this engine and model".into(),
-            ));
-        }
-        Ok(())
     }
 }
 

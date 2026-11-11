@@ -458,10 +458,12 @@ def test_time_expiry_and_unsupported_operations(subtests):
         with subtests.test(instant=instant), pytest.raises(InvalidInputError):
             engine.price(option(), context(valuation_time=instant))
     for snapshot in (context(), terminal):
-        with pytest.raises(UnsupportedOperationError):
-            AnalyticHestonEuropeanEngine().price_with_greeks(
-                option(), snapshot, "delta"
-            )
+        result = AnalyticHestonEuropeanEngine().price_with_greeks(
+            option(), snapshot, "delta"
+        )
+        assert result.price == AnalyticHestonEuropeanEngine().price(option(), snapshot)
+        assert result.delta is None
+        assert result.status("delta") == "unsupported"
         result = AnalyticHestonEuropeanEngine().price_with_greeks(
             option(), snapshot, []
         )

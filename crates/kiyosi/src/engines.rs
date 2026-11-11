@@ -22,9 +22,13 @@ fn greeks<I: OptionContract>(
     engine.validate_applicability(context)?;
     shifts.validate()?;
     let supported = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
-    request.validate_support(supported)?;
     if deterministic::enabled(context) {
-        return crate::numerical_greeks(engine, option, context, request, shifts)
+        let supported_request = GreeksRequest::new(
+            [Greek::Delta, Greek::Gamma]
+                .into_iter()
+                .filter(|&greek| request.has(greek)),
+        );
+        return crate::numerical_greeks(engine, option, context, supported_request, shifts)
             .map(|result| result.with_request(request, supported));
     }
     let result = native()?.with_request(request, supported);

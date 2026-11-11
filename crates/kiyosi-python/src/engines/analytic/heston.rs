@@ -34,9 +34,9 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 /// abs(price). Error estimates are not a universal accuracy guarantee. The
 /// budget covers Heston and control-variate characteristic functions across
 /// all integrals and tail checks. Expiry and deterministic-variance branches
-/// need no evaluations. Nonempty Greek requests and implied-parameter solvers
-/// raise UnsupportedOperationError. Pricing releases the GIL for core
-/// computation, with independent state for concurrent calls.
+/// need no evaluations. Requested Greeks have status "unsupported";
+/// implied-parameter solvers raise UnsupportedOperationError. Pricing releases
+/// the GIL for core computation, with independent state for concurrent calls.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
@@ -48,7 +48,7 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Nonempty Greek requests raise UnsupportedOperationError. Bump controls are
+        /// Requested Greeks have status "unsupported". Bump controls are
         /// validated but unused; numerical_greeks rejects Heston.
         ///
     ],

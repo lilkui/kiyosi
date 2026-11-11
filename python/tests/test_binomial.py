@@ -476,10 +476,6 @@ def test_digital_greek_availability():
                 assert (getattr(expected, name) is not None) == (
                     name == "delta" or (name == "gamma" and steps >= 2)
                 )
-                if name not in ("delta", "gamma"):
-                    with pytest.raises(UnsupportedOperationError):
-                        engine.price_with_greeks(option, market(), name)
-                    continue
                 selected = engine.price_with_greeks(
                     option,
                     market(),
@@ -490,6 +486,8 @@ def test_digital_greek_availability():
                         getattr(expected, name), rel=0, abs=1e-12
                     )
                 assert selected.price == expected.price
+                if name not in ("delta", "gamma"):
+                    assert selected.status(name) == "unsupported"
 
 
 @pytest.mark.parametrize("kind", (*VANILLA, *DIGITAL))

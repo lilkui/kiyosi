@@ -37,9 +37,10 @@ use pyo3::prelude::*;
 /// endpoints and deterministic rate curves. Fixed-grid completion does not
 /// establish accuracy. Check spatial/time refinement and domain enlargement
 /// separately. Non-finite or materially negative results raise
-/// ComputationFailureError. Nonempty Greek requests and implied-parameter solvers raise
-/// UnsupportedOperationError. Inputs and settings are immutable; core pricing
-/// releases the GIL and permits concurrent calls with independent state.
+/// ComputationFailureError. Requested Greeks have status "unsupported";
+/// implied-parameter solvers raise UnsupportedOperationError. Inputs and settings
+/// are immutable; core pricing releases the GIL and permits concurrent calls
+/// with independent state.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
@@ -53,7 +54,7 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Nonempty Greek requests raise UnsupportedOperationError. Bump controls are
+        /// Requested Greeks have status "unsupported". Bump controls are
         /// validated but unused; numerical_greeks rejects Heston.
         ///
     ],

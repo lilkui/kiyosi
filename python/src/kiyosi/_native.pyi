@@ -880,10 +880,10 @@ class HestonParameters:
     Zero parameters and violations of the Feller condition (2 * kappa * theta
     >= xi**2) are accepted. AnalyticHestonEuropeanEngine prices European
     options; FiniteDifferenceHestonVanillaEngine prices European and American
-    options. Nonempty Greek requests and implied-parameter solvers are
-    unsupported. Numeric conversion rejects booleans. Replacement validates in
-    Rust before returning a new owned model; the original is unchanged on
-    failure.
+    options. Requested Greeks have status "unsupported"; implied-parameter solvers
+    raise UnsupportedOperationError. Numeric conversion rejects booleans.
+    Replacement validates in Rust before returning a new owned model; the original
+    is unchanged on failure.
     """
 
     def __init__(
@@ -1651,7 +1651,7 @@ class AnalyticEuropeanEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -1691,9 +1691,9 @@ class AnalyticHestonEuropeanEngine:
     abs(price). Error estimates are not a universal accuracy guarantee. The
     budget covers Heston and control-variate characteristic functions across
     all integrals and tail checks. Expiry and deterministic-variance branches
-    need no evaluations. Nonempty Greek requests and implied-parameter solvers
-    raise UnsupportedOperationError. Pricing releases the GIL for core
-    computation, with independent state for concurrent calls.
+    need no evaluations. Requested Greeks have status "unsupported";
+    implied-parameter solvers raise UnsupportedOperationError. Pricing releases
+    the GIL for core computation, with independent state for concurrent calls.
     """
 
     def __eq__(self, other: object) -> bool: ...
@@ -1864,7 +1864,7 @@ class AnalyticHestonEuropeanEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -1873,7 +1873,7 @@ class AnalyticHestonEuropeanEngine:
 
         Notes
         -----
-        Nonempty Greek requests raise UnsupportedOperationError. Bump controls are
+        Requested Greeks have status "unsupported". Bump controls are
         validated but unused; numerical_greeks rejects Heston.
         """
 
@@ -2020,7 +2020,7 @@ class BjerksundStenslandVanillaEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -2177,7 +2177,7 @@ class AnalyticDigitalEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -2351,7 +2351,7 @@ class CoxRossRubinsteinBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -2545,7 +2545,7 @@ class QuadratureBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -2754,7 +2754,7 @@ class QuadratureDigitalEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -2969,7 +2969,7 @@ class QuadratureVanillaEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -3138,7 +3138,7 @@ class CoxRossRubinsteinVanillaEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -3321,7 +3321,7 @@ class CoxRossRubinsteinDigitalEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -3613,7 +3613,7 @@ class FiniteDifferenceAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -3907,7 +3907,7 @@ class FiniteDifferenceBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -4201,7 +4201,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -4515,7 +4515,7 @@ class FiniteDifferenceAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -4809,7 +4809,7 @@ class FiniteDifferenceDoubleTouchEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -5105,7 +5105,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -5156,9 +5156,10 @@ class FiniteDifferenceHestonVanillaEngine:
     endpoints and deterministic rate curves. Fixed-grid completion does not
     establish accuracy. Check spatial/time refinement and domain enlargement
     separately. Non-finite or materially negative results raise
-    ComputationFailureError. Nonempty Greek requests and implied-parameter solvers raise
-    UnsupportedOperationError. Inputs and settings are immutable; core pricing
-    releases the GIL and permits concurrent calls with independent state.
+    ComputationFailureError. Requested Greeks have status "unsupported";
+    implied-parameter solvers raise UnsupportedOperationError. Inputs and settings
+    are immutable; core pricing releases the GIL and permits concurrent calls
+    with independent state.
     """
 
     def __eq__(self, other: object) -> bool: ...
@@ -5349,7 +5350,7 @@ class FiniteDifferenceHestonVanillaEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -5358,7 +5359,7 @@ class FiniteDifferenceHestonVanillaEngine:
 
         Notes
         -----
-        Nonempty Greek requests raise UnsupportedOperationError. Bump controls are
+        Requested Greeks have status "unsupported". Bump controls are
         validated but unused; numerical_greeks rejects Heston.
         """
 
@@ -5641,7 +5642,7 @@ class FiniteDifferenceVanillaEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -5943,7 +5944,7 @@ class FiniteDifferenceDigitalEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -6277,7 +6278,7 @@ class MonteCarloVanillaEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -6632,7 +6633,7 @@ class MonteCarloDigitalEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -6946,7 +6947,7 @@ class MonteCarloBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -7261,7 +7262,7 @@ class MonteCarloDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -7608,7 +7609,7 @@ class MonteCarloAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -7922,7 +7923,7 @@ class MonteCarloAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -8265,7 +8266,7 @@ class MonteCarloAsianEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -9182,7 +9183,7 @@ class AnalyticGeometricAveragePriceEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -9482,7 +9483,7 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -9853,7 +9854,7 @@ class AnalyticBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -10410,7 +10411,7 @@ class AnalyticRangeAccrualEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -10561,7 +10562,7 @@ class AnalyticDoubleBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -10722,7 +10723,7 @@ class AnalyticDoubleTouchEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -11716,7 +11717,7 @@ class AnalyticBinaryBarrierEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -12259,7 +12260,7 @@ class QuadratureAutocallableEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.
@@ -14581,7 +14582,7 @@ class QuadratureAccumulatorEngine:
         Raises
         ------
         KiyosiError
-            If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            If controls are invalid, pricing fails or a feasible bumped valuation
             fails.
         ValueError
             If a Greek name is unknown.

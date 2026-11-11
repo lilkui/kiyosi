@@ -105,7 +105,7 @@ macro_rules! numerical_greeks_methods {
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If no requested Greek is supported, controls are invalid, pricing fails or a feasible bumped valuation
+            ///     If controls are invalid, pricing fails or a feasible bumped valuation
             ///     fails.
             /// ValueError
             ///     If a Greek name is unknown.
