@@ -24,9 +24,11 @@ Repository = "https://github.com/lilkui/kiyosi"
 Issues = "https://github.com/lilkui/kiyosi/issues"
 
 [project.optional-dependencies]
-test = ["pytest>=9,<10", "QuantLib==1.43"]
+test = ["pytest>=9,<10", "pytest-xdist>=3.8,<4", "QuantLib==1.43"]
 
 [tool.pytest.ini_options]
+# Bound process parallelism because Monte Carlo engines also use threads.
+addopts = "-n 4 --dist worksteal"
 testpaths = ["python/tests"]
 pythonpath = ["python/tests"]
 
@@ -51,6 +53,7 @@ archs = ["auto64"]
 build-frontend = "build[uv]"
 test-sources = [
     "Cargo.toml",
+    "pyproject.toml",
     "python/tests",
     "tools/generate_sse_calendar.py",
 ]
