@@ -411,6 +411,22 @@ class CalendarTests(unittest.TestCase):
             with self.assertRaises(StopIteration):
                 next(first)
 
+    def test_schedule_reverse_iteration_preserves_order_and_owns_timestamps(self):
+        start = datetime(2025, 1, 2, 15, 0, 0, 123456)
+        end = datetime(2025, 1, 3, 15)
+        for times in ((), (start,), (start, end)):
+            with self.subTest(times=times):
+                schedule = ObservationSchedule(
+                    times=times, start_time=start, end_time=end
+                )
+                reverse = reversed(schedule)
+                self.assertIs(iter(reverse), reverse)
+                self.assertEqual(schedule.times, times)
+                del schedule
+                self.assertEqual(list(reverse), list(times)[::-1])
+                with self.assertRaises(StopIteration):
+                    next(reverse)
+
     def test_schedule_indices_reject_booleans_and_nonintegers(self):
         schedule = fixed_interval_schedule(
             observation_clock_time=clock_time(),
