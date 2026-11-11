@@ -296,7 +296,7 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         BarrierType::UpAndOut,
     );
     barrier.touch_state = Some(BarrierTouchState::Untouched);
-    barrier.history_time = Some(barrier.effective_time);
+    barrier.history_time = Some(barrier.expiry_time);
     let barrier = BarrierOption::new(barrier).unwrap();
     let mut double = DoubleBarrierOptionTerms::new(
         OptionType::Call,
@@ -308,7 +308,7 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         DoubleBarrierType::KnockOut,
     );
     double.touch_state = Some(BarrierTouchState::Untouched);
-    double.history_time = Some(double.effective_time);
+    double.history_time = Some(double.expiry_time);
     let double = DoubleBarrierOption::new(double).unwrap();
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         let settings = MonteCarloSettings {

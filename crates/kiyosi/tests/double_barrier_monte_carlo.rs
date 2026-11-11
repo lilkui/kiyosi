@@ -563,10 +563,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                     Error::MissingHistory(_)
                 ));
                 let touched = option
-                    .replace_history(
-                        Some(BarrierTouchState::Touched),
-                        Some(option.history_time().unwrap_or(option.effective_time())),
-                    )
+                    .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
                     .unwrap();
                 assert!(matches!(
                     engine
@@ -582,10 +579,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                 );
                 for history in [BarrierTouchState::Touched, BarrierTouchState::Untouched] {
                     let known = option
-                        .replace_history(
-                            Some(history),
-                            Some(option.history_time().unwrap_or(option.effective_time())),
-                        )
+                        .replace_history(Some(history), Some(option.expiry_time()))
                         .unwrap();
                     let expired = context
                         .replace(PricingContextChanges {
@@ -725,7 +719,7 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
         .unwrap();
     t.rebate = 3.0;
     t.touch_state = Some(BarrierTouchState::Touched);
-    t.history_time = Some(t.effective_time);
+    t.history_time = Some(t.expiry_time);
     let touched = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
         implied_volatility(
@@ -741,7 +735,7 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockIn);
     t.observation_times = Some(vec![Date::new(2025, 7, 1).unwrap().start_of_day()]);
     t.touch_state = Some(BarrierTouchState::Untouched);
-    t.history_time = Some(t.effective_time);
+    t.history_time = Some(t.expiry_time);
     let finished = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
         implied_volatility(&engine, &dated(&finished, &later), &later, 0.0, controls).unwrap_err(),

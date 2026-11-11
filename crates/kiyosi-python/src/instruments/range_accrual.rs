@@ -36,7 +36,8 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 ///     PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -87,7 +88,8 @@ impl RangeAccrualOption {
     ///     Owned contractual observation calendar; omission retains it.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -209,7 +211,8 @@ impl RangeAccrualOption {
     ///     Hits strictly before valuation, or None for unknown history.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------

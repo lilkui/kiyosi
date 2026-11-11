@@ -852,7 +852,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// # Errors
     ///
     /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
+    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid numeric terms or
     /// product-incompatible observation fields, reversed life, or empty, unordered
@@ -889,8 +890,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         view.validate()?;
         view.validate_calendar()?;
         let note = Self(terms);
-        super::validate_history_snapshot(&note, note.barrier_state().is_some())?;
-        Ok(note)
+        let history_time = note.history_time();
+        note.with_history_time(history_time)
     }
 
     /// Replaces the owned monitoring calendar; see [`Self::new`] for construction.
@@ -1202,6 +1203,9 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         super::validate_history_redating(&self, time, self.barrier_state().is_some())?;
         self.0.set_history_time(time);
         super::validate_history_snapshot(&self, self.barrier_state().is_some())?;
+        if let Some(time) = time.filter(|_| self.barrier_state().is_some()) {
+            self.prior(time)?;
+        }
         Ok(self)
     }
 

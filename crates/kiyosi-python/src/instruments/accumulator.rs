@@ -33,7 +33,7 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 /// accumulated_quantity : float or None, optional
 ///     Outstanding quantity strictly before valuation. None means unknown;
 ///     zero means no units. Explicit history is required after any prior
-///     accumulation or knock-out observation. Pricing rejects positive
+///     accumulation or knock-out observation. Construction rejects positive
 ///     quantity before a strictly prior accumulation unless already settled.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
@@ -53,7 +53,8 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 ///     and replacement retains the current calendar.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -118,7 +119,8 @@ impl Accumulator {
     ///     and replacement retains the current calendar.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -266,11 +268,12 @@ impl Accumulator {
     ///     knock_out_settled is True.
     /// knock_out_settled : bool or None, optional
     ///     None restores unknown history; omission retains the current state.
-    ///     Pricing rejects knock-out settlement before or at the first knock-out
+    ///     Construction rejects knock-out settlement before or at the first knock-out
     ///     observation.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------

@@ -140,7 +140,7 @@ def terminal_cases():
                 daily_quantity=1,
                 acceleration_factor=2,
                 accumulated_quantity=3,
-                history_time=dates["effective_time"] - timedelta(days=1),
+                history_time=dates["effective_time"],
             ),
             (
                 "QuadratureAccumulatorEngine",

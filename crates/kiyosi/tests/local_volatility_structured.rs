@@ -110,7 +110,7 @@ fn constant_surface_matches_accumulator_directions_schedules_and_rate_curves() {
         for direction in [OptionType::Call, OptionType::Put] {
             for schedule in [None, Some(vec![date(2, 3), end]), Some(vec![])] {
                 let option = Accumulator::new(AccumulatorTerms {
-                    history_time: Some(date(1, 1).add_days(-1).unwrap()),
+                    history_time: Some(date(1, 1)),
                     knock_out_settled: Some(false),
                     option_type: direction,
                     accumulated_quantity: Some(3.0),
@@ -237,7 +237,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     let live = PricingContext::new(short.clone(), 101.0, start).unwrap();
     let settled = PricingContext::new(short, 120.0, start).unwrap();
     let acc = Accumulator::new(AccumulatorTerms {
-        history_time: Some(start.add_days(-1).unwrap()),
+        history_time: Some(start),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -279,7 +279,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     let knocked_out = note
         .replace_history(
             Some(AutocallableBarrierState::KnockedOut),
-            Some(note.history_time().unwrap_or(note.effective_time())),
+            Some(note.expiry_time()),
         )
         .unwrap();
     let later = PricingContext::new(
@@ -377,7 +377,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         None
     );
     let acc = Accumulator::new(AccumulatorTerms {
-        history_time: Some(start.add_days(-1).unwrap()),
+        history_time: Some(start),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -515,7 +515,7 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
     let start = date(1, 1);
     let end = date(4, 1);
     let acc = Accumulator::new(AccumulatorTerms {
-        history_time: Some(start.add_days(-1).unwrap()),
+        history_time: Some(start),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -584,7 +584,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
     // Frozen QL path means and five-SE + measured time-bias + FD budgets;
     // Python verifies the full evidence in local_volatility_structured.json.
     let acc = Accumulator::new(AccumulatorTerms {
-        history_time: Some(start.add_days(-1).unwrap()),
+        history_time: Some(start),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(

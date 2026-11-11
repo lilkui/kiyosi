@@ -73,7 +73,7 @@ def contracts():
             daily_quantity=1,
             acceleration_factor=2,
             accumulated_quantity=3,
-            history_time=START - timedelta(days=1),
+            history_time=START,
         )
     }
     for suffix, mode in [("daily", "every_trading_day"), ("terminal", "at_expiry")]:

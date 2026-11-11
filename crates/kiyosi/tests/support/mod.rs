@@ -64,9 +64,18 @@ pub fn dated<I: DatedHistory>(instrument: &I, context: &PricingContext) -> I {
     if context.valuation_time() >= instrument.effective_time()
         && context.valuation_time() <= instrument.expiry_time()
     {
-        instrument
-            .at_snapshot(context.valuation_time())
-            .expect("valid test history snapshot")
+        match instrument.at_snapshot(context.valuation_time()) {
+            Ok(dated) => dated,
+            // Keep the valid snapshot when the requested valuation cannot contain its history.
+            Err(Error::InvalidInput(_))
+                if instrument
+                    .history_time()
+                    .is_some_and(|at| at > context.valuation_time()) =>
+            {
+                instrument.clone()
+            }
+            Err(error) => panic!("invalid test history snapshot: {error}"),
+        }
     } else {
         instrument.clone()
     }

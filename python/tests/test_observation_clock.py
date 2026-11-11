@@ -189,7 +189,7 @@ class ObservationClockTests(unittest.TestCase):
             effective_time=START,
             accumulated_quantity=3,
             knock_out_settled=False,
-            history_time=empty.history_time or empty.effective_time,
+            history_time=empty.history_time or empty.expiry_time,
         )
         self.assertEqual(
             engine.price(dated_history(observed, context(END, 105)), context(END, 105)),

@@ -123,7 +123,7 @@ class BinaryBarrierTests(unittest.TestCase):
                 )
                 known = option.replace_history(
                     touch_state="touched",
-                    history_time=option.history_time or option.effective_time,
+                    history_time=option.expiry_time,
                 )
                 self.assert_rejection(
                     InvalidInputError,
@@ -161,12 +161,12 @@ class BinaryBarrierTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     option.replace_history(
                         touch_state="unknown",
-                        history_time=option.history_time or option.effective_time,
+                        history_time=option.history_time or option.expiry_time,
                     )
                 with self.assertRaises(TypeError):
                     option.replace_history(
                         touch_state=True,
-                        history_time=option.history_time or option.effective_time,
+                        history_time=option.history_time or option.expiry_time,
                     )
                 with self.assertRaises(TypeError):
                     option.replace_history(payout=7)
@@ -184,7 +184,7 @@ class BinaryBarrierTests(unittest.TestCase):
             )
             known = option.replace_history(
                 touch_state="touched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.expiry_time,
             )
             self.assertEqual(
                 engine.price(
@@ -346,7 +346,7 @@ class BinaryBarrierTests(unittest.TestCase):
                     dated_history(
                         option.replace_history(
                             touch_state="touched",
-                            history_time=option.history_time or option.effective_time,
+                            history_time=option.expiry_time,
                         ),
                         self.context(120, fixing),
                     ),
@@ -372,7 +372,7 @@ class BinaryBarrierTests(unittest.TestCase):
             )
             known = option.replace_history(
                 touch_state="untouched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.history_time or option.expiry_time,
             )
             expected = 0 if one else 10 * math.exp(-0.04 * 363 / 365)
             self.assertAlmostEqual(

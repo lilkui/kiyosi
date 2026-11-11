@@ -205,11 +205,8 @@ class PhoenixTests(unittest.TestCase):
             known.replace(lockout_periods=0)
         self.assertEqual(known.lockout_periods, 1)
         self.assertEqual(known.replace(lockout_periods=2).lockout_periods, 2)
-        impossible = note.replace_history(
-            barrier_state="knocked_out", history_time=after_locked
-        )
         with self.assertRaises(InvalidInputError):
-            engine.price(impossible, market(100, after_locked))
+            note.replace_history(barrier_state="knocked_out", history_time=after_locked)
         possible = note.replace_history(
             barrier_state="knocked_out", history_time=after_eligible
         )
@@ -336,7 +333,7 @@ class PhoenixTests(unittest.TestCase):
         self.assertEqual(
             note.replace_history(
                 barrier_state="no_event",
-                history_time=note.history_time or note.effective_time,
+                history_time=note.history_time or note.expiry_time,
             ).replace_history(barrier_state=None),
             note,
         )
@@ -434,9 +431,8 @@ class PhoenixTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price,
-            dated_history(contract(barrier_state="knocked_in"), market(valuation=END)),
-            market(valuation=END),
+            contract,
+            barrier_state="knocked_in",
         )
         self.assert_rejection(
             InvalidInputError,
@@ -628,7 +624,7 @@ class PhoenixTests(unittest.TestCase):
         )
         settled = note.replace_history(
             barrier_state="knocked_out",
-            history_time=note.history_time or note.effective_time,
+            history_time=note.expiry_time,
         )
         self.assertEqual(
             engine.price(

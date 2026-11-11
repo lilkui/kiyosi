@@ -88,27 +88,27 @@ fn quadrature_covers_drift_below_future_knock_out() {
 fn binary_history_replacement_preserves_terms_and_rejects_knock_in() {
     let terms = BinarySnowballTerms::new(-0.02, date(1, 1), date(4, 1), observations());
     let note = BinarySnowballOption::new(terms.clone()).unwrap();
-    for state in [
-        None,
-        Some(AutocallableBarrierState::NoEvent),
-        Some(AutocallableBarrierState::KnockedOut),
-    ] {
+    for state in [None, Some(AutocallableBarrierState::NoEvent)] {
         let mut expected = terms.clone();
         expected.barrier_state = state;
-        expected.history_time = Some(expected.effective_time);
+        expected.history_time = Some(expected.expiry_time);
         let replaced = note
-            .replace_history(
-                state,
-                Some(note.history_time().unwrap_or(note.effective_time())),
-            )
+            .replace_history(state, Some(note.expiry_time()))
             .unwrap();
         assert_eq!(replaced, BinarySnowballOption::new(expected).unwrap());
         assert_eq!(replaced.replace_history(None, None).unwrap(), note);
     }
     assert!(matches!(
         note.replace_history(
+            Some(AutocallableBarrierState::KnockedOut),
+            Some(note.expiry_time())
+        ),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        note.replace_history(
             Some(AutocallableBarrierState::KnockedIn),
-            Some(note.history_time().unwrap_or(note.effective_time()))
+            Some(note.expiry_time())
         ),
         Err(Error::InvalidInput(_))
     ));
@@ -146,7 +146,7 @@ fn binary_has_no_knock_in_and_pays_signed_flat_maturity_coupon() {
     assert!(matches!(
         note.replace_history(
             Some(AutocallableBarrierState::KnockedIn),
-            Some(note.history_time().unwrap_or(note.effective_time()))
+            Some(note.expiry_time())
         )
         .unwrap_err(),
         Error::InvalidInput(_)
@@ -438,17 +438,12 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
-        let settled = note
-            .replace_history(
-                Some(AutocallableBarrierState::KnockedOut),
-                Some(note.history_time().unwrap_or(note.effective_time())),
-            )
-            .unwrap();
         assert!(matches!(
-            engine
-                .price(&dated(&settled, &context), &context)
-                .unwrap_err(),
-            Error::InvalidInput(_)
+            note.replace_history(
+                Some(AutocallableBarrierState::KnockedOut),
+                Some(note.effective_time())
+            ),
+            Err(Error::InvalidInput(_))
         ));
         let at_expiry = engine
             .price_with_greeks(
@@ -546,7 +541,7 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
     let known = note
         .replace_history(
             Some(AutocallableBarrierState::KnockedIn),
-            Some(note.history_time().unwrap_or(note.effective_time())),
+            Some(note.expiry_time()),
         )
         .unwrap();
     assert_eq!(
@@ -606,7 +601,7 @@ fn preset_validation_uses_expanded_terms_and_preserves_inputs() {
     ));
     let mut configured = base;
     configured.barrier_state = Some(AutocallableBarrierState::KnockedIn);
-    configured.history_time = Some(configured.effective_time);
+    configured.history_time = Some(configured.expiry_time);
     configured.principal_redemption_ratio = 0.5;
     let note = configured.expand(SnowballPreset::Standard).unwrap();
     assert_eq!(note.terms().principal_redemption_ratio, 0.5);

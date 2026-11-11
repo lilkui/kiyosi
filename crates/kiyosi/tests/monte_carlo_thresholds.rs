@@ -163,9 +163,9 @@ fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
                 AccumulatorTerms::new(strike, 100.0, 1.0, 1.0, start, end, (end).time_of_day());
             terms.option_type = direction;
             terms.accumulated_quantity = Some(1.0);
-            terms.history_time = Some(terms.effective_time);
+            terms.history_time = Some(terms.expiry_time);
             terms.knock_out_settled = Some(false);
-            terms.history_time = Some(terms.effective_time);
+            terms.history_time = Some(terms.expiry_time);
             let option = Accumulator::new(terms).unwrap();
             assert!(
                 (engine.price(&dated(&option, &context), &context).unwrap() - 15.0).abs() < 1e-12
@@ -181,9 +181,9 @@ fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
                 (end).time_of_day(),
             );
             terms.accumulated_quantity = Some(0.0);
-            terms.history_time = Some(terms.effective_time);
+            terms.history_time = Some(terms.expiry_time);
             terms.knock_out_settled = Some(false);
-            terms.history_time = Some(terms.effective_time);
+            terms.history_time = Some(terms.expiry_time);
             terms.option_type = direction;
             let option = Accumulator::new(terms).unwrap();
             let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();

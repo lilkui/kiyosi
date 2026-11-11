@@ -22,17 +22,17 @@ fn settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage() -> Re
         BarrierType::UpAndOut,
     );
     binary.touch_state = Some(BarrierTouchState::Touched);
-    binary.history_time = Some(binary.effective_time);
+    binary.history_time = Some(binary.expiry_time);
     let binary = BinaryBarrierOption::cash(binary, 10.0)?;
     let mut touch = TouchOptionTerms::new(start, expiry, 120.0, BarrierType::UpAndIn);
     touch.touch_state = Some(BarrierTouchState::Touched);
-    touch.history_time = Some(touch.effective_time);
+    touch.history_time = Some(touch.expiry_time);
     touch.settlement_timing = SettlementTiming::AtHit;
     let touch = TouchOption::cash(touch, 10.0)?;
     let mut double =
         DoubleTouchOptionTerms::new(start, expiry, 80.0, 120.0, DoubleBarrierType::KnockIn);
     double.touch_state = Some(BarrierTouchState::Touched);
-    double.history_time = Some(double.effective_time);
+    double.history_time = Some(double.expiry_time);
     double.settlement_timing = SettlementTiming::AtHit;
     let double = DoubleTouchOption::cash(double, 10.0)?;
     assert_eq!(

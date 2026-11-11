@@ -8,7 +8,7 @@ fn day(month: u32, date: u32) -> Timestamp {
 }
 fn terms(end: Timestamp) -> AccumulatorTerms {
     AccumulatorTerms {
-        history_time: Some(day(1, 1)),
+        history_time: Some(end),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(0.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
@@ -21,7 +21,7 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
     let end = day(1, 10);
     let mut terms = AccumulatorTerms::new(100.0, 110.0, 1.0, 1.0, start, end, start.time_of_day());
     terms.accumulated_quantity = Some(2.0);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     let option = Accumulator::new(terms)?;
     assert_eq!(option.knock_out_settled(), None);
     let active = option.replace_history(
@@ -75,7 +75,13 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
                 .is_ok()
         );
         assert!(matches!(
-            engine.price(&dated(&settled, &initial), &initial),
+            settled.replace_history(
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(settled.accumulated_quantity()),
+                    knock_out_settled: Some(Some(true)),
+                },
+                Some(start)
+            ),
             Err(Error::InvalidInput(_))
         ));
         let no_knock_out = option.replace(AccumulatorChanges {
@@ -155,7 +161,7 @@ fn single_observation_matches_terminal_digital_portfolio_without_grid_error() {
     for knock_out in [90.0, 100.0, 110.0] {
         for acceleration in [0.0, 1.0, 2.0] {
             let option = Accumulator::new(AccumulatorTerms {
-                history_time: Some((terms(day(1, 6))).effective_time),
+                history_time: Some((terms(day(1, 6))).expiry_time),
                 knock_out_level: knock_out,
                 acceleration_factor: acceleration,
                 accumulated_quantity: Some(3.0),
@@ -275,7 +281,7 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
 fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(1, 6))).effective_time))
+        .replace_history(3.0, Some((terms(day(1, 6))).expiry_time))
         .unwrap();
     let engine = QuadratureAccumulatorEngine::default();
     for (spot, quantity) in [
@@ -396,7 +402,7 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
     .unwrap();
     for ko in [95.0, 100.0, 110.0] {
         let option = Accumulator::new(AccumulatorTerms {
-            history_time: Some((terms(day(1, 3))).effective_time),
+            history_time: Some((terms(day(1, 3))).expiry_time),
             knock_out_level: ko,
             accumulated_quantity: Some(3.0),
             ..terms(day(1, 3))
@@ -605,7 +611,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
         (year, 100.0, 0.2, 110.0, 2.0, 0.04, false),
     ] {
         let option = Accumulator::new(AccumulatorTerms {
-            history_time: Some((terms(end)).effective_time),
+            history_time: Some((terms(end)).expiry_time),
             knock_out_level: ko,
             acceleration_factor: acceleration,
             accumulated_quantity: Some(3.0),
@@ -665,7 +671,7 @@ impl PricingEngine<Accumulator> for Scalar {
 fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(1, 6))).effective_time))
+        .replace_history(3.0, Some((terms(day(1, 6))).expiry_time))
         .unwrap();
     let context = market(
         101.5,
@@ -706,7 +712,7 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     }
     let option = Accumulator::new(terms(day(1, 20)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(1, 20))).effective_time))
+        .replace_history(3.0, Some((terms(day(1, 20))).expiry_time))
         .unwrap();
     let engine = QuadratureAccumulatorEngine::new(QuadratureSettings {
         asset_step_count: 128,
@@ -746,7 +752,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
     let engine = QuadratureAccumulatorEngine::default();
     let option = Accumulator::new(terms(day(2, 3)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(2, 3))).effective_time))
+        .replace_history(3.0, Some((terms(day(2, 3))).expiry_time))
         .unwrap();
     let boundary = market(100.0, day(1, 2), 0.2, 0.04, 0.01);
     let result = engine
@@ -768,7 +774,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
     assert!(result.has(Greek::Rho));
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(1, 6))).effective_time))
+        .replace_history(3.0, Some((terms(day(1, 6))).expiry_time))
         .unwrap();
     let context = market(
         100.0,
@@ -805,7 +811,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
                 ..terms(day(1, 6))
             })
             .unwrap()
-            .replace_history(3.0, Some((terms(day(1, 6))).effective_time))
+            .replace_history(3.0, Some((terms(day(1, 6))).expiry_time))
             .unwrap(),
             market(90.0, day(1, 3), 0.2, 0.0, 0.0),
         ),
@@ -881,7 +887,7 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
         (day(2, 3), 150.0, 1.0, 120.0, 0.6, -0.02),
     ] {
         let option = Accumulator::new(AccumulatorTerms {
-            history_time: Some((terms(end)).effective_time),
+            history_time: Some((terms(end)).expiry_time),
             knock_out_level: ko,
             acceleration_factor: acceleration,
             accumulated_quantity: Some(3.0),
@@ -957,7 +963,7 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
             (day(1, 7)).time_of_day(),
         );
         terms.knock_out_settled = Some(false);
-        terms.history_time = Some(terms.effective_time);
+        terms.history_time = Some(terms.expiry_time);
         let option = Accumulator::new(terms).unwrap();
         assert_eq!(option.accumulated_quantity(), None);
         let first = if start == day(1, 4) { day(1, 6) } else { start };
@@ -965,18 +971,7 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
         assert!(engine.price(&dated(&option, &current), &current).is_ok());
         for valuation in [start, first] {
             assert!(matches!(
-                engine.price(
-                    &dated(
-                        &option
-                            .replace_history(
-                                3.0,
-                                Some(option.history_time().unwrap_or(option.effective_time()))
-                            )
-                            .unwrap(),
-                        &market(100.0, valuation, 0.2, 0.0, 0.0)
-                    ),
-                    &market(100.0, valuation, 0.2, 0.0, 0.0),
-                ),
+                option.replace_history(3.0, Some(valuation)),
                 Err(Error::InvalidInput(_))
             ));
         }

@@ -12,14 +12,10 @@ fn touched_history_must_be_possible_at_its_own_timestamp() -> Result<()> {
             ($option:expr, $engine:expr, $expected:expr) => {{
                 let option = $option;
                 let engine = $engine;
-                let invalid =
-                    option.replace_history(Some(BarrierTouchState::Touched), Some(first))?;
-                for at in [first, first.add_micros(1)?, first.add_days(1)?] {
-                    assert!(matches!(
-                        engine.price(&invalid, &snapshot(at)?),
-                        Err(Error::InvalidInput(_))
-                    ));
-                }
+                assert!(matches!(
+                    option.replace_history(Some(BarrierTouchState::Touched), Some(first)),
+                    Err(Error::InvalidInput(_))
+                ));
                 let valid = option.replace_history(
                     Some(BarrierTouchState::Touched),
                     Some(first.add_micros(1)?),
@@ -192,14 +188,14 @@ fn autocallable_history_respects_the_first_daily_observation_on_sparse_calendars
                 Err(Error::MissingHistory(_))
             ));
         }
-        let knocked_in =
-            note.replace_history(Some(AutocallableBarrierState::KnockedIn), Some(at))?;
         if at <= first {
             assert!(matches!(
-                engine.price(&knocked_in, &market),
+                note.replace_history(Some(AutocallableBarrierState::KnockedIn), Some(at)),
                 Err(Error::InvalidInput(_))
             ));
         } else {
+            let knocked_in =
+                note.replace_history(Some(AutocallableBarrierState::KnockedIn), Some(at))?;
             assert_eq!(engine.price(&knocked_in, &market)?, 1.0);
         }
         let known = note.replace_history(Some(AutocallableBarrierState::NoEvent), Some(at))?;
@@ -650,6 +646,41 @@ fn cleared_average_can_shorten_expiry_before_its_old_snapshot() -> Result<()> {
     ));
     assert_eq!(original.history_time(), Some(at));
     assert_eq!(original.realized_average(), Some(100.0));
+    Ok(())
+}
+
+#[test]
+fn accrued_history_requires_observations_before_its_snapshot() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
+    let end = start.add_days(3)?;
+    let accumulator = AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, end, clock);
+    let range = RangeAccrualTerms::new(100.0, 0.1, 90.0, 110.0, start, end, clock);
+    let first = start.date().at_time(clock);
+    for at in [first.add_micros(-1)?, first, first.add_micros(1)?] {
+        let mut terms = accumulator.clone();
+        terms.accumulated_quantity = Some(1.0);
+        terms.history_time = Some(at);
+        let constructed = Accumulator::new(terms);
+        let replaced = Accumulator::new(accumulator.clone())?.replace_history(1.0, Some(at));
+        let mut terms = range.clone();
+        terms.realized_hit_count = Some(1);
+        terms.history_time = Some(at);
+        let range_constructed = RangeAccrualOption::new(terms);
+        let range_replaced =
+            RangeAccrualOption::new(range.clone())?.replace_history(Some(1), Some(at));
+        if at > first {
+            assert_eq!(constructed?.accumulated_quantity(), Some(1.0));
+            assert_eq!(replaced?.history_time(), Some(at));
+            assert_eq!(range_constructed?.realized_hit_count(), Some(1));
+            assert_eq!(range_replaced?.history_time(), Some(at));
+        } else {
+            assert!(matches!(constructed, Err(Error::InvalidInput(_))));
+            assert!(matches!(replaced, Err(Error::InvalidInput(_))));
+            assert!(matches!(range_constructed, Err(Error::InvalidInput(_))));
+            assert!(matches!(range_replaced, Err(Error::InvalidInput(_))));
+        }
+    }
     Ok(())
 }
 
@@ -1261,13 +1292,17 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
     );
     terms.knock_out_settled = Some(true);
     terms.history_time = Some(at);
-    let settled = Accumulator::new(terms)?.replace_history(
-        AccumulatorHistoryChanges {
-            knock_out_settled: Some(Some(true)),
-            accumulated_quantity: Some(None),
-        },
-        Some(start),
-    )?;
+    let settled = Accumulator::new(terms)?;
+    assert!(matches!(
+        settled.replace_history(
+            AccumulatorHistoryChanges {
+                knock_out_settled: Some(Some(true)),
+                accumulated_quantity: Some(None),
+            },
+            Some(start),
+        ),
+        Err(Error::InvalidInput(_))
+    ));
     let engine = QuadratureAccumulatorEngine::default();
     assert!(matches!(
         engine.price(
@@ -1282,10 +1317,7 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
         ),
         Err(Error::InvalidInput(_))
     ));
-    assert!(matches!(
-        engine.price(&settled, &market),
-        Err(Error::InvalidInput(_))
-    ));
+    assert_eq!(engine.price(&settled, &market)?, 0.0);
     assert_eq!(
         engine.price(
             &settled.replace_history(
@@ -1308,16 +1340,15 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
             110.0,
             0.0,
         )?],
-    ))?
-    .replace_history(Some(AutocallableBarrierState::KnockedOut), Some(start))?;
+    ))?;
     let engine = QuadratureAutocallableEngine::default();
     assert!(matches!(
-        engine.price(&note, &market),
+        note.replace_history(Some(AutocallableBarrierState::KnockedOut), Some(start)),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
         engine.price(
-            &note.replace_history(note.barrier_state(), Some(at))?,
+            &note.replace_history(Some(AutocallableBarrierState::KnockedOut), Some(at))?,
             &market
         )?,
         0.0

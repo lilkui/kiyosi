@@ -111,7 +111,7 @@ class SnowballTests(unittest.TestCase):
         self.assertEqual(note.knock_out_coupon_rates, (0,))
         known = note.replace_history(
             barrier_state="no_event",
-            history_time=note.history_time or note.effective_time,
+            history_time=note.history_time or note.expiry_time,
         )
         self.assertEqual(known.barrier_state, "no_event")
         for replacement in (
@@ -213,24 +213,16 @@ class SnowballTests(unittest.TestCase):
             dated_history(unknown, market(valuation=datetime(2025, 1, 2))),
             market(valuation=datetime(2025, 1, 2)),
         )
-        impossible = contract(barrier_state="knocked_in")
         self.assert_rejection(
             InvalidInputError,
-            engine.price,
-            dated_history(impossible, market(valuation=END)),
-            market(valuation=END),
+            contract,
+            barrier_state="knocked_in",
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price,
-            dated_history(
-                unknown.replace_history(
-                    barrier_state="knocked_out",
-                    history_time=unknown.history_time or unknown.effective_time,
-                ),
-                market(),
-            ),
-            market(),
+            unknown.replace_history,
+            barrier_state="knocked_out",
+            history_time=unknown.expiry_time,
         )
         # Calendar compatibility is checked before valuation-dependent history.
         with self.assertRaises(InvalidInputError):
@@ -439,7 +431,7 @@ class SnowballTests(unittest.TestCase):
         )
         settled = note.replace_history(
             barrier_state="knocked_out",
-            history_time=note.history_time or note.effective_time,
+            history_time=note.expiry_time,
         )
         result = engine.price_with_greeks(
             dated_history(settled, market(valuation=datetime(2025, 3, 3))),
@@ -473,7 +465,7 @@ class SnowballTests(unittest.TestCase):
         # Midnight KI is strict; intraday spot does not create a historical breach.
         daily = daily.replace_history(
             barrier_state="no_event",
-            history_time=daily.history_time or daily.effective_time,
+            history_time=daily.history_time or daily.expiry_time,
         )
         for when, has_theta in ((datetime(2025, 1, 2, 12), True),):
             result = engine.price_with_greeks(

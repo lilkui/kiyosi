@@ -275,7 +275,7 @@ UPDATES = {
     "daily_quantity": 2,
     "acceleration_factor": 3,
     "accumulated_quantity": 4,
-    "knock_out_settled": True,
+    "knock_out_settled": None,
     "knock_out_observation_times": [START],
     "notional": 2000,
     "annual_coupon_rate": 0.15,
@@ -288,7 +288,7 @@ UPDATES = {
     "lower_strike": 5,
     "knock_in_observation_mode": "at_expiry",
     "observation_clock_time": clock_time(1, 2, 3, 456789),
-    "barrier_state": "knocked_out",
+    "barrier_state": None,
     "principal_redemption_ratio": 0.9,
     "observations": [i.AutocallableObservation.snowball(END, 115, coupon_rate=0)],
     "maturity_coupon_rate": 0.15,
@@ -353,6 +353,11 @@ class ContractReplacementTests(unittest.TestCase):
     def test_reactivation_with_changed_rules_requires_explicit_quantity(self):
         active = next(
             value for value in contracts() if isinstance(value, i.Accumulator)
+        )
+        active = active.replace(
+            knock_out_observation_times=None,
+            accumulated_quantity=active.accumulated_quantity,
+            knock_out_settled=active.knock_out_settled,
         )
         settled = active.replace_history(knock_out_settled=True)
         with self.assertRaises(InvalidInputError):
@@ -468,6 +473,8 @@ class ContractReplacementTests(unittest.TestCase):
                     )
                 with self.subTest(contract=type(original).__name__, field=name):
                     updates = {name: value}
+                    if name == "barrier_state":
+                        updates["history_time"] = original.history_time
                     if name == "knock_in_observation_mode":
                         updates["observation_clock_time"] = None
                     if isinstance(original, (i.BinaryBarrierOption, i.TouchOption)):

@@ -115,7 +115,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
         self.assertEqual(option.knock_out_observation_times, (START, END))
         updated = option.replace_history(
             accumulated_quantity=0.25,
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         self.assertEqual(updated.option_type, "put")
         self.assertEqual(updated.knock_out_observation_times, (START, END))
@@ -124,7 +124,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
         self.assertEqual(
             updated.replace_history(
                 accumulated_quantity=3,
-                history_time=updated.history_time or updated.effective_time,
+                history_time=updated.history_time or updated.expiry_time,
             ),
             option,
         )
@@ -598,7 +598,8 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     )
                     holding = option.replace_history(
                         accumulated_quantity=3,
-                        history_time=option.history_time or option.effective_time,
+                        knock_out_settled=option.knock_out_settled,
+                        history_time=context.valuation_time,
                     )
                     holding_context = market(
                         85 if direction == "call" else 115, rate=0, dividend=0

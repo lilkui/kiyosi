@@ -251,10 +251,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                 Error::MissingHistory(_)
             ));
             let known = option
-                .replace_history(
-                    Some(BarrierTouchState::Touched),
-                    Some(option.history_time().unwrap_or(option.effective_time())),
-                )
+                .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
                 .unwrap();
             assert!(matches!(
                 engine
@@ -417,7 +414,7 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
 fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     let mut terms = TouchOptionTerms::new(start(), end(), 120.13, BarrierType::UpAndIn);
     terms.touch_state = Some(BarrierTouchState::Untouched);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     let option = TouchOption::cash(terms, 10.0).unwrap();
     let engine = engine(800);
     let ctx = context(100.0, Date::new(2025, 1, 2).unwrap().start_of_day());
@@ -514,7 +511,7 @@ fn grids_schedules_and_validation_fail_before_mutating_inputs() {
     }
     terms.observation_times = Some(vec![Date::new(2025, 1, 4).unwrap().start_of_day()]);
     terms.touch_state = Some(BarrierTouchState::Touched);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     assert!(matches!(
         TouchOption::cash(terms.clone(), 10.0),
         Err(Error::InvalidInput(_))

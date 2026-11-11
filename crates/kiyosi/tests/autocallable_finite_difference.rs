@@ -238,7 +238,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     let settled = note
         .replace_history(
             Some(AutocallableBarrierState::KnockedOut),
-            Some(note.history_time().unwrap_or(note.effective_time())),
+            Some(note.expiry_time()),
         )
         .unwrap();
     let later = market(100.0, date(3, 3));
@@ -326,7 +326,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
     let impossible = note
         .replace_history(
             Some(AutocallableBarrierState::KnockedOut),
-            Some(note.history_time().unwrap_or(note.effective_time())),
+            Some(note.expiry_time()),
         )
         .unwrap();
     assert!(matches!(

@@ -658,7 +658,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     let knocked_out = note
         .replace_history(
             Some(AutocallableBarrierState::KnockedOut),
-            Some(note.history_time().unwrap_or(note.effective_time())),
+            Some(note.expiry_time()),
         )
         .unwrap();
     assert!(matches!(

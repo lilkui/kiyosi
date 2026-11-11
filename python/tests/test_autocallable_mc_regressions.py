@@ -276,7 +276,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         observations=autocallable_observations(
                             [end], [110], knock_out_coupon_rates=[0.08]
                         ),
-                        history_time=(start) if state is not None else None,
+                        history_time=context.valuation_time
+                        if state is not None
+                        else None,
                     )
                     result = engine.price_with_greeks(
                         dated_history(note, context),

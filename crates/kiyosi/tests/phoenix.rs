@@ -211,11 +211,8 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
             .lockout_periods(),
         2
     );
-    let impossible = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut), Some(date(2, 4)))
-        .unwrap();
     assert!(matches!(
-        engine.price(&impossible, &market(100.0, date(2, 4))),
+        note.replace_history(Some(AutocallableBarrierState::KnockedOut), Some(date(2, 4))),
         Err(Error::InvalidInput(_))
     ));
     let possible = note
@@ -501,7 +498,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     let impossible = note
         .replace_history(
             Some(AutocallableBarrierState::KnockedOut),
-            Some(note.history_time().unwrap_or(note.effective_time())),
+            Some(note.expiry_time()),
         )
         .unwrap();
     assert!(matches!(
@@ -515,13 +512,8 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     ));
     let mut t = terms();
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
-    t.history_time = Some(t.effective_time);
-    assert!(matches!(
-        engine
-            .price(&dated(&PhoenixOption::new(t).unwrap(), &ctx), &ctx)
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+    t.history_time = Some(t.expiry_time);
+    assert!(matches!(PhoenixOption::new(t), Err(Error::InvalidInput(_))));
 }
 
 #[test]
@@ -564,7 +556,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     let settled = note
         .replace_history(
             Some(AutocallableBarrierState::KnockedOut),
-            Some(note.history_time().unwrap_or(note.effective_time())),
+            Some(note.expiry_time()),
         )
         .unwrap();
     assert_eq!(

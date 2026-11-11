@@ -406,7 +406,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 self.assert_rejection(MissingHistoryError, engine.price, option, later)
                 touched = option.replace_history(
                     touch_state="touched",
-                    history_time=option.history_time or option.effective_time,
+                    history_time=option.expiry_time,
                 )
                 self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
@@ -416,7 +416,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 for history in ("touched", "untouched"):
                     known = option.replace_history(
                         touch_state=history,
-                        history_time=(option.history_time or option.effective_time)
+                        history_time=option.expiry_time
                         if history is not None
                         else None,
                     )
@@ -450,7 +450,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             )
             untouched = scheduled.replace_history(
                 touch_state="untouched",
-                history_time=scheduled.history_time or scheduled.effective_time,
+                history_time=scheduled.history_time or scheduled.expiry_time,
             )
             self.assertEqual(
                 engine.price(dated_history(untouched, after), after),

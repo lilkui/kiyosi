@@ -309,7 +309,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                     omitted.replace_history(
                         accumulated_quantity=0,
                         knock_out_settled=False,
-                        history_time=omitted.history_time or omitted.effective_time,
+                        history_time=omitted.history_time or omitted.expiry_time,
                     ),
                     market(90, omitted.expiry_time),
                 ),

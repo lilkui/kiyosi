@@ -37,6 +37,8 @@
 //! Missing payloads or snapshot timestamps return [`Error::MissingHistory`]. History
 //! invalidated by valuation or observation edits returns [`Error::StaleHistory`].
 //! Impossible states and future timestamps return [`Error::InvalidInput`].
+//! Construction and replacement reject history impossible at its own snapshot time;
+//! pricing checks snapshot freshness and future timestamps against valuation.
 //!
 //! ```rust
 //! use kiyosi::*;

@@ -138,7 +138,8 @@ impl Accumulator {
     /// # Errors
     ///
     /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
+    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid strike, invalid level or
     /// quantities, reversed life times, or unordered/out-of-life knock-out times,
@@ -201,11 +202,8 @@ impl Accumulator {
             )?;
         }
         let option = Self { terms };
-        super::validate_history_snapshot(
-            &option,
-            option.accumulated_quantity().is_some() || option.knock_out_settled().is_some(),
-        )?;
-        Ok(option)
+        let history_time = option.history_time();
+        option.with_history_time(history_time)
     }
 
     /// Replaces the owned accumulation calendar; see [`Self::new`] for construction.
@@ -402,31 +400,13 @@ impl Accumulator {
         }
         let had_accumulation =
             self.any_accumulation(self.effective_time(), valuation, |time| time < valuation)?;
-        let had_knock_out_at = |at| match self.knock_out_observation_times() {
-            Some(times) => Ok(times.iter().any(|&time| time < at)),
-            None => self.any_accumulation(self.effective_time(), at, |time| time < at),
+        let had_knock_out = match self.knock_out_observation_times() {
+            Some(times) => times.iter().any(|&time| time < valuation),
+            None => had_accumulation,
         };
-        let had_knock_out = had_knock_out_at(valuation)?;
-        if self.knock_out_settled() == Some(true)
-            && !had_knock_out_at(self.terms.history_time.unwrap_or(valuation).min(valuation))?
-        {
-            return Err(Error::InvalidInput(
-                "knock-out settlement predates knock-out observations".into(),
-            ));
-        }
         if had_knock_out && self.knock_out_settled().is_none() {
             return Err(Error::MissingHistory(
                 "prior knock-out settlement state is required".into(),
-            ));
-        }
-        if self.knock_out_settled() != Some(true)
-            && !had_accumulation
-            && self
-                .accumulated_quantity()
-                .is_some_and(|quantity| quantity > 0.0)
-        {
-            return Err(Error::InvalidInput(
-                "accumulated_quantity predates accumulation observations".into(),
             ));
         }
         let has_prior = had_accumulation || had_knock_out;
@@ -615,6 +595,27 @@ impl OptionContract for Accumulator {
             &self,
             self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
         )?;
+        if let Some(time) = time {
+            if self.knock_out_settled() == Some(true) {
+                let had_knock_out = match self.knock_out_observation_times() {
+                    Some(times) => times.iter().any(|&at| at < time),
+                    None => self.any_accumulation(self.effective_time(), time, |at| at < time)?,
+                };
+                if !had_knock_out {
+                    return Err(Error::InvalidInput(
+                        "knock-out settlement predates knock-out observations".into(),
+                    ));
+                }
+            } else if self
+                .accumulated_quantity()
+                .is_some_and(|quantity| quantity > 0.0)
+                && !self.any_accumulation(self.effective_time(), time, |at| at < time)?
+            {
+                return Err(Error::InvalidInput(
+                    "accumulated_quantity predates accumulation observations".into(),
+                ));
+            }
+        }
         Ok(self)
     }
 

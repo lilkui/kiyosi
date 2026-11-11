@@ -32,7 +32,8 @@ macro_rules! autocallable_properties {
             ///     event.
             /// history_time : datetime.datetime or None, optional
             ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required with history; refresh payload and timestamp together.
+            ///     Required with history; payloads must be possible strictly before this
+            ///     instant. Refresh payload and timestamp together.
             ///
             /// Returns
             /// -------
@@ -521,7 +522,8 @@ macro_rules! snowball_preset {
         ///
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
-        ///     Required with history; refresh payload and timestamp together.
+        ///     Required with history; payloads must be possible strictly before this
+        ///     instant. Refresh payload and timestamp together.
         ///
         /// Returns
         /// -------
@@ -764,7 +766,8 @@ times, stages may have no observations, and rates need not decrease."
 ///     PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -803,7 +806,8 @@ snowball_properties! {
     ///     Owned contractual observation calendar; omission retains it.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -966,7 +970,8 @@ snowball_properties! {
 ///     PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -998,7 +1003,8 @@ snowball_properties! {
     ///     Owned contractual observation calendar; omission retains it.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -1114,7 +1120,8 @@ snowball_properties! {
 ///     PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -1150,7 +1157,8 @@ snowball_properties! {
     ///     Owned contractual observation calendar; omission retains it.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -1311,7 +1319,8 @@ snowball_properties! {
 ///     PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -1365,7 +1374,8 @@ autocallable_properties! {
     ///     Owned contractual observation calendar; omission retains it.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -1582,7 +1592,8 @@ macro_rules! phoenix_preset {
         ///
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
-        ///     Required with history; refresh payload and timestamp together.
+        ///     Required with history; payloads must be possible strictly before this
+        ///     instant. Refresh payload and timestamp together.
         ///
         /// Returns
         /// -------

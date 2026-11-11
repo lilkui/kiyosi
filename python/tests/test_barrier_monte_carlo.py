@@ -308,7 +308,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 )
                 touched = contract.replace_history(
                     touch_state="touched",
-                    history_time=contract.history_time or contract.effective_time,
+                    history_time=contract.expiry_time,
                 )
                 self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
@@ -320,7 +320,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 for history in ("touched", "untouched"):
                     known = contract.replace_history(
                         touch_state=history,
-                        history_time=(contract.history_time or contract.effective_time)
+                        history_time=contract.expiry_time
                         if history is not None
                         else None,
                     )
@@ -359,7 +359,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 )
                 untouched = scheduled.replace_history(
                     touch_state="untouched",
-                    history_time=scheduled.history_time or scheduled.effective_time,
+                    history_time=scheduled.history_time or scheduled.expiry_time,
                 )
                 self.assertEqual(
                     engine.price(dated_history(untouched, after), after),
@@ -576,7 +576,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             )
         fixed = contract.replace_history(
             touch_state="touched",
-            history_time=contract.history_time or contract.effective_time,
+            history_time=contract.expiry_time,
         )
         later = market(valuation=START + timedelta(days=1))
         self.assert_rejection(

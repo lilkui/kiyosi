@@ -8912,7 +8912,8 @@ class GeometricAveragePriceOption:
         consistency is checked at pricing.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
         A supplied average requires a timestamp strictly after averaging starts.
 
     Raises
@@ -8953,7 +8954,8 @@ class GeometricAveragePriceOption:
             Replacement value; omission or Ellipsis retains the current field.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -8998,7 +9000,8 @@ class GeometricAveragePriceOption:
             consistency.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -9208,7 +9211,8 @@ class ArithmeticAveragePriceOption:
         consistency is checked at pricing.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
         A supplied average requires a timestamp strictly after averaging starts.
 
     Raises
@@ -9249,7 +9253,8 @@ class ArithmeticAveragePriceOption:
             Replacement value; omission or Ellipsis retains the current field.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -9294,7 +9299,8 @@ class ArithmeticAveragePriceOption:
             consistency.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -9516,7 +9522,8 @@ class BarrierOption:
         and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -9580,7 +9587,8 @@ class BarrierOption:
             and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -9887,7 +9895,8 @@ class DoubleBarrierOption:
         and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -9951,7 +9960,8 @@ class DoubleBarrierOption:
             and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -10098,7 +10108,8 @@ class RangeAccrualOption:
         PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -10165,7 +10176,8 @@ class RangeAccrualOption:
             Owned contractual observation calendar; omission retains it.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -10212,7 +10224,8 @@ class RangeAccrualOption:
             Hits strictly before valuation, or None for unknown history.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -10747,7 +10760,8 @@ class BinaryBarrierOption:
         and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -10850,7 +10864,8 @@ class BinaryBarrierOption:
             and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -10984,7 +10999,8 @@ class TouchOption:
         and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -11083,7 +11099,8 @@ class TouchOption:
             and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -11732,7 +11749,8 @@ class DoubleTouchOption:
         and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -11811,7 +11829,8 @@ class DoubleTouchOption:
             and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -12486,7 +12505,8 @@ class SnowballOption:
         PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -12558,7 +12578,8 @@ class SnowballOption:
             Owned contractual observation calendar; omission retains it.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -12639,7 +12660,8 @@ class SnowballOption:
             event.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -12751,7 +12773,8 @@ class PhoenixOption:
         PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -12863,7 +12886,8 @@ class PhoenixOption:
             Owned contractual observation calendar; omission retains it.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -12918,7 +12942,8 @@ class PhoenixOption:
             event.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -13014,7 +13039,8 @@ class BinarySnowballOption:
         PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -13068,7 +13094,8 @@ class BinarySnowballOption:
             Owned contractual observation calendar; omission retains it.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -13143,7 +13170,8 @@ class BinarySnowballOption:
             event.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -13227,7 +13255,8 @@ class TernarySnowballOption:
         PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -13294,7 +13323,8 @@ class TernarySnowballOption:
             Owned contractual observation calendar; omission retains it.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -13373,7 +13403,8 @@ class TernarySnowballOption:
             event.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -13486,7 +13517,8 @@ def standard_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13566,7 +13598,8 @@ def european_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13649,7 +13682,8 @@ def step_down_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13737,7 +13771,8 @@ def both_down_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13822,7 +13857,8 @@ def dual_coupon_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13905,7 +13941,8 @@ def parachute_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13988,7 +14025,8 @@ def otm_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14071,7 +14109,8 @@ def loss_capped_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14125,7 +14164,7 @@ class Accumulator:
     accumulated_quantity : float or None, optional
         Outstanding quantity strictly before valuation. None means unknown;
         zero means no units. Explicit history is required after any prior
-        accumulation or knock-out observation. Pricing rejects positive
+        accumulation or knock-out observation. Construction rejects positive
         quantity before a strictly prior accumulation unless already settled.
     option_type : {'call', 'put'}, optional
         Call accumulates purchases (the default); put accumulates sales.
@@ -14145,7 +14184,8 @@ class Accumulator:
         and replacement retains the current calendar.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -14236,7 +14276,8 @@ class Accumulator:
             and replacement retains the current calendar.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -14329,11 +14370,12 @@ class Accumulator:
             knock_out_settled is True.
         knock_out_settled : bool or None, optional
             None restores unknown history; omission retains the current state.
-            Pricing rejects knock-out settlement before or at the first knock-out
+            Construction rejects knock-out settlement before or at the first knock-out
             observation.
         history_time : datetime.datetime or None, optional
             Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
+            Required with history; payloads must be possible strictly before this
+            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -14598,7 +14640,8 @@ def standard_phoenix(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14682,7 +14725,8 @@ def step_down_phoenix(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14757,7 +14801,8 @@ def fixed_coupon_note(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14835,7 +14880,8 @@ def digital_coupon_note(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14915,7 +14961,8 @@ def early_profit_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -15009,7 +15056,8 @@ def butterfly_snowball(
 
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
-        Required with history; refresh payload and timestamp together.
+        Required with history; payloads must be possible strictly before this
+        instant. Refresh payload and timestamp together.
 
     Returns
     -------

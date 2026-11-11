@@ -110,34 +110,21 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
             .unwrap()
             .is_finite()
     );
-    let impossible = note
-        .replace_history(
-            Some(AutocallableBarrierState::KnockedOut),
-            Some(note.history_time().unwrap_or(note.effective_time())),
-        )
-        .unwrap();
     assert!(matches!(
-        engine
-            .price(
-                &dated(&impossible, &market(100.0, date(1, 1))),
-                &market(100.0, date(1, 1))
-            )
-            .unwrap_err(),
-        Error::InvalidInput(_)
+        note.replace_history(
+            Some(AutocallableBarrierState::KnockedOut),
+            Some(note.effective_time())
+        ),
+        Err(Error::InvalidInput(_))
     ));
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.observation_clock_time = None;
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
-    t.history_time = Some(t.effective_time);
+    t.history_time = Some(t.expiry_time);
     assert!(matches!(
-        engine
-            .price(
-                &dated(&SnowballOption::new(t).unwrap(), &market(70.0, date(4, 1))),
-                &market(70.0, date(4, 1))
-            )
-            .unwrap_err(),
-        Error::InvalidInput(_)
+        SnowballOption::new(t),
+        Err(Error::InvalidInput(_))
     ));
     assert_eq!(note.barrier_state(), None);
 }
@@ -229,7 +216,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
             t.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
                 .then_some(t.expiry_time.time_of_day());
             t.barrier_state = history;
-            t.history_time = Some(t.effective_time);
+            t.history_time = Some(t.expiry_time);
             t.observations = autocallable_observations(
                 &[date(1, 3), date(1, 6), date(1, 7)],
                 &[110.0; 3],

@@ -882,7 +882,7 @@ class ImpliedCouponTests(unittest.TestCase):
         ):
             settled = note.replace_history(
                 barrier_state="knocked_out",
-                history_time=note.history_time or note.effective_time,
+                history_time=note.expiry_time,
             )
             kwargs = (
                 {}

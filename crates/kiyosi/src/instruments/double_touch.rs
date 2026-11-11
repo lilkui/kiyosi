@@ -100,7 +100,8 @@ impl DoubleTouchOption {
     /// # Errors
     ///
     /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
+    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid positive finite payout,
     /// then for at-hit no-touch settlement. Shared monitoring validation then

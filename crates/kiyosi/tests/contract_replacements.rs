@@ -77,9 +77,9 @@ fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> 
         start.time_of_day(),
     );
     terms.accumulated_quantity = Some(3.0);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     terms.knock_out_settled = Some(true);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     let settled = Accumulator::new(terms)?;
     assert!(matches!(
         settled.replace(AccumulatorChanges {
@@ -1010,7 +1010,7 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
         original,
         SnowballOptionChanges,
         barrier_state,
-        Some(AutocallableBarrierState::KnockedOut),
+        None,
         terms().barrier_state
     );
     let cleared = original
@@ -1150,7 +1150,7 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         original,
         PhoenixOptionChanges,
         barrier_state,
-        Some(AutocallableBarrierState::KnockedOut),
+        None,
         terms().barrier_state
     );
     let cleared = original
@@ -1243,7 +1243,7 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
         original,
         BinarySnowballOptionChanges,
         barrier_state,
-        Some(AutocallableBarrierState::KnockedOut),
+        None,
         terms().barrier_state
     );
     let cleared = original
@@ -1368,7 +1368,7 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
         original,
         TernarySnowballOptionChanges,
         barrier_state,
-        Some(AutocallableBarrierState::KnockedOut),
+        None,
         terms().barrier_state
     );
     let cleared = original

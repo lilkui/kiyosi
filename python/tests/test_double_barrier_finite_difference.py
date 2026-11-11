@@ -288,7 +288,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             )
             past = option.replace_history(
                 touch_state="touched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.expiry_time,
             )
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.04 * 364 / 365)
             self.assertAlmostEqual(
@@ -519,7 +519,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 dated_history(
                     option.replace_history(
                         touch_state="touched",
-                        history_time=option.history_time or option.effective_time,
+                        history_time=option.expiry_time,
                     ),
                     market(time=START + timedelta(days=1)),
                 ),
@@ -545,7 +545,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             dated_history(
                 option.replace_history(
                     touch_state="untouched",
-                    history_time=option.history_time or option.effective_time,
+                    history_time=option.history_time or option.expiry_time,
                 ),
                 market(110, time=END),
             ),

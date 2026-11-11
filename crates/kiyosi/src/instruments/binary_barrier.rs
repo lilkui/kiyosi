@@ -117,7 +117,8 @@ impl BinaryBarrierOption {
     /// # Errors
     ///
     /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
+    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
     /// barrier, fixing times or calendar compatibility, checked in that order.
@@ -360,7 +361,8 @@ impl TouchOption {
     /// # Errors
     ///
     /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
+    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid positive payout or barrier,
     /// reversed life, invalid fixings, or at-hit no-touch settlement.

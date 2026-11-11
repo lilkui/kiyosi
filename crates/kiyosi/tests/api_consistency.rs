@@ -358,7 +358,7 @@ fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Resu
         BarrierType::UpAndOut,
     );
     terms.touch_state = Some(BarrierTouchState::Touched);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     terms.rebate_timing = RebateTiming::AtHit;
     let settled = BarrierOption::new(terms)?;
     for engine in [
@@ -1063,9 +1063,7 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
         (end).time_of_day(),
     ))?;
     let settled = option.replace(AccumulatorChanges {
-        history_time: Some(Some(
-            option.history_time().unwrap_or(option.effective_time()),
-        )),
+        history_time: Some(Some(option.history_time().unwrap_or(start.add_days(1)?))),
         knock_out_settled: Some(Some(true)),
         ..Default::default()
     })?;
@@ -1468,7 +1466,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
         BarrierType::UpAndOut,
     );
     terms.touch_state = Some(BarrierTouchState::Untouched);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     check(
         &CoxRossRubinsteinBarrierEngine::default(),
         &BarrierOption::new(terms.clone())?,
@@ -1495,7 +1493,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
         DoubleBarrierType::KnockOut,
     );
     double.touch_state = Some(BarrierTouchState::Untouched);
-    double.history_time = Some(double.effective_time);
+    double.history_time = Some(double.expiry_time);
     check(
         &MonteCarloDoubleBarrierEngine::new(sampling)?,
         &DoubleBarrierOption::new(double)?,
@@ -1729,9 +1727,9 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         (expiry).time_of_day(),
     );
     terms.accumulated_quantity = Some(3.0);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     terms.knock_out_settled = Some(false);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     let accumulator = Accumulator::new(terms)?;
     let settled = accumulator.replace(AccumulatorChanges {
         history_time: Some(Some(
@@ -1796,7 +1794,7 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
     let note = BinarySnowballOption::new(terms)?;
     let settled = note.replace_history(
         Some(AutocallableBarrierState::KnockedOut),
-        Some(note.history_time().unwrap_or(note.effective_time())),
+        Some(note.expiry_time()),
     )?;
     let active_context = context.replace(PricingContextChanges {
         spot_price: Some(100.0),
@@ -1852,48 +1850,40 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
         );
         terms.knock_out_observation_times = times.clone();
         let original = Accumulator::new(terms)?;
-        let settled = original.replace(AccumulatorChanges {
-            history_time: Some(Some(
-                original.history_time().unwrap_or(original.effective_time()),
-            )),
-            knock_out_settled: Some(Some(true)),
-            ..Default::default()
-        })?;
         let first = times.as_ref().map_or(Some(start), |t| t.first().copied());
         for valuation in [
             start,
             start.add_days(2)?,
-            Timestamp::new(start.add_days(2)?.date(), 0, 0, 0, 1)?,
+            start.add_days(2)?.add_micros(1)?,
             expiry,
         ] {
+            let settled = original.replace_history(
+                AccumulatorHistoryChanges {
+                    knock_out_settled: Some(Some(true)),
+                    ..Default::default()
+                },
+                Some(valuation),
+            );
+            if first.is_none_or(|first| first >= valuation) {
+                assert!(matches!(settled, Err(Error::InvalidInput(_))));
+                continue;
+            }
+            let settled = settled?;
             let context = PricingContext::new(model.clone(), 100.0, valuation)?;
-            let valid = first.is_some_and(|first| first < valuation);
             for engine in [
                 &FiniteDifferenceAccumulatorEngine::default() as &dyn PricingEngine<Accumulator>,
                 &QuadratureAccumulatorEngine::default(),
                 &mc,
             ] {
-                let price = engine.price(&dated(&settled, &context), &context);
-                let greeks = engine.price_with_greeks_with_settings(
-                    &dated(&settled, &context),
-                    &context,
-                    GreeksRequest::new([Greek::Delta]),
-                    engine.greek_settings(&dated(&settled, &context)),
+                assert_eq!(engine.price(&settled, &context)?, 0.0);
+                assert_eq!(
+                    engine
+                        .price_with_greeks(&settled, &context, GreeksRequest::new([Greek::Delta]))?
+                        .require(Greek::Delta)?,
+                    0.0
                 );
-                if valid {
-                    assert_eq!(price?, 0.0);
-                    assert_eq!(greeks?.require(Greek::Delta)?, 0.0);
-                } else {
-                    assert!(matches!(price, Err(Error::InvalidInput(_))));
-                    assert!(matches!(greeks, Err(Error::InvalidInput(_))));
-                }
             }
-            let statistics = mc.price_with_statistics(&dated(&settled, &context), &context);
-            if valid {
-                assert_eq!(statistics?.price(), 0.0);
-            } else {
-                assert!(matches!(statistics, Err(Error::InvalidInput(_))));
-            }
+            assert_eq!(mc.price_with_statistics(&settled, &context)?.price(), 0.0);
         }
         assert_eq!(original.knock_out_settled(), None);
         assert_eq!(original.accumulated_quantity(), None);
@@ -2609,7 +2599,7 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
             accumulated_quantity: Some(Some(3.0)),
             knock_out_settled: Some(Some(true)),
         },
-        Some(original.history_time().unwrap_or(original.effective_time())),
+        Some(original.history_time().unwrap_or(start.add_days(1)?)),
     )?;
     assert_eq!(settled.accumulated_quantity(), Some(3.0));
     assert_eq!(settled.knock_out_settled(), Some(true));

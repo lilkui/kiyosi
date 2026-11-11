@@ -72,7 +72,8 @@ impl RangeAccrualOption {
     /// # Errors
     ///
     /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
+    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
+    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
     /// history, then for nonpositive contract life or an empty daily observation schedule.
@@ -132,8 +133,8 @@ impl RangeAccrualOption {
             ));
         }
         let option = Self { terms, schedule };
-        super::validate_history_snapshot(&option, option.realized_hit_count().is_some())?;
-        Ok(option)
+        let history_time = option.history_time();
+        option.with_history_time(history_time)
     }
 
     /// Replaces the owned observation calendar; see [`Self::new`] for construction.
@@ -269,6 +270,12 @@ impl OptionContract for RangeAccrualOption {
         super::validate_history_redating(&self, time, self.realized_hit_count().is_some())?;
         self.terms.history_time = time;
         super::validate_history_snapshot(&self, self.realized_hit_count().is_some())?;
+        if let (Some(time), Some(hits)) = (time, self.realized_hit_count()) {
+            let prior = self.schedule.times().partition_point(|&at| at < time);
+            if usize::try_from(hits).map_or(true, |hits| hits > prior) {
+                return Err(Error::InvalidInput("excessive prior hits".into()));
+            }
+        }
         Ok(self)
     }
 

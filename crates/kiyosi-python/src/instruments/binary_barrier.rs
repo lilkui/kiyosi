@@ -68,7 +68,8 @@ fn replace_payoff(
 ///     and replacement retains the current calendar.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -112,7 +113,8 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 ///     and replacement retains the current calendar.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -236,7 +238,8 @@ binary_properties!(
     ///     and replacement retains the current calendar.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -396,7 +399,8 @@ binary_properties!(
     ///     and replacement retains the current calendar.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------

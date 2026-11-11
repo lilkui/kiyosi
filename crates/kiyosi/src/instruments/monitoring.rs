@@ -63,8 +63,7 @@ impl Monitoring {
             schedule,
             touch_state,
         };
-        super::validate_history_snapshot(&monitoring, touch_state.is_some())?;
-        Ok(monitoring)
+        monitoring.with_history_time(history_time)
     }
 
     pub(crate) fn validate_replacement_history(
@@ -170,9 +169,6 @@ impl Monitoring {
     ) -> Result<(bool, bool, bool)> {
         let time = context.valuation_time();
         let prior = self.prior(time)?;
-        if let (Some(at), Some(_)) = (self.history_time, self.touch_state) {
-            self.prior(at)?;
-        }
         super::validate_history_time(
             self,
             self.touch_state.is_some(),
@@ -276,6 +272,9 @@ impl OptionContract for Monitoring {
         super::validate_history_redating(&self, time, self.touch_state.is_some())?;
         self.history_time = time;
         super::validate_history_snapshot(&self, self.touch_state.is_some())?;
+        if let Some(time) = time.filter(|_| self.touch_state.is_some()) {
+            self.prior(time)?;
+        }
         Ok(self)
     }
 

@@ -153,8 +153,9 @@ pub trait OptionContract {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for a supplied timestamp when history
-    /// is unsupported, [`Error::InvalidInput`] for a supported timestamp outside life,
-    /// or [`Error::MissingHistory`] for clearing the timestamp while history remains known.
+    /// is unsupported, [`Error::InvalidInput`] for a supported timestamp outside life
+    /// or history impossible at the snapshot time, or [`Error::MissingHistory`]
+    /// for clearing the timestamp while history remains known.
     /// Returns [`Error::StaleHistory`] when redating known history without its payload.
     fn with_history_time(self, time: Option<Timestamp>) -> Result<Self>
     where

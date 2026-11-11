@@ -53,7 +53,7 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
             let mut terms =
                 BarrierOptionTerms::new(OptionType::Call, 100.0, start, end, 120.0, kind);
             terms.touch_state = Some(history);
-            terms.history_time = Some(terms.effective_time);
+            terms.history_time = Some(terms.expiry_time);
             check(
                 &AnalyticBarrierEngine,
                 &BarrierOption::new(terms)?,
@@ -74,7 +74,7 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
                 },
             );
             terms.touch_state = Some(history);
-            terms.history_time = Some(terms.effective_time);
+            terms.history_time = Some(terms.expiry_time);
             check(
                 &AnalyticDoubleBarrierEngine,
                 &DoubleBarrierOption::new(terms)?,
@@ -84,7 +84,7 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
             let mut terms =
                 BinaryBarrierTerms::new(OptionType::Call, 100.0, start, end, 120.0, kind);
             terms.touch_state = Some(history);
-            terms.history_time = Some(terms.effective_time);
+            terms.history_time = Some(terms.expiry_time);
             check(
                 &AnalyticBinaryBarrierEngine,
                 &BinaryBarrierOption::cash(terms, 10.0)?,
@@ -355,7 +355,7 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
         BarrierType::UpAndOut,
     );
     terms.touch_state = Some(BarrierTouchState::Untouched);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     let barrier = BarrierOption::new(terms)?;
     let geometric =
         GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?;

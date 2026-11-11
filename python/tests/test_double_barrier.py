@@ -231,7 +231,7 @@ class DoubleBarrierTests(unittest.TestCase):
             self.assertEqual(option, contract())
         known = option.replace_history(
             touch_state="untouched",
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         self.assertEqual(known.replace_history(), known)
         self.assertEqual(known.replace_history(touch_state=None), option)
@@ -259,7 +259,7 @@ class DoubleBarrierTests(unittest.TestCase):
             )
             past = option.replace_history(
                 touch_state="touched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.expiry_time,
             )
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.04 * 364 / 365)
             self.assertAlmostEqual(
@@ -341,7 +341,7 @@ class DoubleBarrierTests(unittest.TestCase):
             )
             touched = option.replace_history(
                 touch_state="touched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.expiry_time,
             )
             self.assert_rejection(
                 InvalidInputError,
@@ -385,7 +385,7 @@ class DoubleBarrierTests(unittest.TestCase):
             )
             known = option.replace_history(
                 touch_state="untouched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.history_time or option.expiry_time,
             )
             expected = (
                 3 * math.exp(-0.04 * 184.5 / 365)
@@ -562,7 +562,7 @@ class DoubleBarrierTests(unittest.TestCase):
         self.assertAlmostEqual(solved, 0.2, delta=1e-7)
         known = option.replace_history(
             touch_state="untouched",
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         later = market(time=START + timedelta(days=1))
         result = engine.price_with_greeks(

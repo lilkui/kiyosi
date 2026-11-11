@@ -49,10 +49,7 @@ fn history_is_strictly_prior_and_boundary_hit_rebates_are_not_paid_twice() {
         Error::MissingHistory(_)
     ));
     let touched = option
-        .replace_history(
-            Some(BarrierTouchState::Touched),
-            Some(option.history_time().unwrap_or(option.effective_time())),
-        )
+        .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
         .unwrap();
     assert!(matches!(
         AnalyticBarrierEngine
@@ -141,7 +138,7 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
     let mut t = terms(BarrierType::UpAndOut);
     t.rebate = 7.0;
     t.touch_state = Some(BarrierTouchState::Untouched);
-    t.history_time = Some(t.effective_time);
+    t.history_time = Some(t.expiry_time);
     let option = BarrierOption::new(t.clone()).unwrap();
     let context = market(120.0, t.effective_time);
     let result = AnalyticBarrierEngine
@@ -267,7 +264,7 @@ fn expiry_settlement_matrix_includes_equality_and_paid_rebates() {
                     t.rebate = 7.0;
                     t.rebate_timing = timing;
                     t.touch_state = Some(state);
-                    t.history_time = Some(t.effective_time);
+                    t.history_time = Some(t.expiry_time);
                     let context = market(100.0, t.expiry_time);
                     let prior = state == BarrierTouchState::Touched;
                     let hit = prior
@@ -365,10 +362,7 @@ fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_f
             .unwrap()
     );
     let touched = option
-        .replace_history(
-            Some(BarrierTouchState::Touched),
-            Some(option.history_time().unwrap_or(option.effective_time())),
-        )
+        .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
         .unwrap();
     assert!(matches!(
         AnalyticBarrierEngine
@@ -517,7 +511,7 @@ fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
         t.expiry_time,
     ]);
     t.touch_state = Some(BarrierTouchState::Untouched);
-    t.history_time = Some(t.effective_time);
+    t.history_time = Some(t.expiry_time);
     let option = BarrierOption::new(t.clone()).unwrap();
     let context = market(
         100.25,
@@ -575,7 +569,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
         t.barrier_level = level;
         t.observation_times = Some(vec![t.expiry_time]);
         t.touch_state = Some(BarrierTouchState::Untouched);
-        t.history_time = Some(t.effective_time);
+        t.history_time = Some(t.expiry_time);
         let scheduled = BarrierOption::new(t.clone()).unwrap();
         t.observation_times = None;
         t.barrier_level *= (sign * 0.582_597_157_939_010_7_f64 * 0.2).exp();
@@ -680,10 +674,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
     ));
     assert_eq!(option.touch_state(), Some(BarrierTouchState::Untouched));
     let resolved = option
-        .replace_history(
-            Some(BarrierTouchState::Touched),
-            Some(option.history_time().unwrap_or(option.effective_time())),
-        )
+        .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
         .unwrap();
     let later = market(100.0, Date::new(2025, 1, 2).unwrap().start_of_day());
     assert!(matches!(

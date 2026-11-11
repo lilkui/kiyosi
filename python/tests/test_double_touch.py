@@ -305,7 +305,7 @@ class DoubleTouchTests(unittest.TestCase):
         self.assertEqual(option.payout, 1)
         replaced = option.replace_history(
             touch_state="untouched",
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         self.assertEqual(replaced.touch_state, "untouched")
         self.assertIsNone(option.touch_state)
@@ -367,7 +367,7 @@ class DoubleTouchTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             option.replace_history(
                 touch_state=True,
-                history_time=option.history_time or option.effective_time,
+                history_time=option.history_time or option.expiry_time,
             )
         self.assertEqual(option, contract())
 
@@ -481,7 +481,7 @@ class DoubleTouchTests(unittest.TestCase):
                 )
             known = option.replace_history(
                 touch_state="touched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.expiry_time,
             )
             self.assert_core_error(
                 InvalidInputError,
@@ -520,7 +520,7 @@ class DoubleTouchTests(unittest.TestCase):
         ):
             known = option.replace_history(
                 touch_state="untouched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.history_time or option.expiry_time,
             )
             result = engine.price_with_greeks(
                 dated_history(known, market(time=END)), market(time=END), greeks="all"
@@ -559,7 +559,7 @@ class DoubleTouchTests(unittest.TestCase):
         )
         known = option.replace_history(
             touch_state="untouched",
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         for offset in (timedelta(seconds=1), timedelta(hours=12)):
             time = event + offset
@@ -1079,7 +1079,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                     )
             prior = option.replace_history(
                 touch_state="touched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.expiry_time,
             )
             with self.assertRaises(InvalidInputError):
                 engine.price(dated_history(prior, market()), market())
@@ -1103,7 +1103,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 )
             known = option.replace_history(
                 touch_state="untouched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.history_time or option.expiry_time,
             )
             for spot in (80, 100, 120):
                 terminal = engine.price_with_greeks(
@@ -1139,7 +1139,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 )
             known = option.replace_history(
                 touch_state="untouched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.history_time or option.expiry_time,
             )
             for spot in (80, 120):
                 expected = (

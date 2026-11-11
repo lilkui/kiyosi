@@ -195,7 +195,7 @@ class RangeAccrualTests(unittest.TestCase):
             expiry_time=datetime(2025, 1, 5),
             observation_clock_time=clock_time(15),
             realized_hit_count=1,
-            history_time=START,
+            history_time=START + timedelta(days=1),
         )
         context = market(datetime(2025, 1, 2, 12), rate=0.04, dividend=0, volatility=0)
         engine = AnalyticRangeAccrualEngine()
@@ -402,7 +402,7 @@ class RangeAccrualTests(unittest.TestCase):
             dated_history(
                 option.replace_history(
                     realized_hit_count=15,
-                    history_time=option.history_time or option.effective_time,
+                    history_time=option.history_time or option.expiry_time,
                 ),
                 market(option.expiry_time),
             ),
@@ -459,7 +459,7 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertEqual(option.upper_bound, 110)
         changed = option.replace_history(
             realized_hit_count=3,
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         self.assertEqual(changed.realized_hit_count, 3)
         self.assertEqual(changed.replace_history(realized_hit_count=None), option)
@@ -550,9 +550,9 @@ class RangeAccrualTests(unittest.TestCase):
         ):
             self.assert_rejection(
                 InvalidInputError,
-                engine.price,
-                dated_history(contract(realized_hit_count=count), market(valuation)),
-                market(valuation),
+                contract,
+                realized_hit_count=count,
+                history_time=valuation,
             )
         self.assert_rejection(
             MissingHistoryError,
@@ -562,12 +562,8 @@ class RangeAccrualTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price,
-            dated_history(
-                contract(realized_hit_count=16),
-                market(instant(START) + timedelta(days=16, microseconds=1)),
-            ),
-            market(instant(START) + timedelta(days=16, microseconds=1)),
+            contract,
+            realized_hit_count=16,
         )
 
     def test_weekend_calendar_full_term_and_zero_coupon(self):
@@ -664,7 +660,7 @@ class RangeAccrualTests(unittest.TestCase):
         )
         live = option.replace_history(
             realized_hit_count=3,
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         current = market(
             START + timedelta(days=7), rate=0.8, dividend=0.8, volatility=1e-9
@@ -949,7 +945,7 @@ class RangeAccrualTests(unittest.TestCase):
         )
         seasoned = option.replace_history(
             realized_hit_count=20000,
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         context = market(START + timedelta(days=20001))
         self.assertAlmostEqual(

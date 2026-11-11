@@ -68,7 +68,7 @@ class BarrierTests(unittest.TestCase):
         self.assertIs(type(error.exception), MissingHistoryError)
         touched = option.replace_history(
             touch_state="touched",
-            history_time=option.history_time or option.effective_time,
+            history_time=option.expiry_time,
         )
         self.assertEqual(
             engine.price(
@@ -253,7 +253,7 @@ class BarrierTests(unittest.TestCase):
                 dated_history(
                     option.replace_history(
                         touch_state="touched",
-                        history_time=option.history_time or option.effective_time,
+                        history_time=option.expiry_time,
                     ),
                     self.context(time=fixing),
                 ),
@@ -277,7 +277,7 @@ class BarrierTests(unittest.TestCase):
         )
         untouched = option.replace_history(
             touch_state="untouched",
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         vanilla = EuropeanOption(
             option_type="call",

@@ -189,10 +189,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         Error::MissingHistory(_)
     ));
     let paid = option
-        .replace_history(
-            Some(BarrierTouchState::Touched),
-            Some(option.history_time().unwrap_or(option.effective_time())),
-        )
+        .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
         .unwrap();
     assert_eq!(engine.price(&dated(&paid, &later), &later).unwrap(), 0.0);
     assert!(matches!(
@@ -257,7 +254,7 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
     .unwrap();
     let mut t = terms(BarrierType::DownAndOut, OptionType::Call);
     t.touch_state = Some(BarrierTouchState::Untouched);
-    t.history_time = Some(t.effective_time);
+    t.history_time = Some(t.expiry_time);
     let option = BarrierOption::new(t).unwrap();
     let context = market(100.0);
     let result = engine

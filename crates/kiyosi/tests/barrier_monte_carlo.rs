@@ -491,10 +491,7 @@ fn solver_replays_request_samples_and_rejects_fixed_cashflows() {
         })
         .unwrap();
     let fixed = option
-        .replace_history(
-            Some(BarrierTouchState::Touched),
-            Some(option.history_time().unwrap_or(option.effective_time())),
-        )
+        .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
         .unwrap();
     assert!(matches!(
         implied_volatility(
@@ -558,10 +555,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 Error::MissingHistory(_)
             ));
             let touched = option
-                .replace_history(
-                    Some(BarrierTouchState::Touched),
-                    Some(option.history_time().unwrap_or(option.effective_time())),
-                )
+                .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
                 .unwrap();
             assert!(matches!(
                 engine
@@ -583,10 +577,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 .unwrap();
             for history in [BarrierTouchState::Touched, BarrierTouchState::Untouched] {
                 let known = option
-                    .replace_history(
-                        Some(history),
-                        Some(option.history_time().unwrap_or(option.effective_time())),
-                    )
+                    .replace_history(Some(history), Some(option.expiry_time()))
                     .unwrap();
                 let result = engine
                     .price_with_greeks(&dated(&known, &expired), &expired, GreeksRequest::all())

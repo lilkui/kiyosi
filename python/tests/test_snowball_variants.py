@@ -114,9 +114,7 @@ class SnowballVariantTests(unittest.TestCase):
     def test_history_replacement_preserves_terms_and_rejects_binary_knock_in(self):
         for kind in (BinarySnowballOption, TernarySnowballOption):
             note = self.fixed(kind)
-            states = (None, "no_event", "knocked_out")
-            if kind is TernarySnowballOption:
-                states += ("knocked_in",)
+            states = (None, "no_event")
             for state in states:
                 with self.subTest(kind=kind.__name__, state=state):
                     replaced = note.replace_history(
@@ -127,14 +125,15 @@ class SnowballVariantTests(unittest.TestCase):
                     )
                     self.assertEqual(replaced, self.fixed(kind, barrier_state=state))
                     self.assertEqual(replaced.replace_history(barrier_state=None), note)
+            for state in ("knocked_in", "knocked_out"):
+                with self.subTest(kind=kind.__name__, state=state):
+                    self.assert_rejection(
+                        InvalidInputError,
+                        note.replace_history,
+                        barrier_state=state,
+                        history_time=note.expiry_time,
+                    )
             self.assertEqual(note, self.fixed(kind))
-        binary = self.fixed(BinarySnowballOption)
-        with self.assertRaises(InvalidInputError):
-            binary.replace_history(
-                barrier_state="knocked_in",
-                history_time=binary.history_time or binary.effective_time,
-            )
-        self.assertEqual(binary, self.fixed(BinarySnowballOption))
 
     def test_fixed_terminal_regions_and_no_binary_monitoring(self):
         common = {
@@ -421,16 +420,25 @@ class SnowballVariantTests(unittest.TestCase):
                     )
                     self.assertIsNotNone(result.delta)
                     self.assertIsNotNone(result.vega)
-                self.assertEqual(
-                    actual.replace_history(
-                        barrier_state="knocked_in",
-                        history_time=actual.history_time or actual.effective_time,
-                    ),
-                    explicit.replace_history(
-                        barrier_state="knocked_in",
-                        history_time=explicit.history_time or explicit.effective_time,
-                    ),
-                )
+                if mode == "at_expiry":
+                    for note in (actual, explicit):
+                        self.assert_rejection(
+                            InvalidInputError,
+                            note.replace_history,
+                            barrier_state="knocked_in",
+                            history_time=note.expiry_time,
+                        )
+                else:
+                    self.assertEqual(
+                        actual.replace_history(
+                            barrier_state="knocked_in",
+                            history_time=actual.expiry_time,
+                        ),
+                        explicit.replace_history(
+                            barrier_state="knocked_in",
+                            history_time=explicit.expiry_time,
+                        ),
+                    )
                 self.assertEqual(
                     eval(
                         repr(actual),
@@ -501,25 +509,19 @@ class SnowballVariantTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 note.replace_history(
                     barrier_state="unknown",
-                    history_time=note.history_time or note.effective_time,
+                    history_time=note.history_time or note.expiry_time,
                 )
             with self.assertRaises(TypeError):
                 note.replace_history(
                     barrier_state=True,
-                    history_time=note.history_time or note.effective_time,
+                    history_time=note.history_time or note.expiry_time,
                 )
             self.assertIsNone(note.barrier_state)
             self.assert_rejection(
                 InvalidInputError,
-                engine.price,
-                dated_history(
-                    note.replace_history(
-                        barrier_state="knocked_out",
-                        history_time=note.history_time or note.effective_time,
-                    ),
-                    market(),
-                ),
-                market(),
+                note.replace_history,
+                barrier_state="knocked_out",
+                history_time=note.expiry_time,
             )
             self.assert_rejection(
                 InvalidInputError,
@@ -563,7 +565,7 @@ class SnowballVariantTests(unittest.TestCase):
                 dated_history(
                     daily.replace_history(
                         barrier_state="knocked_in",
-                        history_time=daily.history_time or daily.effective_time,
+                        history_time=daily.expiry_time,
                     ),
                     market(100, END),
                 ),
@@ -760,7 +762,7 @@ class SnowballVariantTests(unittest.TestCase):
                     dated_history(
                         note.replace_history(
                             barrier_state="knocked_out",
-                            history_time=note.history_time or note.effective_time,
+                            history_time=note.expiry_time,
                         ),
                         market(100, END),
                     ),

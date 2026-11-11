@@ -411,7 +411,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         Error::MissingHistory(_)
     ));
     terms.barrier_state = Some(AutocallableBarrierState::KnockedOut);
-    terms.history_time = Some(terms.effective_time);
+    terms.history_time = Some(terms.expiry_time);
     let out = SnowballOption::new(terms.clone()).unwrap();
     assert!(matches!(
         engine

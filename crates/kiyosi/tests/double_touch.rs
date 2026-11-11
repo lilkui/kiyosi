@@ -364,10 +364,7 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
             );
         }
         let paid = option
-            .replace_history(
-                Some(BarrierTouchState::Touched),
-                Some(option.history_time().unwrap_or(option.effective_time())),
-            )
+            .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
             .unwrap();
         assert!(matches!(
             engine.price(&dated(&paid, &market(100.0)), &market(100.0)),
@@ -582,7 +579,7 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
         let mut t = terms(kind);
         t.settlement_timing = timing;
         t.touch_state = Some(BarrierTouchState::Untouched);
-        t.history_time = Some(t.effective_time);
+        t.history_time = Some(t.expiry_time);
         let option = DoubleTouchOption::cash(t, 1.0).unwrap();
         let result = engine
             .price_with_greeks(
@@ -847,10 +844,7 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
         t.settlement_timing = timing;
         let option = DoubleTouchOption::cash(t, 3.0).unwrap();
         let paid = option
-            .replace_history(
-                Some(BarrierTouchState::Touched),
-                Some(option.history_time().unwrap_or(option.effective_time())),
-            )
+            .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
             .unwrap();
         assert!(matches!(
             engine
@@ -1098,7 +1092,7 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
         let mut t = terms(kind);
         t.settlement_timing = timing;
         t.touch_state = Some(BarrierTouchState::Untouched);
-        t.history_time = Some(t.effective_time);
+        t.history_time = Some(t.expiry_time);
         let option = DoubleTouchOption::cash(t, 1.0).unwrap();
         let ctx = market(100.0);
         let result = engine

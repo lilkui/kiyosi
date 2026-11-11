@@ -496,7 +496,7 @@ class TimestampTests(unittest.TestCase):
             )
         touched = option.replace_history(
             touch_state="touched",
-            history_time=option.history_time or option.effective_time,
+            history_time=option.expiry_time,
         )
         with self.assertRaises(InvalidInputError):
             engine.price(
@@ -545,7 +545,7 @@ class TimestampTests(unittest.TestCase):
                 dated_history(
                     option.replace_history(
                         realized_hit_count=1,
-                        history_time=option.history_time or option.effective_time,
+                        history_time=option.history_time or option.expiry_time,
                     ),
                     market(time(6, 15, 1), 100),
                 ),

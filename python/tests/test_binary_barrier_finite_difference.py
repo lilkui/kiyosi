@@ -98,7 +98,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     dated_history(
                         option.replace_history(
                             touch_state="touched",
-                            history_time=option.history_time or option.effective_time,
+                            history_time=option.expiry_time,
                         ),
                         market(time=datetime(2025, 1, 2)),
                     ),
@@ -248,7 +248,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assert_rejection(InvalidInputError, engine.price, later_payment, ctx)
         known = option.replace_history(
             touch_state="untouched",
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1))
         self.assert_rejection(MissingHistoryError, engine.price, option, after)
@@ -329,7 +329,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             engine.price,
             option.replace_history(
                 touch_state="touched",
-                history_time=option.history_time or option.effective_time,
+                history_time=option.expiry_time,
             ),
             market(),
         )

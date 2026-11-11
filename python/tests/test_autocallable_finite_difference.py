@@ -173,7 +173,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             note.replace_history(
                 barrier_state="invalid",
-                history_time=note.history_time or note.effective_time,
+                history_time=note.history_time or note.expiry_time,
             )
         self.assertEqual(note.observations, tuple(snapshot))
         context = market()

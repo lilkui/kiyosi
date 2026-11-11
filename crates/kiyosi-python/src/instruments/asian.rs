@@ -24,7 +24,8 @@ macro_rules! average_option {
         ///     consistency is checked at pricing.
         /// history_time : datetime.datetime or None, optional
         ///     Timestamp of supplied history, covering events strictly before it.
-        ///     Required with history; refresh payload and timestamp together.
+        ///     Required with history; payloads must be possible strictly before this
+        ///     instant. Refresh payload and timestamp together.
         ///     A supplied average requires a timestamp strictly after averaging starts.
         ///
         /// Raises
@@ -61,7 +62,8 @@ macro_rules! average_option {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -126,7 +128,8 @@ macro_rules! average_option {
             ///     consistency.
             /// history_time : datetime.datetime or None, optional
             ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required with history; refresh payload and timestamp together.
+            ///     Required with history; payloads must be possible strictly before this
+            ///     instant. Refresh payload and timestamp together.
             ///
             /// Returns
             /// -------

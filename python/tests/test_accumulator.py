@@ -42,7 +42,7 @@ class TerminationHistoryTests(unittest.TestCase):
             expiry_time=datetime(2025, 1, 10),
             observation_clock_time=clock_time(),
             accumulated_quantity=2,
-            history_time=datetime(2025, 1, 6),
+            history_time=datetime(2025, 1, 8),
         )
         context = market(
             spot=105, valuation=datetime(2025, 1, 8), volatility=0, rate=0, dividend=0
@@ -50,11 +50,11 @@ class TerminationHistoryTests(unittest.TestCase):
         self.assertIsNone(option.knock_out_settled)
         active = option.replace_history(
             knock_out_settled=False,
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         settled = option.replace_history(
             knock_out_settled=True,
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         self.assertIs(active.knock_out_settled, False)
         self.assertIs(settled.knock_out_settled, True)
@@ -91,7 +91,7 @@ class TerminationHistoryTests(unittest.TestCase):
                     knock_out_observation_times=[],
                     accumulated_quantity=2,
                     knock_out_settled=None,
-                    history_time=option.history_time or option.effective_time,
+                    history_time=option.history_time or option.expiry_time,
                 )
                 self.assertEqual(
                     engine.price(dated_history(no_knock_out, context), context), 25
@@ -125,7 +125,7 @@ def contract(
         effective_time=START,
         expiry_time=end,
         calendar=weekdays_calendar() if calendar is None else calendar,
-        history_time=START,
+        history_time=end,
     )
 
 
@@ -282,16 +282,9 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     for valuation in (start, first):
                         self.assert_rejection(
                             InvalidInputError,
-                            engine.price,
-                            dated_history(
-                                option.replace_history(
-                                    accumulated_quantity=3,
-                                    history_time=option.history_time
-                                    or option.effective_time,
-                                ),
-                                current.replace(valuation_time=valuation),
-                            ),
-                            current.replace(valuation_time=valuation),
+                            option.replace_history,
+                            accumulated_quantity=3,
+                            history_time=valuation,
                         )
                     prior = current.replace(
                         valuation_time=datetime.combine(first, time(12))
@@ -309,7 +302,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                                     option.replace_history(
                                         accumulated_quantity=0,
                                         history_time=option.history_time
-                                        or option.effective_time,
+                                        or option.expiry_time,
                                     ),
                                     prior,
                                 ),
@@ -330,7 +323,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                                 option.replace_history(
                                     accumulated_quantity=0,
                                     history_time=option.history_time
-                                    or option.effective_time,
+                                    or option.expiry_time,
                                 ),
                                 expiry,
                             ),
@@ -343,8 +336,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                             dated_history(
                                 option.replace_history(
                                     accumulated_quantity=10,
-                                    history_time=option.history_time
-                                    or option.effective_time,
+                                    knock_out_settled=option.knock_out_settled,
+                                    history_time=option.expiry_time,
                                 ),
                                 expiry,
                             ),
@@ -374,7 +367,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         self.assertEqual(option.expiry_time, fields["expiry_time"])
         updated = option.replace_history(
             accumulated_quantity=3,
-            history_time=option.history_time or option.effective_time,
+            history_time=option.history_time or option.expiry_time,
         )
         self.assertEqual(updated.accumulated_quantity, 3)
         self.assertEqual(updated.replace_history(accumulated_quantity=None), option)
@@ -389,7 +382,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         self.assertEqual(
             updated.replace_history(
                 knock_out_settled=False,
-                history_time=updated.history_time or updated.effective_time,
+                history_time=updated.history_time or updated.expiry_time,
             ),
             contract(),
         )
@@ -501,7 +494,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         self.assertEqual(
             updated.replace_history(
                 accumulated_quantity=0.25,
-                history_time=updated.history_time or updated.effective_time,
+                history_time=updated.history_time or updated.expiry_time,
             ).accumulated_quantity,
             0.25,
         )

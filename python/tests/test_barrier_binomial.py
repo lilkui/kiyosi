@@ -355,7 +355,7 @@ class BarrierBinomialTests(unittest.TestCase):
                     self.assertIsNone(getattr(result, name))
                 touched = contract.replace_history(
                     touch_state="touched",
-                    history_time=contract.history_time or contract.effective_time,
+                    history_time=contract.expiry_time,
                 )
                 context = market(valuation=START + timedelta(days=2))
                 expected = pricing.AnalyticBarrierEngine().price(

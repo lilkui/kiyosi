@@ -145,7 +145,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         self.assertEqual(
             option.replace_history(
                 accumulated_quantity=0.25,
-                history_time=option.history_time or option.effective_time,
+                history_time=option.history_time or option.expiry_time,
             ).accumulated_quantity,
             0.25,
         )
@@ -257,7 +257,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             [],
         )
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110.1)
-        context = market(110.05)
+        context = market(110.05, valuation=START + timedelta(days=1, hours=12))
         quote = engine.price(dated_history(option, context), context)
         self.assert_rejection(
             InvalidInputError,
@@ -270,7 +270,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         self.assert_rejection(
             StaleHistoryError,
             partial(numerical_greeks, engine),
-            option,
+            dated_history(option, market(valuation=START + timedelta(microseconds=1))),
             context,
             "speed",
             spot_shift=0.2,

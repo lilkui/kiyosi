@@ -161,10 +161,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                 Error::MissingHistory(_)
             ));
             let known = option
-                .replace_history(
-                    Some(BarrierTouchState::Touched),
-                    Some(option.history_time().unwrap_or(option.effective_time())),
-                )
+                .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
                 .unwrap();
             assert!(matches!(
                 engine
@@ -223,10 +220,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
             Error::MissingHistory(_)
         ));
         let paid = option
-            .replace_history(
-                Some(BarrierTouchState::Touched),
-                Some(option.history_time().unwrap_or(option.effective_time())),
-            )
+            .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
             .unwrap();
         let quote = engine
             .price(
@@ -265,7 +259,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
             Error::MissingHistory(_)
         ));
         t.touch_state = Some(BarrierTouchState::Untouched);
-        t.history_time = Some(t.effective_time);
+        t.history_time = Some(t.expiry_time);
         let option = TouchOption::cash(t.clone(), 10.0).unwrap();
         let expected = if kind == BarrierType::UpAndIn {
             0.0
@@ -292,7 +286,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
         let price = engine.price(&dated(&option, &intraday), &intraday).unwrap();
         assert_eq!(price == 0.0, kind == BarrierType::UpAndIn);
         t.touch_state = Some(BarrierTouchState::Touched);
-        t.history_time = Some(t.effective_time);
+        t.history_time = Some(t.expiry_time);
         let touched = TouchOption::cash(t, 10.0).unwrap();
         assert!(matches!(
             engine
@@ -306,7 +300,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
         let mut b = terms(kind);
         b.observation_times = Some(vec![fixing]);
         b.touch_state = Some(BarrierTouchState::Untouched);
-        b.history_time = Some(b.effective_time);
+        b.history_time = Some(b.expiry_time);
         let binary = BinaryBarrierOption::cash(b, 10.0).unwrap();
         let value = engine
             .price(
@@ -827,7 +821,7 @@ fn settled_binaries_delegate_extreme_digital_prices_and_strict_strike_boundaries
                 t.barrier_level = 50.0;
                 t.observation_times = Some(vec![t.effective_time]);
                 t.touch_state = Some(history);
-                t.history_time = Some(t.effective_time);
+                t.history_time = Some(t.expiry_time);
                 for sigma in [1e155, 0.5] {
                     let mut t = t.clone();
                     if sigma == 0.5 {

@@ -601,7 +601,7 @@ class ApiConsistencyTests(unittest.TestCase):
             accumulated_quantity=3,
             effective_time=start,
             expiry_time=end,
-            history_time=start,
+            history_time=valuation,
         )
         note = ins.BinarySnowballOption(
             maturity_coupon_rate=0.1,
@@ -613,7 +613,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 [120, 120, 120],
                 knock_out_coupon_rates=[0] * 3,
             ),
-            history_time=start,
+            history_time=valuation,
         )
         for kind, contract, settled, active, current_value in (
             (
@@ -621,7 +621,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 accumulator,
                 accumulator.replace(
                     knock_out_settled=True,
-                    history_time=accumulator.history_time or accumulator.effective_time,
+                    history_time=accumulator.history_time or accumulator.expiry_time,
                 ),
                 accumulator.replace(
                     knock_out_level=150,
@@ -641,7 +641,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 note,
                 note.replace_history(
                     barrier_state="knocked_out",
-                    history_time=note.history_time or note.effective_time,
+                    history_time=note.expiry_time,
                 ),
                 note.replace(
                     barrier_state=note.barrier_state,
@@ -704,16 +704,21 @@ class ApiConsistencyTests(unittest.TestCase):
                 expiry_time=end,
                 knock_out_observation_times=times,
             )
-            settled = original.replace_history(
-                knock_out_settled=True,
-                history_time=original.history_time or original.effective_time,
-            )
             for valuation in (
                 start,
                 first_explicit,
                 first_explicit + timedelta(microseconds=1),
                 end,
             ):
+                if first is None or first >= valuation:
+                    with self.assertRaises(InvalidInputError):
+                        original.replace_history(
+                            knock_out_settled=True, history_time=valuation
+                        )
+                    continue
+                settled = original.replace_history(
+                    knock_out_settled=True, history_time=valuation
+                )
                 context = market.PricingContext(
                     model_parameters=model, spot_price=100, valuation_time=valuation
                 )
@@ -722,36 +727,14 @@ class ApiConsistencyTests(unittest.TestCase):
                     with self.subTest(
                         schedule=times, valuation=valuation, engine=family
                     ):
-                        if first is not None and first < valuation:
+                        self.assertEqual(engine.price(settled, context), 0)
+                        self.assertEqual(
+                            engine.price_with_greeks(settled, context, "delta").delta, 0
+                        )
+                        if family == "MonteCarlo":
                             self.assertEqual(
-                                engine.price(dated_history(settled, context), context),
-                                0,
+                                engine.price_with_statistics(settled, context).price, 0
                             )
-                            self.assertEqual(
-                                engine.price_with_greeks(
-                                    dated_history(settled, context), context, "delta"
-                                ).delta,
-                                0,
-                            )
-                            if family == "MonteCarlo":
-                                self.assertEqual(
-                                    engine.price_with_statistics(
-                                        dated_history(settled, context), context
-                                    ).price,
-                                    0,
-                                )
-                        else:
-                            with self.assertRaises(InvalidInputError):
-                                engine.price(dated_history(settled, context), context)
-                            with self.assertRaises(InvalidInputError):
-                                engine.price_with_greeks(
-                                    dated_history(settled, context), context, "delta"
-                                )
-                            if family == "MonteCarlo":
-                                with self.assertRaises(InvalidInputError):
-                                    engine.price_with_statistics(
-                                        dated_history(settled, context), context
-                                    )
             self.assertFalse(original.knock_out_settled)
             self.assertIsNone(original.accumulated_quantity)
             self.assertEqual(
@@ -947,7 +930,7 @@ class ApiConsistencyTests(unittest.TestCase):
             barrier_type="up_and_out",
             touch_state="touched",
             rebate_timing="at_hit",
-            history_time=start,
+            history_time=context.valuation_time,
         )
         for factory in (
             pricing.AnalyticBarrierEngine,
@@ -1452,14 +1435,14 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         settled = option.replace_history(
             knock_out_settled=True,
-            history_time=option.history_time or option.effective_time,
+            history_time=start + timedelta(days=1),
         )
         self.assertFalse(option.knock_out_settled)
         self.assertTrue(settled.replace(strike=95).knock_out_settled)
         self.assertTrue(
             settled.replace_history(
                 accumulated_quantity=3,
-                history_time=settled.history_time or settled.effective_time,
+                history_time=settled.history_time or settled.expiry_time,
             ).knock_out_settled
         )
         self.assertEqual(pickle.loads(pickle.dumps(settled)), settled)
@@ -1473,7 +1456,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 effective_time=start,
                 expiry_time=end,
                 knock_out_settled=True,
-                history_time=start,
+                history_time=start + timedelta(days=1),
             ).knock_out_settled
         )
         context = market.PricingContext(
@@ -1501,7 +1484,7 @@ class ApiConsistencyTests(unittest.TestCase):
                             settled.replace_history(
                                 accumulated_quantity=3,
                                 history_time=settled.history_time
-                                or settled.effective_time,
+                                or settled.expiry_time,
                             ),
                             context,
                         ),
@@ -1512,7 +1495,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 active = settled.replace_history(
                     knock_out_settled=False,
                     accumulated_quantity=0,
-                    history_time=settled.history_time or settled.effective_time,
+                    history_time=settled.history_time or settled.expiry_time,
                 )
                 self.assertGreater(
                     engine.price(dated_history(active, context), context), 0
@@ -1523,7 +1506,7 @@ class ApiConsistencyTests(unittest.TestCase):
                             settled.replace_history(
                                 knock_out_settled=False,
                                 history_time=settled.history_time
-                                or settled.effective_time,
+                                or settled.expiry_time,
                             ),
                             context,
                         ),

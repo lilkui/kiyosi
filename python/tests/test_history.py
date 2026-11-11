@@ -4,6 +4,7 @@ import math
 import pickle
 import unittest
 from datetime import UTC, datetime, time, timedelta
+from functools import partial
 
 from kiyosi import InvalidInputError, MissingHistoryError, StaleHistoryError
 from kiyosi import instruments as i
@@ -58,28 +59,22 @@ class HistoryTests(unittest.TestCase):
                 continue
             for scheduled in (False, True):
                 first = fields["effective_time"] + timedelta(days=int(scheduled))
-                option = factory(
-                    **dict(
-                        fields,
-                        touch_state="touched",
-                        history_time=first,
-                        observation_times=[first, fields["expiry_time"]]
-                        if scheduled
-                        else None,
-                    )
+                fields = dict(
+                    fields,
+                    touch_state="untouched",
+                    history_time=first,
+                    observation_times=[first, fields["expiry_time"]]
+                    if scheduled
+                    else None,
                 )
+                with self.assertRaises(InvalidInputError):
+                    factory(**dict(fields, touch_state="touched"))
+                option = factory(**fields)
                 selected = engine(option)
-                for at in (
-                    first,
-                    first + timedelta(microseconds=1),
-                    first + timedelta(days=1),
-                ):
-                    with self.subTest(
-                        contract=factory.__name__, scheduled=scheduled, valuation=at
-                    ):
-                        with self.assertRaises(InvalidInputError) as raised:
-                            selected.price(option, context(at))
-                        self.assertIs(type(raised.exception), InvalidInputError)
+                for method in (option.replace, option.replace_history):
+                    with self.assertRaises(InvalidInputError) as raised:
+                        method(touch_state="touched")
+                    self.assertIs(type(raised.exception), InvalidInputError)
                 valid = option.replace_history(
                     touch_state="touched",
                     history_time=first + timedelta(microseconds=1),
@@ -159,13 +154,15 @@ class HistoryTests(unittest.TestCase):
                 else:
                     with self.assertRaises(MissingHistoryError):
                         selected.price(note, snapshot)
-                knocked_in = note.replace_history(
-                    barrier_state="knocked_in", history_time=at
-                )
                 if at <= first:
                     with self.assertRaises(InvalidInputError):
-                        selected.price(knocked_in, snapshot)
+                        note.replace_history(
+                            barrier_state="knocked_in", history_time=at
+                        )
                 else:
+                    knocked_in = note.replace_history(
+                        barrier_state="knocked_in", history_time=at
+                    )
                     self.assertEqual(selected.price(knocked_in, snapshot), 1)
                 known = note.replace_history(barrier_state="no_event", history_time=at)
                 self.assertEqual(selected.price(known, snapshot), 1)
@@ -224,6 +221,59 @@ class HistoryTests(unittest.TestCase):
         )
         self.assertEqual(option.history_time, at)
         self.assertEqual(option.realized_average, 100)
+
+    def test_accrued_history_requires_observations_before_its_snapshot(self):
+        start = datetime(2025, 1, 6)
+        first = start.replace(hour=15)
+        common = {
+            "effective_time": start,
+            "expiry_time": start + timedelta(days=3),
+            "observation_clock_time": time(15),
+        }
+        for cls, fields, payload in (
+            (
+                i.Accumulator,
+                {
+                    "strike": 100,
+                    "knock_out_level": 120,
+                    "daily_quantity": 1,
+                    "acceleration_factor": 2,
+                },
+                "accumulated_quantity",
+            ),
+            (
+                i.RangeAccrualOption,
+                {
+                    "notional": 100,
+                    "annual_coupon_rate": 0.1,
+                    "lower_bound": 90,
+                    "upper_bound": 110,
+                },
+                "realized_hit_count",
+            ),
+        ):
+            original = cls(**common, **fields)
+            for at in (
+                first - timedelta(microseconds=1),
+                first,
+                first + timedelta(microseconds=1),
+            ):
+                changes = {payload: 1, "history_time": at}
+                for make in (
+                    partial(cls, **common, **fields, **changes),
+                    partial(original.replace, **changes),
+                    partial(original.replace_history, **changes),
+                ):
+                    with self.subTest(contract=cls.__name__, at=at):
+                        if at > first:
+                            result = make()
+                            self.assertEqual(getattr(result, payload), 1)
+                            self.assertEqual(result.history_time, at)
+                        else:
+                            with self.assertRaises(InvalidInputError):
+                                make()
+            self.assertIsNone(getattr(original, payload))
+            self.assertIsNone(original.history_time)
 
     def test_accumulator_history_refresh_requires_only_known_payloads(self):
         start = datetime(2025, 1, 6)
@@ -492,11 +542,11 @@ class HistoryTests(unittest.TestCase):
             expiry_time=end,
             observation_clock_time=time(15),
             knock_out_settled=True,
-            history_time=start,
+            history_time=AT,
         )
         selected = engine(option)
         with self.assertRaises(InvalidInputError):
-            selected.price(option, context())
+            option.replace_history(knock_out_settled=True, history_time=start)
         with self.assertRaises(InvalidInputError):
             selected.price(
                 option.replace_history(
@@ -527,11 +577,11 @@ class HistoryTests(unittest.TestCase):
                 )
             ],
             barrier_state="knocked_out",
-            history_time=start,
+            history_time=AT,
         )
         selected = engine(note)
         with self.assertRaises(InvalidInputError):
-            selected.price(note, context())
+            note.replace_history(barrier_state="knocked_out", history_time=start)
         self.assertEqual(
             selected.price(
                 note.replace_history(barrier_state=note.barrier_state, history_time=AT),

@@ -404,7 +404,7 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     let touched = unknown
         .replace_history(
             Some(BarrierTouchState::Touched),
-            Some(unknown.history_time().unwrap_or(unknown.effective_time())),
+            Some(unknown.expiry_time()),
         )
         .unwrap();
     assert_eq!(
@@ -527,7 +527,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
         t.observation_times = None;
         for history in [BarrierTouchState::Untouched, BarrierTouchState::Touched] {
             t.touch_state = Some(history);
-            t.history_time = Some(t.effective_time);
+            t.history_time = Some(t.expiry_time);
             for spot in [90.0, 100.0, 110.0] {
                 let option = BarrierOption::new(t.clone()).unwrap();
                 let context = market(t.expiry_time, spot, 0.04, 0.2);
@@ -564,7 +564,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     t.barrier_level = 60.0;
     t.expiry_time = Date::new(2026, 1, 1).unwrap().start_of_day();
     t.touch_state = Some(BarrierTouchState::Untouched);
-    t.history_time = Some(t.effective_time);
+    t.history_time = Some(t.expiry_time);
     let context = market(t.effective_time, 100.0, 0.04, 0.2);
     let option = BarrierOption::new(t.clone()).unwrap();
     let engine = CoxRossRubinsteinBarrierEngine::default();
@@ -626,7 +626,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
         (result.require(Greek::Rho).unwrap() - expected.require(Greek::Rho).unwrap()).abs() < 0.5
     );
     t.touch_state = Some(BarrierTouchState::Touched);
-    t.history_time = Some(t.effective_time);
+    t.history_time = Some(t.expiry_time);
     t.rebate = 7.0;
     let fixed = BarrierOption::new(t.clone()).unwrap();
     let later = market(

@@ -61,7 +61,8 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 ///     and replacement retains the current calendar.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; refresh payload and timestamp together.
+///     Required with history; payloads must be possible strictly before this
+///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -106,7 +107,8 @@ monitoring_properties!(
     ///     and replacement retains the current calendar.
     /// history_time : datetime.datetime or None, optional
     ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; refresh payload and timestamp together.
+    ///     Required with history; payloads must be possible strictly before this
+    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------

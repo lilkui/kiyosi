@@ -212,14 +212,14 @@ class AutocallablePresetTests(unittest.TestCase):
             self.assertEqual(
                 note.replace_history(
                     barrier_state="no_event",
-                    history_time=note.history_time or note.effective_time,
+                    history_time=note.history_time or note.expiry_time,
                 ).coupon_per_period,
                 0.01,
             )
             self.assertEqual(
                 note.replace_history(
                     barrier_state="no_event",
-                    history_time=note.history_time or note.effective_time,
+                    history_time=note.history_time or note.expiry_time,
                 ).replace_history(barrier_state=None),
                 note,
             )
@@ -379,8 +379,7 @@ class AutocallablePresetTests(unittest.TestCase):
                             dated_history(
                                 note.replace_history(
                                     barrier_state="knocked_out",
-                                    history_time=note.history_time
-                                    or note.effective_time,
+                                    history_time=note.expiry_time,
                                 ),
                                 after,
                             ),

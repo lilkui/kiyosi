@@ -9,7 +9,7 @@ fn day(date: u32) -> Timestamp {
 
 fn terms(direction: OptionType, dates: Option<Vec<Timestamp>>) -> AccumulatorTerms {
     AccumulatorTerms {
-        history_time: Some(day(1)),
+        history_time: Some(day(2)),
         knock_out_settled: Some(false),
         option_type: direction,
         accumulated_quantity: Some(3.0),
@@ -186,7 +186,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
         t.daily_quantity = 0.25;
         t.acceleration_factor = 0.5;
         t.accumulated_quantity = Some(0.5);
-        t.history_time = Some(t.effective_time);
+        t.history_time = Some(t.expiry_time);
         let option = Accumulator::new(t).unwrap();
         let spot = if direction == OptionType::Call {
             90.0
@@ -325,7 +325,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
         (OptionType::Put, 89.95, 90.0, 0.06, 0.04, -1.0),
     ] {
         let option = Accumulator::new(AccumulatorTerms {
-            history_time: Some(day(1)),
+            history_time: Some(day(2)),
             knock_out_settled: Some(false),
             option_type: direction,
             accumulated_quantity: Some(3.0),
@@ -417,7 +417,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             Some(vec![day(2), day(3)]),
         ] {
             let option = Accumulator::new(AccumulatorTerms {
-                history_time: Some(day(1)),
+                history_time: Some(day(2)),
                 knock_out_settled: Some(false),
                 option_type: direction,
                 knock_out_observation_times: dates,
@@ -474,7 +474,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             );
         }
         let option = Accumulator::new(AccumulatorTerms {
-            history_time: Some(day(1)),
+            history_time: Some(day(2)),
             knock_out_settled: Some(false),
             option_type: direction,
             knock_out_observation_times: Some(vec![day(3)]),
@@ -556,7 +556,7 @@ fn zero_multiplier_with_inverted_barrier_still_accrues_on_non_knock_out_dates() 
         t.knock_out_level = barrier;
         t.acceleration_factor = 0.0;
         t.accumulated_quantity = Some(0.0);
-        t.history_time = Some(t.effective_time);
+        t.history_time = Some(t.expiry_time);
         let option = Accumulator::new(t).unwrap();
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, 0.0, 1e-8).unwrap(),

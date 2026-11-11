@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from kiyosi import InvalidInputError
+
 
 def dated(instrument, context):
     if (
@@ -27,7 +29,17 @@ def dated(instrument, context):
             )
             if hasattr(instrument, name)
         }
-        return instrument.replace(**payloads, history_time=context.valuation_time)
+        try:
+            return instrument.replace(**payloads, history_time=context.valuation_time)
+        except InvalidInputError as error:
+            if (
+                type(error) is not InvalidInputError
+                or instrument.history_time is None
+                or instrument.history_time <= context.valuation_time
+            ):
+                raise
+            # Keep the valid snapshot when valuation cannot contain its history.
+            return instrument
     return instrument
 
 
@@ -47,6 +59,12 @@ def history_fields(**fields):
         fields["history_time"] = (
             fields["averaging_start_time"] + timedelta(microseconds=1)
             if fields.get("realized_average") is not None
+            else fields["expiry_time"]
+            if fields.get("touch_state") == "touched"
+            or fields.get("barrier_state") in ("knocked_in", "knocked_out")
+            or fields.get("knock_out_settled") is True
+            or (fields.get("realized_hit_count") or 0) > 0
+            or (fields.get("accumulated_quantity") or 0) > 0
             else fields["effective_time"]
         )
     return fields
