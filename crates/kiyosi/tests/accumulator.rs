@@ -69,7 +69,16 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
         assert!(
             engine
                 .price(
-                    &dated(&option.replace_history(None, None)?, &initial),
+                    &dated(
+                        &option.replace_history(
+                            AccumulatorHistoryChanges {
+                                accumulated_quantity: Some(None),
+                                ..Default::default()
+                            },
+                            None
+                        )?,
+                        &initial
+                    ),
                     &initial
                 )
                 .is_ok()
@@ -201,7 +210,10 @@ fn history_replacement_owns_validated_values_and_preserves_terms() {
     assert_eq!(option.accumulated_quantity().unwrap(), 0.0);
     let seasoned = option
         .replace_history(
-            3.0,
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(3.0)),
+                ..Default::default()
+            },
             Some(option.history_time().unwrap_or(option.effective_time())),
         )
         .unwrap();
@@ -209,7 +221,10 @@ fn history_replacement_owns_validated_values_and_preserves_terms() {
     assert_eq!(
         seasoned
             .replace_history(
-                0.0,
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(0.0)),
+                    ..Default::default()
+                },
                 Some(seasoned.history_time().unwrap_or(seasoned.effective_time()))
             )
             .unwrap(),
@@ -219,7 +234,10 @@ fn history_replacement_owns_validated_values_and_preserves_terms() {
         assert!(matches!(
             seasoned
                 .replace_history(
-                    invalid,
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(Some(invalid)),
+                        ..Default::default()
+                    },
                     Some(seasoned.history_time().unwrap_or(seasoned.effective_time()))
                 )
                 .unwrap_err(),
@@ -281,7 +299,13 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
 fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(1, 6))).expiry_time))
+        .replace_history(
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(3.0)),
+                ..Default::default()
+            },
+            Some((terms(day(1, 6))).expiry_time),
+        )
         .unwrap();
     let engine = QuadratureAccumulatorEngine::default();
     for (spot, quantity) in [
@@ -315,7 +339,10 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
         let context = market(spot, day(1, 3), 0.2, 0.04, 0.01);
         let updated = option
             .replace_history(
-                if spot < 100.0 { 5.0 } else { 4.0 },
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(if spot < 100.0 { 5.0 } else { 4.0 })),
+                    ..Default::default()
+                },
                 Some(option.history_time().unwrap_or(option.effective_time())),
             )
             .unwrap();
@@ -353,7 +380,10 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     }
     let huge = option
         .replace_history(
-            f64::MAX,
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(f64::MAX)),
+                ..Default::default()
+            },
             Some(option.history_time().unwrap_or(option.effective_time())),
         )
         .unwrap();
@@ -434,7 +464,10 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
                         &dated(
                             &option
                                 .replace_history(
-                                    quantity,
+                                    AccumulatorHistoryChanges {
+                                        accumulated_quantity: Some(Some(quantity)),
+                                        ..Default::default()
+                                    },
                                     Some(option.history_time().unwrap_or(option.effective_time())),
                                 )
                                 .unwrap(),
@@ -483,7 +516,10 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
                 &dated(
                     &option
                         .replace_history(
-                            q,
+                            AccumulatorHistoryChanges {
+                                accumulated_quantity: Some(Some(q)),
+                                ..Default::default()
+                            },
                             Some(option.history_time().unwrap_or(option.effective_time())),
                         )
                         .unwrap(),
@@ -510,7 +546,10 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
                 &dated(
                     &inactive
                         .replace_history(
-                            3.0,
+                            AccumulatorHistoryChanges {
+                                accumulated_quantity: Some(Some(3.0)),
+                                ..Default::default()
+                            },
                             Some(inactive.history_time().unwrap_or(inactive.effective_time()))
                         )
                         .unwrap(),
@@ -529,7 +568,10 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
                     &dated(
                         &option
                             .replace_history(
-                                3.0,
+                                AccumulatorHistoryChanges {
+                                    accumulated_quantity: Some(Some(3.0)),
+                                    ..Default::default()
+                                },
                                 Some(option.history_time().unwrap_or(option.effective_time()))
                             )
                             .unwrap(),
@@ -671,7 +713,13 @@ impl PricingEngine<Accumulator> for Scalar {
 fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(1, 6))).expiry_time))
+        .replace_history(
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(3.0)),
+                ..Default::default()
+            },
+            Some((terms(day(1, 6))).expiry_time),
+        )
         .unwrap();
     let context = market(
         101.5,
@@ -712,7 +760,13 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     }
     let option = Accumulator::new(terms(day(1, 20)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(1, 20))).expiry_time))
+        .replace_history(
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(3.0)),
+                ..Default::default()
+            },
+            Some((terms(day(1, 20))).expiry_time),
+        )
         .unwrap();
     let engine = QuadratureAccumulatorEngine::new(QuadratureSettings {
         asset_step_count: 128,
@@ -752,7 +806,13 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
     let engine = QuadratureAccumulatorEngine::default();
     let option = Accumulator::new(terms(day(2, 3)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(2, 3))).expiry_time))
+        .replace_history(
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(3.0)),
+                ..Default::default()
+            },
+            Some((terms(day(2, 3))).expiry_time),
+        )
         .unwrap();
     let boundary = market(100.0, day(1, 2), 0.2, 0.04, 0.01);
     let result = engine
@@ -774,7 +834,13 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
     assert!(result.has(Greek::Rho));
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace_history(3.0, Some((terms(day(1, 6))).expiry_time))
+        .replace_history(
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(3.0)),
+                ..Default::default()
+            },
+            Some((terms(day(1, 6))).expiry_time),
+        )
         .unwrap();
     let context = market(
         100.0,
@@ -811,7 +877,13 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
                 ..terms(day(1, 6))
             })
             .unwrap()
-            .replace_history(3.0, Some((terms(day(1, 6))).expiry_time))
+            .replace_history(
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(3.0)),
+                    ..Default::default()
+                },
+                Some((terms(day(1, 6))).expiry_time),
+            )
             .unwrap(),
             market(90.0, day(1, 3), 0.2, 0.0, 0.0),
         ),
@@ -971,7 +1043,13 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
         assert!(engine.price(&dated(&option, &current), &current).is_ok());
         for valuation in [start, first] {
             assert!(matches!(
-                option.replace_history(3.0, Some(valuation)),
+                option.replace_history(
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(Some(3.0)),
+                        ..Default::default()
+                    },
+                    Some(valuation)
+                ),
                 Err(Error::InvalidInput(_))
             ));
         }
@@ -991,7 +1069,10 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
                     &dated(
                         &option
                             .replace_history(
-                                0.0,
+                                AccumulatorHistoryChanges {
+                                    accumulated_quantity: Some(Some(0.0)),
+                                    ..Default::default()
+                                },
                                 Some(option.history_time().unwrap_or(option.effective_time()))
                             )
                             .unwrap(),
@@ -1012,7 +1093,10 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
                     &dated(
                         &option
                             .replace_history(
-                                0.0,
+                                AccumulatorHistoryChanges {
+                                    accumulated_quantity: Some(Some(0.0)),
+                                    ..Default::default()
+                                },
                                 Some(option.history_time().unwrap_or(option.effective_time()))
                             )
                             .unwrap(),
@@ -1029,7 +1113,10 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
                     &dated(
                         &option
                             .replace_history(
-                                10.0,
+                                AccumulatorHistoryChanges {
+                                    accumulated_quantity: Some(Some(10.0)),
+                                    ..Default::default()
+                                },
                                 Some(option.history_time().unwrap_or(option.effective_time()))
                             )
                             .unwrap(),
@@ -1043,11 +1130,20 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
         assert_eq!(
             option
                 .replace_history(
-                    10.0,
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(Some(10.0)),
+                        ..Default::default()
+                    },
                     Some(option.history_time().unwrap_or(option.effective_time()))
                 )
                 .unwrap()
-                .replace_history(None, option.history_time())
+                .replace_history(
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(None),
+                        ..Default::default()
+                    },
+                    option.history_time()
+                )
                 .unwrap(),
             option
         );

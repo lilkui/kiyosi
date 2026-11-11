@@ -662,7 +662,13 @@ fn accrued_history_requires_observations_before_its_snapshot() -> Result<()> {
         terms.accumulated_quantity = Some(1.0);
         terms.history_time = Some(at);
         let constructed = Accumulator::new(terms);
-        let replaced = Accumulator::new(accumulator.clone())?.replace_history(1.0, Some(at));
+        let replaced = Accumulator::new(accumulator.clone())?.replace_history(
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(1.0)),
+                ..Default::default()
+            },
+            Some(at),
+        );
         let mut terms = range.clone();
         terms.realized_hit_count = Some(1);
         terms.history_time = Some(at);
@@ -702,7 +708,13 @@ fn accumulator_history_refresh_requires_only_known_payloads() -> Result<()> {
     terms.accumulated_quantity = Some(1.0);
     terms.history_time = Some(at);
     let original = Accumulator::new(terms)?;
-    let refreshed = original.replace_history(2.0, Some(later))?;
+    let refreshed = original.replace_history(
+        AccumulatorHistoryChanges {
+            accumulated_quantity: Some(Some(2.0)),
+            ..Default::default()
+        },
+        Some(later),
+    )?;
     assert_eq!(refreshed.accumulated_quantity(), Some(2.0));
     assert_eq!(refreshed.knock_out_settled(), None);
     assert_eq!(refreshed.history_time(), Some(later));
@@ -726,7 +738,10 @@ fn accumulator_history_refresh_requires_only_known_payloads() -> Result<()> {
         ..Default::default()
     })?;
     for changes in [
-        AccumulatorHistoryChanges::from(2.0),
+        AccumulatorHistoryChanges {
+            accumulated_quantity: Some(Some(2.0)),
+            ..Default::default()
+        },
         AccumulatorHistoryChanges {
             knock_out_settled: Some(Some(false)),
             ..Default::default()

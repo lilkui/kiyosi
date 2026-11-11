@@ -473,7 +473,10 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     assert_eq!(
         daily
             .replace_history(
-                0.0,
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(0.0)),
+                    ..Default::default()
+                },
                 Some(daily.history_time().unwrap_or(daily.effective_time()))
             )?
             .calendar(),
@@ -1071,7 +1074,10 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
     assert_eq!(
         settled
             .replace_history(
-                3.0,
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(3.0)),
+                    ..Default::default()
+                },
                 Some(settled.history_time().unwrap_or(settled.effective_time()))
             )?
             .knock_out_settled(),
@@ -1102,7 +1108,10 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
             engine.price(
                 &dated(
                     &settled.replace_history(
-                        3.0,
+                        AccumulatorHistoryChanges {
+                            accumulated_quantity: Some(Some(3.0)),
+                            ..Default::default()
+                        },
                         Some(settled.history_time().unwrap_or(settled.effective_time()))
                     )?,
                     &context
@@ -2608,7 +2617,10 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
     assert_eq!(
         settled
             .replace_history(
-                4.0,
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(4.0)),
+                    ..Default::default()
+                },
                 Some(settled.history_time().unwrap_or(settled.effective_time()))
             )?
             .knock_out_settled(),
@@ -2626,7 +2638,13 @@ fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<(
             .accumulated_quantity(),
         Some(3.0)
     );
-    let cleared = settled.replace_history(None, settled.history_time())?;
+    let cleared = settled.replace_history(
+        AccumulatorHistoryChanges {
+            accumulated_quantity: Some(None),
+            ..Default::default()
+        },
+        settled.history_time(),
+    )?;
     assert_eq!(cleared.accumulated_quantity(), None);
     assert_eq!(cleared.knock_out_settled(), Some(true));
     assert_eq!(

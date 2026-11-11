@@ -108,7 +108,10 @@ fn trading_midnight_is_observed_once_and_intraday_uses_caller_history() {
         let expected = terminal_reference(
             &option
                 .replace_history(
-                    quantity,
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(Some(quantity)),
+                        ..Default::default()
+                    },
                     Some(option.history_time().unwrap_or(option.effective_time())),
                 )
                 .unwrap(),
@@ -197,7 +200,10 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
         assert!(matches!(
             option
                 .replace_history(
-                    value,
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(Some(value)),
+                        ..Default::default()
+                    },
                     Some(option.history_time().unwrap_or(option.effective_time()))
                 )
                 .unwrap_err(),
@@ -208,7 +214,10 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
     assert_eq!(
         option
             .replace_history(
-                0.25,
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(0.25)),
+                    ..Default::default()
+                },
                 Some(option.history_time().unwrap_or(option.effective_time()))
             )
             .unwrap()
@@ -297,7 +306,10 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
                 &dated(
                     &option
                         .replace_history(
-                            f64::MAX,
+                            AccumulatorHistoryChanges {
+                                accumulated_quantity: Some(Some(f64::MAX)),
+                                ..Default::default()
+                            },
                             Some(option.history_time().unwrap_or(option.effective_time()))
                         )
                         .unwrap(),
@@ -353,7 +365,10 @@ fn daily_layers_converge_to_quadrature_and_quantity_is_affine() {
                 &dated(
                     &option
                         .replace_history(
-                            q,
+                            AccumulatorHistoryChanges {
+                                accumulated_quantity: Some(Some(q)),
+                                ..Default::default()
+                            },
                             Some(option.history_time().unwrap_or(option.effective_time())),
                         )
                         .unwrap(),

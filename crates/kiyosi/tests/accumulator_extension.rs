@@ -455,7 +455,10 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             .unwrap();
             let holding = option
                 .replace_history(
-                    3.0,
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(Some(3.0)),
+                        ..Default::default()
+                    },
                     Some(option.history_time().unwrap_or(option.effective_time())),
                 )
                 .unwrap();
@@ -611,7 +614,10 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     dates.clear();
     let updated = option
         .replace_history(
-            0.25,
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(0.25)),
+                ..Default::default()
+            },
             Some(option.history_time().unwrap_or(option.effective_time())),
         )
         .unwrap();
@@ -625,7 +631,10 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
             updated.replace_history(
-                invalid,
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(invalid)),
+                    ..Default::default()
+                },
                 Some(updated.history_time().unwrap_or(updated.effective_time()))
             ),
             Err(Error::InvalidInput(_))
@@ -683,7 +692,10 @@ fn midnight_purchases_use_strict_strike_comparisons_and_intraday_history_once() 
         );
         let history = option
             .replace_history(
-                quantity,
+                AccumulatorHistoryChanges {
+                    accumulated_quantity: Some(Some(quantity)),
+                    ..Default::default()
+                },
                 Some(option.history_time().unwrap_or(option.effective_time())),
             )
             .unwrap();

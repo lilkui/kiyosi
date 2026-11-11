@@ -76,29 +76,13 @@ impl AccumulatorTerms {
 
 /// Selects accumulator history replacements; absent fields retain their values.
 ///
-/// See [`Accumulator::replace_history`] for an example. A quantity alone can be
-/// passed as `f64` or `Option<f64>`; it preserves knock-out settlement state.
+/// See [`Accumulator::replace_history`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AccumulatorHistoryChanges {
     /// Replaces outstanding quantity; `Some(None)` restores unknown history.
     pub accumulated_quantity: Option<Option<f64>>,
     /// Replaces prior knock-out history; `Some(None)` restores unknown history.
     pub knock_out_settled: Option<Option<bool>>,
-}
-
-impl From<f64> for AccumulatorHistoryChanges {
-    fn from(quantity: f64) -> Self {
-        Self::from(Some(quantity))
-    }
-}
-
-impl From<Option<f64>> for AccumulatorHistoryChanges {
-    fn from(quantity: Option<f64>) -> Self {
-        Self {
-            accumulated_quantity: Some(quantity),
-            knock_out_settled: None,
-        }
-    }
 }
 
 /// Owns daily accumulations settled together at knock-out or expiry.
@@ -237,9 +221,9 @@ impl Accumulator {
     }
     /// Returns a validated replacement of quantity, knock-out settlement or both history fields.
     ///
-    /// Omitted fields retain their values. A quantity alone (`f64` or `Option<f64>`)
-    /// replaces only quantity; `None` restores unknown quantity. Time consistency
-    /// is checked at pricing. The original is unchanged on success and failure.
+    /// Omitted fields retain their values; `Some(None)` clears the named history
+    /// field. Time consistency is checked at pricing. The original is unchanged
+    /// on success and failure.
     /// Replaces the snapshot timestamp together with every known history field.
     /// Unknown fields may remain omitted when the timestamp changes.
     /// Pass the current timestamp explicitly to retain it.
@@ -247,7 +231,9 @@ impl Accumulator {
     /// # Errors
     ///
     /// Reuses [`Self::new`] numeric and contract validation and rejects timestamps
-    /// outside the contract life.
+    /// outside the contract life. Returns [`Error::MissingHistory`] if known history
+    /// has no timestamp, or [`Error::StaleHistory`] when a timestamp change omits a
+    /// known history field.
     ///
     /// # Examples
     ///
@@ -262,7 +248,14 @@ impl Accumulator {
     /// }, Some(start.add_days(1)?))?;
     /// assert_eq!(settled.knock_out_settled(), Some(true));
     /// assert_eq!(option.knock_out_settled(), None);
-    /// assert_eq!(settled.replace_history(3.0, Some(start.add_days(1)?))?.knock_out_settled(), Some(true));
+    /// let updated = settled.replace_history(AccumulatorHistoryChanges {
+    ///     accumulated_quantity: Some(Some(3.0)), ..Default::default()
+    /// }, Some(start.add_days(1)?))?;
+    /// assert_eq!(updated.knock_out_settled(), Some(true));
+    /// let cleared = updated.replace_history(AccumulatorHistoryChanges {
+    ///     accumulated_quantity: Some(None), knock_out_settled: Some(None),
+    /// }, None)?;
+    /// assert_eq!(cleared, option);
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
     ///     100.0, start.add_days(1)?)?;
     /// assert_eq!(QuadratureAccumulatorEngine::default().price(&settled, &context)?, 0.0);
@@ -271,10 +264,9 @@ impl Accumulator {
     ///
     pub fn replace_history(
         &self,
-        changes: impl Into<AccumulatorHistoryChanges>,
+        changes: AccumulatorHistoryChanges,
         history_time: Option<Timestamp>,
     ) -> Result<Self> {
-        let changes = changes.into();
         self.replace(AccumulatorChanges {
             accumulated_quantity: changes.accumulated_quantity,
             knock_out_settled: changes.knock_out_settled,

@@ -82,7 +82,10 @@ fn scalar_price_survives_confidence_interval_overflow() {
         * quantity;
     let scaled = option
         .replace_history(
-            quantity,
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(quantity)),
+                ..Default::default()
+            },
             Some(option.history_time().unwrap_or(option.effective_time())),
         )
         .unwrap();
@@ -352,7 +355,10 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
     }
     let empty = option
         .replace_history(
-            0.0,
+            AccumulatorHistoryChanges {
+                accumulated_quantity: Some(Some(0.0)),
+                ..Default::default()
+            },
             Some(option.history_time().unwrap_or(option.effective_time())),
         )
         .unwrap();
@@ -441,7 +447,10 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
         (
             option
                 .replace_history(
-                    f64::MAX,
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(Some(f64::MAX)),
+                        ..Default::default()
+                    },
                     Some(option.history_time().unwrap_or(option.effective_time())),
                 )
                 .unwrap(),
@@ -604,7 +613,10 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         (
             fixed
                 .replace_history(
-                    0.0,
+                    AccumulatorHistoryChanges {
+                        accumulated_quantity: Some(Some(0.0)),
+                        ..Default::default()
+                    },
                     Some(fixed.history_time().unwrap_or(fixed.effective_time())),
                 )
                 .unwrap(),
