@@ -28,6 +28,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
     def test_scalar_price_survives_confidence_interval_overflow(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             principal_redemption_ratio=0,
             effective_time=start,
@@ -66,6 +67,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         cases = [
             (
                 BinarySnowballOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         maturity_coupon_rate=0.05,
                         **terms,
@@ -74,7 +76,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             knock_out_levels,
                             knock_out_coupon_rates=[0.08] * 3,
                         ),
-                    )
+                    ),
                 ),
                 pricing.MonteCarloAutocallableEngine,
             ),
@@ -85,6 +87,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 [
                     (
                         SnowballOption(
+                            calendar=weekdays_calendar(),
                             **history_fields(
                                 observation_clock_time=clock_time()
                                 if mode == "every_trading_day"
@@ -99,12 +102,13 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                                     knock_out_levels,
                                     knock_out_coupon_rates=[0.08] * 3,
                                 ),
-                            )
+                            ),
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         PhoenixOption(
+                            calendar=weekdays_calendar(),
                             **history_fields(
                                 observation_clock_time=clock_time()
                                 if mode == "every_trading_day"
@@ -119,12 +123,13 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                                     knock_out_levels,
                                     coupon_barrier_levels=[100, 99, 98],
                                 ),
-                            )
+                            ),
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         TernarySnowballOption(
+                            calendar=weekdays_calendar(),
                             **history_fields(
                                 observation_clock_time=clock_time()
                                 if mode == "every_trading_day"
@@ -137,7 +142,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                                     knock_out_levels,
                                     knock_out_coupon_rates=[0.08] * 3,
                                 ),
-                            )
+                            ),
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
@@ -202,6 +207,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
 
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = SnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=clock_time(),
             maturity_coupon_rate=0,
             initial_spot=100,
@@ -263,6 +269,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             for state in ("no_event", "knocked_in"):
                 with self.subTest(engine=type(engine).__name__, state=state):
                     note = SnowballOption(
+                        calendar=weekdays_calendar(),
                         observation_clock_time=clock_time(),
                         maturity_coupon_rate=0.06,
                         initial_spot=100,
@@ -291,6 +298,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
     def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=1e308,
             principal_redemption_ratio=1e308,
             effective_time=start,
@@ -337,6 +345,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             }
             for mode in ("at_expiry", "every_trading_day"):
                 snowball = SnowballOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=clock_time()
                         if mode == "every_trading_day"
@@ -347,11 +356,13 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         upper_strike=100,
                         lower_strike=60,
                         knock_in_observation_mode=mode,
-                    )
+                    ),
                 )
                 for note, engine in (
                     (
-                        BinarySnowballOption(**history_fields(**terms)),
+                        BinarySnowballOption(
+                            calendar=weekdays_calendar(), **history_fields(**terms)
+                        ),
                         pricing.MonteCarloAutocallableEngine(path_count=2000, seed=42),
                     ),
                     (
@@ -426,7 +437,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     maturity_coupon_rate=5,
                     barrier_state="no_event",
                     observations=observations,
-                )
+                ),
             ),
             SnowballOption(
                 **history_fields(
@@ -438,7 +449,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     knock_in_observation_mode="every_trading_day",
                     barrier_state="knocked_in",
                     observations=observations,
-                )
+                ),
             ),
             TernarySnowballOption(
                 **history_fields(
@@ -450,7 +461,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     knock_in_observation_mode="every_trading_day",
                     barrier_state="knocked_in",
                     observations=observations,
-                )
+                ),
             ),
         )
         for note in notes:
@@ -468,7 +479,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     observations=autocallable_observations(
                         [FIRST, END], [100, 100], coupon_barrier_levels=[barrier, 0]
                     ),
-                )
+                ),
             )
             self.check_autocallable(note, cashflow_market(100, FIRST), expected)
 
@@ -493,7 +504,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 observations=autocallable_observations(
                     [END], [110], knock_out_coupon_rates=[100]
                 ),
-            )
+            ),
         )
         phoenix = PhoenixOption(
             **history_fields(
@@ -503,7 +514,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 observations=autocallable_observations(
                     [FIRST, END], [110, 110], coupon_barrier_levels=[90, 90]
                 ),
-            )
+            ),
         )
         for spot, expected in ((50, 0.85), (90, 1.15), (105, 1.25)):
             self.check_autocallable(snowball, cashflow_market(spot, END), expected)

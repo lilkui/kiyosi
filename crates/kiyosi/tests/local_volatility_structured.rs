@@ -165,6 +165,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
                 end,
                 observations.clone(),
                 Some((end).time_of_day()),
+                TradingCalendar::weekdays(),
             );
             snow.knock_in_observation_mode = mode;
             snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -179,6 +180,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
                 end,
                 observations.clone(),
                 Some((end).time_of_day()),
+                TradingCalendar::weekdays(),
             );
             ternary.knock_in_observation_mode = mode;
             ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -201,6 +203,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
                 )
                 .unwrap(),
                 Some((end).time_of_day()),
+                TradingCalendar::weekdays(),
             );
             phoenix.knock_in_observation_mode = mode;
             phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -221,6 +224,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
                     start,
                     end,
                     observations.clone(),
+                    TradingCalendar::weekdays(),
                 ))
                 .unwrap(),
                 &local,
@@ -273,6 +277,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         start,
         end,
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], Some(&[0.08; 2]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::default();
@@ -309,6 +314,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         start,
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.0]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let risk = RateTermStructure::new(start, vec![end], vec![0.99]).unwrap();
@@ -340,6 +346,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         end,
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], None, Some(&[90.0; 2])).unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
@@ -446,6 +453,7 @@ fn early_surface_knots_survive_autocallable_time_refinement() {
         start,
         end,
         autocallable_observations(&[end], &[100.0], Some(&[coupon]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let digital =
@@ -551,6 +559,7 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
         )
         .unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms.history_time = Some(terms.effective_time);
@@ -608,6 +617,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         start,
         end,
         observations.clone(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     assert!(
@@ -638,6 +648,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
             end,
             observations.clone(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         snow.knock_in_observation_mode = mode;
         snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -652,6 +663,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
             end,
             observations.clone(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         ternary.knock_in_observation_mode = mode;
         ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -674,6 +686,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
             )
             .unwrap(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         phoenix.knock_in_observation_mode = mode;
         phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)

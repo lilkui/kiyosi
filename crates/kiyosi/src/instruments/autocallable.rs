@@ -244,9 +244,9 @@ impl AutocallableObservation {
 /// unconditional Phoenix coupons require explicit zero values.
 ///
 /// Records carry no calendar. When passing [`crate::ObservationSchedule::times`],
-/// also copy [`crate::ObservationSchedule::calendar`] into the note's terms,
-/// such as [`SnowballTerms::calendar`], to preserve its observation calendar.
-/// Note terms default to weekdays, including for daily knock-in monitoring.
+/// also pass [`crate::ObservationSchedule::calendar`] to the note's terms
+/// constructor, such as [`SnowballTerms::new`], to preserve its observation calendar.
+/// Note terms require an explicit calendar, including for daily knock-in monitoring.
 ///
 /// # Errors
 ///
@@ -309,7 +309,7 @@ pub struct SnowballTerms {
     ///
     /// See the [crate-level history example](crate).
     pub history_time: Option<Timestamp>,
-    /// Owns the contractual observation calendar; defaults to weekdays.
+    /// Owns the explicitly supplied contractual observation calendar.
     pub calendar: TradingCalendar,
     /// Sets the finite annual maturity coupon rate when no knock-in occurs.
     pub maturity_coupon_rate: f64,
@@ -339,6 +339,7 @@ pub struct SnowballTerms {
 impl SnowballTerms {
     /// Creates input terms with daily monitoring, unknown history and unit principal.
     ///
+    /// The explicit calendar controls contractual observations.
     /// Validation occurs in [`SnowballOption::new`]; see its example.
     #[expect(
         clippy::too_many_arguments,
@@ -354,10 +355,11 @@ impl SnowballTerms {
         expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
         observation_clock_time: Option<TimeOfDay>,
+        calendar: TradingCalendar,
     ) -> Self {
         Self {
             history_time: None,
-            calendar: TradingCalendar::default(),
+            calendar,
             maturity_coupon_rate,
             initial_spot,
             knock_in_level,
@@ -386,7 +388,7 @@ pub struct PhoenixTerms {
     ///
     /// See the [crate-level history example](crate).
     pub history_time: Option<Timestamp>,
-    /// Owns the contractual observation calendar; defaults to weekdays.
+    /// Owns the explicitly supplied contractual observation calendar.
     pub calendar: TradingCalendar,
     /// Sets the finite signed coupon per qualifying observation, without time accrual.
     pub coupon_per_period: f64,
@@ -416,6 +418,7 @@ pub struct PhoenixTerms {
 impl PhoenixTerms {
     /// Creates periodic coupon terms with daily monitoring, unknown history and unit principal.
     ///
+    /// The explicit calendar controls contractual observations.
     /// Validation occurs in [`PhoenixOption::new`]; see its example.
     #[expect(
         clippy::too_many_arguments,
@@ -431,11 +434,12 @@ impl PhoenixTerms {
         expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
         observation_clock_time: Option<TimeOfDay>,
+        calendar: TradingCalendar,
     ) -> Self {
         Self {
             lockout_periods: DEFAULT_PHOENIX_LOCKOUT_PERIODS,
             history_time: None,
-            calendar: TradingCalendar::default(),
+            calendar,
             coupon_per_period,
             initial_spot,
             knock_in_level,
@@ -466,7 +470,7 @@ pub struct BinarySnowballTerms {
     ///
     /// See the [crate-level history example](crate).
     pub history_time: Option<Timestamp>,
-    /// Owns the contractual observation calendar; defaults to weekdays.
+    /// Owns the explicitly supplied contractual observation calendar.
     pub calendar: TradingCalendar,
     /// Sets the finite annual coupon rate used at maturity if no knock-out occurs.
     pub maturity_coupon_rate: f64,
@@ -484,16 +488,18 @@ pub struct BinarySnowballTerms {
 impl BinarySnowballTerms {
     /// Creates input terms with unknown history and unit principal.
     ///
+    /// The explicit calendar controls contractual observations.
     /// Validation occurs in [`BinarySnowballOption::new`]; see its example.
     pub fn new(
         maturity_coupon_rate: f64,
         effective_time: Timestamp,
         expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
+        calendar: TradingCalendar,
     ) -> Self {
         Self {
             history_time: None,
-            calendar: TradingCalendar::default(),
+            calendar,
             maturity_coupon_rate,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
@@ -517,7 +523,7 @@ pub struct TernarySnowballTerms {
     ///
     /// See the [crate-level history example](crate).
     pub history_time: Option<Timestamp>,
-    /// Owns the contractual observation calendar; defaults to weekdays.
+    /// Owns the explicitly supplied contractual observation calendar.
     pub calendar: TradingCalendar,
     /// Sets the finite annual coupon rate used at maturity if no knock-out occurs.
     pub maturity_coupon_rate: f64,
@@ -543,7 +549,12 @@ pub struct TernarySnowballTerms {
 impl TernarySnowballTerms {
     /// Creates input terms with daily monitoring, unknown history and unit principal.
     ///
+    /// The explicit calendar controls contractual observations.
     /// Validation occurs in [`TernarySnowballOption::new`]; see its example.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit contractual input terms"
+    )]
     pub fn new(
         maturity_coupon_rate: f64,
         minimum_coupon_rate: f64,
@@ -552,10 +563,11 @@ impl TernarySnowballTerms {
         expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
         observation_clock_time: Option<TimeOfDay>,
+        calendar: TradingCalendar,
     ) -> Self {
         Self {
             history_time: None,
-            calendar: TradingCalendar::default(),
+            calendar,
             maturity_coupon_rate,
             minimum_coupon_rate,
             knock_in_level,
@@ -868,16 +880,16 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let terms = PhoenixTerms::new(0.02, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
+    ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?), kiyosi::TradingCalendar::weekdays());
     /// let note = PhoenixOption::new(terms)?;
     /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent), Some(start.add_days(1)?))?;
     /// assert_eq!(known.observations(), note.observations());
     /// assert_eq!(note.barrier_state(), None);
     /// let records = autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?;
     /// let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
-    ///     0.06, start, end, records.clone()))?;
+    ///     0.06, start, end, records.clone(), kiyosi::TradingCalendar::weekdays()))?;
     /// let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
-    ///     0.06, 0.02, 80.0, start, end, records, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?)))?;
+    ///     0.06, 0.02, 80.0, start, end, records, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?), kiyosi::TradingCalendar::weekdays()))?;
     /// assert_eq!(binary.terms().principal_redemption_ratio, 1.0);
     /// assert_eq!(ternary.terms().minimum_coupon_rate, 0.02);
     /// // Amend an already validated contract to include weekend monitoring.
@@ -1050,7 +1062,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let end = start.add_days(2)?;
     /// let note = SnowballOption::new(SnowballTerms::new(
     ///     0.1, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     vec![AutocallableObservation::snowball(end, 110.0, 0.0)?], Some(TimeOfDay::new(0, 0, 0, 0)?)))?;
+    ///     vec![AutocallableObservation::snowball(end, 110.0, 0.0)?], Some(TimeOfDay::new(0, 0, 0, 0)?), kiyosi::TradingCalendar::weekdays()))?;
     /// assert_eq!(note.knock_in_observation_schedule()?.map(|s| s.len()), Some(3));
     /// # Ok(()) }
     /// ```

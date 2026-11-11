@@ -26,6 +26,7 @@ fn quadrature_covers_drift_into_future_knock_out() {
         date(1, 1),
         end,
         autocallable_observations(&[date(6, 30), end], &[110.0; 2], Some(&[0.2; 2]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let context = PricingContext::new(
@@ -64,6 +65,7 @@ fn quadrature_covers_drift_below_future_knock_out() {
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.2]), None).unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let context = PricingContext::new(
@@ -86,7 +88,13 @@ fn quadrature_covers_drift_below_future_knock_out() {
 
 #[test]
 fn binary_history_replacement_preserves_terms_and_rejects_knock_in() {
-    let terms = BinarySnowballTerms::new(-0.02, date(1, 1), date(4, 1), observations());
+    let terms = BinarySnowballTerms::new(
+        -0.02,
+        date(1, 1),
+        date(4, 1),
+        observations(),
+        TradingCalendar::weekdays(),
+    );
     let note = BinarySnowballOption::new(terms.clone()).unwrap();
     for state in [None, Some(AutocallableBarrierState::NoEvent)] {
         let mut expected = terms.clone();
@@ -117,7 +125,13 @@ fn binary_history_replacement_preserves_terms_and_rejects_knock_in() {
 
 #[test]
 fn binary_has_no_knock_in_and_pays_signed_flat_maturity_coupon() {
-    let mut terms = BinarySnowballTerms::new(-0.02, date(1, 1), date(4, 1), observations());
+    let mut terms = BinarySnowballTerms::new(
+        -0.02,
+        date(1, 1),
+        date(4, 1),
+        observations(),
+        TradingCalendar::weekdays(),
+    );
     terms.principal_redemption_ratio = 0.5;
     let note = BinarySnowballOption::new(terms).unwrap();
     let engine = QuadratureAutocallableEngine::default();
@@ -164,6 +178,7 @@ fn ternary_strict_knock_in_pays_floor_and_rejects_floor_above_coupon() {
         date(4, 1),
         observations(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
@@ -296,6 +311,7 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             date(4, 1),
             autocallable_observations(&dates, &levels, Some(&coupons), None).unwrap(),
             Some((date(4, 1)).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         explicit.knock_in_observation_mode = mode;
         explicit.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -341,8 +357,13 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
         for coupon in [-0.2, 0.0, 0.08] {
             let records =
                 autocallable_observations(&[date(4, 1)], &[110.0], Some(&[coupon]), None).unwrap();
-            let mut binary =
-                BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), records.clone());
+            let mut binary = BinarySnowballTerms::new(
+                0.06,
+                date(1, 1),
+                date(4, 1),
+                records.clone(),
+                TradingCalendar::weekdays(),
+            );
             binary.principal_redemption_ratio = 0.25;
             let mut ternary = TernarySnowballTerms::new(
                 0.06,
@@ -352,6 +373,7 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
                 date(4, 1),
                 records,
                 Some((date(4, 1)).time_of_day()),
+                TradingCalendar::weekdays(),
             );
             ternary.principal_redemption_ratio = 0.25;
             ternary.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
@@ -466,6 +488,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
             date(1, 1),
             date(4, 1),
             observations(),
+            TradingCalendar::weekdays(),
         ))
         .unwrap(),
     );
@@ -477,6 +500,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         date(4, 1),
         observations(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
@@ -499,6 +523,7 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
         )
         .unwrap(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     let context = market(100.0, date(1, 1));
     let mut modes = Vec::new();
@@ -614,7 +639,13 @@ fn preset_validation_uses_expanded_terms_and_preserves_inputs() {
 #[test]
 fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction() {
     for value in [f64::NAN, f64::INFINITY] {
-        let binary = BinarySnowballTerms::new(value, date(1, 1), date(4, 1), observations());
+        let binary = BinarySnowballTerms::new(
+            value,
+            date(1, 1),
+            date(4, 1),
+            observations(),
+            TradingCalendar::weekdays(),
+        );
         assert!(matches!(
             BinarySnowballOption::new(binary).unwrap_err(),
             Error::InvalidInput(_)
@@ -627,6 +658,7 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
             date(4, 1),
             observations(),
             Some((date(4, 1)).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         assert!(matches!(
             TernarySnowballOption::new(ternary).unwrap_err(),
@@ -643,7 +675,8 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
                 0.06,
                 date(1, 1),
                 date(4, 1),
-                bad.clone()
+                bad.clone(),
+                TradingCalendar::weekdays()
             ))
             .unwrap_err(),
             Error::InvalidInput(_)
@@ -656,13 +689,20 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
                 date(1, 1),
                 date(4, 1),
                 bad,
-                Some((date(4, 1)).time_of_day())
+                Some((date(4, 1)).time_of_day()),
+                TradingCalendar::weekdays()
             ))
             .unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
-    let mut binary = BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), observations());
+    let mut binary = BinarySnowballTerms::new(
+        0.06,
+        date(1, 1),
+        date(4, 1),
+        observations(),
+        TradingCalendar::weekdays(),
+    );
     binary.principal_redemption_ratio = -1.0;
     assert!(matches!(
         BinarySnowballOption::new(binary).unwrap_err(),
@@ -676,6 +716,7 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         date(4, 1),
         Vec::new(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     // Schedule validation precedes knock-in validation.
     assert!(matches!(
@@ -687,7 +728,13 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         TernarySnowballOption::new(ternary).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let mut binary = BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), observations());
+    let mut binary = BinarySnowballTerms::new(
+        0.06,
+        date(1, 1),
+        date(4, 1),
+        observations(),
+        TradingCalendar::weekdays(),
+    );
     binary.observations[0] = AutocallableObservation::phoenix(
         binary.observations[0].time(),
         binary.observations[0].knock_out_level(),

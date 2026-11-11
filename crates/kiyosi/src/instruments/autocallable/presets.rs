@@ -203,10 +203,10 @@ impl SnowballPresetTerms {
             self.expiry_time,
             observations,
             self.observation_clock_time,
+            self.calendar,
         );
         terms.barrier_state = self.barrier_state;
         terms.history_time = self.history_time;
-        terms.calendar = self.calendar;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
         match preset {
             SnowballPreset::Standard => {}
@@ -482,6 +482,7 @@ impl PhoenixPresetTerms {
             self.expiry_time,
             observations,
             self.observation_clock_time,
+            self.calendar,
         );
         terms.lockout_periods = self.lockout_periods;
         terms.knock_in_observation_mode = if daily {
@@ -491,7 +492,6 @@ impl PhoenixPresetTerms {
         };
         terms.barrier_state = self.barrier_state;
         terms.history_time = self.history_time;
-        terms.calendar = self.calendar;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
         PhoenixOption::new(terms)
     }

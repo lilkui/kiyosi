@@ -9,7 +9,11 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    weekdays_calendar,
+)
 from support.history import dated as dated_history
 from support.history import history_fields
 
@@ -30,6 +34,7 @@ class AutocallableValidationTests(unittest.TestCase):
             }
             with self.assertRaises(InvalidInputError):
                 BinarySnowballOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         **(
                             fields
@@ -42,10 +47,11 @@ class AutocallableValidationTests(unittest.TestCase):
                             }
                         ),
                         expiry_time=end,
-                    )
+                    ),
                 )
             note = BinarySnowballOption(
-                **history_fields(**fields, expiry_time=datetime(2025, 1, 3))
+                calendar=weekdays_calendar(),
+                **history_fields(**fields, expiry_time=datetime(2025, 1, 3)),
             )
             valuations = [datetime(2024, 12, 31), datetime(2025, 1, 4)]
             if history is None:

@@ -17,6 +17,7 @@ from kiyosi.market import (
     PricingContext,
     fixed_interval_schedule,
     monthly_schedule,
+    weekdays_calendar,
 )
 from kiyosi.pricing import (
     AnalyticRangeAccrualEngine,
@@ -199,11 +200,12 @@ class ObservationClockTests(unittest.TestCase):
 
     def test_daily_knock_in_does_not_observe_off_clock_maturity(self):
         note = SnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=time(15),
                 barrier_state="no_event",
                 **snowball_terms(),
-            )
+            ),
         )
         expected = 1 + 0.12 * 9 / (365 * 24)
         for engine in (
@@ -282,11 +284,12 @@ class ObservationClockTests(unittest.TestCase):
 
     def test_future_pricing_after_last_observation_does_not_add_maturity_knock_in(self):
         note = SnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=time(15),
                 barrier_state="no_event",
                 **snowball_terms(),
-            )
+            ),
         )
         at = datetime(2025, 1, 6, 15, 0, 0, 1)
         market = context(at, spot=81, rate=-150).replace(
@@ -310,11 +313,12 @@ class ObservationClockTests(unittest.TestCase):
 
     def test_monitoring_replacement_requires_explicit_clock_changes(self):
         expiry = SnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=None,
                 knock_in_observation_mode="at_expiry",
                 **snowball_terms(),
-            )
+            ),
         )
         self.assertIsNone(expiry.observation_clock_time)
         with self.assertRaises(InvalidInputError):
@@ -337,11 +341,12 @@ class ObservationClockTests(unittest.TestCase):
             )
         with self.assertRaises(InvalidInputError):
             SnowballOption(
+                calendar=weekdays_calendar(),
                 **history_fields(
                     knock_in_observation_mode="at_expiry",
                     observation_clock_time=CLOCK,
                     **snowball_terms(),
-                )
+                ),
             )
         self.assertEqual(daily.observation_clock_time, CLOCK)
 
@@ -349,6 +354,7 @@ class ObservationClockTests(unittest.TestCase):
         self,
     ):
         daily = SnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=time(15),
                 barrier_state="no_event",
@@ -362,7 +368,7 @@ class ObservationClockTests(unittest.TestCase):
                         ]
                     }
                 ),
-            )
+            ),
         )
         expiry = daily.replace(
             knock_in_observation_mode="at_expiry",

@@ -13,6 +13,7 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     PricingContext,
     all_days_calendar,
+    weekdays_calendar,
 )
 from support.history import dated as dated_history
 from support.history import history_fields
@@ -226,25 +227,28 @@ def terminal_cases():
         [
             (
                 ins.SnowballOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=None,
                         **common,
                         **loss,
                         maturity_coupon_rate=0.06,
-                    )
+                    ),
                 ),
                 notes,
                 1.06,
             ),
             (
                 ins.BinarySnowballOption(
-                    **history_fields(**common, maturity_coupon_rate=0.06)
+                    calendar=weekdays_calendar(),
+                    **history_fields(**common, maturity_coupon_rate=0.06),
                 ),
                 notes,
                 1.06,
             ),
             (
                 ins.TernarySnowballOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=None,
                         **common,
@@ -253,13 +257,14 @@ def terminal_cases():
                         knock_in_level=80,
                         knock_in_observation_mode="at_expiry",
                         barrier_state="no_event",
-                    )
+                    ),
                 ),
                 notes,
                 1.06,
             ),
             (
                 ins.PhoenixOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=None,
                         **dates,
@@ -268,7 +273,7 @@ def terminal_cases():
                         observations=ins.autocallable_observations(
                             [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
                         ),
-                    )
+                    ),
                 ),
                 notes,
                 1.08,

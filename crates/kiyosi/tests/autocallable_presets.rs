@@ -57,6 +57,7 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
         )
         .unwrap(),
         input.observation_clock_time,
+        TradingCalendar::weekdays(),
     );
     expected.lockout_periods = 2;
     assert_eq!(step.terms(), &expected);
@@ -156,6 +157,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
                 )
                 .unwrap(),
                 Some((date(4, 1)).time_of_day()),
+                TradingCalendar::weekdays(),
             );
             expected.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
             expected.observation_clock_time = None;
@@ -508,6 +510,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             date(4, 1),
             autocallable_observations(&dates, &[110.0; 5], Some(&rates), None).unwrap(),
             Some((date(4, 1)).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         expected.barrier_state = Some(AutocallableBarrierState::NoEvent);
         expected.history_time = Some(expected.effective_time);

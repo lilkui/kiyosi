@@ -23,6 +23,7 @@ fn terminal_binary_matches_independent_cash_and_digital_portfolio() {
         date(1, 1),
         end,
         autocallable_observations(&[end], &[100.0], Some(&[0.1]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let digital =
@@ -87,6 +88,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
             end,
             observations.clone(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         snow.knock_in_observation_mode = mode;
         snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -101,6 +103,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
             end,
             observations.clone(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         ternary.knock_in_observation_mode = mode;
         ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -123,6 +126,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
             )
             .unwrap(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         phoenix.knock_in_observation_mode = mode;
         phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -139,6 +143,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
                 start,
                 end,
                 observations.clone(),
+                TradingCalendar::weekdays(),
             ))
             .unwrap(),
             &context,
@@ -160,6 +165,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         autocallable_observations(&[date(2, 3), end], &[110.0, 105.0], None, Some(&[90.0; 2]))
             .unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
@@ -305,6 +311,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         end,
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], Some(&[0.08; 2]), None).unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::default();
@@ -433,6 +440,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         end,
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], None, Some(&[90.0; 2])).unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
@@ -460,6 +468,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         start,
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.0]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let result = engine
@@ -491,6 +500,7 @@ fn binary_domains_use_actual_levels_in_small_price_units() {
             start,
             end,
             autocallable_observations(&[end], &[level], Some(&[0.1]), None).unwrap(),
+            TradingCalendar::weekdays(),
         ))
         .unwrap();
         let ctx = market(level, start);
@@ -530,6 +540,7 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
             start,
             end,
             autocallable_observations(&[end], &[100.0], Some(&[coupon]), None).unwrap(),
+            TradingCalendar::weekdays(),
         ))
         .unwrap();
         let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]);
@@ -566,6 +577,7 @@ fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
         start,
         end,
         autocallable_observations(&[date(2, 3), end], &[100.0; 2], Some(&[0.1; 2]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let ctx = PricingContext::new(

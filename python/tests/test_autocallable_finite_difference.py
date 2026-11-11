@@ -10,7 +10,7 @@ from kiyosi import (
     UnsupportedOperationError,
 )
 from kiyosi.instruments import BinarySnowballOption, autocallable_observations
-from kiyosi.market import RateTermStructure
+from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine as FD
 from kiyosi.pricing import (
     implied_phoenix_coupon,
@@ -108,6 +108,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
     def test_native_spot_greeks_survive_infeasible_scalar_bumps(self):
         for coupon in (0, 0.1):
             note = BinarySnowballOption(
+                calendar=weekdays_calendar(),
                 maturity_coupon_rate=0,
                 effective_time=START,
                 expiry_time=END,
@@ -136,6 +137,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
     def test_explicit_uniform_stability_uses_the_top_node_bound(self):
         end = datetime(2026, 1, 1)
         note = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             effective_time=START,
             expiry_time=end,
@@ -205,6 +207,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
 
     def test_fixed_prices_and_unidentifiable_parameters_validate_first(self):
         note = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             effective_time=START,
             expiry_time=END,

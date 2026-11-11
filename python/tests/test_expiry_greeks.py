@@ -305,6 +305,7 @@ class ExpiryGreekTests(unittest.TestCase):
     ):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = ins.SnowballOption(
+            calendar=market.weekdays_calendar(),
             observation_clock_time=None,
             maturity_coupon_rate=0.06,
             initial_spot=100,

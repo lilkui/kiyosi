@@ -24,6 +24,7 @@ fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
         date(1, 1),
         end,
         autocallable_observations(&[end], &[100.0], Some(&[0.1]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let digital =
@@ -61,6 +62,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
         start,
         end,
         autocallable_observations(&[end], &[100.0], Some(&[1.5e308]), None).unwrap(),
+        TradingCalendar::weekdays(),
     );
     terms.principal_redemption_ratio = 0.0;
     let note = BinarySnowballOption::new(terms).unwrap();
@@ -109,6 +111,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
             start,
             end,
             autocallable_observations(&[end], &[100.0], Some(&[0.0]), None).unwrap(),
+            TradingCalendar::weekdays(),
         );
         terms.principal_redemption_ratio = principal;
         let note = BinarySnowballOption::new(terms).unwrap();
@@ -135,6 +138,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         end,
         autocallable_observations(&[end], &[1.0], None, Some(&[0.0])).unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.principal_redemption_ratio = 1e308;
     let note = PhoenixOption::new(terms).unwrap();
@@ -163,6 +167,7 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
             None,
         )
         .unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let context = market(100.0, date(1, 1));
@@ -245,6 +250,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         autocallable_observations(&[date(2, 3), end], &[103.0, 105.0], Some(&[0.08; 2]), None)
             .unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms.history_time = Some(terms.effective_time);
@@ -351,6 +357,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         end,
         autocallable_observations(&[end], &[100.0], Some(&[0.0]), None).unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     smooth_terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     smooth_terms.observation_clock_time = None;
@@ -393,6 +400,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         )
         .unwrap(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
         path_count: 1,
@@ -509,6 +517,7 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.08]), None).unwrap(),
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     let note = SnowballOption::new(terms.clone()).unwrap();
     let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
@@ -588,6 +597,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             end,
             observations.clone(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         snow.knock_in_observation_mode = mode;
         snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -602,6 +612,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             end,
             observations.clone(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         ternary.knock_in_observation_mode = mode;
         ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -624,6 +635,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             )
             .unwrap(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         phoenix.knock_in_observation_mode = mode;
         phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -640,6 +652,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
                 start,
                 end,
                 observations.clone(),
+                TradingCalendar::weekdays(),
             ))
             .unwrap(),
             &context,

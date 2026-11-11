@@ -27,6 +27,7 @@ from kiyosi.market import (
     RateTermStructure,
     all_days_calendar,
     custom_calendar,
+    weekdays_calendar,
 )
 from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
@@ -58,6 +59,7 @@ START, MIDDLE, END = datetime(2025, 1, 1), datetime(2025, 2, 3), datetime(2025, 
 
 def contract(**changes):
     fields = {
+        "calendar": weekdays_calendar(),
         "coupon_per_period": 0.01,
         "initial_spot": 100,
         "knock_in_level": 80,

@@ -6,6 +6,7 @@ from kiyosi import instruments
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
+    weekdays_calendar,
 )
 from quantlib_reference import structured
 from support.history import history_fields
@@ -43,6 +44,7 @@ def contract(row):
         )
     phoenix = row["instrument"] == "PhoenixOption"
     common.update(
+        calendar=weekdays_calendar(),
         principal_redemption_ratio=number("principal_redemption_ratio"),
         barrier_state=inputs["history"],
         observations=instruments.autocallable_observations(

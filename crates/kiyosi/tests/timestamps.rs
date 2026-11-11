@@ -165,8 +165,8 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
             expiry,
             records.clone(),
             Some(observation.time_of_day()),
+            calendar.clone(),
         );
-        terms.calendar = calendar.clone();
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
         terms.history_time = Some(terms.effective_time);
         let note = SnowballOption::new(terms.clone())?;
@@ -181,8 +181,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
             Err(Error::InvalidInput(_))
         ));
 
-        let mut terms = BinarySnowballTerms::new(0.12, start, expiry, records);
-        terms.calendar = calendar.clone();
+        let mut terms = BinarySnowballTerms::new(0.12, start, expiry, records, calendar.clone());
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
         terms.history_time = Some(terms.effective_time);
         let binary = BinarySnowballOption::new(terms)?;
@@ -477,6 +476,7 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
         time(7, 15, 0),
         vec![AutocallableObservation::snowball(time(7, 15, 0), 110.0, 0.0).unwrap()],
         Some((time(7, 15, 0)).time_of_day()),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     assert!(
@@ -648,6 +648,7 @@ fn empty_daily_windows_are_valid_except_for_range_accrual() -> Result<()> {
         end,
         vec![AutocallableObservation::snowball(end, 1000.0, 0.0)?],
         Some(clock),
+        TradingCalendar::weekdays(),
     ))?;
     assert_eq!(
         QuadratureAutocallableEngine::default()
@@ -722,6 +723,7 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
             0.0,
         )?],
         Some(clock),
+        TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms.history_time = Some(terms.effective_time);
@@ -821,6 +823,7 @@ fn knock_in_mode_replacement_requires_clock_and_preserves_original_on_failure() 
             0.0,
         )?],
         Some(clock),
+        TradingCalendar::weekdays(),
     ))?;
     let inactive = original.replace(SnowballOptionChanges {
         knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
@@ -914,6 +917,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         expiry,
         vec![AutocallableObservation::snowball(time(6, 10, 0), 1000.0, 0.0).unwrap()],
         Some((expiry).time_of_day()),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let context = PricingContext::new(
@@ -945,6 +949,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         expiry,
         vec![AutocallableObservation::snowball(time(6, 10, 0), 110.0, 0.0).unwrap()],
         Some((expiry).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.observations[0] = terms.observations[0]
         .replace(AutocallableObservationChanges {
@@ -1018,6 +1023,7 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
                 AutocallableObservation::phoenix(last, 1000.0, 0.0).unwrap(),
             ],
             Some((last).time_of_day()),
+            TradingCalendar::weekdays(),
         )
     })
     .unwrap();
@@ -1123,7 +1129,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
     }
 
     let observations = vec![AutocallableObservation::snowball(expiry, 110.0, 0.0)?];
-    let mut terms = SnowballTerms::new(
+    let terms = SnowballTerms::new(
         0.1,
         100.0,
         80.0,
@@ -1133,8 +1139,8 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         expiry,
         observations.clone(),
         Some(clock),
+        calendar.clone(),
     );
-    terms.calendar = calendar.clone();
     let note = SnowballOption::new(terms)?;
     assert_eq!(
         note.knock_in_observation_schedule()?
@@ -1152,7 +1158,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
             .map(|s| s.times().to_vec()),
         Some(vec![expiry])
     );
-    let mut phoenix = PhoenixTerms::new(
+    let phoenix = PhoenixTerms::new(
         0.1,
         100.0,
         80.0,
@@ -1162,13 +1168,13 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         expiry,
         vec![AutocallableObservation::phoenix(expiry, 110.0, 0.0)?],
         Some(clock),
+        calendar.clone(),
     );
-    phoenix.calendar = calendar.clone();
     assert_eq!(
         PhoenixOption::new(phoenix)?.knock_in_observation_schedule()?,
         note.knock_in_observation_schedule()?
     );
-    let mut ternary = TernarySnowballTerms::new(
+    let ternary = TernarySnowballTerms::new(
         0.1,
         0.02,
         80.0,
@@ -1176,14 +1182,13 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         expiry,
         observations.clone(),
         Some(clock),
+        calendar.clone(),
     );
-    ternary.calendar = calendar.clone();
     assert_eq!(
         TernarySnowballOption::new(ternary)?.knock_in_observation_schedule()?,
         note.knock_in_observation_schedule()?
     );
-    let mut binary = BinarySnowballTerms::new(0.1, start, expiry, observations);
-    binary.calendar = calendar;
+    let binary = BinarySnowballTerms::new(0.1, start, expiry, observations, calendar);
     assert_eq!(
         BinarySnowballOption::new(binary)?.knock_in_observation_schedule()?,
         None

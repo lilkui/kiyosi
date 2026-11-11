@@ -23,6 +23,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     RateTermStructure,
+    weekdays_calendar,
 )
 from kiyosi.pricing import (
     CouponQuoteConvention,
@@ -49,7 +50,9 @@ def binary(coupon=0.08, maturity=0.06, **changes):
         ),
     }
     fields.update(changes)
-    return BinarySnowballOption(**history_fields(**fields))
+    return BinarySnowballOption(
+        calendar=weekdays_calendar(), **history_fields(**fields)
+    )
 
 
 class ImpliedCouponTests(unittest.TestCase):
@@ -93,6 +96,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 )
         for field, coupon in (("coupon_per_period", 0.12), ("coupon_per_period", 0.03)):
             note = PhoenixOption(
+                calendar=weekdays_calendar(),
                 **{field: coupon},
                 initial_spot=100,
                 knock_in_level=80,
@@ -168,6 +172,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 (0.4047152283389133, 0.002630147007026187, 0.40290962591640395),
             ):
                 note = instruments.TernarySnowballOption(
+                    calendar=weekdays_calendar(),
                     observation_clock_time=clock_time(),
                     maturity_coupon_rate=maturity,
                     minimum_coupon_rate=minimum,
@@ -229,6 +234,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 self.assertEqual(note.maturity_coupon_rate, maturity)
                 self.assertEqual(note.minimum_coupon_rate, minimum)
             boundary = instruments.TernarySnowballOption(
+                calendar=weekdays_calendar(),
                 observation_clock_time=clock_time(),
                 maturity_coupon_rate=0.05,
                 minimum_coupon_rate=0.05,
@@ -261,6 +267,7 @@ class ImpliedCouponTests(unittest.TestCase):
             snowball(observations=observations, maturity_coupon_rate=0.06),
             binary(observations=observations),
             instruments.TernarySnowballOption(
+                calendar=weekdays_calendar(),
                 observation_clock_time=None,
                 maturity_coupon_rate=0.06,
                 minimum_coupon_rate=-0.2,
@@ -560,7 +567,9 @@ class ImpliedCouponTests(unittest.TestCase):
                     )
                 if kind == "TernarySnowballOption":
                     fields.update(minimum_coupon_rate=-0.2)
-                return getattr(instruments, kind)(**history_fields(**fields))
+                return getattr(instruments, kind)(
+                    calendar=weekdays_calendar(), **history_fields(**fields)
+                )
             fields = {
                 "coupon_rate": coupon,
                 "observation_clock_time": None
@@ -851,6 +860,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 ),
             )
         ternary = instruments.TernarySnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=None,
             maturity_coupon_rate=0.06,
             minimum_coupon_rate=0.02,

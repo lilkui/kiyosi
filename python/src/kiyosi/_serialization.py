@@ -3,7 +3,7 @@
 import copyreg
 import reprlib
 from datetime import datetime
-from inspect import isclass, signature
+from inspect import Parameter, isclass, signature
 from types import ModuleType
 from typing import Any, get_args
 
@@ -154,7 +154,10 @@ def _repr(value: Any) -> str:
     name = type(value).__name__
     fields = fields.copy()
     if fields.get("calendar") == _native.weekdays_calendar():
-        fields.pop("calendar")
+        if signature(type(value)).parameters["calendar"].default is Parameter.empty:
+            fields["calendar"] = _Preview("weekdays_calendar()")
+        else:
+            fields.pop("calendar")
     terms = ", ".join(
         f"{key}={field.text if isinstance(field, _Preview) else _repr_formatter.repr(field)}"
         for key, field in fields.items()

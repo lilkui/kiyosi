@@ -20,7 +20,7 @@ from kiyosi.instruments import (
     standard_phoenix,
     step_down_phoenix,
 )
-from kiyosi.market import PricingContext
+from kiyosi.market import PricingContext, weekdays_calendar
 from kiyosi.pricing import (
     CouponQuoteConvention,
     QuadratureAutocallableEngine,
@@ -150,6 +150,7 @@ def phoenix_periodic_coupon() -> None:
     observations = [AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)]
     assert_type(
         PhoenixOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=None,
             coupon_per_period=0.01,
             initial_spot=100,
@@ -163,6 +164,7 @@ def phoenix_periodic_coupon() -> None:
         PhoenixOption,
     )
     PhoenixOption(  # ty: ignore[missing-argument]
+        calendar=weekdays_calendar(),
         observation_clock_time=None,
         initial_spot=100,
         knock_in_level=80,
@@ -381,6 +383,7 @@ def expiry_only_snowballs() -> None:
     observations = [AutocallableObservation.snowball(end, 110, coupon_rate=0)]
     assert_type(
         SnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=None,
             maturity_coupon_rate=0.1,
             initial_spot=100,
@@ -396,6 +399,7 @@ def expiry_only_snowballs() -> None:
     )
     assert_type(
         TernarySnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=None,
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,

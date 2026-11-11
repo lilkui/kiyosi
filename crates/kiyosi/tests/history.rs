@@ -145,7 +145,8 @@ fn history_timestamps_cannot_follow_valuation_without_payloads() -> Result<()> {
             start,
             end,
             vec![AutocallableObservation::snowball(end, 110.0, 0.1)?],
-            Some(clock)
+            Some(clock),
+            TradingCalendar::weekdays()
         ))?,
         QuadratureAutocallableEngine::default()
     );
@@ -158,7 +159,7 @@ fn autocallable_history_respects_the_first_daily_observation_on_sparse_calendars
     let start = date.at_time(TimeOfDay::new(13, 0, 0, 0)?);
     let first = date.add_days(4)?.at_time(TimeOfDay::new(12, 0, 0, 0)?);
     let end = date.add_days(4)?.at_time(TimeOfDay::new(16, 0, 0, 0)?);
-    let mut terms = SnowballTerms::new(
+    let terms = SnowballTerms::new(
         0.0,
         100.0,
         80.0,
@@ -168,13 +169,13 @@ fn autocallable_history_respects_the_first_daily_observation_on_sparse_calendars
         end,
         vec![AutocallableObservation::snowball(end, 110.0, 0.0)?],
         Some(TimeOfDay::new(12, 0, 0, 0)?),
+        TradingCalendar::custom(
+            TradingCalendar::all_days(),
+            vec![date.add_days(1)?, date.add_days(2)?, date.add_days(3)?],
+            vec![],
+            None,
+        )?,
     );
-    terms.calendar = TradingCalendar::custom(
-        TradingCalendar::all_days(),
-        vec![date.add_days(1)?, date.add_days(2)?, date.add_days(3)?],
-        vec![],
-        None,
-    )?;
     let note = SnowballOption::new(terms)?;
     let engine = QuadratureAutocallableEngine::default();
     for at in [start, first.add_micros(-1)?, first, first.add_micros(1)?] {
@@ -377,7 +378,8 @@ fn constructors_require_timestamps_for_supplied_history() -> Result<()> {
             start,
             end,
             records.clone(),
-            Some(clock)
+            Some(clock),
+            TradingCalendar::weekdays()
         ),
         barrier_state,
         Some(AutocallableBarrierState::NoEvent),
@@ -393,20 +395,36 @@ fn constructors_require_timestamps_for_supplied_history() -> Result<()> {
             start,
             end,
             vec![AutocallableObservation::phoenix(end, 110.0, 0.0)?],
-            Some(clock)
+            Some(clock),
+            TradingCalendar::weekdays()
         ),
         barrier_state,
         Some(AutocallableBarrierState::NoEvent),
         PhoenixOption::new
     );
     check!(
-        BinarySnowballTerms::new(0.1, start, end, records.clone()),
+        BinarySnowballTerms::new(
+            0.1,
+            start,
+            end,
+            records.clone(),
+            TradingCalendar::weekdays()
+        ),
         barrier_state,
         Some(AutocallableBarrierState::NoEvent),
         BinarySnowballOption::new
     );
     check!(
-        TernarySnowballTerms::new(0.1, 0.02, 80.0, start, end, records, Some(clock)),
+        TernarySnowballTerms::new(
+            0.1,
+            0.02,
+            80.0,
+            start,
+            end,
+            records,
+            Some(clock),
+            TradingCalendar::weekdays()
+        ),
         barrier_state,
         Some(AutocallableBarrierState::NoEvent),
         TernarySnowballOption::new
@@ -464,6 +482,7 @@ fn autocallable_terms_roundtrip_preserves_history_snapshot() -> Result<()> {
             end,
             records.clone(),
             clock,
+            TradingCalendar::weekdays(),
         ),
         at,
     )?;
@@ -478,15 +497,31 @@ fn autocallable_terms_roundtrip_preserves_history_snapshot() -> Result<()> {
             end,
             vec![AutocallableObservation::phoenix(end, 110.0, 0.0)?],
             clock,
+            TradingCalendar::weekdays(),
         ),
         at,
     )?;
     check(
-        BinarySnowballTerms::new(0.1, start, end, records.clone()),
+        BinarySnowballTerms::new(
+            0.1,
+            start,
+            end,
+            records.clone(),
+            TradingCalendar::weekdays(),
+        ),
         at,
     )?;
     check(
-        TernarySnowballTerms::new(0.1, 0.02, 80.0, start, end, records, clock),
+        TernarySnowballTerms::new(
+            0.1,
+            0.02,
+            80.0,
+            start,
+            end,
+            records,
+            clock,
+            TradingCalendar::weekdays(),
+        ),
         at,
     )?;
     Ok(())
@@ -888,6 +923,7 @@ fn dated_history_survives_future_schedule_edits() -> Result<()> {
             AutocallableObservation::snowball(past, 110.0, 0.0)?,
             AutocallableObservation::snowball(end, 110.0, 0.0)?,
         ],
+        TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms.history_time = Some(at);
@@ -1158,6 +1194,7 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
             end,
             records.clone(),
             Some(clock),
+            TradingCalendar::weekdays(),
         ))?
         .replace_history(state, Some(at))?,
         &market,
@@ -1175,6 +1212,7 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
             end,
             vec![AutocallableObservation::phoenix(end, 110.0, 0.0)?],
             Some(clock),
+            TradingCalendar::weekdays(),
         ))?
         .replace_history(state, Some(at))?,
         &market,
@@ -1182,8 +1220,14 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
     )?;
     check(
         &QuadratureAutocallableEngine::default(),
-        BinarySnowballOption::new(BinarySnowballTerms::new(0.1, start, end, records.clone()))?
-            .replace_history(state, Some(at))?,
+        BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.1,
+            start,
+            end,
+            records.clone(),
+            TradingCalendar::weekdays(),
+        ))?
+        .replace_history(state, Some(at))?,
         &market,
         |option, at| option.replace_history(None, at),
     )?;
@@ -1197,6 +1241,7 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
             end,
             records,
             Some(clock),
+            TradingCalendar::weekdays(),
         ))?
         .replace_history(state, Some(at))?,
         &market,
@@ -1355,6 +1400,7 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
             110.0,
             0.0,
         )?],
+        TradingCalendar::weekdays(),
     ))?;
     let engine = QuadratureAutocallableEngine::default();
     assert!(matches!(

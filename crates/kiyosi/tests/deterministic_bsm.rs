@@ -226,7 +226,8 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             start,
             end,
             observations.clone(),
-            Some((end).time_of_day())
+            Some((end).time_of_day()),
+            TradingCalendar::weekdays()
         ))?,
         1.0 + 0.1 * 4.0 / 365.0
     );
@@ -240,7 +241,8 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             start,
             end,
             autocallable_observations(&[end], &[120.0], None, Some(&[0.0]))?,
-            Some((end).time_of_day())
+            Some((end).time_of_day()),
+            TradingCalendar::weekdays()
         ))?,
         1.1
     );
@@ -249,7 +251,8 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             0.1,
             start,
             end,
-            observations.clone()
+            observations.clone(),
+            TradingCalendar::weekdays()
         ))?,
         1.0 + 0.1 * 4.0 / 365.0
     );
@@ -261,7 +264,8 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             start,
             end,
             observations,
-            Some((end).time_of_day())
+            Some((end).time_of_day()),
+            TradingCalendar::weekdays()
         ))?,
         1.0 + 0.1 * 4.0 / 365.0
     );
@@ -500,13 +504,13 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
         100.0,
         start,
     )?;
-    let mut terms = BinarySnowballTerms::new(
+    let terms = BinarySnowballTerms::new(
         0.1,
         start,
         end,
         autocallable_observations(&[middle, end], &[105.0, 105.0], Some(&[0.1, 0.1]), None)?,
+        TradingCalendar::all_days(),
     );
-    terms.calendar = TradingCalendar::all_days();
     let note = BinarySnowballOption::new(terms)?;
     verify(
         &note,
@@ -554,8 +558,8 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
             None,
         )?,
         Some((end).time_of_day()),
+        TradingCalendar::all_days(),
     );
-    terms.calendar = TradingCalendar::all_days();
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     let expiry_only = SnowballOption::new(terms)?;

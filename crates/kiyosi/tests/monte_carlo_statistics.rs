@@ -734,6 +734,7 @@ fn generic_statistics_keep_existing_monte_carlo_estimators_available() {
         start,
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.1]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     for (price, estimate) in [

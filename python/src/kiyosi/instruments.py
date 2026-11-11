@@ -10,6 +10,9 @@ expiry; other contracts require valuation within their life.
 Barrier and touch contracts, range accruals, accumulators, and autocallables own
 their calendars. Constructors inherit an ``ObservationSchedule`` calendar;
 explicit calendars override it, and plain timestamp iterables default to weekdays.
+Raw autocallable note constructors require an explicit ``calendar`` because
+observation records carry no calendar. Pass ``calendar=schedule.calendar`` when
+building records from a schedule; presets inherit the schedule's calendar.
 Replacement inherits a supplied schedule's calendar, otherwise retaining the
 contract's calendar.
 Explicit observations use exact timestamps; automatic observations require

@@ -23,6 +23,7 @@ fn terms() -> PhoenixTerms {
         )
         .unwrap(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;

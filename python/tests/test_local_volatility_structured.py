@@ -14,6 +14,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     PricingContext,
+    weekdays_calendar,
 )
 from quantlib_reference.local_volatility_paths import (
     END,
@@ -79,6 +80,7 @@ def contracts():
     for suffix, mode in [("daily", "every_trading_day"), ("terminal", "at_expiry")]:
         state = {"knock_in_observation_mode": mode, "barrier_state": "no_event"}
         result[f"snowball_{suffix}"] = ins.SnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time()
                 if mode == "every_trading_day"
@@ -87,9 +89,10 @@ def contracts():
                 **loss,
                 **state,
                 maturity_coupon_rate=0.06,
-            )
+            ),
         )
         result[f"ternary_{suffix}"] = ins.TernarySnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time()
                 if mode == "every_trading_day"
@@ -99,9 +102,10 @@ def contracts():
                 maturity_coupon_rate=0.06,
                 minimum_coupon_rate=0.01,
                 knock_in_level=95,
-            )
+            ),
         )
         result[f"phoenix_{suffix}"] = ins.PhoenixOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time()
                 if mode == "every_trading_day"
@@ -113,10 +117,11 @@ def contracts():
                 observations=ins.autocallable_observations(
                     OBSERVATIONS, KNOCK_OUT_LEVELS, coupon_barrier_levels=[95] * 3
                 ),
-            )
+            ),
         )
     result["binary_snowball"] = ins.BinarySnowballOption(
-        **history_fields(**common, maturity_coupon_rate=0.06)
+        calendar=weekdays_calendar(),
+        **history_fields(**common, maturity_coupon_rate=0.06),
     )
     return result
 

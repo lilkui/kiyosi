@@ -18,6 +18,7 @@ fn terms() -> SnowballTerms {
         date(4, 1),
         vec![AutocallableObservation::snowball(date(4, 1), 110.0, 0.0).unwrap()],
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     )
 }
 

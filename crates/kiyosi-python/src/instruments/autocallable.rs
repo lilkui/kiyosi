@@ -427,8 +427,8 @@ impl AutocallableObservation {
 ///
 /// Passing an ObservationSchedule copies its timestamps into the records;
 /// the records carry no calendar. Pass calendar=schedule.calendar to the note
-/// constructor to preserve its observation calendar. Omitting calendar selects
-/// weekdays, including for daily knock-in monitoring.
+/// constructor to preserve its observation calendar. Raw note constructors require
+/// an explicit calendar, including for daily knock-in monitoring.
 ///
 /// Examples
 /// --------
@@ -761,9 +761,10 @@ times, stages may have no observations, and rates need not decrease."
 ///     event.
 /// principal_redemption_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
-/// calendar : TradingCalendar, optional
-///     Owned observation calendar; defaults to weekdays, independently of
-///     PricingContext.
+/// calendar : TradingCalendar
+///     Required owned observation calendar. Records carry no calendar; pass
+///     schedule.calendar when constructing from a schedule. Controls contractual
+///     observations independently of PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
 ///     Required with history; payloads must be possible strictly before this
@@ -866,7 +867,7 @@ snowball_properties! {
     }
 ,
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
+    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -895,13 +896,13 @@ snowball_properties! {
             timestamp(expiry_time)?,
             records(observations)?,
             observation_clock_time.map(crate::conversions::clock_time).transpose()?,
+            calendar.0,
         );
         terms.knock_in_observation_mode = knock_in_observation_mode;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
-        terms.calendar = calendar.0;
         terms.history_time = history_time;
         Ok(Self(domain(kiyosi::SnowballOption::new(terms))?))
     },
@@ -965,9 +966,10 @@ snowball_properties! {
 ///     event.
 /// principal_redemption_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
-/// calendar : TradingCalendar, optional
-///     Owned observation calendar; defaults to weekdays, independently of
-///     PricingContext.
+/// calendar : TradingCalendar
+///     Required owned observation calendar. Records carry no calendar; pass
+///     schedule.calendar when constructing from a schedule. Controls contractual
+///     observations independently of PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
 ///     Required with history; payloads must be possible strictly before this
@@ -1051,7 +1053,7 @@ snowball_properties! {
     }
 ,
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
+    #[pyo3(signature = (*, maturity_coupon_rate, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -1069,12 +1071,12 @@ snowball_properties! {
             timestamp(effective_time)?,
             timestamp(expiry_time)?,
             records(observations)?,
+            calendar.0,
         );
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
-        terms.calendar = calendar.0;
         terms.history_time = history_time;
         Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?))
     },
@@ -1115,9 +1117,10 @@ snowball_properties! {
 ///     event.
 /// principal_redemption_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
-/// calendar : TradingCalendar, optional
-///     Owned observation calendar; defaults to weekdays, independently of
-///     PricingContext.
+/// calendar : TradingCalendar
+///     Required owned observation calendar. Records carry no calendar; pass
+///     schedule.calendar when constructing from a schedule. Controls contractual
+///     observations independently of PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
 ///     Required with history; payloads must be possible strictly before this
@@ -1213,7 +1216,7 @@ snowball_properties! {
     }
 ,
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
+    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -1238,13 +1241,13 @@ snowball_properties! {
             timestamp(expiry_time)?,
             records(observations)?,
             observation_clock_time.map(crate::conversions::clock_time).transpose()?,
+            calendar.0,
         );
         terms.knock_in_observation_mode = knock_in_observation_mode;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
-        terms.calendar = calendar.0;
         terms.history_time = history_time;
         Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?))
     },
@@ -1314,9 +1317,10 @@ snowball_properties! {
 ///     event.
 /// principal_redemption_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
-/// calendar : TradingCalendar, optional
-///     Owned observation calendar; defaults to weekdays, independently of
-///     PricingContext.
+/// calendar : TradingCalendar
+///     Required owned observation calendar. Records carry no calendar; pass
+///     schedule.calendar when constructing from a schedule. Controls contractual
+///     observations independently of PricingContext.
 /// history_time : datetime.datetime or None, optional
 ///     Timestamp of supplied history, covering events strictly before it.
 ///     Required with history; payloads must be possible strictly before this
@@ -1436,7 +1440,7 @@ autocallable_properties! {
     }
 ,
     #[new]
-    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=TradingCalendar::default(), history_time=None))]
+    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), observation_clock_time, effective_time, expiry_time, observations, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar, history_time=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         #[pyo3(from_py_with = real)] coupon_per_period: f64,
@@ -1466,6 +1470,7 @@ autocallable_properties! {
             timestamp(expiry_time)?,
             records(observations)?,
             observation_clock_time.map(crate::conversions::clock_time).transpose()?,
+            calendar.0,
         );
         terms.lockout_periods = lockout_periods;
         terms.knock_in_observation_mode = knock_in_observation_mode;
@@ -1473,7 +1478,6 @@ autocallable_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
-        terms.calendar = calendar.0;
         terms.history_time = history_time;
         Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
     },

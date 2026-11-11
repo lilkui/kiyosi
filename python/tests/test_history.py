@@ -568,6 +568,7 @@ class HistoryTests(unittest.TestCase):
             0,
         )
         note = i.BinarySnowballOption(
+            calendar=m.weekdays_calendar(),
             maturity_coupon_rate=0.1,
             effective_time=start,
             expiry_time=end,

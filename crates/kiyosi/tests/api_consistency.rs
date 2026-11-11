@@ -4,6 +4,62 @@ use support::dated;
 use kiyosi::*;
 
 #[test]
+fn autocallable_calendars_control_knock_in_after_record_conversion() -> Result<()> {
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
+    let start = Date::new(2025, 1, 2)?.at_time(clock);
+    let at = Date::new(2025, 1, 6)?.at_time(clock);
+    let end = Date::new(2025, 1, 10)?.at_time(clock);
+    let calendar =
+        TradingCalendar::custom(TradingCalendar::weekdays(), vec![at.date()], vec![], None)?;
+    let schedule = ObservationSchedule::new(vec![end], start, end, &calendar)?;
+    let records = autocallable_observations(schedule.times(), &[110.0], Some(&[0.1]), None)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.0)?,
+        79.999,
+        at,
+    )?;
+    let engine = QuadratureAutocallableEngine::default();
+    for (calendar, expected, observes_at) in [
+        (
+            schedule.calendar().clone(),
+            (1.0 + 0.1 * start.years_until(end)) * (-0.05 * at.years_until(end)).exp(),
+            false,
+        ),
+        (
+            TradingCalendar::weekdays(),
+            79.999 * (-0.02 * at.years_until(end)).exp() / 100.0,
+            true,
+        ),
+    ] {
+        let mut terms = SnowballTerms::new(
+            0.1,
+            100.0,
+            80.0,
+            100.0,
+            0.0,
+            start,
+            end,
+            records.clone(),
+            Some(clock),
+            calendar.clone(),
+        );
+        terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        terms.history_time = Some(at);
+        let note = SnowballOption::new(terms)?;
+        assert_eq!(note.calendar(), &calendar);
+        assert_eq!(
+            note.knock_in_observation_schedule()?
+                .unwrap()
+                .times()
+                .contains(&at),
+            observes_at
+        );
+        assert!((engine.price(&note, &context)? - expected).abs() < 1e-12);
+    }
+    Ok(())
+}
+
+#[test]
 fn greek_requests_reject_disjoint_support_and_preserve_partial_results() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let end = start.add_days(365)?;
@@ -212,6 +268,7 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
             start,
             end,
             vec![AutocallableObservation::snowball(end, 110.0, coupon)?],
+            TradingCalendar::weekdays(),
         ))?
         .replace_history(Some(AutocallableBarrierState::NoEvent), Some(end))?;
         assert!((engine.price(&note, &context)? - expected).abs() < 1e-12);
@@ -227,6 +284,7 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
             end,
             vec![AutocallableObservation::phoenix(end, 200.0, barrier)?],
             None,
+            TradingCalendar::weekdays(),
         );
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         let note = PhoenixOption::new(terms)?
@@ -493,6 +551,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         end,
         vec![AutocallableObservation::snowball(end, 110.0, 0.0)?],
         Some((end).time_of_day()),
+        TradingCalendar::weekdays(),
     ))?;
     let daily = note.replace_calendar(TradingCalendar::all_days()).unwrap();
     assert_eq!(
@@ -1625,6 +1684,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         start,
         end,
         autocallable_observations(&[closed], &[110.0], Some(&[0.0]), None)?,
+        TradingCalendar::weekdays(),
     );
     assert!(matches!(
         BinarySnowballOption::new(terms.clone()),
@@ -1797,6 +1857,7 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
             Some(&[0.0; 3]),
             None,
         )?,
+        TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms.history_time = Some(terms.effective_time);
@@ -1912,6 +1973,7 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
             start,
             end,
             observations.clone(),
+            TradingCalendar::weekdays(),
         ));
         let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
             invalid,
@@ -1921,6 +1983,7 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
             end,
             observations.clone(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         ));
         let minimum = TernarySnowballOption::new(TernarySnowballTerms::new(
             0.1,
@@ -1930,6 +1993,7 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
             end,
             observations.clone(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         ));
         for (error, field) in [
             (binary.unwrap_err(), "maturity_coupon_rate"),
@@ -2570,7 +2634,13 @@ fn zero_coupon_observations_preserve_product_identity() -> Result<()> {
         Err(Error::InvalidInput(_))
     ));
     assert!(matches!(
-        BinarySnowballOption::new(BinarySnowballTerms::new(0.1, start, end, vec![phoenix])),
+        BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.1,
+            start,
+            end,
+            vec![phoenix],
+            TradingCalendar::weekdays()
+        )),
         Err(Error::InvalidInput(_))
     ));
     let terms = PhoenixTerms::new(
@@ -2583,6 +2653,7 @@ fn zero_coupon_observations_preserve_product_identity() -> Result<()> {
         end,
         vec![snowball],
         Some(end.time_of_day()),
+        TradingCalendar::weekdays(),
     );
     assert!(matches!(
         PhoenixOption::new(terms),

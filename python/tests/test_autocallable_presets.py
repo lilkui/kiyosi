@@ -21,6 +21,7 @@ from kiyosi.instruments import (
     standard_phoenix,
     step_down_phoenix,
 )
+from kiyosi.market import weekdays_calendar
 from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
@@ -93,6 +94,7 @@ class AutocallablePresetTests(unittest.TestCase):
             initial_knock_out_level=110, knock_out_level_decrement=2, **common
         )
         expected = PhoenixOption(
+            calendar=weekdays_calendar(),
             coupon_per_period=0.01,
             initial_spot=100,
             knock_in_level=80,
@@ -131,6 +133,7 @@ class AutocallablePresetTests(unittest.TestCase):
                 "datetime": datetime_module,
                 "PhoenixOption": PhoenixOption,
                 "AutocallableObservation": AutocallableObservation,
+                "weekdays_calendar": weekdays_calendar,
             },
         )
         self.assertEqual(restored, note)
@@ -188,6 +191,7 @@ class AutocallablePresetTests(unittest.TestCase):
                 )
             )
             expected = PhoenixOption(
+                calendar=weekdays_calendar(),
                 **history_fields(
                     observation_clock_time=None,
                     coupon_per_period=0.01,
@@ -197,7 +201,7 @@ class AutocallablePresetTests(unittest.TestCase):
                             dates, [110, 110], coupon_barrier_levels=[barrier, barrier]
                         ),
                     ),
-                )
+                ),
             )
             self.assertIs(type(note), PhoenixOption)
             self.assertEqual(note, expected)
@@ -231,9 +235,10 @@ class AutocallablePresetTests(unittest.TestCase):
             signature.parameters["coupon_per_period"].default, inspect.Parameter.empty
         )
         note = PhoenixOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=None, coupon_per_period=-0.01, **phoenix_fields()
-            )
+            ),
         )
         self.assertEqual(note.coupon_per_period, -0.01)
         self.assertIn("coupon_per_period=-0.01", repr(note))
@@ -244,6 +249,7 @@ class AutocallablePresetTests(unittest.TestCase):
                     "datetime": datetime_module,
                     "PhoenixOption": PhoenixOption,
                     "AutocallableObservation": AutocallableObservation,
+                    "weekdays_calendar": weekdays_calendar,
                 },
             ),
             note,
@@ -259,9 +265,10 @@ class AutocallablePresetTests(unittest.TestCase):
         ):
             with self.subTest(fields=fields), self.assertRaises(TypeError):
                 PhoenixOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=None, **fields, **phoenix_fields()
-                    )
+                    ),
                 )
         for operation in (note.replace, note.with_quoted_coupon):
             with self.assertRaises(TypeError):
@@ -269,20 +276,22 @@ class AutocallablePresetTests(unittest.TestCase):
         for value in (True, "0.01", None, Ellipsis):
             with self.subTest(value=value), self.assertRaises(TypeError):
                 PhoenixOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=None,
                         coupon_per_period=value,
                         **phoenix_fields(),
-                    )
+                    ),
                 )
         for value in (math.nan, math.inf, -math.inf):
             with self.subTest(value=value), self.assertRaises(InvalidInputError):
                 PhoenixOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=None,
                         coupon_per_period=value,
                         **phoenix_fields(),
-                    )
+                    ),
                 )
 
     def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(self):
@@ -388,9 +397,10 @@ class AutocallablePresetTests(unittest.TestCase):
                         0,
                     )
         fixed = PhoenixOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=None, coupon_per_period=0.01, **phoenix_fields()
-            )
+            ),
         )
         engine = QuadratureAutocallableEngine()
         for at in (MIDDLE, END):

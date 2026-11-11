@@ -74,6 +74,7 @@ fn snowball_thresholds_preserve_price_and_sampling_uncertainty() {
         start,
         end,
         autocallable_observations(&[end], &[100.0], Some(&[0.12]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     for volatility in [1e-18, 1e-200] {
@@ -116,6 +117,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
                 end,
                 autocallable_observations(&[end], &[120.0], Some(&[0.0]), None).unwrap(),
                 Some((end).time_of_day()),
+                TradingCalendar::weekdays(),
             );
             terms.knock_in_observation_mode = mode;
             terms.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
@@ -139,6 +141,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             end,
             autocallable_observations(&[end], &[120.0], None, Some(&[100.0])).unwrap(),
             Some((end).time_of_day()),
+            TradingCalendar::weekdays(),
         );
         terms.coupon_per_period = 0.12;
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;

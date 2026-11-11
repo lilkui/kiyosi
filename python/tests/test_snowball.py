@@ -24,6 +24,7 @@ from kiyosi.market import (
     RateTermStructure,
     all_days_calendar,
     custom_calendar,
+    weekdays_calendar,
 )
 from kiyosi.pricing import (
     QuadratureAutocallableEngine,
@@ -39,6 +40,7 @@ START, END = datetime(2025, 1, 1), datetime(2025, 4, 1)
 
 def contract(**changes):
     fields = {
+        "calendar": weekdays_calendar(),
         "maturity_coupon_rate": 0.06,
         "initial_spot": 100,
         "knock_in_level": 80,

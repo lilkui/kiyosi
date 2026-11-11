@@ -12434,8 +12434,8 @@ def autocallable_observations(
 
     Passing an ObservationSchedule copies its timestamps into the records;
     the records carry no calendar. Pass calendar=schedule.calendar to the note
-    constructor to preserve its observation calendar. Omitting calendar selects
-    weekdays, including for daily knock-in monitoring.
+    constructor to preserve its observation calendar. Raw note constructors require
+    an explicit calendar, including for daily knock-in monitoring.
 
     Examples
     --------
@@ -12505,9 +12505,10 @@ class SnowballOption:
         event.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
-    calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+    calendar : TradingCalendar
+        Required owned observation calendar. Records carry no calendar; pass
+        schedule.calendar when constructing from a schedule. Controls contractual
+        observations independently of PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; payloads must be possible strictly before this
@@ -12642,7 +12643,7 @@ class SnowballOption:
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar,
         history_time: datetime | None = None,
     ) -> None: ...
     def replace_history(
@@ -12773,9 +12774,10 @@ class PhoenixOption:
         event.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
-    calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+    calendar : TradingCalendar
+        Required owned observation calendar. Records carry no calendar; pass
+        schedule.calendar when constructing from a schedule. Controls contractual
+        observations independently of PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; payloads must be possible strictly before this
@@ -12924,7 +12926,7 @@ class PhoenixOption:
         lockout_periods: SupportsIndex = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar,
         history_time: datetime | None = None,
     ) -> None: ...
     def replace_history(
@@ -13039,9 +13041,10 @@ class BinarySnowballOption:
         event.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
-    calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+    calendar : TradingCalendar
+        Required owned observation calendar. Records carry no calendar; pass
+        schedule.calendar when constructing from a schedule. Controls contractual
+        observations independently of PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; payloads must be possible strictly before this
@@ -13152,7 +13155,7 @@ class BinarySnowballOption:
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar,
         history_time: datetime | None = None,
     ) -> None: ...
     def replace_history(
@@ -13255,9 +13258,10 @@ class TernarySnowballOption:
         event.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
-    calendar : TradingCalendar, optional
-        Owned observation calendar; defaults to weekdays, independently of
-        PricingContext.
+    calendar : TradingCalendar
+        Required owned observation calendar. Records carry no calendar; pass
+        schedule.calendar when constructing from a schedule. Controls contractual
+        observations independently of PricingContext.
     history_time : datetime.datetime or None, optional
         Timestamp of supplied history, covering events strictly before it.
         Required with history; payloads must be possible strictly before this
@@ -13385,7 +13389,7 @@ class TernarySnowballOption:
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
-        calendar: TradingCalendar = ...,
+        calendar: TradingCalendar,
         history_time: datetime | None = None,
     ) -> None: ...
     def replace_history(

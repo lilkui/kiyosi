@@ -59,7 +59,7 @@ impl MonteCarloAutocallableEngine {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2025, 4, 1)?.start_of_day();
     /// let note = BinarySnowballOption::new(BinarySnowballTerms::new(0.02, start, end,
-    ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?))?;
+    ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?, kiyosi::TradingCalendar::weekdays()))?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
     /// let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {

@@ -661,6 +661,7 @@ class PackageTests(unittest.TestCase):
     ):
         start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
         common = {
+            "calendar": market.weekdays_calendar(),
             "knock_in_level": 80,
             "effective_time": start,
             "expiry_time": end,

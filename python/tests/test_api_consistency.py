@@ -151,7 +151,12 @@ class ApiConsistencyTests(unittest.TestCase):
         from datetime import time
 
         start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
-        common = {"effective_time": start, "expiry_time": end, "knock_in_level": 80}
+        common = {
+            "effective_time": start,
+            "expiry_time": end,
+            "knock_in_level": 80,
+            "calendar": market.weekdays_calendar(),
+        }
         snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0.1)
         phoenix = ins.AutocallableObservation.phoenix(end, 110, coupon_barrier_level=90)
         for cls, extra in (
@@ -203,6 +208,101 @@ class ApiConsistencyTests(unittest.TestCase):
                 with self.assertRaises(InvalidInputError):
                     cls(**common, **extra, observation_clock_time=None)
 
+    def test_autocallable_constructors_require_an_explicit_calendar(self):
+        import inspect
+
+        from test_contract_replacements import contract_inputs
+
+        for cls, fields in contract_inputs():
+            if cls not in (
+                ins.SnowballOption,
+                ins.PhoenixOption,
+                ins.BinarySnowballOption,
+                ins.TernarySnowballOption,
+            ):
+                continue
+            fields = history_fields(**fields)
+            calendar = fields.pop("calendar")
+            with self.subTest(contract=cls.__name__):
+                self.assertIs(
+                    inspect.signature(cls).parameters["calendar"].default,
+                    inspect.Parameter.empty,
+                )
+                with self.assertRaises(TypeError):
+                    cls(**fields)
+                for invalid in (None, Ellipsis):
+                    with self.assertRaises(TypeError):
+                        cls(**fields, calendar=invalid)
+                note = cls(**fields, calendar=calendar)
+                self.assertEqual(note.calendar, calendar)
+                self.assertIn("calendar=weekdays_calendar()", repr(note))
+
+    def test_autocallable_calendars_control_knock_in_after_record_conversion(self):
+        start, at, end = (
+            datetime(2025, 1, 2, 15),
+            datetime(2025, 1, 6, 15),
+            datetime(2025, 1, 10, 15),
+        )
+        calendar = market.custom_calendar(
+            base=market.weekdays_calendar(), closed_dates=[at.date()]
+        )
+        schedule = market.ObservationSchedule(
+            times=[end], start_time=start, end_time=end, calendar=calendar
+        )
+        records = ins.autocallable_observations(
+            schedule, [110], knock_out_coupon_rates=[0.1]
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0
+            ),
+            spot_price=79.999,
+            valuation_time=at,
+        )
+        fields = {
+            "maturity_coupon_rate": 0.1,
+            "initial_spot": 100,
+            "knock_in_level": 80,
+            "upper_strike": 100,
+            "lower_strike": 0,
+            "effective_time": start,
+            "expiry_time": end,
+            "observation_clock_time": clock_time(15),
+            "observations": records,
+            "barrier_state": "no_event",
+            "history_time": at,
+        }
+        note = ins.SnowballOption(**fields, calendar=schedule.calendar)
+        self.assertEqual(note.calendar, calendar)
+        self.assertNotIn(at, note.knock_in_observation_schedule)
+        engine = pricing.QuadratureAutocallableEngine()
+        coupon = 0.1 * (end - start).days / 365
+        self.assertAlmostEqual(
+            engine.price(note, context),
+            (1 + coupon) * math.exp(-0.05 * 4 / 365),
+            delta=1e-12,
+        )
+        weekday_note = ins.SnowballOption(**fields, calendar=market.weekdays_calendar())
+        self.assertIn(at, weekday_note.knock_in_observation_schedule)
+        self.assertAlmostEqual(
+            engine.price(weekday_note, context),
+            79.999 * math.exp(-0.02 * 4 / 365) / 100,
+            delta=1e-12,
+        )
+        preset = ins.standard_snowball(
+            coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=80,
+            knock_out_level=110,
+            effective_time=start,
+            expiry_time=end,
+            observation_clock_time=clock_time(15),
+            observation_times=schedule,
+            barrier_state="no_event",
+            history_time=at,
+        )
+        self.assertEqual(preset, note)
+
     def test_observation_coupon_choices_are_explicit_and_control_cashflows(self):
         start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
         with self.assertRaises(TypeError):
@@ -225,6 +325,7 @@ class ApiConsistencyTests(unittest.TestCase):
         engine = pricing.QuadratureAutocallableEngine()
         for coupon, expected in ((0, 1), (0.12, 1.12)):
             note = ins.BinarySnowballOption(
+                calendar=market.weekdays_calendar(),
                 maturity_coupon_rate=0.12,
                 effective_time=start,
                 expiry_time=end,
@@ -237,6 +338,7 @@ class ApiConsistencyTests(unittest.TestCase):
             self.assertAlmostEqual(engine.price(note, context), expected, delta=1e-12)
         for barrier, expected in ((0, 1.03), (90, 1)):
             note = ins.PhoenixOption(
+                calendar=market.weekdays_calendar(),
                 coupon_per_period=0.03,
                 initial_spot=100,
                 knock_in_level=80,
@@ -534,6 +636,7 @@ class ApiConsistencyTests(unittest.TestCase):
     def test_snowball_coupon_diagnostics_identify_the_supplied_field(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         common = {
+            "calendar": market.weekdays_calendar(),
             "effective_time": start,
             "expiry_time": end,
             "observations": ins.autocallable_observations(
@@ -604,6 +707,7 @@ class ApiConsistencyTests(unittest.TestCase):
             history_time=valuation,
         )
         note = ins.BinarySnowballOption(
+            calendar=market.weekdays_calendar(),
             maturity_coupon_rate=0.1,
             effective_time=start,
             expiry_time=end,
@@ -846,7 +950,9 @@ class ApiConsistencyTests(unittest.TestCase):
         for factory, fields in factories:
             with self.subTest(contract=factory.__name__):
                 with self.assertRaises(InvalidInputError):
-                    factory(**history_fields(**fields))
+                    factory(
+                        **history_fields(**fields, calendar=market.weekdays_calendar())
+                    )
                 option = factory(
                     **history_fields(**fields, calendar=market.all_days_calendar())
                 )
@@ -2382,12 +2488,14 @@ class ObservationReplacementTests(unittest.TestCase):
         life = {"effective_time": start, "expiry_time": end}
         with self.assertRaises(InvalidInputError):
             ins.BinarySnowballOption(
+                calendar=market.weekdays_calendar(),
                 **history_fields(
                     maturity_coupon_rate=0.1, observations=[phoenix], **life
-                )
+                ),
             )
         with self.assertRaises(InvalidInputError):
             ins.PhoenixOption(
+                calendar=market.weekdays_calendar(),
                 **history_fields(
                     coupon_per_period=0.1,
                     initial_spot=100,
@@ -2397,7 +2505,7 @@ class ObservationReplacementTests(unittest.TestCase):
                     observations=[snowball],
                     observation_clock_time=end.time(),
                     **life,
-                )
+                ),
             )
 
     def test_observation_replacement_preserves_validity_and_original_values(self):

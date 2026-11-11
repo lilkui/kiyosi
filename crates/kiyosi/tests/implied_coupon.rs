@@ -30,6 +30,7 @@ fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
         start,
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?,
+        TradingCalendar::weekdays(),
     ))?;
     for convention in [
         CouponQuoteConvention::ShiftMaturityCoupon,
@@ -73,6 +74,7 @@ fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
             end,
             autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?,
             None,
+            TradingCalendar::weekdays(),
         );
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         let note = PhoenixOption::new(terms)?.with_quoted_coupon(coupon)?;
@@ -101,6 +103,7 @@ fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
         date(1, 1),
         date(4, 1),
         autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None)?,
+        TradingCalendar::weekdays(),
     ))?;
     let quote = engine.price(&note.with_quoted_coupon(0.12, convention)?, &context)?;
     assert!(matches!(
@@ -139,6 +142,7 @@ fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
             date(4, 1),
             autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[90.0]))?,
             Some(date(1, 1).time_of_day()),
+            TradingCalendar::weekdays(),
         ))?;
         let quote = engine.price(&note, &context)?;
         assert!(matches!(
@@ -191,6 +195,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                 date(4, 1),
                 autocallable_observations(&[date(4, 1)], &[110.0], Some(&[anchor]), None)?,
                 Some((date(4, 1)).time_of_day()),
+                TradingCalendar::weekdays(),
             ))?;
             let original = note.clone();
             let quote = engine.price(&dated(&note, &context), &context)?;
@@ -260,6 +265,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
             date(4, 1),
             autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.05]), None)?,
             Some((date(4, 1)).time_of_day()),
+            TradingCalendar::weekdays(),
         ))?;
         let solved = implied_snowball_coupon(
             engine,
@@ -300,6 +306,7 @@ fn binary() -> BinarySnowballOption {
             None,
         )
         .unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap()
 }
@@ -431,6 +438,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         date(4, 1),
         records.clone(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
@@ -441,6 +449,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         date(4, 1),
         records,
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
 
@@ -472,6 +481,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         )
         .unwrap(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     for coupon in [-0.05, 0.18] {
@@ -849,6 +859,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         date(1, 1),
         date(4, 1),
         autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None).unwrap(),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let digital =
@@ -898,6 +909,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         date(4, 1),
         note.observations().to_vec(),
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     ))
     .unwrap();
     let quote = engine.price(&dated(&ternary, &context), &context).unwrap();
@@ -973,6 +985,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         date(4, 1),
         records,
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms.history_time = Some(terms.effective_time);
@@ -1025,6 +1038,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         date(4, 1),
         records,
         Some((date(4, 1)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms.history_time = Some(terms.effective_time);
@@ -1067,6 +1081,7 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
         )
         .unwrap(),
         Some((date(1, 13)).time_of_day()),
+        TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms.history_time = Some(terms.effective_time);

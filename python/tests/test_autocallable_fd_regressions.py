@@ -49,6 +49,7 @@ class AutocallableRegressionTests(unittest.TestCase):
         shifts = {"spot_shift": 0.25, "volatility_shift": 0.002, "rate_shift": 0.001}
         for mode in ("every_trading_day", "at_expiry"):
             note = SnowballOption(
+                calendar=weekdays_calendar(),
                 observation_clock_time=clock_time()
                 if mode == "every_trading_day"
                 else None,
@@ -104,6 +105,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             valuation_time=start,
         )
         binary = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             effective_time=start,
             expiry_time=end,
@@ -154,18 +156,20 @@ class AutocallableRegressionTests(unittest.TestCase):
         for note, value in (
             (
                 SnowballOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=clock_time(),
                         **common,
                         **downside,
                         maturity_coupon_rate=0,
                         observations=binary.observations,
-                    )
+                    ),
                 ),
                 expected_downside,
             ),
             (
                 PhoenixOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=clock_time(),
                         **common,
@@ -174,19 +178,20 @@ class AutocallableRegressionTests(unittest.TestCase):
                         observations=autocallable_observations(
                             [end], [100], coupon_barrier_levels=[100]
                         ),
-                    )
+                    ),
                 ),
                 expected_downside,
             ),
             (
                 TernarySnowballOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=clock_time(),
                         **common,
                         maturity_coupon_rate=0.1,
                         minimum_coupon_rate=0,
                         observations=binary.observations,
-                    )
+                    ),
                 ),
                 expected,
             ),
@@ -344,7 +349,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ),
             )
             for kind, terms, engine_type in cases:
-                note = kind(**history_fields(**common, **terms))
+                note = kind(
+                    calendar=weekdays_calendar(), **history_fields(**common, **terms)
+                )
                 for scheme in (
                     "explicit_euler",
                     "implicit_euler",
@@ -470,7 +477,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ),
             )
             for kind, terms, engine_type in cases:
-                note = kind(**history_fields(**common, **terms))
+                note = kind(
+                    calendar=weekdays_calendar(), **history_fields(**common, **terms)
+                )
                 engines = [
                     (
                         engine_type(
@@ -528,7 +537,10 @@ class AutocallableRegressionTests(unittest.TestCase):
                                 alternate_terms["maturity_coupon_rate"] = 0.12
                         alternate_quote = engine.price(
                             dated_history(
-                                kind(**history_fields(**common, **alternate_terms)),
+                                kind(
+                                    calendar=weekdays_calendar(),
+                                    **history_fields(**common, **alternate_terms),
+                                ),
                                 context,
                             ),
                             context,
@@ -780,6 +792,7 @@ class AutocallableRegressionTests(unittest.TestCase):
 
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = SnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=clock_time(),
             maturity_coupon_rate=0,
             initial_spot=100,
@@ -841,6 +854,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             for state in ("no_event", "knocked_in"):
                 with self.subTest(engine=type(engine).__name__, state=state):
                     note = SnowballOption(
+                        calendar=weekdays_calendar(),
                         observation_clock_time=clock_time(),
                         maturity_coupon_rate=0.06,
                         initial_spot=100,
@@ -886,6 +900,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             "expiry_time": end,
         }
         snowball = SnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=None,
                 **common,
@@ -896,9 +911,10 @@ class AutocallableRegressionTests(unittest.TestCase):
                 observations=autocallable_observations(
                     observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
                 ),
-            )
+            ),
         )
         phoenix = PhoenixOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=None,
                 **common,
@@ -909,9 +925,10 @@ class AutocallableRegressionTests(unittest.TestCase):
                 observations=autocallable_observations(
                     observation_times, knock_out_levels, coupon_barrier_levels=[0]
                 ),
-            )
+            ),
         )
         ternary = TernarySnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=None,
                 **common,
@@ -920,7 +937,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 observations=autocallable_observations(
                     observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
                 ),
-            )
+            ),
         )
         put_prices = [
             pricing.AnalyticEuropeanEngine().price(
@@ -1024,7 +1041,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                                     observation_clock_time=clock_time(),
                                     **terms,
                                     knock_in_observation_mode="every_trading_day",
-                                )
+                                ),
                             ),
                             context,
                         ),
@@ -1037,7 +1054,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                                     observation_clock_time=None,
                                     **terms,
                                     knock_in_observation_mode="at_expiry",
-                                )
+                                ),
                             ),
                             context,
                         ),
@@ -1057,7 +1074,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         observation_clock_time=clock_time(),
                         **terms,
                         knock_in_observation_mode="every_trading_day",
-                    )
+                    ),
                 ),
                 context,
             ),
@@ -1075,7 +1092,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         observation_clock_time=None,
                         **terms,
                         knock_in_observation_mode="at_expiry",
-                    )
+                    ),
                 ),
                 context,
             ),
@@ -1090,7 +1107,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                             observation_clock_time=None,
                             **terms,
                             knock_in_observation_mode="at_expiry",
-                        )
+                        ),
                     ),
                     context,
                 ),
@@ -1103,6 +1120,7 @@ class AutocallableRegressionTests(unittest.TestCase):
 
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             effective_time=start,
             expiry_time=end,

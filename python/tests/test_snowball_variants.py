@@ -20,7 +20,7 @@ from kiyosi.instruments import (
     SnowballOption,
     TernarySnowballOption,
 )
-from kiyosi.market import RateTermStructure
+from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import (
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
@@ -57,6 +57,7 @@ class SnowballVariantTests(unittest.TestCase):
     def test_quadrature_covers_drift_into_future_knock_out(self):
         end = datetime(2026, 1, 1)
         note = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             effective_time=START,
             expiry_time=end,
@@ -87,6 +88,7 @@ class SnowballVariantTests(unittest.TestCase):
     def test_quadrature_covers_drift_below_future_knock_out(self):
         end = datetime(2026, 1, 1)
         note = SnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=clock_time(),
             maturity_coupon_rate=0,
             initial_spot=100,
@@ -145,15 +147,18 @@ class SnowballVariantTests(unittest.TestCase):
                 [END], [110], knock_out_coupon_rates=[0.08]
             ),
         }
-        binary = BinarySnowballOption(**history_fields(**common))
+        binary = BinarySnowballOption(
+            calendar=weekdays_calendar(), **history_fields(**common)
+        )
         ternary = TernarySnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=None,
                 **common,
                 minimum_coupon_rate=-0.02,
                 knock_in_level=80,
                 knock_in_observation_mode="at_expiry",
-            )
+            ),
         )
         engine = QuadratureAutocallableEngine()
         valuation = datetime(2025, 2, 3)
@@ -216,7 +221,7 @@ class SnowballVariantTests(unittest.TestCase):
                 if fields["knock_in_observation_mode"] == "every_trading_day"
                 else None,
             )
-        return kind(**history_fields(**fields))
+        return kind(calendar=weekdays_calendar(), **history_fields(**fields))
 
     def test_existing_quantlib_terminal_portfolios(self):
         engine = QuadratureAutocallableEngine()
@@ -245,7 +250,9 @@ class SnowballVariantTests(unittest.TestCase):
                         if inputs["knock_in_mode"] == "every_trading_day"
                         else None,
                     )
-                note = getattr(instruments, kind)(**history_fields(**fields))
+                note = getattr(instruments, kind)(
+                    calendar=weekdays_calendar(), **history_fields(**fields)
+                )
                 ctx = market(
                     inputs["spot"],
                     datetime.fromisoformat(inputs["valuation"]),
@@ -382,6 +389,7 @@ class SnowballVariantTests(unittest.TestCase):
                     )
                 )
                 explicit = SnowballOption(
+                    calendar=weekdays_calendar(),
                     observation_clock_time=clock_time()
                     if mode == "every_trading_day"
                     else None,
@@ -442,7 +450,11 @@ class SnowballVariantTests(unittest.TestCase):
                 self.assertEqual(
                     eval(
                         repr(actual),
-                        vars(instruments) | {"datetime": __import__("datetime")},
+                        vars(instruments)
+                        | {
+                            "datetime": __import__("datetime"),
+                            "weekdays_calendar": weekdays_calendar,
+                        },
                     ),
                     actual,
                 )
@@ -467,7 +479,12 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertIsNone(note.barrier_state)
             self.assertEqual(
                 eval(
-                    repr(note), vars(instruments) | {"datetime": __import__("datetime")}
+                    repr(note),
+                    vars(instruments)
+                    | {
+                        "datetime": __import__("datetime"),
+                        "weekdays_calendar": weekdays_calendar,
+                    },
                 ),
                 note,
             )

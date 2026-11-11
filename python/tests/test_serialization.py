@@ -147,13 +147,15 @@ def values():
             )
         ),
         i.SnowballOption(
+            calendar=m.weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time(),
                 maturity_coupon_rate=0.1,
                 **common,
-            )
+            ),
         ),
         i.PhoenixOption(
+            calendar=m.weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time(),
                 coupon_per_period=0.1,
@@ -165,9 +167,10 @@ def values():
                         )
                     ],
                 ),
-            )
+            ),
         ),
         i.PhoenixOption(
+            calendar=m.weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time(),
                 coupon_per_period=0.01,
@@ -179,14 +182,16 @@ def values():
                         )
                     ],
                 ),
-            )
+            ),
         ),
         i.BinarySnowballOption(
+            calendar=m.weekdays_calendar(),
             **history_fields(
                 maturity_coupon_rate=0.1, observations=common["observations"], **life
-            )
+            ),
         ),
         i.TernarySnowballOption(
+            calendar=m.weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time(),
                 maturity_coupon_rate=0.1,
@@ -194,7 +199,7 @@ def values():
                 knock_in_level=80,
                 observations=common["observations"],
                 **life,
-            )
+            ),
         ),
     )
     for factory, cash in (
@@ -238,6 +243,7 @@ class SerializationTests(unittest.TestCase):
             surface.values[0][0] = 0.5
         observation = i.AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
         note = i.BinarySnowballOption(
+            calendar=m.weekdays_calendar(),
             maturity_coupon_rate=0.1,
             effective_time=START,
             expiry_time=END,

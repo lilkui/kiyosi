@@ -11,6 +11,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     all_days_calendar,
+    weekdays_calendar,
 )
 from support.history import dated as dated_history
 from support.history import history_fields
@@ -147,14 +148,16 @@ def cases():
     }
     for contract in (
         ins.SnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time(),
                 **note,
                 **downside,
                 maturity_coupon_rate=0.1,
-            )
+            ),
         ),
         ins.PhoenixOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time(),
                 **dict(
@@ -165,17 +168,21 @@ def cases():
                 ),
                 **downside,
                 coupon_per_period=0.1,
-            )
+            ),
         ),
-        ins.BinarySnowballOption(**history_fields(**note, maturity_coupon_rate=0.1)),
+        ins.BinarySnowballOption(
+            calendar=weekdays_calendar(),
+            **history_fields(**note, maturity_coupon_rate=0.1),
+        ),
         ins.TernarySnowballOption(
+            calendar=weekdays_calendar(),
             **history_fields(
                 observation_clock_time=clock_time(),
                 **note,
                 knock_in_level=80,
                 maturity_coupon_rate=0.1,
                 minimum_coupon_rate=0,
-            )
+            ),
         ),
     ):
         yield (

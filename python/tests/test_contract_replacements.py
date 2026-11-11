@@ -7,7 +7,7 @@ from datetime import time as clock_time
 
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
-from kiyosi.market import all_days_calendar
+from kiyosi.market import all_days_calendar, weekdays_calendar
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
@@ -141,6 +141,7 @@ def contract_inputs():
     yield (
         i.SnowballOption,
         {
+            "calendar": weekdays_calendar(),
             "observation_clock_time": clock_time(),
             "maturity_coupon_rate": 0.1,
             "initial_spot": 100,
@@ -160,6 +161,7 @@ def contract_inputs():
     yield (
         i.PhoenixOption,
         {
+            "calendar": weekdays_calendar(),
             "observation_clock_time": clock_time(),
             "coupon_per_period": 0.1,
             "initial_spot": 100,
@@ -182,6 +184,7 @@ def contract_inputs():
     yield (
         i.BinarySnowballOption,
         {
+            "calendar": weekdays_calendar(),
             "maturity_coupon_rate": 0.1,
             "barrier_state": "no_event",
             "principal_redemption_ratio": 1,
@@ -195,6 +198,7 @@ def contract_inputs():
     yield (
         i.TernarySnowballOption,
         {
+            "calendar": weekdays_calendar(),
             "observation_clock_time": clock_time(),
             "maturity_coupon_rate": 0.1,
             "minimum_coupon_rate": 0.02,

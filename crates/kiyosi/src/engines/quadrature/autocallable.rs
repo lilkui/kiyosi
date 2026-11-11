@@ -41,7 +41,7 @@ impl QuadratureAutocallableEngine {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2025, 4, 1)?.start_of_day();
     /// let mut terms = SnowballTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
+    ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?), kiyosi::TradingCalendar::weekdays());
     /// terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     /// terms.observation_clock_time = None;
     /// let note = SnowballOption::new(terms)?;

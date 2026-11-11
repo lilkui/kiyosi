@@ -576,6 +576,7 @@ class TimestampTests(unittest.TestCase):
                     5,
                 )
         note = SnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=clock_time(15),
             maturity_coupon_rate=0.06,
             initial_spot=100,
@@ -627,6 +628,7 @@ class TimestampTests(unittest.TestCase):
 
     def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(self):
         note = SnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=clock_time(15),
             maturity_coupon_rate=0.12,
             initial_spot=100,
@@ -704,6 +706,7 @@ class TimestampTests(unittest.TestCase):
         first = datetime(9998, 1, 1, 10, microsecond=1)
         last = first.replace(microsecond=2)
         note = PhoenixOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=None,
             coupon_per_period=0.01,
             initial_spot=100,

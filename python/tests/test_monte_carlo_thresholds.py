@@ -6,7 +6,11 @@ from datetime import time as clock_time
 
 from kiyosi import instruments as ins
 from kiyosi import pricing
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    weekdays_calendar,
+)
 from support.history import dated as dated_history
 from support.history import history_fields
 
@@ -76,6 +80,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
 
     def test_snowball_thresholds_preserve_price_and_sampling_uncertainty(self):
         note = ins.BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0.02,
             effective_time=START,
             expiry_time=END,
@@ -111,6 +116,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
             context = market(volatility, intraday=True)
             for mode in ("every_trading_day", "at_expiry"):
                 note = ins.TernarySnowballOption(
+                    calendar=weekdays_calendar(),
                     **history_fields(
                         observation_clock_time=clock_time()
                         if mode == "every_trading_day"
@@ -124,7 +130,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         observations=ins.autocallable_observations(
                             [end], [120], knock_out_coupon_rates=[0]
                         ),
-                    )
+                    ),
                 )
                 with self.subTest(volatility=volatility, mode=mode):
                     self.assertAlmostEqual(
@@ -133,6 +139,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         delta=1e-12,
                     )
             note = ins.PhoenixOption(
+                calendar=weekdays_calendar(),
                 **history_fields(
                     observation_clock_time=None,
                     **common,
@@ -145,7 +152,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     observations=ins.autocallable_observations(
                         [end], [120], coupon_barrier_levels=[100]
                     ),
-                )
+                ),
             )
             self.assertAlmostEqual(
                 engine.price(dated_history(note, context), context), 1.06, delta=1e-12

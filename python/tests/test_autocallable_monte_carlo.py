@@ -11,7 +11,7 @@ from kiyosi import (
     UnsupportedOperationError,
 )
 from kiyosi.instruments import BinarySnowballOption, autocallable_observations
-from kiyosi.market import RateTermStructure
+from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import MonteCarloAutocallableEngine as MC
 from kiyosi.pricing import (
     QuadratureAutocallableEngine,
@@ -298,6 +298,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             )
         self.assertIsNone(unseeded.seed)
         fixed = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             effective_time=START,
             expiry_time=END,

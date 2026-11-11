@@ -19,6 +19,7 @@ from kiyosi.market import (
     PricingContext,
     monthly_schedule,
     sse_calendar,
+    weekdays_calendar,
 )
 from support.history import dated as dated_history
 
@@ -41,6 +42,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
 
         def price(barrier):
             option = BinarySnowballOption(
+                calendar=weekdays_calendar(),
                 maturity_coupon_rate=0.02,
                 effective_time=start,
                 expiry_time=end,
@@ -67,6 +69,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
     def test_near_expiry_greeks_match_an_analytic_digital(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             effective_time=start,
             expiry_time=end,
@@ -197,6 +200,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
     def test_coarse_grids_preserve_positive_payoff_bounds_and_flat_greeks(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = BinarySnowballOption(
+            calendar=weekdays_calendar(),
             maturity_coupon_rate=0,
             effective_time=start,
             expiry_time=end,
@@ -244,6 +248,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
 
         def error(assets, times, upper, barrier=100):
             option = BinarySnowballOption(
+                calendar=weekdays_calendar(),
                 maturity_coupon_rate=0,
                 effective_time=start,
                 expiry_time=end,
@@ -288,6 +293,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
     def test_projection_preserves_exact_current_event_barrier_comparisons(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = PhoenixOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=clock_time(),
             coupon_per_period=0.08,
             initial_spot=100,
@@ -335,6 +341,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
             return math.expm1(0.04 * time) / time
 
         option = TernarySnowballOption(
+            calendar=weekdays_calendar(),
             observation_clock_time=clock_time(),
             maturity_coupon_rate=carry_rate(end),
             minimum_coupon_rate=carry_rate(end),
