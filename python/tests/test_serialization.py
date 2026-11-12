@@ -13,14 +13,12 @@ from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
-from support.history import dated as dated_history
-from support.history import history_fields
 
 START, END = datetime(2025, 1, 2), datetime(2025, 1, 10)
 
 
 def price_in_worker(engine, option, context):
-    return engine.price_with_greeks(dated_history(option, context), context, "delta")
+    return engine.price_with_greeks(option, context, "delta")
 
 
 def values():
@@ -92,114 +90,88 @@ def values():
         i.AmericanOption(**vanilla),
         i.CashOrNothingOption(payout=10, **vanilla),
         i.AssetOrNothingOption(**vanilla),
-        i.GeometricAveragePriceOption(
-            **history_fields(averaging_start_time=START, **vanilla)
-        ),
-        i.ArithmeticAveragePriceOption(
-            **history_fields(averaging_start_time=START, **vanilla)
-        ),
+        i.GeometricAveragePriceOption(averaging_start_time=START, **vanilla),
+        i.ArithmeticAveragePriceOption(averaging_start_time=START, **vanilla),
         i.BarrierOption(
-            **history_fields(
-                barrier_level=120,
-                barrier_type="up_and_out",
-                observation_times=[END],
-                touch_state="untouched",
-                **vanilla,
-            )
+            barrier_level=120,
+            barrier_type="up_and_out",
+            observation_times=[END],
+            touch_state="untouched",
+            **vanilla,
         ),
         i.DoubleBarrierOption(
-            **history_fields(
-                lower_barrier=80, upper_barrier=120, barrier_type="knock_out", **vanilla
-            )
+            lower_barrier=80, upper_barrier=120, barrier_type="knock_out", **vanilla
         ),
         i.RangeAccrualOption(
-            **history_fields(
-                observation_clock_time=clock_time(),
-                notional=100,
-                annual_coupon_rate=0.1,
-                lower_bound=80,
-                upper_bound=120,
-                realized_hit_count=0,
-                **life,
-            )
+            observation_clock_time=clock_time(),
+            notional=100,
+            annual_coupon_rate=0.1,
+            lower_bound=80,
+            upper_bound=120,
+            realized_hit_count=0,
+            **life,
         ),
         i.Accumulator(
-            **history_fields(
-                observation_clock_time=clock_time(),
-                strike=100,
-                knock_out_level=110,
-                daily_quantity=1,
-                acceleration_factor=2,
-                **life,
-            )
+            observation_clock_time=clock_time(),
+            strike=100,
+            knock_out_level=110,
+            daily_quantity=1,
+            acceleration_factor=2,
+            **life,
         ),
         i.Accumulator(
-            **history_fields(
-                knock_out_settled=False,
-                observation_clock_time=clock_time(),
-                strike=100,
-                knock_out_level=110,
-                daily_quantity=1,
-                acceleration_factor=2,
-                accumulated_quantity=3,
-                knock_out_observation_times=[],
-                **life,
-            )
+            knock_out_settled=False,
+            observation_clock_time=clock_time(),
+            strike=100,
+            knock_out_level=110,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=3,
+            knock_out_observation_times=[],
+            **life,
         ),
         i.SnowballOption(
             calendar=m.weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time(),
-                maturity_coupon_rate=0.1,
-                **common,
+            observation_clock_time=clock_time(),
+            maturity_coupon_rate=0.1,
+            **common,
+        ),
+        i.PhoenixOption(
+            calendar=m.weekdays_calendar(),
+            observation_clock_time=clock_time(),
+            coupon_per_period=0.1,
+            **dict(
+                common,
+                observations=[
+                    i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
+                ],
             ),
         ),
         i.PhoenixOption(
             calendar=m.weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time(),
-                coupon_per_period=0.1,
-                **dict(
-                    common,
-                    observations=[
-                        i.AutocallableObservation.phoenix(
-                            END, 110, coupon_barrier_level=0
-                        )
-                    ],
-                ),
-            ),
-        ),
-        i.PhoenixOption(
-            calendar=m.weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time(),
-                coupon_per_period=0.01,
-                **dict(
-                    common,
-                    observations=[
-                        i.AutocallableObservation.phoenix(
-                            END, 110, coupon_barrier_level=0
-                        )
-                    ],
-                ),
+            observation_clock_time=clock_time(),
+            coupon_per_period=0.01,
+            **dict(
+                common,
+                observations=[
+                    i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
+                ],
             ),
         ),
         i.BinarySnowballOption(
             calendar=m.weekdays_calendar(),
-            **history_fields(
-                maturity_coupon_rate=0.1, observations=common["observations"], **life
-            ),
+            maturity_coupon_rate=0.1,
+            observations=common["observations"],
+            **life,
         ),
         i.TernarySnowballOption(
             calendar=m.weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time(),
-                maturity_coupon_rate=0.1,
-                minimum_coupon_rate=0.02,
-                knock_in_level=80,
-                observations=common["observations"],
-                **life,
-            ),
+            observation_clock_time=clock_time(),
+            maturity_coupon_rate=0.1,
+            minimum_coupon_rate=0.02,
+            knock_in_level=80,
+            observations=common["observations"],
+            **life,
         ),
     )
     for factory, cash in (
@@ -207,12 +179,10 @@ def values():
         (i.asset_binary_barrier_option, False),
     ):
         yield factory(
-            **history_fields(
-                barrier_level=120,
-                barrier_type="up_and_out",
-                **vanilla,
-                **({"payout": 10} if cash else {}),
-            )
+            barrier_level=120,
+            barrier_type="up_and_out",
+            **vanilla,
+            **({"payout": 10} if cash else {}),
         )
     for cash in (True, False):
         for kind in ("up_and_in", "down_and_out"):
@@ -221,17 +191,13 @@ def values():
             else:
                 factory = i.cash_no_touch_option if cash else i.asset_no_touch_option
             yield factory(
-                **history_fields(
-                    barrier_level=120,
-                    barrier_type=kind,
-                    **life,
-                    **({"payout": 10} if cash else {}),
-                )
+                barrier_level=120,
+                barrier_type=kind,
+                **life,
+                **({"payout": 10} if cash else {}),
             )
     for factory in (i.cash_double_touch, i.cash_double_no_touch):
-        yield factory(
-            **history_fields(lower_barrier=80, upper_barrier=120, payout=10, **life)
-        )
+        yield factory(lower_barrier=80, upper_barrier=120, payout=10, **life)
 
 
 def test_owned_collection_properties_reject_silent_edits():
@@ -271,22 +237,20 @@ def test_results_compare_by_value_including_metadata_and_uncertainty():
         valuation_time=END,
     )
     engine = p.AnalyticEuropeanEngine()
-    result = engine.price_with_greeks(dated_history(option, context), context, "delta")
+    result = engine.price_with_greeks(option, context, "delta")
     restored = pickle.loads(pickle.dumps(result))
     assert result is not restored
     assert result == restored
     assert result != engine.price_with_greeks(
-        dated_history(option.replace(strike=99), context), context, "delta"
+        option.replace(strike=99), context, "delta"
     )
     assert result != engine.price_with_greeks(
-        dated_history(option.replace(option_type="put", strike=120), context),
+        option.replace(option_type="put", strike=120),
         context,
         "delta",
     )
-    theta = engine.price_with_greeks(dated_history(option, context), context, "theta")
-    assert theta != engine.price_with_greeks(
-        dated_history(option, context), context, "color"
-    )
+    theta = engine.price_with_greeks(option, context, "theta")
+    assert theta != engine.price_with_greeks(option, context, "color")
     digital = i.CashOrNothingOption(
         option_type="call",
         strike=100,
@@ -295,18 +259,18 @@ def test_results_compare_by_value_including_metadata_and_uncertainty():
         expiry_time=END,
     )
     unsupported = p.CoxRossRubinsteinDigitalEngine().price_with_greeks(
-        dated_history(digital, context), context, ["delta", "theta"]
+        digital, context, ["delta", "theta"]
     )
     assert theta.price == unsupported.price
     assert theta.theta is None
     assert unsupported.theta is None
     assert theta != unsupported
     estimate = p.MonteCarloVanillaEngine(path_count=32, seed=42).price_with_statistics(
-        dated_history(option, context), context
+        option, context
     )
     other = p.MonteCarloVanillaEngine(
         path_count=32, seed=42, sampling="sobol"
-    ).price_with_statistics(dated_history(option, context), context)
+    ).price_with_statistics(option, context)
     assert estimate == pickle.loads(pickle.dumps(estimate))
     assert estimate.price == other.price
     assert estimate != other
@@ -362,15 +326,13 @@ def test_repr_exposes_terms_settings_and_results(subtests):
         valuation_time=START,
     )
     assert "spot_price=100.0" in repr(context)
-    result = p.AnalyticEuropeanEngine().price_with_greeks(
-        dated_history(vanilla, context), context, "delta"
-    )
+    result = p.AnalyticEuropeanEngine().price_with_greeks(vanilla, context, "delta")
     assert "price=" in repr(result)
     assert "'delta':" in repr(result)
     assert repr(pickle.loads(pickle.dumps(result))) == repr(result)
     estimate = p.MonteCarloVanillaEngine(
         path_count=16, seed=42, max_active_workers=1
-    ).price_with_statistics(dated_history(vanilla, context), context)
+    ).price_with_statistics(vanilla, context)
     assert "standard_error=" in repr(estimate)
     assert repr(pickle.loads(pickle.dumps(estimate))) == repr(estimate)
 
@@ -471,10 +433,6 @@ def test_repr_bounds_large_contract_schedules(subtests):
                 accumulated_quantity=original.accumulated_quantity,
                 knock_out_settled=original.knock_out_settled,
                 calendar=m.all_days_calendar(),
-                history_time=(original.history_time or original.effective_time)
-                if original.accumulated_quantity is not None
-                or original.knock_out_settled is not None
-                else None,
             )
         elif isinstance(
             original,
@@ -495,9 +453,6 @@ def test_repr_bounds_large_contract_schedules(subtests):
                 else observations,
                 barrier_state=original.barrier_state,
                 calendar=m.all_days_calendar(),
-                history_time=(original.history_time or original.effective_time)
-                if original.barrier_state is not None
-                else None,
             )
         else:
             continue
@@ -558,7 +513,7 @@ def test_nondefault_engine_settings_survive_serialization(subtests):
         ),
     )
     for factory, fields in cases:
-        engine = factory(**history_fields(**fields))
+        engine = factory(**fields)
         restored = pickle.loads(pickle.dumps(engine))
         for name, expected in fields.items():
             with subtests.test(engine=factory.__name__, field=name):
@@ -591,7 +546,7 @@ def test_spawn_transports_contracts_contexts_engines_and_results():
     assert actual.delta == expected.delta
     assert actual.gamma is None
     estimate = p.MonteCarloVanillaEngine(path_count=64, seed=42).price_with_statistics(
-        dated_history(option, context), context
+        option, context
     )
     restored = pickle.loads(pickle.dumps(estimate))
     assert (

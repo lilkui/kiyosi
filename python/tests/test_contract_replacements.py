@@ -239,28 +239,10 @@ def contract_inputs():
 
 def contracts():
     for factory, fields in contract_inputs():
-        yield factory(
-            **fields,
-            history_time=(
-                datetime(2025, 1, 6, 12)
-                if any(
-                    fields.get(name) is not None
-                    for name in (
-                        "touch_state",
-                        "barrier_state",
-                        "realized_average",
-                        "realized_hit_count",
-                        "accumulated_quantity",
-                        "knock_out_settled",
-                    )
-                )
-                else None
-            ),
-        )
+        yield factory(**fields)
 
 
 UPDATES = {
-    "history_time": datetime(2025, 1, 7),
     "calendar": all_days_calendar(),
     "option_type": "put",
     "strike": 105,
@@ -304,7 +286,6 @@ UPDATES = {
 }
 NULLABLE = {
     "observation_times",
-    "history_time",
     "touch_state",
     "barrier_state",
     "realized_hit_count",
@@ -348,16 +329,16 @@ def test_monitoring_schedules_round_trip_for_continuous_and_scheduled_contracts(
             assert scheduled.replace(observation_times=None) == continuous
 
 
-def test_reactivation_with_changed_rules_requires_explicit_quantity():
+def test_reactivation_with_changed_rules_retains_omitted_quantity():
     active = next(value for value in contracts() if isinstance(value, i.Accumulator))
     active = active.replace(
         knock_out_observation_times=None,
         accumulated_quantity=active.accumulated_quantity,
         knock_out_settled=active.knock_out_settled,
     )
-    settled = active.replace_history(knock_out_settled=True)
-    with pytest.raises(InvalidInputError):
-        settled.replace(knock_out_settled=False, daily_quantity=2)
+    settled = active.replace(knock_out_settled=True)
+    retained = settled.replace(knock_out_settled=False, daily_quantity=2)
+    assert retained.accumulated_quantity == 3
     reactivated = settled.replace(
         knock_out_settled=False, daily_quantity=2, accumulated_quantity=0
     )
@@ -368,12 +349,10 @@ def test_reactivation_with_changed_rules_requires_explicit_quantity():
     assert settled.accumulated_quantity == 3
 
 
-def test_event_changes_require_an_explicit_history_choice(subtests):
+def test_event_changes_preserve_omitted_history(subtests):
     for original in contracts():
         if hasattr(original, "realized_average"):
-            original = original.replace_history(
-                realized_average=100, history_time=datetime(2025, 1, 6, 12)
-            )
+            original = original.replace(realized_average=100)
         history = {
             field: getattr(original, field)
             for field in (
@@ -417,8 +396,8 @@ def test_event_changes_require_an_explicit_history_choice(subtests):
             }
         with subtests.test(contract=type(original).__name__):
             saved = original.replace()
-            with pytest.raises(InvalidInputError):
-                original.replace(**updates)
+            retained = original.replace(**updates)
+            assert {field: getattr(retained, field) for field in history} == history
             kept = original.replace(**updates, **history)
             assert ({field: getattr(kept, field) for field in history}) == history
             cleared_history = {field: None for field in history}
@@ -466,8 +445,6 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
                 )
             with subtests.test(contract=type(original).__name__, field=name):
                 updates = {name: value}
-                if name == "barrier_state":
-                    updates["history_time"] = original.history_time
                 if name == "knock_in_observation_mode":
                     updates["observation_clock_time"] = None
                 if isinstance(original, (i.BinaryBarrierOption, i.TouchOption)):
@@ -494,8 +471,6 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
                 ):
                     if hasattr(original, field):
                         updates.setdefault(field, getattr(original, field))
-                if name == "realized_average":
-                    updates["history_time"] = original.expiry_time
                 changed = original.replace(**updates)
                 if isinstance(original, i.DoubleTouchOption) and name == "barrier_type":
                     assert not (changed.is_one_touch)
@@ -510,20 +485,7 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
                     isinstance(original, i.DoubleTouchOption) and name == "barrier_type"
                 ):
                     assert changed == factory(**expected)
-                if name == "history_time" and any(
-                    getattr(original, field, None) is not None
-                    for field in (
-                        "touch_state",
-                        "barrier_state",
-                        "realized_average",
-                        "realized_hit_count",
-                        "accumulated_quantity",
-                        "knock_out_settled",
-                    )
-                ):
-                    with pytest.raises(InvalidInputError):
-                        original.replace(**(updates | {name: None}))
-                elif name in NULLABLE:
+                if name in NULLABLE:
                     assert (
                         getattr(original.replace(**updates | {name: None}), name)
                         is None
@@ -608,8 +570,10 @@ def test_validation_representation_errors_and_failure_state(subtests):
             with pytest.raises(TypeError):
                 original.replace(1)
             if "observation_times" in fields:
-                with pytest.raises(InvalidInputError):
-                    original.replace(observation_times=[END])
+                assert (
+                    original.replace(observation_times=[END]).touch_state
+                    == original.touch_state
+                )
                 scheduled = original.replace(
                     observation_times=[END],
                     touch_state=original.touch_state,
@@ -632,8 +596,7 @@ def test_monitoring_schedule_selects_mode_and_preserves_history_validation(subte
             assert scheduled.replace(observation_times=...) == scheduled
             with pytest.raises(InvalidInputError):
                 scheduled.replace(observation_times=[])
-            with pytest.raises(InvalidInputError):
-                scheduled.replace(observation_times=None)
+            assert scheduled.replace(observation_times=None) == original
             continuous = scheduled.replace(
                 observation_times=None, touch_state=scheduled.touch_state
             )
@@ -643,9 +606,7 @@ def test_monitoring_schedule_selects_mode_and_preserves_history_validation(subte
             cleared = scheduled.replace(observation_times=None, touch_state=None)
             assert cleared.touch_state is None
             assert (
-                scheduled.replace_history(touch_state=None).replace(
-                    observation_times=None
-                )
+                scheduled.replace(touch_state=None).replace(observation_times=None)
                 == cleared
             )
             assert scheduled.observation_times == ((END,))

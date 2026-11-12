@@ -13,8 +13,6 @@ import kiyosi
 import pytest
 from kiyosi import _native, instruments, market, pricing
 from kiyosi.pricing import numerical_greeks
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 def test_engine_replacement_preserves_controls_and_validates_inputs(subtests):
@@ -50,7 +48,7 @@ def test_engine_replacement_preserves_controls_and_validates_inputs(subtests):
             assert configured.replace(**{field: Ellipsis}) == configured
             updated = configured.replace(**{field: getattr(original, field)})
             expected = controls | {field: getattr(original, field)}
-            assert updated == factory(**history_fields(**expected))
+            assert updated == factory(**expected)
             assert configured == factory(**controls)
             with pytest.raises(TypeError):
                 configured.replace(**{field: None})
@@ -60,9 +58,7 @@ def test_engine_replacement_preserves_controls_and_validates_inputs(subtests):
             for nullable in controls:
                 if getattr(original, nullable) is None:
                     cleared = configured.replace(**{nullable: None})
-                    assert cleared == factory(
-                        **history_fields(**controls | {nullable: None})
-                    )
+                    assert cleared == factory(**controls | {nullable: None})
 
 
 def test_engines_compare_by_type_and_configuration(subtests):
@@ -94,7 +90,7 @@ def test_engines_compare_by_type_and_configuration(subtests):
                 else:
                     alternate = value * 2 if value else 1
                 with subtests.test(field=name):
-                    assert engine != factory(**history_fields(**{name: alternate}))
+                    assert engine != factory(**{name: alternate})
 
 
 def test_engine_signature_defaults_can_be_forwarded(subtests):
@@ -163,7 +159,7 @@ def test_contract_schedule_and_solver_signature_defaults_can_be_forwarded():
         engine,
         option,
         context,
-        engine.price(dated_history(option, context), context),
+        engine.price(option, context),
         lower_bound=0.0,
         upper_bound=4.0,
     )
@@ -184,12 +180,7 @@ def test_contract_schedule_and_solver_signature_defaults_can_be_forwarded():
     )
     arguments.apply_defaults()
     result = engine.price_with_greeks(*arguments.args, **arguments.kwargs)
-    assert (
-        result.delta
-        == engine.price_with_greeks(
-            dated_history(digital, context), context, "delta"
-        ).delta
-    )
+    assert result.delta == engine.price_with_greeks(digital, context, "delta").delta
 
 
 def test_replacements_expose_declared_keyword_fields(subtests):
@@ -203,8 +194,7 @@ def test_replacements_expose_declared_keyword_fields(subtests):
             (
                 member
                 for member in node.body
-                if isinstance(member, ast.FunctionDef)
-                and member.name in ("replace", "replace_history")
+                if isinstance(member, ast.FunctionDef) and member.name == "replace"
             ),
             None,
         )
@@ -240,37 +230,29 @@ def test_replacement_signature_defaults_can_be_forwarded(subtests):
         instruments.CashOrNothingOption(**vanilla, payout=10),
         instruments.AssetOrNothingOption(**vanilla),
         instruments.GeometricAveragePriceOption(
-            **history_fields(
-                **vanilla, averaging_start_time=start, realized_average=None
-            )
+            **vanilla, averaging_start_time=start, realized_average=None
         ),
         instruments.ArithmeticAveragePriceOption(
-            **history_fields(
-                **vanilla, averaging_start_time=start, realized_average=None
-            )
+            **vanilla, averaging_start_time=start, realized_average=None
         ),
         instruments.BarrierOption(
-            **history_fields(
-                **vanilla,
-                barrier_type="up_and_out",
-                barrier_level=120,
-                touch_state="untouched",
-            )
+            **vanilla,
+            barrier_type="up_and_out",
+            barrier_level=120,
+            touch_state="untouched",
         ),
         instruments.RangeAccrualOption(
-            **history_fields(
-                observation_clock_time=clock_time(),
-                **dates,
-                notional=1000,
-                annual_coupon_rate=0.12,
-                lower_bound=95,
-                upper_bound=110,
-                realized_hit_count=3,
-            )
+            observation_clock_time=clock_time(),
+            **dates,
+            notional=1000,
+            annual_coupon_rate=0.12,
+            lower_bound=95,
+            upper_bound=110,
+            realized_hit_count=3,
         ),
     ]
     for value in values:
-        replace = getattr(value, "replace", None) or value.replace_history
+        replace = value.replace
         defaults = {
             name: parameter.default
             for name, parameter in inspect.signature(replace).parameters.items()
@@ -279,10 +261,8 @@ def test_replacement_signature_defaults_can_be_forwarded(subtests):
             replacement = replace(**defaults)
             assert replacement == value
             assert replacement is not value
-    assert values[-2].replace_history(touch_state=None).touch_state is None
-    assert (
-        values[-1].replace_history(realized_hit_count=None).realized_hit_count is None
-    )
+    assert values[-2].replace(touch_state=None).touch_state is None
+    assert values[-1].replace(realized_hit_count=None).realized_hit_count is None
 
 
 def test_greek_methods_expose_declared_keyword_controls(subtests):
@@ -357,20 +337,20 @@ def test_monte_carlo_spot_shift_none_selects_each_product_default(kind, shift):
         "expiry_time": end,
     }
     engine = pricing.MonteCarloVanillaEngine(path_count=256, step_count=4, seed=42)
-    option = kind(**history_fields(**terms))
-    default = engine.price_with_greeks(dated_history(option, context), context, "delta")
+    option = kind(**terms)
+    default = engine.price_with_greeks(option, context, "delta")
     shift_default = inspect.signature(numerical_greeks).parameters["spot_shift"].default
     assert shift_default is Ellipsis
     assert numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         "delta",
         spot_shift=shift_default,
     ).require("delta") == default.require("delta")
     assert numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         "delta",
         spot_shift=shift,
@@ -379,7 +359,7 @@ def test_monte_carlo_spot_shift_none_selects_each_product_default(kind, shift):
         with pytest.raises(TypeError):
             numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 "delta",
                 spot_shift=invalid,
@@ -402,17 +382,13 @@ def test_numerical_spot_shift_none_uses_the_core_default(subtests):
         valuation_time=start,
     )
     engine = pricing.QuadratureVanillaEngine()
-    automatic = engine.price_with_greeks(
-        dated_history(option, context), context, "delta"
-    )
-    explicit = numerical_greeks(
-        engine, dated_history(option, context), context, "delta", spot_shift=0.01
-    )
+    automatic = engine.price_with_greeks(option, context, "delta")
+    explicit = numerical_greeks(engine, option, context, "delta", spot_shift=0.01)
     assert automatic.delta == explicit.delta
     assert (
         numerical_greeks(
             engine,
-            dated_history(option, context),
+            option,
             context,
             "delta",
             spot_shift=None,
@@ -426,7 +402,7 @@ def test_numerical_spot_shift_none_uses_the_core_default(subtests):
         ):
             numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 "delta",
                 spot_shift=invalid,
@@ -461,13 +437,13 @@ def test_native_greek_methods_accept_uniform_controls(subtests):
         (
             pricing.CoxRossRubinsteinBarrierEngine(),
             instruments.BarrierOption(
-                **history_fields(**terms, barrier_type="up_and_out", barrier_level=120)
+                **terms, barrier_type="up_and_out", barrier_level=120
             ),
         ),
         *(
             (
                 pricing.MonteCarloAsianEngine(path_count=32, seed=42),
-                kind(**history_fields(**terms, averaging_start_time=start)),
+                kind(**terms, averaging_start_time=start),
             )
             for kind in (
                 instruments.GeometricAveragePriceOption,
@@ -480,7 +456,7 @@ def test_native_greek_methods_accept_uniform_controls(subtests):
         ):
             result = numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 "delta",
                 spot_shift=0.2,
@@ -488,9 +464,9 @@ def test_native_greek_methods_accept_uniform_controls(subtests):
                 rate_shift=0.001,
                 time_shift=timedelta(days=2),
             )
-            assert result.price == engine.price(dated_history(option, context), context)
+            assert result.price == engine.price(option, context)
             native = engine.price_with_greeks(
-                dated_history(option, context),
+                option,
                 context,
                 "delta",
                 spot_shift=0.2,
@@ -507,7 +483,7 @@ def test_native_greek_methods_accept_uniform_controls(subtests):
             ):
                 with subtests.test(control=control), pytest.raises(TypeError):
                     engine.price_with_greeks(
-                        dated_history(option, context),
+                        option,
                         context,
                         "delta",
                         **{control: True},
@@ -523,20 +499,16 @@ def test_native_greek_methods_accept_uniform_controls(subtests):
                     pytest.raises(kiyosi.InvalidInputError),
                 ):
                     engine.price_with_greeks(
-                        dated_history(option, context),
+                        option,
                         context,
                         "delta",
                         **{control: value},
                     )
             for invalid in (1, None, True):
                 with pytest.raises(TypeError):
-                    engine.price_with_greeks(
-                        dated_history(option, context), context, greeks=invalid
-                    )
+                    engine.price_with_greeks(option, context, greeks=invalid)
             with pytest.raises(TypeError):
-                engine.price_with_greeks(
-                    dated_history(option, context), context, "delta", unknown=True
-                )
+                engine.price_with_greeks(option, context, "delta", unknown=True)
 
 
 def test_native_greek_signatures_share_keyword_controls(subtests):
@@ -679,7 +651,7 @@ def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
         is inspect.Parameter.empty
     )
     with pytest.raises(TypeError):
-        cls(**history_fields(**common, **extra))
+        cls(**common, **extra)
     arguments = inspect.signature(cls).bind(
         **common, **extra, observation_clock_time=clock_time()
     )
@@ -689,26 +661,22 @@ def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
         cls(*arguments.args, **arguments.kwargs).observation_clock_time == clock_time()
     )
     with pytest.raises(kiyosi.InvalidInputError):
-        cls(**history_fields(observation_clock_time=None, **common, **extra))
-    note = cls(**history_fields(observation_clock_time=clock_time(), **common, **extra))
+        cls(observation_clock_time=None, **common, **extra)
+    note = cls(observation_clock_time=clock_time(), **common, **extra)
     assert note.knock_in_observation_mode == "every_trading_day"
     default = inspect.signature(cls).parameters["knock_in_observation_mode"].default
     assert default == "every_trading_day"
     assert note == cls(
-        **history_fields(
-            observation_clock_time=clock_time(),
-            **common,
-            **extra,
-            knock_in_observation_mode=default,
-        )
+        observation_clock_time=clock_time(),
+        **common,
+        **extra,
+        knock_in_observation_mode=default,
     )
     expiry_only = cls(
-        **history_fields(
-            observation_clock_time=None,
-            **common,
-            **extra,
-            knock_in_observation_mode="at_expiry",
-        )
+        observation_clock_time=None,
+        **common,
+        **extra,
+        knock_in_observation_mode="at_expiry",
     )
     assert note != expiry_only
     assert expiry_only.observation_clock_time is None
@@ -725,22 +693,18 @@ def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
     assert pickle.loads(pickle.dumps(expiry_only)) == expiry_only
     with pytest.raises(kiyosi.InvalidInputError):
         cls(
-            **history_fields(
-                **common,
-                **extra,
-                knock_in_observation_mode="at_expiry",
-                observation_clock_time=clock_time(),
-            )
+            **common,
+            **extra,
+            knock_in_observation_mode="at_expiry",
+            observation_clock_time=clock_time(),
         )
     for invalid in (None, True, "invalid"):
         with pytest.raises((TypeError, ValueError)):
             cls(
-                **history_fields(
-                    observation_clock_time=None,
-                    **common,
-                    **extra,
-                    knock_in_observation_mode=invalid,
-                )
+                observation_clock_time=None,
+                **common,
+                **extra,
+                knock_in_observation_mode=invalid,
             )
 
 
@@ -801,7 +765,6 @@ def test_domain_exception_hierarchy_and_diagnostics(subtests):
     for name in (
         "InvalidInputError",
         "MissingHistoryError",
-        "StaleHistoryError",
         "UnsupportedOperationError",
         "ComputationFailureError",
         "RootNotBracketedError",
@@ -814,7 +777,7 @@ def test_domain_exception_hierarchy_and_diagnostics(subtests):
                 (kiyosi.KiyosiError, ValueError)
                 if name == "InvalidInputError"
                 else (kiyosi.InvalidInputError,)
-                if name in ("MissingHistoryError", "StaleHistoryError")
+                if name == "MissingHistoryError"
                 else (kiyosi.KiyosiError,)
             )
             assert exception_type.__module__ == "kiyosi._native"
@@ -944,7 +907,6 @@ def test_installed_version_and_typed_exports():
     for name in (
         "InvalidInputError",
         "MissingHistoryError",
-        "StaleHistoryError",
         "UnsupportedOperationError",
         "ComputationFailureError",
         "RootNotBracketedError",
@@ -955,6 +917,6 @@ def test_installed_version_and_typed_exports():
             ["KiyosiError", "ValueError"]
             if name == "InvalidInputError"
             else ["InvalidInputError"]
-            if name in ("MissingHistoryError", "StaleHistoryError")
+            if name == "MissingHistoryError"
             else ["KiyosiError"]
         )

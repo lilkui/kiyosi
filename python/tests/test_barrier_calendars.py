@@ -7,8 +7,6 @@ from datetime import datetime
 import pytest
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 def test_barrier_calendars_are_owned_and_survive_reconstruction(subtests):
@@ -99,20 +97,16 @@ def test_barrier_calendars_are_owned_and_survive_reconstruction(subtests):
     ]
     for factory, fields, engines in cases:
         with pytest.raises(InvalidInputError):
-            factory(**history_fields(**common, **fields))
-        original = factory(
-            **history_fields(**common, **fields, calendar=market.all_days_calendar())
-        )
+            factory(**common, **fields)
+        original = factory(**common, **fields, calendar=market.all_days_calendar())
         owned = original.replace(calendar=market.all_days_calendar())
         with subtests.test(factory=factory.__name__):
             assert original.calendar == market.all_days_calendar()
             assert owned == factory(
-                **history_fields(
-                    **common, **fields, calendar=market.all_days_calendar()
-                )
+                **common, **fields, calendar=market.all_days_calendar()
             )
             assert owned.replace() == owned
-            assert owned.replace_history() == owned
+            assert owned.replace() == owned
             restored = pickle.loads(pickle.dumps(owned))
             assert restored == owned
             assert "all_days" in repr(owned)
@@ -121,6 +115,4 @@ def test_barrier_calendars_are_owned_and_survive_reconstruction(subtests):
                 with pytest.raises(TypeError):
                     original.replace(calendar=invalid)
             for engine in engines:
-                assert engine.price(
-                    dated_history(owned, context), context
-                ) == engine.price(dated_history(restored, context), context)
+                assert engine.price(owned, context) == engine.price(restored, context)

@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 #[test]
@@ -45,12 +42,11 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         })?,
     ] {
         assert_eq!(
-            engine.price(&dated(&owned, &context), &context)?,
-            engine.price(&dated(&option, &context), &context)?
+            engine.price(&owned, &context)?,
+            engine.price(&option, &context)?
         );
     }
     assert_eq!(owned.replace(Default::default())?, owned);
-    assert_eq!(owned.replace_history(None, None).unwrap(), owned);
     assert_eq!(option.calendar(), &TradingCalendar::all_days());
 
     macro_rules! check {
@@ -67,7 +63,6 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
             let owned = option.replace($changes)?;
             assert_eq!(owned.calendar(), &TradingCalendar::all_days());
             assert_eq!(owned.replace(Default::default())?, owned);
-            assert_eq!(owned.replace_history(None, None).unwrap(), owned);
             assert_eq!(option.calendar(), &TradingCalendar::all_days());
             let mut invalid = $changes;
             invalid.calendar = Some(TradingCalendar::weekdays());
@@ -76,8 +71,8 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
                 Err(Error::InvalidInput(_))
             ));
             assert_eq!(
-                $engine.price(&dated(&owned, &context), &context)?,
-                $engine.price(&dated(&option, &context), &context)?
+                $engine.price(&owned, &context)?,
+                $engine.price(&option, &context)?
             );
         }};
     }

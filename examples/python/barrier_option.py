@@ -96,11 +96,11 @@ assert isclose(
 
 # 历史只描述估值时刻之前的事件；当前时刻的触碰由引擎根据现货判断。
 later = context.replace(valuation_time=datetime(2025, 7, 1), spot_price=105)
-live = barrier.replace_history(
-    touch_state="untouched", history_time=later.valuation_time
+live = barrier.replace(
+    touch_state="untouched",
 )
-settled = barrier.replace_history(
-    touch_state="touched", history_time=later.valuation_time
+settled = barrier.replace(
+    touch_state="touched",
 )
 print(f"此前未触碰的存续价格：{engine.price(live, later):.6f}")
 print(f"此前已敲出且无返还金的价格：{engine.price(settled, later):.6f}")

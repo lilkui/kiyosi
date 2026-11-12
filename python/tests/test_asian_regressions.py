@@ -12,8 +12,6 @@ from kiyosi import (
 from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import implied_volatility, numerical_greeks
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 def test_arithmetic_prices_survive_adjusted_strike_overflow(subtests):
@@ -41,19 +39,13 @@ def test_arithmetic_prices_survive_adjusted_strike_overflow(subtests):
                                 averaging_start_time=start,
                                 expiry_time=end,
                                 realized_average=50 * scale,
-                                history_time=(start + timedelta(microseconds=1))
-                                if 50 * scale is not None
-                                else None,
                             )
                             context = PricingContext(
                                 model_parameters=parameters,
                                 spot_price=50 * scale,
                                 valuation_time=valuation,
                             )
-                            values.append(
-                                engine.price(dated_history(option, context), context)
-                                / scale
-                            )
+                            values.append(engine.price(option, context) / scale)
                         assert math.isclose(values[0], values[1], rel_tol=1e-10), values
 
 
@@ -86,7 +78,7 @@ def test_vanna_survives_underflow_of_combined_stencil_scales(subtests):
             )
             result = numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 greeks="vanna",
                 spot_shift=1e-201,
@@ -128,9 +120,7 @@ def test_concurrent_asian_delta_requests_preserve_results_and_errors(subtests):
         )
 
         def calculate(selection, engine=engine, option=option):
-            return numerical_greeks(
-                engine, dated_history(option, context), context, **selection
-            )
+            return numerical_greeks(engine, option, context, **selection)
 
         selections = [
             {"greeks": "delta"},
@@ -151,7 +141,7 @@ def test_concurrent_asian_delta_requests_preserve_results_and_errors(subtests):
                 with pytest.raises(InvalidInputError) as error:
                     numerical_greeks(
                         engine,
-                        dated_history(option, context),
+                        option,
                         context,
                         **selection,
                         spot_shift=0,
@@ -182,9 +172,6 @@ def test_accrued_arithmetic_calls_retain_representable_discounted_prices(subtest
                     averaging_start_time=start,
                     expiry_time=valuation + timedelta(days=365),
                     realized_average=amount,
-                    history_time=(start + timedelta(microseconds=1))
-                    if amount is not None
-                    else None,
                 )
                 context = PricingContext(
                     model_parameters=BlackScholesMertonParameters(
@@ -195,7 +182,7 @@ def test_accrued_arithmetic_calls_retain_representable_discounted_prices(subtest
                     spot_price=amount,
                     valuation_time=valuation,
                 )
-                actual = engine.price(dated_history(option, context), context)
+                actual = engine.price(option, context)
                 if direction == "call":
                     assert actual == pytest.approx(
                         expected, rel=0, abs=expected * 1e-12
@@ -209,7 +196,6 @@ def test_accrued_arithmetic_calls_retain_representable_discounted_prices(subtest
         averaging_start_time=start,
         expiry_time=start + timedelta(days=730),
         realized_average=100,
-        history_time=start + timedelta(microseconds=1),
     )
     context = PricingContext(
         model_parameters=BlackScholesMertonParameters(
@@ -219,7 +205,7 @@ def test_accrued_arithmetic_calls_retain_representable_discounted_prices(subtest
         valuation_time=start + timedelta(days=365),
     )
     with pytest.raises(ComputationFailureError) as error:
-        engine.price(dated_history(option, context), context)
+        engine.price(option, context)
     assert type(error.value) is ComputationFailureError
 
 
@@ -279,12 +265,9 @@ def test_arithmetic_asians_retain_time_value_when_squared_volatility_underflows(
         averaging_start_time=start + timedelta(days=120) if window == 1 else start,
         expiry_time=end,
         realized_average=spot if window == 2 else None,
-        history_time=(start + timedelta(microseconds=1))
-        if (spot if window == 2 else None) is not None
-        else None,
     )
     actual = pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
-        dated_history(option, context), context
+        option, context
     )
     assert actual == pytest.approx(expected, rel=0, abs=expected * 1e-12)
 
@@ -319,26 +302,21 @@ def test_asian_analytic_prices_retain_scaled_normal_tails(
     for engine, option, expected in (
         (
             pricing.AnalyticGeometricAveragePriceEngine(),
-            GeometricAveragePriceOption(**history_fields(**terms)),
+            GeometricAveragePriceOption(**terms),
             geometric,
         ),
         (
             pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
-            ArithmeticAveragePriceOption(**history_fields(**terms)),
+            ArithmeticAveragePriceOption(**terms),
             arithmetic,
         ),
     ):
         with subtests.test(
             direction=direction, scale=scale, engine=type(engine).__name__
         ):
-            actual = engine.price(dated_history(option, context), context)
+            actual = engine.price(option, context)
             assert math.isclose(actual, expected * scale, rel_tol=1e-8)
-            assert (
-                engine.price_with_greeks(
-                    dated_history(option, context), context, "delta"
-                ).price
-                == actual
-            )
+            assert engine.price_with_greeks(option, context, "delta").price == actual
 
 
 @pytest.mark.parametrize("direction", ("call", "put"))
@@ -366,14 +344,12 @@ def test_arithmetic_asian_implied_volatility_rejects_locked_realized_payoffs(
     }
     for realized in (100, 200, 220):
         with subtests.test(direction=direction, realized=realized):
-            option = ArithmeticAveragePriceOption(
-                **history_fields(**terms, realized_average=realized)
-            )
-            quote = engine.price(dated_history(option, context), context)
+            option = ArithmeticAveragePriceOption(**terms, realized_average=realized)
+            quote = engine.price(option, context)
             if realized < 200:
                 assert implied_volatility(
                     engine,
-                    dated_history(option, context),
+                    option,
                     context,
                     quote,
                     lower_bound=0.05,
@@ -384,7 +360,7 @@ def test_arithmetic_asian_implied_volatility_rejects_locked_realized_payoffs(
                     with pytest.raises(UnsupportedOperationError) as error:
                         implied_volatility(
                             engine,
-                            dated_history(option, context),
+                            option,
                             context,
                             observed,
                             lower_bound=0.0,
@@ -393,15 +369,13 @@ def test_arithmetic_asian_implied_volatility_rejects_locked_realized_payoffs(
                     assert type(error.value) is UnsupportedOperationError
                 if direction == "put":
                     assert quote == 0
-    geometric = GeometricAveragePriceOption(
-        **history_fields(**terms, realized_average=200)
-    )
+    geometric = GeometricAveragePriceOption(**terms, realized_average=200)
     geometric_engine = pricing.AnalyticGeometricAveragePriceEngine()
     assert implied_volatility(
         geometric_engine,
-        dated_history(geometric, context),
+        geometric,
         context,
-        geometric_engine.price(dated_history(geometric, context), context),
+        geometric_engine.price(geometric, context),
         lower_bound=0.05,
         upper_bound=0.4,
         price_tolerance=1e-30,
@@ -445,11 +419,8 @@ def test_arithmetic_asians_retain_small_moment_variance_across_averaging_windows
         averaging_start_time=averaging,
         expiry_time=end,
         realized_average=spot if window == 2 else None,
-        history_time=(start + timedelta(microseconds=1))
-        if (spot if window == 2 else None) is not None
-        else None,
     )
-    actual = engine.price(dated_history(option, context), context)
+    actual = engine.price(option, context)
     assert actual == pytest.approx(expected, rel=0, abs=max(1e-24, expected * 1e-9))
 
 
@@ -487,12 +458,9 @@ def test_arithmetic_asian_small_variance_prices_preserve_nonzero_carry(subtests)
                     ),
                     expiry_time=end,
                     realized_average=1e8 if window == 2 else None,
-                    history_time=(start + timedelta(microseconds=1))
-                    if (1e8 if window == 2 else None) is not None
-                    else None,
                 )
                 actual = pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
-                    dated_history(option, context), context
+                    option, context
                 )
                 assert actual == pytest.approx(expected, rel=0, abs=5e-7)
     context = PricingContext(
@@ -511,12 +479,9 @@ def test_arithmetic_asian_small_variance_prices_preserve_nonzero_carry(subtests)
         averaging_start_time=start,
         expiry_time=end,
         realized_average=1,
-        history_time=start + timedelta(microseconds=1),
     )
     assert (
-        pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
-            dated_history(oversized, context), context
-        )
+        pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(oversized, context)
         == 0
     )
 
@@ -559,13 +524,8 @@ def test_geometric_asians_retain_small_positive_variance_across_averaging_window
         averaging_start_time=averaging,
         expiry_time=end,
         realized_average=spot if window == 2 else None,
-        history_time=(start + timedelta(microseconds=1))
-        if (spot if window == 2 else None) is not None
-        else None,
     )
-    price = pricing.AnalyticGeometricAveragePriceEngine().price(
-        dated_history(option, context), context
-    )
+    price = pricing.AnalyticGeometricAveragePriceEngine().price(option, context)
     assert price == pytest.approx(expected, rel=0, abs=max(expected * 1e-9, 1e-170))
 
 
@@ -592,10 +552,7 @@ def test_single_fixing_geometric_asians_retain_european_time_value(subtests, dir
                 "expiry_time": end,
             }
             actual = engine.price(
-                dated_history(
-                    GeometricAveragePriceOption(**history_fields(**terms)),
-                    context,
-                ),
+                GeometricAveragePriceOption(**terms),
                 context,
             )
             expected = 1e14 * math.erf(sigma / (2 * math.sqrt(2)))
@@ -604,12 +561,7 @@ def test_single_fixing_geometric_asians_retain_european_time_value(subtests, dir
             )
             with pytest.raises(InvalidInputError) as error:
                 engine.price(
-                    dated_history(
-                        GeometricAveragePriceOption(
-                            **history_fields(**terms, realized_average=1e14)
-                        ),
-                        context,
-                    ),
+                    GeometricAveragePriceOption(**terms, realized_average=1e14),
                     context,
                 )
             assert type(error.value) is InvalidInputError
@@ -623,15 +575,12 @@ def test_single_fixing_geometric_asians_retain_european_time_value(subtests, dir
         valuation_time=end,
     )
     settled = engine.price(
-        dated_history(
-            GeometricAveragePriceOption(
-                option_type=direction,
-                strike=100,
-                effective_time=start,
-                averaging_start_time=end,
-                expiry_time=end,
-            ),
-            expired,
+        GeometricAveragePriceOption(
+            option_type=direction,
+            strike=100,
+            effective_time=start,
+            averaging_start_time=end,
+            expiry_time=end,
         ),
         expired,
     )

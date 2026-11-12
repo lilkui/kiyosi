@@ -22,13 +22,15 @@ macro_rules! check_monitoring_switch {
             }),
             Err(Error::InvalidInput(_))
         ));
-        assert!(matches!(
-            $scheduled.replace($changes {
-                observation_times: Some(None),
-                ..Default::default()
-            }),
-            Err(Error::StaleHistory(_))
-        ));
+        assert_eq!(
+            $scheduled
+                .replace($changes {
+                    observation_times: Some(None),
+                    ..Default::default()
+                })
+                .unwrap(),
+            $original
+        );
         let continuous = $scheduled
             .replace($changes {
                 observation_times: Some(None),
@@ -48,7 +50,10 @@ macro_rules! check_monitoring_switch {
         assert_eq!(cleared.observation_mode(), ObservationMode::Continuous);
         assert_eq!(
             $scheduled
-                .replace_history(None, None)
+                .replace($changes {
+                    touch_state: Some(None),
+                    ..Default::default()
+                })
                 .unwrap()
                 .replace($changes {
                     observation_times: Some(None),
@@ -65,7 +70,7 @@ macro_rules! check_monitoring_switch {
 }
 
 #[test]
-fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> Result<()> {
+fn reactivation_with_changed_accumulation_rules_retains_omitted_quantity() -> Result<()> {
     let start = Date::new(2025, 1, 6)?.start_of_day();
     let mut terms = AccumulatorTerms::new(
         100.0,
@@ -77,22 +82,15 @@ fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> 
         start.time_of_day(),
     );
     terms.accumulated_quantity = Some(3.0);
-    terms.history_time = Some(terms.expiry_time);
     terms.knock_out_settled = Some(true);
-    terms.history_time = Some(terms.expiry_time);
     let settled = Accumulator::new(terms)?;
-    assert!(matches!(
-        settled.replace(AccumulatorChanges {
-            knock_out_settled: Some(Some(false)),
-            daily_quantity: Some(2.0),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    let retained = settled.replace(AccumulatorChanges {
+        knock_out_settled: Some(Some(false)),
+        daily_quantity: Some(2.0),
+        ..Default::default()
+    })?;
+    assert_eq!(retained.accumulated_quantity(), Some(3.0));
     let reactivated = settled.replace(AccumulatorChanges {
-        history_time: Some(Some(
-            settled.history_time().unwrap_or(settled.effective_time()),
-        )),
         knock_out_settled: Some(Some(false)),
         daily_quantity: Some(2.0),
         accumulated_quantity: Some(Some(0.0)),
@@ -194,7 +192,6 @@ macro_rules! check_field {
     ($original:ident, AveragePriceOptionChanges, realized_average, $value:expr) => {
         let changed = $original.replace(AveragePriceOptionChanges {
             realized_average: Some($value),
-            history_time: Some(Some($original.expiry_time())),
             ..Default::default()
         }).unwrap();
         assert_eq!(changed.realized_average(), $value);
@@ -227,7 +224,6 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = BarrierOption::new(BarrierOptionTerms {
-        history_time: Some(start.add_days(5).unwrap()),
         calendar: TradingCalendar::default(),
         option_type: OptionType::Call,
         strike: 100.0,
@@ -242,13 +238,16 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     })
     .unwrap();
     let saved = original.clone();
-    assert!(matches!(
-        original.replace(BarrierOptionChanges {
-            barrier_level: Some(125.0),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(BarrierOptionChanges {
+                barrier_level: Some(125.0),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert_eq!(
         original.replace(BarrierOptionChanges::default()).unwrap(),
         original
@@ -304,13 +303,16 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, BarrierOptionChanges);
-    assert!(matches!(
-        original.replace(BarrierOptionChanges {
-            observation_times: Some(Some(vec![end])),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(BarrierOptionChanges {
+                observation_times: Some(Some(vec![end])),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert!(matches!(
         original.replace(BarrierOptionChanges {
             strike: Some(-1.0),
@@ -326,7 +328,6 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = DoubleBarrierOption::new(DoubleBarrierOptionTerms {
-        history_time: Some(start.add_days(5).unwrap()),
         calendar: TradingCalendar::default(),
         option_type: OptionType::Call,
         strike: 100.0,
@@ -342,13 +343,16 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     })
     .unwrap();
     let saved = original.clone();
-    assert!(matches!(
-        original.replace(DoubleBarrierOptionChanges {
-            upper_barrier: Some(125.0),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(DoubleBarrierOptionChanges {
+                upper_barrier: Some(125.0),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert_eq!(
         original
             .replace(DoubleBarrierOptionChanges::default())
@@ -412,13 +416,16 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, DoubleBarrierOptionChanges);
-    assert!(matches!(
-        original.replace(DoubleBarrierOptionChanges {
-            observation_times: Some(Some(vec![end])),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(DoubleBarrierOptionChanges {
+                observation_times: Some(Some(vec![end])),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert!(matches!(
         original.replace(DoubleBarrierOptionChanges {
             strike: Some(-1.0),
@@ -435,7 +442,6 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = BinaryBarrierOption::cash(
         BinaryBarrierTerms {
-            history_time: Some(start.add_days(5).unwrap()),
             calendar: TradingCalendar::default(),
             option_type: OptionType::Call,
             strike: 100.0,
@@ -450,13 +456,16 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     )
     .unwrap();
     let saved = original.clone();
-    assert!(matches!(
-        original.replace(BinaryBarrierOptionChanges {
-            barrier_level: Some(125.0),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(BinaryBarrierOptionChanges {
+                barrier_level: Some(125.0),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert_eq!(
         original
             .replace(BinaryBarrierOptionChanges::default())
@@ -519,13 +528,16 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, BinaryBarrierOptionChanges);
-    assert!(matches!(
-        original.replace(BinaryBarrierOptionChanges {
-            observation_times: Some(Some(vec![end])),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(BinaryBarrierOptionChanges {
+                observation_times: Some(Some(vec![end])),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert!(matches!(
         original.replace(BinaryBarrierOptionChanges {
             strike: Some(-1.0),
@@ -542,7 +554,6 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = TouchOption::cash(
         TouchOptionTerms {
-            history_time: Some(start.add_days(5).unwrap()),
             calendar: TradingCalendar::default(),
             effective_time: start,
             expiry_time: end,
@@ -556,13 +567,16 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     )
     .unwrap();
     let saved = original.clone();
-    assert!(matches!(
-        original.replace(TouchOptionChanges {
-            barrier_level: Some(125.0),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(TouchOptionChanges {
+                barrier_level: Some(125.0),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert_eq!(
         original.replace(TouchOptionChanges::default()).unwrap(),
         original
@@ -622,13 +636,16 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, TouchOptionChanges);
-    assert!(matches!(
-        original.replace(TouchOptionChanges {
-            observation_times: Some(Some(vec![end])),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(TouchOptionChanges {
+                observation_times: Some(Some(vec![end])),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert!(matches!(
         original.replace(TouchOptionChanges {
             payoff: Some(kiyosi::BinaryPayoff::Cash(-1.0)),
@@ -645,7 +662,6 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = DoubleTouchOption::cash(
         DoubleTouchOptionTerms {
-            history_time: Some(start.add_days(5).unwrap()),
             calendar: TradingCalendar::default(),
             effective_time: start,
             expiry_time: end,
@@ -660,13 +676,16 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     )
     .unwrap();
     let saved = original.clone();
-    assert!(matches!(
-        original.replace(DoubleTouchOptionChanges {
-            upper_barrier: Some(125.0),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(DoubleTouchOptionChanges {
+                upper_barrier: Some(125.0),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert_eq!(
         original
             .replace(DoubleTouchOptionChanges::default())
@@ -724,13 +743,16 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), Some(&[end][..]));
     check_monitoring_switch!(original, scheduled, DoubleTouchOptionChanges);
-    assert!(matches!(
-        original.replace(DoubleTouchOptionChanges {
-            observation_times: Some(Some(vec![end])),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(DoubleTouchOptionChanges {
+                observation_times: Some(Some(vec![end])),
+                ..Default::default()
+            })
+            .unwrap()
+            .touch_state(),
+        original.touch_state()
+    );
     assert!(matches!(
         original.replace(DoubleTouchOptionChanges {
             payout: Some(-1.0),
@@ -746,7 +768,6 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = Accumulator::new(AccumulatorTerms {
-        history_time: Some(start.add_days(5).unwrap()),
         observation_clock_time: (end).time_of_day(),
         calendar: TradingCalendar::default(),
         option_type: OptionType::Call,
@@ -762,13 +783,16 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     })
     .unwrap();
     let saved = original.clone();
-    assert!(matches!(
-        original.replace(AccumulatorChanges {
-            daily_quantity: Some(2.0),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(AccumulatorChanges {
+                daily_quantity: Some(2.0),
+                ..Default::default()
+            })
+            .unwrap()
+            .accumulated_quantity(),
+        Some(3.0)
+    );
     assert_eq!(
         original.replace(AccumulatorChanges::default()).unwrap(),
         original
@@ -843,7 +867,6 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = RangeAccrualOption::new(RangeAccrualTerms {
-        history_time: Some(start.add_days(5).unwrap()),
         observation_clock_time: (end).time_of_day(),
         calendar: TradingCalendar::default(),
         notional: 1000.0,
@@ -856,13 +879,16 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
     })
     .unwrap();
     let saved = original.clone();
-    assert!(matches!(
-        original.replace(RangeAccrualOptionChanges {
-            lower_bound: Some(85.0),
-            ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+    assert_eq!(
+        original
+            .replace(RangeAccrualOptionChanges {
+                lower_bound: Some(85.0),
+                ..Default::default()
+            })
+            .unwrap()
+            .realized_hit_count(),
+        Some(1)
+    );
     assert_eq!(
         original
             .replace(RangeAccrualOptionChanges::default())
@@ -924,7 +950,6 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = SnowballOption::new(SnowballTerms {
-        history_time: Some(start.add_days(5).unwrap()),
         observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
@@ -950,8 +975,8 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
                 ..Default::default()
             })
             .unwrap()
-            .history_time(),
-        original.history_time()
+            .barrier_state(),
+        original.barrier_state()
     );
     assert_eq!(
         original.replace(SnowballOptionChanges::default()).unwrap(),
@@ -1064,7 +1089,6 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = PhoenixOption::new(PhoenixTerms {
         lockout_periods: 0,
-        history_time: Some(start.add_days(5).unwrap()),
         observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         coupon_per_period: 0.1,
@@ -1090,8 +1114,8 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
                 ..Default::default()
             })
             .unwrap()
-            .history_time(),
-        original.history_time()
+            .barrier_state(),
+        original.barrier_state()
     );
     assert_eq!(
         original.replace(PhoenixOptionChanges::default()).unwrap(),
@@ -1203,7 +1227,6 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = BinarySnowballOption::new(BinarySnowballTerms {
-        history_time: Some(start.add_days(5).unwrap()),
         calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
@@ -1223,8 +1246,8 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
                 ..Default::default()
             })
             .unwrap()
-            .history_time(),
-        original.history_time()
+            .barrier_state(),
+        original.barrier_state()
     );
     assert_eq!(
         original
@@ -1296,7 +1319,6 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = TernarySnowballOption::new(TernarySnowballTerms {
-        history_time: Some(start.add_days(5).unwrap()),
         observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
@@ -1320,8 +1342,8 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
                 ..Default::default()
             })
             .unwrap()
-            .history_time(),
-        original.history_time()
+            .barrier_state(),
+        original.barrier_state()
     );
     assert_eq!(
         original
@@ -1421,19 +1443,24 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
-            .unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let saved = original.clone();
     let known = original
-        .replace_history(Some(100.0), Some(start.add_days(2).unwrap()))
-        .unwrap();
-    assert!(matches!(
-        known.replace(AveragePriceOptionChanges {
-            averaging_start_time: Some(start.add_days(1).unwrap()),
+        .replace(AveragePriceOptionChanges {
+            realized_average: Some(Some(100.0)),
             ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+        })
+        .unwrap();
+    assert_eq!(
+        known
+            .replace(AveragePriceOptionChanges {
+                averaging_start_time: Some(start.add_days(1).unwrap()),
+                ..Default::default()
+            })
+            .unwrap()
+            .realized_average(),
+        Some(100.0)
+    );
     assert_eq!(
         original
             .replace(AveragePriceOptionChanges::default())
@@ -1492,19 +1519,25 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
             .unwrap();
     let saved = original.clone();
     let known = original
-        .replace_history(Some(100.0), Some(start.add_days(2).unwrap()))
-        .unwrap();
-    assert!(matches!(
-        known.replace(AveragePriceOptionChanges {
-            averaging_start_time: Some(start.add_days(1).unwrap()),
+        .replace(AveragePriceOptionChanges {
+            realized_average: Some(Some(100.0)),
             ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+        })
+        .unwrap();
+    assert_eq!(
+        known
+            .replace(AveragePriceOptionChanges {
+                averaging_start_time: Some(start.add_days(1).unwrap()),
+                ..Default::default()
+            })
+            .unwrap()
+            .realized_average(),
+        Some(100.0)
+    );
     assert_eq!(
         original
             .replace(AveragePriceOptionChanges::default())

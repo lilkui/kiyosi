@@ -11,8 +11,6 @@ from kiyosi.market import (
     PricingContext,
     weekdays_calendar,
 )
-from support.history import dated as dated_history
-from support.history import history_fields
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 SETTINGS = {"path_count": 65536, "seed": 42, "antithetic": True}
@@ -53,23 +51,15 @@ def test_scheduled_barriers_preserve_sub_ulp_threshold_movements(
         "observation_times": [END],
         "rebate": 2,
     }
-    option = ins.BarrierOption(
-        **history_fields(**common, barrier_level=100, barrier_type=kind)
-    )
-    assert single.price(dated_history(option, context), context) == pytest.approx(
-        6, rel=0, abs=1e-12
-    )
+    option = ins.BarrierOption(**common, barrier_level=100, barrier_type=kind)
+    assert single.price(option, context) == pytest.approx(6, rel=0, abs=1e-12)
     option = ins.DoubleBarrierOption(
-        **history_fields(
-            **common,
-            lower_barrier=lower,
-            upper_barrier=upper,
-            barrier_type="knock_in" if kind.endswith("in") else "knock_out",
-        )
+        **common,
+        lower_barrier=lower,
+        upper_barrier=upper,
+        barrier_type="knock_in" if kind.endswith("in") else "knock_out",
     )
-    assert double.price(dated_history(option, context), context) == pytest.approx(
-        6, rel=0, abs=1e-12
-    )
+    assert double.price(option, context) == pytest.approx(6, rel=0, abs=1e-12)
 
 
 @pytest.mark.parametrize("volatility", (1e-18, 1e-200))
@@ -89,9 +79,7 @@ def test_snowball_thresholds_preserve_price_and_sampling_uncertainty(
     engine = pricing.MonteCarloAutocallableEngine(
         **{**SETTINGS, "antithetic": antithetic}
     )
-    estimate = engine.price_with_statistics(
-        dated_history(note, market(volatility)), market(volatility)
-    )
+    estimate = engine.price_with_statistics(note, market(volatility))
     if antithetic:
         assert estimate.price == pytest.approx(1.07, rel=0, abs=1e-12)
         assert estimate.standard_error < 1e-14
@@ -113,44 +101,38 @@ def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(
     for mode in ("every_trading_day", "at_expiry"):
         note = ins.TernarySnowballOption(
             calendar=weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time()
-                if mode == "every_trading_day"
-                else None,
-                **common,
-                maturity_coupon_rate=0.12,
-                minimum_coupon_rate=0.02,
-                knock_in_level=100,
-                knock_in_observation_mode=mode,
-                barrier_state="no_event",
-                observations=ins.autocallable_observations(
-                    [end], [120], knock_out_coupon_rates=[0]
-                ),
+            observation_clock_time=clock_time()
+            if mode == "every_trading_day"
+            else None,
+            **common,
+            maturity_coupon_rate=0.12,
+            minimum_coupon_rate=0.02,
+            knock_in_level=100,
+            knock_in_observation_mode=mode,
+            barrier_state="no_event",
+            observations=ins.autocallable_observations(
+                [end], [120], knock_out_coupon_rates=[0]
             ),
         )
         with subtests.test(volatility=volatility, mode=mode):
-            assert engine.price(dated_history(note, context), context) == pytest.approx(
+            assert engine.price(note, context) == pytest.approx(
                 1 + 0.07 / 365, rel=0, abs=1e-12
             )
     note = ins.PhoenixOption(
         calendar=weekdays_calendar(),
-        **history_fields(
-            observation_clock_time=None,
-            **common,
-            coupon_per_period=0.12,
-            initial_spot=100,
-            knock_in_level=80,
-            upper_strike=100,
-            lower_strike=100,
-            knock_in_observation_mode="at_expiry",
-            observations=ins.autocallable_observations(
-                [end], [120], coupon_barrier_levels=[100]
-            ),
+        observation_clock_time=None,
+        **common,
+        coupon_per_period=0.12,
+        initial_spot=100,
+        knock_in_level=80,
+        upper_strike=100,
+        lower_strike=100,
+        knock_in_observation_mode="at_expiry",
+        observations=ins.autocallable_observations(
+            [end], [120], coupon_barrier_levels=[100]
         ),
     )
-    assert engine.price(dated_history(note, context), context) == pytest.approx(
-        1.06, rel=0, abs=1e-12
-    )
+    assert engine.price(note, context) == pytest.approx(1.06, rel=0, abs=1e-12)
 
 
 @pytest.mark.parametrize("volatility", (1e-18, 1e-200))
@@ -169,39 +151,28 @@ def test_accumulator_thresholds_preserve_knock_out_and_accelerated_settlements(
         "expiry_time": end,
     }
     option = ins.Accumulator(
-        **history_fields(
-            knock_out_settled=False,
-            observation_clock_time=clock_time(),
-            **common,
-            strike=strike,
-            knock_out_level=100,
-            daily_quantity=1,
-            acceleration_factor=1,
-            accumulated_quantity=1,
-        )
+        knock_out_settled=False,
+        observation_clock_time=clock_time(),
+        **common,
+        strike=strike,
+        knock_out_level=100,
+        daily_quantity=1,
+        acceleration_factor=1,
+        accumulated_quantity=1,
     )
-    assert engine.price(dated_history(option, context), context) == pytest.approx(
-        15, rel=0, abs=1e-12
-    )
+    assert engine.price(option, context) == pytest.approx(15, rel=0, abs=1e-12)
     option = ins.Accumulator(
-        **history_fields(
-            knock_out_settled=False,
-            observation_clock_time=clock_time(),
-            **common,
-            strike=100,
-            knock_out_level=barrier,
-            daily_quantity=1 / volatility,
-            acceleration_factor=2,
-            accumulated_quantity=0,
-        )
+        knock_out_settled=False,
+        observation_clock_time=clock_time(),
+        **common,
+        strike=100,
+        knock_out_level=barrier,
+        daily_quantity=1 / volatility,
+        acceleration_factor=2,
+        accumulated_quantity=0,
     )
     vanilla = ins.EuropeanOption(**common, strike=100)
-    expected = (
-        -pricing.AnalyticEuropeanEngine().price(
-            dated_history(vanilla, context), context
-        )
-        / volatility
-    )
-    assert engine.price(dated_history(option, context), context) == pytest.approx(
+    expected = -pricing.AnalyticEuropeanEngine().price(vanilla, context) / volatility
+    assert engine.price(option, context) == pytest.approx(
         expected, rel=0, abs=0.02 * abs(expected)
     )

@@ -7,8 +7,6 @@ import pytest
 from kiyosi import instruments as ins
 from kiyosi import market, pricing
 from kiyosi.pricing import numerical_greeks
-from support.history import dated as dated_history
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 
@@ -57,18 +55,14 @@ def test_finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatilit
                             spot_price=spot,
                             valuation_time=end,
                         )
-                        result = engine.price_with_greeks(
-                            dated_history(option, context), context, "all"
-                        )
+                        result = engine.price_with_greeks(option, context, "all")
                         assert_terminal_greeks(result, delta)
                         assert engine.greek_method(option, context) == "native"
                         assert engine.active_greek_controls(option, context) == []
                         if isinstance(model, market.LocalVolatilityParameters):
                             assert result.supported == (("delta", "gamma"))
                             assert result.status("vega") == "unsupported"
-                        only_delta = engine.price_with_greeks(
-                            dated_history(option, context), context, "delta"
-                        )
+                        only_delta = engine.price_with_greeks(option, context, "delta")
                         assert only_delta.status("gamma") == "not_requested"
 
 
@@ -93,38 +87,27 @@ def test_resolved_barriers_have_zero_spot_greeks_at_inactive_strikes(subtests):
             (
                 pricing.AnalyticBarrierEngine(),
                 ins.BarrierOption(
-                    **history_fields(
-                        **common, barrier_level=120, barrier_type="up_and_out"
-                    )
+                    **common, barrier_level=120, barrier_type="up_and_out"
                 ),
             ),
             (
                 pricing.AnalyticDoubleBarrierEngine(),
                 ins.DoubleBarrierOption(
-                    **history_fields(
-                        **common,
-                        lower_barrier=80,
-                        upper_barrier=120,
-                        barrier_type="knock_out",
-                    )
+                    **common,
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    barrier_type="knock_out",
                 ),
             ),
             (
                 pricing.AnalyticBinaryBarrierEngine(),
                 ins.cash_binary_barrier_option(
-                    **history_fields(
-                        **common,
-                        barrier_level=120,
-                        barrier_type="up_and_out",
-                        payout=10,
-                    )
+                    **common, barrier_level=120, barrier_type="up_and_out", payout=10
                 ),
             ),
         ):
             with subtests.test(engine=type(engine).__name__, at=at):
-                result = engine.price_with_greeks(
-                    dated_history(option, context), context, ["delta", "gamma"]
-                )
+                result = engine.price_with_greeks(option, context, ["delta", "gamma"])
                 assert result.price == 0
                 for greek in ("delta", "gamma"):
                     assert result.require(greek) == 0
@@ -161,9 +144,7 @@ def test_analytic_terminal_greeks_are_exact_next_to_the_strike(
                 spot_price=spot,
                 valuation_time=end,
             )
-            result = engine.price_with_greeks(
-                dated_history(option, context), context, "all"
-            )
+            result = engine.price_with_greeks(option, context, "all")
             assert_terminal_greeks(result, delta)
             for greek in result.requested:
                 expected = (
@@ -206,14 +187,12 @@ def test_automatic_spot_bumps_fit_small_price_units(subtests, spot):
     )
     for engine in engines:
         with subtests.test(spot=spot, engine=type(engine).__name__):
-            result = engine.price_with_greeks(
-                dated_history(option, context), context, ["delta", "gamma"]
-            )
+            result = engine.price_with_greeks(option, context, ["delta", "gamma"])
             assert result.require("delta") == pytest.approx(1, rel=0, abs=1e-10)
             assert result.require("gamma") * spot == pytest.approx(0, rel=0, abs=1e-8)
     explicit = numerical_greeks(
         engines[0],
-        dated_history(option, context),
+        option,
         context,
         "delta",
         spot_shift=2 * spot,
@@ -221,12 +200,8 @@ def test_automatic_spot_bumps_fit_small_price_units(subtests, spot):
     assert explicit.status("delta") == "stencil_unavailable"
     active = context.replace(valuation_time=start)
     atm = option.replace(strike=spot)
-    exact = engines[0].price_with_greeks(
-        dated_history(atm, active), active, ["delta", "gamma"]
-    )
-    numerical = numerical_greeks(
-        engines[0], dated_history(atm, active), active, ["delta", "gamma"]
-    )
+    exact = engines[0].price_with_greeks(atm, active, ["delta", "gamma"])
+    numerical = numerical_greeks(engines[0], atm, active, ["delta", "gamma"])
     assert numerical.require("delta") == pytest.approx(
         exact.require("delta"), rel=0, abs=1e-4
     )
@@ -253,12 +228,7 @@ def test_native_terminal_greeks_honor_spot_bumps(subtests):
     option = ins.EuropeanOption(**terms)
     digital = ins.CashOrNothingOption(**terms, payout=10)
     barrier = ins.BarrierOption(
-        **history_fields(
-            **terms,
-            barrier_type="up_and_out",
-            barrier_level=120,
-            touch_state="untouched",
-        )
+        **terms, barrier_type="up_and_out", barrier_level=120, touch_state="untouched"
     )
     cases = [
         (pricing.CoxRossRubinsteinVanillaEngine(), option, 1),
@@ -270,7 +240,7 @@ def test_native_terminal_greeks_honor_spot_bumps(subtests):
         cases.append(
             (
                 pricing.MonteCarloAsianEngine(path_count=32, seed=42),
-                kind(**history_fields(**terms, averaging_start_time=end)),
+                kind(**terms, averaging_start_time=end),
                 1,
             )
         )
@@ -278,15 +248,10 @@ def test_native_terminal_greeks_honor_spot_bumps(subtests):
         with subtests.test(
             engine=type(engine).__name__, instrument=type(instrument).__name__
         ):
-            assert (
-                engine.price_with_greeks(
-                    dated_history(instrument, context), context, "delta"
-                ).delta
-                is None
-            )
+            assert engine.price_with_greeks(instrument, context, "delta").delta is None
             result = numerical_greeks(
                 engine,
-                dated_history(instrument, context),
+                instrument,
                 context,
                 "delta",
                 spot_shift=0.001,
@@ -316,7 +281,6 @@ def test_terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes
         observations=ins.autocallable_observations(
             [end], [120], knock_out_coupon_rates=[0.08]
         ),
-        history_time=start,
     )
     model = market.BlackScholesMertonParameters(
         risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
@@ -325,7 +289,7 @@ def test_terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes
         model_parameters=model, spot_price=spot, valuation_time=end
     )
     result = pricing.QuadratureAutocallableEngine().price_with_greeks(
-        dated_history(note, context), context, "all"
+        note, context, "all"
     )
     assert_terminal_greeks(result, delta)
 
@@ -364,9 +328,7 @@ def test_terminal_vanilla_greeks_match_payoff_derivatives_across_engines(subtest
                     direction=direction,
                     engine=type(engine).__name__,
                 ):
-                    result = engine.price_with_greeks(
-                        dated_history(option, context), context, "all"
-                    )
+                    result = engine.price_with_greeks(option, context, "all")
                     assert result.require("delta") == pytest.approx(
                         delta, rel=0, abs=1e-10
                     )
@@ -386,7 +348,7 @@ def test_terminal_vanilla_greeks_match_payoff_derivatives_across_engines(subtest
                     for greek in ("theta", "charm", "color"):
                         assert result.status(greek) == "undefined"
                     numerical = pricing.numerical_greeks(
-                        engine, dated_history(option, context), context, "delta"
+                        engine, option, context, "delta"
                     )
                     assert numerical.require("delta") == pytest.approx(
                         delta, rel=0, abs=1e-10
@@ -410,15 +372,13 @@ def test_terminal_kinks_and_unsupported_measures_remain_explicit():
         expiry_time=end,
     )
     engine = pricing.AnalyticDigitalEngine()
-    result = engine.price_with_greeks(
-        dated_history(option, context), context, ["delta", "gamma", "vega"]
-    )
+    result = engine.price_with_greeks(option, context, ["delta", "gamma", "vega"])
     assert result.status("delta") == "undefined"
     assert result.status("gamma") == "undefined"
     assert result.require("vega") == 0
     assert result.status("rho") == "not_requested"
     result = pricing.MonteCarloDigitalEngine(path_count=32, seed=42).price_with_greeks(
-        dated_history(option, context.replace(spot_price=120)),
+        option,
         context.replace(spot_price=120),
         ["delta", "gamma", "vega"],
     )

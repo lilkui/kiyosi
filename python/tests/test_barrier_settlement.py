@@ -5,8 +5,6 @@ from datetime import datetime
 import pytest
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 def test_settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage(
@@ -30,35 +28,26 @@ def test_settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage(
         "payout": 10,
     }
     binary = ins.cash_binary_barrier_option(
-        **history_fields(
-            **common,
-            option_type="call",
-            strike=100,
-            barrier_level=120,
-            barrier_type="up_and_out",
-        )
+        **common,
+        option_type="call",
+        strike=100,
+        barrier_level=120,
+        barrier_type="up_and_out",
     )
     touch = ins.cash_touch_option(
-        **history_fields(
-            **common,
-            barrier_level=120,
-            barrier_type="up_and_in",
-            settlement_timing="at_hit",
-        )
+        **common,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        settlement_timing="at_hit",
     )
     double = ins.cash_double_touch(
-        **history_fields(
-            **common,
-            lower_barrier=80,
-            upper_barrier=120,
-            settlement_timing="at_hit",
-        )
+        **common, lower_barrier=80, upper_barrier=120, settlement_timing="at_hit"
     )
     for engine, settled, unpaid in (
         (
             pricing.AnalyticBinaryBarrierEngine(),
             binary,
-            binary.replace_history(touch_state=None),
+            binary.replace(touch_state=None),
         ),
         (
             pricing.AnalyticBinaryBarrierEngine(),
@@ -72,6 +61,6 @@ def test_settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage(
         ),
     ):
         with subtests.test(contract=type(settled).__name__):
-            assert engine.price(dated_history(settled, context), context) == 0
+            assert engine.price(settled, context) == 0
             with pytest.raises(InvalidInputError):
-                engine.price(dated_history(unpaid, context), context)
+                engine.price(unpaid, context)

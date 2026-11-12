@@ -21,8 +21,6 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -41,14 +39,12 @@ def market(spot=100, volatility=0.2, valuation=START, rate=0.04, dividend=0.01):
 
 def option(kind, direction="call", strike=100, averaging=START, realized=None):
     return kind(
-        **history_fields(
-            option_type=direction,
-            strike=strike,
-            effective_time=START,
-            averaging_start_time=averaging,
-            expiry_time=END,
-            realized_average=realized,
-        )
+        option_type=direction,
+        strike=strike,
+        effective_time=START,
+        averaging_start_time=averaging,
+        expiry_time=END,
+        realized_average=realized,
     )
 
 
@@ -70,9 +66,9 @@ def test_constructor_exports_defaults_and_representation_errors(subtests):
     for name in ("path_count", "step_count", "max_active_workers", "seed"):
         for value in (True, 2.5):
             with subtests.test(name=name, value=value), pytest.raises(TypeError):
-                cls(**history_fields(**{name: value}))
+                cls(**{name: value})
         with subtests.test(name=name), pytest.raises(OverflowError):
-            cls(**history_fields(**{name: 1 << 100}))
+            cls(**{name: 1 << 100})
     with pytest.raises(TypeError):
         cls(100)
     with pytest.raises(TypeError):
@@ -97,25 +93,25 @@ def test_history_start_intraday_life_and_expiry(kind):
             instrument = option(kind, averaging=averaging, realized=realized)
             context = market(valuation=instant + timedelta(seconds=shift))
             if (shift > 0) == (realized is not None):
-                assert engine.price(dated_history(instrument, context), context) >= 0
+                assert engine.price(instrument, context) >= 0
             else:
                 assert_rejection(
                     MissingHistoryError if realized is None else InvalidInputError,
                     engine.price,
-                    dated_history(instrument, context),
+                    instrument,
                     context,
                 )
     for when in (START - timedelta(days=1), END + timedelta(days=1)):
         assert_rejection(
             InvalidInputError,
             engine.price,
-            dated_history(option(kind), market(valuation=when)),
+            option(kind),
             market(valuation=when),
         )
     settled = pricing.MonteCarloAsianEngine(path_count=1, seed=42)
     for direction, expected in (("call", 10), ("put", 0)):
         result = settled.price_with_greeks(
-            dated_history(option(kind, direction, realized=110), market(valuation=END)),
+            option(kind, direction, realized=110),
             market(valuation=END),
             greeks="all",
         )
@@ -123,10 +119,7 @@ def test_history_start_intraday_life_and_expiry(kind):
         assert_terminal_greeks(result, 0)
         assert (
             settled.price(
-                dated_history(
-                    option(kind, direction, averaging=END),
-                    market(110, valuation=END),
-                ),
+                option(kind, direction, averaging=END),
                 market(110, valuation=END),
             )
             == expected
@@ -143,14 +136,14 @@ def test_geometric_independent_reference_and_arithmetic_published_convergence(se
         antithetic=True,
     )
     assert engine.price(
-        dated_history(option(GeometricAveragePriceOption), market()),
+        option(GeometricAveragePriceOption),
         market(),
     ) == pytest.approx(5.035867546515384, rel=0, abs=0.002)
     # Published Vecer continuous references, one year in matching ACT/365 time.
     for spot, expected in ((1.9, 0.193174), (2.0, 0.246416), (2.1, 0.306220)):
         context = market(spot, 0.5, rate=0.05, dividend=0)
         call = option(ArithmeticAveragePriceOption, strike=2)
-        actual = engine.price(dated_history(call, context), context)
+        actual = engine.price(call, context)
         assert actual == pytest.approx(expected, rel=0, abs=0.001)
         coarse = pricing.MonteCarloAsianEngine(
             path_count=65536,
@@ -159,14 +152,12 @@ def test_geometric_independent_reference_and_arithmetic_published_convergence(se
             sampling="sobol",
             antithetic=True,
         )
-        assert abs(actual - expected) < abs(
-            coarse.price(dated_history(call, context), context) - expected
-        )
+        assert abs(actual - expected) < abs(coarse.price(call, context) - expected)
         put = option(ArithmeticAveragePriceOption, "put", strike=2)
         parity = math.exp(-0.05) * (spot * math.expm1(0.05) / 0.05 - 2)
-        assert actual - engine.price(
-            dated_history(put, context), context
-        ) == pytest.approx(parity, rel=0, abs=0.001)
+        assert actual - engine.price(put, context) == pytest.approx(
+            parity, rel=0, abs=0.001
+        )
 
 
 @pytest.mark.parametrize("kind", KINDS)
@@ -185,10 +176,8 @@ def test_requested_greeks_forward_and_seasoned_fixed_history(kind, direction, wi
         realized=105 if window == 2 else None,
     )
     context = market(valuation=valuation, rate=-0.02)
-    result = engine.price_with_greeks(
-        dated_history(instrument, context), context, greeks="all"
-    )
-    assert result.price == engine.price(dated_history(instrument, context), context)
+    result = engine.price_with_greeks(instrument, context, greeks="all")
+    assert result.price == engine.price(instrument, context)
     for name in (
         "speed",
         "theta",
@@ -202,7 +191,7 @@ def test_requested_greeks_forward_and_seasoned_fixed_history(kind, direction, wi
         assert getattr(result, name) is None
     if kind is GeometricAveragePriceOption:
         expected = pricing.AnalyticGeometricAveragePriceEngine().price_with_greeks(
-            dated_history(instrument, context),
+            instrument,
             context,
             greeks=["delta", "gamma"],
         )
@@ -212,17 +201,11 @@ def test_requested_greeks_forward_and_seasoned_fixed_history(kind, direction, wi
     else:
         for h in (0.05, 0.025):
             up = engine.price(
-                dated_history(
-                    instrument,
-                    market(100 + h, valuation=valuation, rate=-0.02),
-                ),
+                instrument,
                 market(100 + h, valuation=valuation, rate=-0.02),
             )
             down = engine.price(
-                dated_history(
-                    instrument,
-                    market(100 - h, valuation=valuation, rate=-0.02),
-                ),
+                instrument,
                 market(100 - h, valuation=valuation, rate=-0.02),
             )
             assert result.delta == pytest.approx(
@@ -231,14 +214,12 @@ def test_requested_greeks_forward_and_seasoned_fixed_history(kind, direction, wi
             assert result.gamma == pytest.approx(
                 (up - 2 * result.price + down) / h**2, rel=0, abs=0.00002
             )
-    selected = engine.price_with_greeks(
-        dated_history(instrument, context), context, greeks="gamma"
-    )
+    selected = engine.price_with_greeks(instrument, context, greeks="gamma")
     assert selected.gamma == result.gamma
     assert selected.delta is None
     controlled = numerical_greeks(
         engine,
-        dated_history(instrument, context),
+        instrument,
         context,
         "delta",
         spot_shift=0.1,
@@ -272,15 +253,13 @@ def test_sampling_threading_concurrency_and_exact_distribution_step_invariance(
         max_active_workers=4,
     )
     instrument = option(kind)
-    expected = engine.price_with_greeks(
-        dated_history(instrument, market()), market(), greeks="all"
-    )
+    expected = engine.price_with_greeks(instrument, market(), greeks="all")
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(
             pool.map(
                 lambda _, parallel=parallel, instrument=instrument: (
                     parallel.price_with_greeks(
-                        dated_history(instrument, market()),
+                        instrument,
                         market(),
                         greeks="all",
                     )
@@ -301,14 +280,9 @@ def test_sampling_threading_concurrency_and_exact_distribution_step_invariance(
             antithetic=True,
         )
         single = option(kind, averaging=END)
-        assert changed.price(dated_history(single, market()), market()) == engine.price(
-            dated_history(single, market()), market()
-        )
+        assert changed.price(single, market()) == engine.price(single, market())
         if kind is GeometricAveragePriceOption:
-            assert (
-                changed.price(dated_history(instrument, market()), market())
-                == expected.price
-            )
+            assert changed.price(instrument, market()) == expected.price
 
 
 def test_tiny_volatility_scaled_prices_and_negative_seasoned_geometric_gamma():
@@ -327,20 +301,15 @@ def test_tiny_volatility_scaled_prices_and_negative_seasoned_geometric_gamma():
         for kind in KINDS:
             for direction in ("call", "put"):
                 actual = engine.price(
-                    dated_history(
-                        option(kind, direction, strike=spot),
-                        market(spot, volatility, rate=0, dividend=0),
-                    ),
+                    option(kind, direction, strike=spot),
                     market(spot, volatility, rate=0, dividend=0),
                 )
                 assert math.isclose(actual, expected, rel_tol=0.002), (actual, expected)
     instrument = option(GeometricAveragePriceOption, strike=10, realized=100)
     context = market(valuation=START + timedelta(days=180))
-    actual = engine.price_with_greeks(
-        dated_history(instrument, context), context, greeks="gamma"
-    )
+    actual = engine.price_with_greeks(instrument, context, greeks="gamma")
     expected = pricing.AnalyticGeometricAveragePriceEngine().price_with_greeks(
-        dated_history(instrument, context), context, greeks="gamma"
+        instrument, context, greeks="gamma"
     )
     assert actual.gamma < 0
     assert actual.gamma == pytest.approx(expected.gamma, rel=0, abs=0.0001)
@@ -352,10 +321,10 @@ def test_implied_volatility_recovery_and_affine_backend_independence():
     )
     for kind in KINDS:
         instrument = option(kind)
-        observed = engine.price(dated_history(instrument, market()), market())
+        observed = engine.price(instrument, market())
         solved = pricing.implied_volatility(
             engine,
-            dated_history(instrument, market(volatility=0.35)),
+            instrument,
             market(volatility=0.35),
             observed,
             lower_bound=0.0,
@@ -365,11 +334,9 @@ def test_implied_volatility_recovery_and_affine_backend_independence():
     settled = pricing.MonteCarloAsianEngine(path_count=1, seed=42)
     instrument = option(ArithmeticAveragePriceOption, strike=25, realized=100)
     context = market(valuation=START + timedelta(days=180))
-    actual = settled.price_with_greeks(
-        dated_history(instrument, context), context, greeks="all"
-    )
+    actual = settled.price_with_greeks(instrument, context, greeks="all")
     assert actual.price == pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
-        dated_history(instrument, context), context
+        instrument, context
     )
     assert actual.gamma == 0
     future = 185 / 365
@@ -382,7 +349,7 @@ def test_implied_volatility_recovery_and_affine_backend_independence():
         UnsupportedOperationError,
         pricing.implied_volatility,
         settled,
-        dated_history(instrument, context),
+        instrument,
         context,
         actual.price,
         lower_bound=0.0,
@@ -415,35 +382,33 @@ def test_curves_support_arithmetic_and_keep_history_validation_order():
         100 * (0.5 * growth[0] + sum(growth[1:-1]) + 0.5 * growth[-1]) / 5 - 1
     )
     assert engine.price(
-        dated_history(option(ArithmeticAveragePriceOption, strike=1), context),
+        option(ArithmeticAveragePriceOption, strike=1),
         context,
     ) == pytest.approx(expected, rel=0, abs=0.002)
     for averaging in (START, END):
         assert_rejection(
             UnsupportedOperationError,
             engine.price,
-            dated_history(
-                option(GeometricAveragePriceOption, averaging=averaging), context
-            ),
+            option(GeometricAveragePriceOption, averaging=averaging),
             context,
         )
     assert_rejection(
         InvalidInputError,
         engine.price,
-        dated_history(option(GeometricAveragePriceOption, realized=100), context),
+        option(GeometricAveragePriceOption, realized=100),
         context,
     )
     assert_rejection(
         UnsupportedOperationError,
         engine.price_with_greeks,
-        dated_history(option(GeometricAveragePriceOption), context),
+        option(GeometricAveragePriceOption),
         context,
         [],
     )
     settled = context.replace(valuation_time=END)
     assert (
         engine.price(
-            dated_history(option(GeometricAveragePriceOption, realized=110), settled),
+            option(GeometricAveragePriceOption, realized=110),
             settled,
         )
         == 10
@@ -454,7 +419,7 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
     engine = pricing.MonteCarloAsianEngine(path_count=1024, seed=42)
     for kind in KINDS:
         instrument, context = option(kind), market()
-        quote = engine.price(dated_history(instrument, context), context)
+        quote = engine.price(instrument, context)
         for settings, exception in (
             ({}, TypeError),
             ({"greeks": "Delta"}, ValueError),
@@ -464,9 +429,7 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
             ({"greeks": "delta", "time_shift": 2**40}, TypeError),
         ):
             with pytest.raises(exception):
-                numerical_greeks(
-                    engine, dated_history(instrument, context), context, **settings
-                )
+                numerical_greeks(engine, instrument, context, **settings)
         for observed, settings, expected_error in (
             (-1, {}, RootNotBracketedError),
             (math.nan, {}, InvalidInputError),
@@ -487,7 +450,7 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
                 expected_error,
                 pricing.implied_volatility,
                 engine,
-                dated_history(instrument, context),
+                instrument,
                 context,
                 observed,
                 **{"lower_bound": 0.0, "upper_bound": 4.0, **settings},
@@ -495,21 +458,21 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
         with pytest.raises(TypeError):
             pricing.implied_volatility(
                 engine,
-                dated_history(instrument, context),
+                instrument,
                 context,
                 quote,
                 max_iterations=True,
                 lower_bound=0.0,
                 upper_bound=4.0,
             )
-        assert engine.price(dated_history(instrument, context), context) == quote
+        assert engine.price(instrument, context) == quote
         assert engine.seed == 42
         unseeded = pricing.MonteCarloAsianEngine(path_count=4096, step_count=16)
         assert_rejection(
             InvalidInputError,
             pricing.implied_volatility,
             unseeded,
-            dated_history(instrument, context),
+            instrument,
             context,
             quote,
             lower_bound=0.0,
@@ -517,7 +480,7 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
         )
         solved = pricing.implied_volatility(
             unseeded.with_resolved_seed(),
-            dated_history(instrument, context),
+            instrument,
             context,
             quote,
             lower_bound=0.1,
@@ -525,9 +488,7 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
         )
         assert 0.1 < solved < 0.4
         assert unseeded.seed is None
-        result = engine.price_with_greeks(
-            dated_history(instrument, context), context, "delta"
-        )
+        result = engine.price_with_greeks(instrument, context, "delta")
         assert result.price == quote
         del instrument, context
         assert result.delta > 0
@@ -539,11 +500,11 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
         option_type="call", strike=100, effective_time=START, expiry_time=END
     )
     with pytest.raises(UnsupportedOperationError):
-        engine.price(dated_history(wrong, market()), market())
+        engine.price(wrong, market())
     with pytest.raises(UnsupportedOperationError):
         pricing.implied_volatility(
             engine,
-            dated_history(wrong, market()),
+            wrong,
             market(),
             5,
             lower_bound=0.0,
@@ -567,7 +528,7 @@ def test_extreme_volatility_uses_arithmetic_interval_validation():
     )
     engine = pricing.MonteCarloAsianEngine(path_count=1, step_count=100, seed=42)
     assert engine.price(
-        dated_history(instrument, market(volatility=1e154, rate=0, dividend=0)),
+        instrument,
         market(volatility=1e154, rate=0, dividend=0),
     ) == pytest.approx(99.5, rel=0, abs=1e-12)
 
@@ -582,6 +543,6 @@ def test_node_curve_history_retains_fused_accrual_residual():
     )
     engine = pricing.MonteCarloAsianEngine(path_count=1, seed=42)
     expected = 2.0487666640489847e291
-    assert engine.price(
-        dated_history(instrument, context), context
-    ) / expected == pytest.approx(1, rel=0, abs=1e-12)
+    assert engine.price(instrument, context) / expected == pytest.approx(
+        1, rel=0, abs=1e-12
+    )

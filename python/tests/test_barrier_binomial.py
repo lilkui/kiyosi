@@ -26,8 +26,6 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 
 START = datetime(2025, 1, 1)
 
@@ -70,7 +68,7 @@ def option(kind="down_and_out", direction="call", **changes):
         "calendar": all_days_calendar(),
     }
     terms.update(changes)
-    return BarrierOption(**history_fields(**terms))
+    return BarrierOption(**terms)
 
 
 def test_crr_requires_exact_future_observation_alignment():
@@ -80,16 +78,16 @@ def test_crr_requires_exact_future_observation_alignment():
     assert_rejection(
         UnsupportedOperationError,
         pricing.CoxRossRubinsteinBarrierEngine(step_count=256).price,
-        dated_history(contract, market()),
+        contract,
         market(),
     )
     aligned = pricing.CoxRossRubinsteinBarrierEngine(step_count=360)
-    assert aligned.price(dated_history(contract, market()), market()) > 0
+    assert aligned.price(contract, market()) > 0
     intraday = datetime(2025, 1, 1, 12)
     assert_rejection(
         UnsupportedOperationError,
         aligned.price,
-        dated_history(contract, market(valuation=intraday)),
+        contract,
         market(valuation=intraday),
     )
 
@@ -105,7 +103,7 @@ def test_expiry_only_observation_matches_one_step_payment():
     context = market(rate=0, dividend=0)
     up = math.exp(0.2 * math.sqrt(2 / 365))
     assert pricing.CoxRossRubinsteinBarrierEngine(step_count=1).price(
-        dated_history(contract, context), context
+        contract, context
     ) == pytest.approx(2 / (1 + up), rel=0, abs=1e-12)
 
 
@@ -143,16 +141,14 @@ def test_only_requested_node_greeks_are_returned():
     for steps in (1, 2, 256):
         engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=steps)
         contract, context = option(), market()
-        result = engine.price_with_greeks(
-            dated_history(contract, context), context, greeks="all"
-        )
+        result = engine.price_with_greeks(contract, context, greeks="all")
         assert result.delta is not None
         assert (result.gamma is not None) == (steps >= 2)
         for name in OTHER_GREEKS:
             assert getattr(result, name) is None
         for name in ("delta", "gamma", *OTHER_GREEKS):
             selected = engine.price_with_greeks(
-                dated_history(contract, context),
+                contract,
                 context,
                 name,
             )
@@ -174,26 +170,17 @@ def test_current_hit_paid_history_and_resolved_vanilla_precede_grid(kind):
             observation_times=[START, START + timedelta(days=1), END],
         )
         context = market(spot=level)
-        expected = pricing.AnalyticBarrierEngine().price(
-            dated_history(contract, context), context
-        )
-        assert engine.price(dated_history(contract, context), context) == expected
-        result = engine.price_with_greeks(
-            dated_history(contract, context), context, greeks="all"
-        )
+        expected = pricing.AnalyticBarrierEngine().price(contract, context)
+        assert engine.price(contract, context) == expected
+        result = engine.price_with_greeks(contract, context, greeks="all")
         for name in ("delta", "gamma", *OTHER_GREEKS):
             assert getattr(result, name) is None
-        touched = contract.replace_history(
+        touched = contract.replace(
             touch_state="touched",
-            history_time=contract.expiry_time,
         )
         context = market(valuation=START + timedelta(days=2))
-        expected = pricing.AnalyticBarrierEngine().price(
-            dated_history(touched, context), context
-        )
-        result = engine.price_with_greeks(
-            dated_history(touched, context), context, greeks="all"
-        )
+        expected = pricing.AnalyticBarrierEngine().price(touched, context)
+        result = engine.price_with_greeks(touched, context, greeks="all")
         assert result.price == expected
         assert result.delta is not None
         assert result.gamma is not None
@@ -203,7 +190,7 @@ def test_current_hit_paid_history_and_resolved_vanilla_precede_grid(kind):
         assert_rejection(
             InvalidInputError,
             engine.price,
-            dated_history(touched, market()),
+            touched,
             market(),
         )
 
@@ -218,11 +205,11 @@ def test_microsecond_alignment_and_inclusive_noncentral_node_hits():
     engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=7)
     time = datetime(2025, 1, 1, 12)
     context = market(valuation=time)
-    assert engine.price(dated_history(contract, context), context) > 0
+    assert engine.price(contract, context) > 0
     assert_rejection(
         UnsupportedOperationError,
         engine.price,
-        dated_history(contract, market(valuation=time + timedelta(microseconds=1))),
+        contract,
         market(valuation=time + timedelta(microseconds=1)),
     )
     for sigma in (0.1, 0.2, 0.3, 0.4):
@@ -237,7 +224,7 @@ def test_microsecond_alignment_and_inclusive_noncentral_node_hits():
             )
             # The sole ITM path is knocked out at its first move, including equality.
             assert pricing.CoxRossRubinsteinBarrierEngine(step_count=2).price(
-                dated_history(contract, market(volatility=sigma)),
+                contract,
                 market(volatility=sigma),
             ) == pytest.approx(0, rel=0, abs=1e-12)
 
@@ -255,13 +242,13 @@ def test_flat_curve_applicability_calendar_and_validation_order():
             assert_rejection(
                 UnsupportedOperationError,
                 engine.price,
-                dated_history(option(), context),
+                option(),
                 context,
             )
             assert_rejection(
                 UnsupportedOperationError,
                 engine.price_with_greeks,
-                dated_history(option(), context),
+                option(),
                 context,
                 [],
             )
@@ -269,7 +256,7 @@ def test_flat_curve_applicability_calendar_and_validation_order():
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                dated_history(option(), context),
+                option(),
                 context,
                 math.nan,
                 lower_bound=0.0,
@@ -284,7 +271,7 @@ def test_flat_curve_applicability_calendar_and_validation_order():
         assert_rejection(
             ComputationFailureError,
             engine.price,
-            dated_history(option(), market(volatility=sigma, rate=rate)),
+            option(),
             market(volatility=sigma, rate=rate),
         )
     for kwargs in (
@@ -296,7 +283,7 @@ def test_flat_curve_applicability_calendar_and_validation_order():
         with pytest.raises(TypeError):
             numerical_greeks(
                 engine,
-                dated_history(option(), market()),
+                option(),
                 market(),
                 "delta",
                 **kwargs,
@@ -304,7 +291,7 @@ def test_flat_curve_applicability_calendar_and_validation_order():
     with pytest.raises(TypeError):
         numerical_greeks(
             engine,
-            dated_history(option(), market()),
+            option(),
             market(),
             "delta",
             time_shift=2**31,
@@ -327,17 +314,17 @@ def test_flat_curve_applicability_calendar_and_validation_order():
 def test_solver_tree_domain_and_failures_preserve_inputs():
     engine = pricing.CoxRossRubinsteinBarrierEngine()
     contract, context = option(barrier_level=60), market()
-    quote = engine.price(dated_history(contract, context), context)
+    quote = engine.price(contract, context)
     solved = pricing.implied_volatility(
         engine,
-        dated_history(contract, context),
+        contract,
         context,
         quote,
         lower_bound=1e-8,
         upper_bound=0.5,
     )
     assert engine.price(
-        dated_history(contract, market(volatility=solved)),
+        contract,
         market(volatility=solved),
     ) == pytest.approx(quote, rel=0, abs=2e-7)
     for price, controls, expected_error in (
@@ -354,7 +341,7 @@ def test_solver_tree_domain_and_failures_preserve_inputs():
             expected_error,
             pricing.implied_volatility,
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             price,
             **{"lower_bound": 0.0, "upper_bound": 4.0, **controls},
@@ -362,7 +349,7 @@ def test_solver_tree_domain_and_failures_preserve_inputs():
     with pytest.raises(TypeError):
         pricing.implied_volatility(
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             True,
             lower_bound=0.0,
@@ -371,14 +358,14 @@ def test_solver_tree_domain_and_failures_preserve_inputs():
     with pytest.raises(TypeError):
         pricing.implied_volatility(
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             quote,
             max_iterations=1.5,
             lower_bound=0.0,
             upper_bound=4.0,
         )
-    assert engine.price(dated_history(contract, context), context) == quote
+    assert engine.price(contract, context) == quote
     assert context.model_parameters.volatility == 0.2
     assert engine.step_count == 256
 
@@ -386,16 +373,14 @@ def test_solver_tree_domain_and_failures_preserve_inputs():
 def test_shared_and_distinct_instances_allow_concurrent_pricing_and_solving():
     engine = pricing.CoxRossRubinsteinBarrierEngine()
     contract, context = option(barrier_level=60), market()
-    quote = engine.price(dated_history(contract, context), context)
+    quote = engine.price(contract, context)
 
     def evaluate(index):
         selected = engine if index % 2 else pricing.CoxRossRubinsteinBarrierEngine()
-        result = selected.price_with_greeks(
-            dated_history(contract, context), context, ("delta", "gamma")
-        )
+        result = selected.price_with_greeks(contract, context, ("delta", "gamma"))
         sigma = pricing.implied_volatility(
             selected,
-            dated_history(contract, context),
+            contract,
             context,
             result.price,
             lower_bound=0.15,
@@ -451,7 +436,7 @@ def test_continuous_prices_and_greeks_against_live_quantlib(subtests):
                         "gamma": (high - 2 * center + low) / 0.01**2,
                     }
                     result = engine.price_with_greeks(
-                        dated_history(contract, market(rate=rate, dividend=dividend)),
+                        contract,
                         market(rate=rate, dividend=dividend),
                         ("delta", "gamma"),
                     )

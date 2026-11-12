@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {
@@ -37,7 +34,7 @@ fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.observation_clock_time = None;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    t.history_time = Some(t.effective_time);
+
     t.observations[0] = t.observations[0]
         .replace(AutocallableObservationChanges {
             coupon_rate: Some(0.08),
@@ -53,17 +50,7 @@ fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
         (80.0, 1.0 + 0.06 * term),
         (110.0, 1.0 + 0.08 * term),
     ] {
-        assert!(
-            (engine
-                .price(
-                    &dated(&note, &market(spot, date(4, 1))),
-                    &market(spot, date(4, 1))
-                )
-                .unwrap()
-                - expected)
-                .abs()
-                < 1e-14
-        );
+        assert!((engine.price(&note, &market(spot, date(4, 1))).unwrap() - expected).abs() < 1e-14);
     }
 }
 
@@ -88,33 +75,30 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
     let note = SnowballOption::new(terms()).unwrap();
     let engine = QuadratureAutocallableEngine::default();
     assert!(matches!(
-        engine
-            .price(
-                &dated(&note, &market(100.0, date(1, 2))),
-                &market(100.0, date(1, 2))
-            )
-            .unwrap_err(),
+        engine.price(&note, &market(100.0, date(1, 2))).unwrap_err(),
         Error::MissingHistory(_)
     ));
     let known = note
-        .replace_history(
-            Some(AutocallableBarrierState::NoEvent),
-            Some(note.history_time().unwrap_or(note.effective_time())),
-        )
+        .replace(SnowballOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
+            ..Default::default()
+        })
         .unwrap();
     assert!(
         engine
-            .price(
-                &dated(&known, &market(100.0, date(1, 2))),
-                &market(100.0, date(1, 2))
-            )
+            .price(&known, &market(100.0, date(1, 2)))
             .unwrap()
             .is_finite()
     );
     assert!(matches!(
-        note.replace_history(
-            Some(AutocallableBarrierState::KnockedOut),
-            Some(note.effective_time())
+        engine.price(
+            &note
+                .replace(SnowballOptionChanges {
+                    barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),
+                    ..Default::default()
+                })
+                .unwrap(),
+            &market(100.0, date(1, 1))
         ),
         Err(Error::InvalidInput(_))
     ));
@@ -122,9 +106,9 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.observation_clock_time = None;
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
-    t.history_time = Some(t.expiry_time);
+
     assert!(matches!(
-        SnowballOption::new(t),
+        engine.price(&SnowballOption::new(t).unwrap(), &market(100.0, date(4, 1))),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(note.barrier_state(), None);
@@ -152,16 +136,13 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                 let put = |strike| {
                     AnalyticEuropeanEngine
                         .price(
-                            &dated(
-                                &EuropeanOption::new(
-                                    OptionType::Put,
-                                    strike,
-                                    t.effective_time,
-                                    t.expiry_time,
-                                )
-                                .unwrap(),
-                                &ctx,
-                            ),
+                            &EuropeanOption::new(
+                                OptionType::Put,
+                                strike,
+                                t.effective_time,
+                                t.expiry_time,
+                            )
+                            .unwrap(),
                             &ctx,
                         )
                         .unwrap()
@@ -175,13 +156,10 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                 )
                 .unwrap();
                 let expected = principal * (-0.04_f64).exp()
-                    + coupon.signum()
-                        * AnalyticDigitalEngine
-                            .price(&dated(&digital, &ctx), &ctx)
-                            .unwrap()
+                    + coupon.signum() * AnalyticDigitalEngine.price(&digital, &ctx).unwrap()
                     - (put(100.0) - if lower > 0.0 { put(lower) } else { 0.0 }) / 100.0;
                 let note = SnowballOption::new(t).unwrap();
-                let actual = engine.price(&dated(&note, &ctx), &ctx).unwrap();
+                let actual = engine.price(&note, &ctx).unwrap();
                 assert!(
                     (actual - expected).abs() < 1e-12,
                     "principal={principal}, lower={lower}, coupon={coupon}, actual={actual}, expected={expected}"
@@ -217,7 +195,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
             t.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
                 .then_some(t.expiry_time.time_of_day());
             t.barrier_state = history;
-            t.history_time = Some(t.expiry_time);
+
             t.observations = autocallable_observations(
                 &[date(1, 3), date(1, 6), date(1, 7)],
                 &[110.0; 3],
@@ -235,17 +213,13 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
             // Recovery to the knock-in, cap or knock-out levels is negligible over 4.5 days.
             let delta = (-dividend * time).exp() / 100.0;
             let expected = 15.0 * delta + (principal - 1.0) * (-rate * time).exp();
-            let price = engine.price(&dated(&note, &context), &context).unwrap();
+            let price = engine.price(&note, &context).unwrap();
             assert!(
                 (price - expected).abs() < 1e-9,
                 "{mode:?}, {history:?}: {price} != {expected}"
             );
             let result = engine
-                .price_with_greeks(
-                    &dated(&note, &context),
-                    &context,
-                    GreeksRequest::new([Greek::Delta]),
-                )
+                .price_with_greeks(&note, &context, GreeksRequest::new([Greek::Delta]))
                 .unwrap();
             assert_eq!(result.price(), price);
             assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-8);
@@ -282,7 +256,7 @@ fn daily_monitoring_converges_and_prices_recovery_risk() {
                     integration_standard_deviations: extent,
                 })
                 .unwrap()
-                .price(&dated(&note, &ctx), &ctx)
+                .price(&note, &ctx)
                 .unwrap()
             })
             .collect();
@@ -303,7 +277,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     let engine = QuadratureAutocallableEngine::default();
     let result = kiyosi::numerical_greeks(
         &engine,
-        &dated(&note, &ctx),
+        &note,
         &ctx,
         GreeksRequest::all(),
         NumericalShiftSettings {
@@ -317,7 +291,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     }
     let solved = implied_volatility(
         &engine,
-        &dated(&note, &ctx),
+        &note,
         &ctx,
         result.price(),
         ImpliedVolatilitySettings::new(0.2, 0.4),
@@ -329,7 +303,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.observation_clock_time = None;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    t.history_time = Some(t.effective_time);
+
     t.observations[0] = t.observations[0]
         .replace(AutocallableObservationChanges {
             time: Some(date(2, 3)),
@@ -338,11 +312,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
         .unwrap();
     let note = SnowballOption::new(t).unwrap();
     let result = engine
-        .price_with_greeks(
-            &dated(&note, &market(110.0, date(2, 3))),
-            &market(110.0, date(2, 3)),
-            GreeksRequest::all(),
-        )
+        .price_with_greeks(&note, &market(110.0, date(2, 3)), GreeksRequest::all())
         .unwrap();
     assert!(!result.has(Greek::Delta));
     assert!(!result.has(Greek::Theta));
@@ -351,7 +321,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     assert!(matches!(
         implied_volatility(
             &engine,
-            &dated(&note, &market(110.0, date(2, 3))),
+            &note,
             &market(110.0, date(2, 3)),
             result.price(),
             kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
@@ -394,8 +364,8 @@ fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
             })
             .unwrap();
         assert_eq!(
-            prepared.price(&dated(&note, &context), &context).unwrap(),
-            engine.price(&dated(&note, &context), &context).unwrap()
+            prepared.price(&note, &context).unwrap(),
+            engine.price(&note, &context).unwrap()
         );
     }
 }

@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 fn context(spot: f64) -> Result<PricingContext> {
@@ -13,17 +10,17 @@ fn context(spot: f64) -> Result<PricingContext> {
 
 #[test]
 fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
-    fn check<I: support::DatedHistory>(
+    fn check<I: OptionContract>(
         engine: &impl PricingEngine<I>,
         option: &I,
         context: &PricingContext,
         inactive: bool,
     ) -> Result<()> {
         let result = engine.price_with_greeks_with_settings(
-            &dated(option, context),
+            option,
             context,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-            engine.greek_settings(&dated(option, context)),
+            engine.greek_settings(option),
         )?;
         for greek in [Greek::Delta, Greek::Gamma] {
             assert_eq!(result.get(greek), inactive.then_some(0.0));
@@ -53,7 +50,6 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
             let mut terms =
                 BarrierOptionTerms::new(OptionType::Call, 100.0, start, end, 120.0, kind);
             terms.touch_state = Some(history);
-            terms.history_time = Some(terms.expiry_time);
             check(
                 &AnalyticBarrierEngine,
                 &BarrierOption::new(terms)?,
@@ -74,7 +70,6 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
                 },
             );
             terms.touch_state = Some(history);
-            terms.history_time = Some(terms.expiry_time);
             check(
                 &AnalyticDoubleBarrierEngine,
                 &DoubleBarrierOption::new(terms)?,
@@ -84,7 +79,6 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
             let mut terms =
                 BinaryBarrierTerms::new(OptionType::Call, 100.0, start, end, 120.0, kind);
             terms.touch_state = Some(history);
-            terms.history_time = Some(terms.expiry_time);
             check(
                 &AnalyticBinaryBarrierEngine,
                 &BinaryBarrierOption::cash(terms, 10.0)?,
@@ -131,19 +125,16 @@ fn finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility() ->
                 macro_rules! check {
                     ($kind:ident) => {{
                         let option = $kind::new(direction, 100.0, start, end)?;
-                        let result = engine.price_with_greeks(
-                            &dated(&option, &context),
-                            &context,
-                            GreeksRequest::all(),
-                        )?;
+                        let result =
+                            engine.price_with_greeks(&option, &context, GreeksRequest::all())?;
                         let generic: &dyn PricingEngine<$kind> = &engine;
                         assert_eq!(
                             result,
                             generic.price_with_greeks_with_settings(
-                                &dated(&option, &context),
+                                &option,
                                 &context,
                                 GreeksRequest::all(),
-                                generic.greek_settings(&dated(&option, &context))
+                                generic.greek_settings(&option)
                             )?
                         );
                         assert_eq!(
@@ -172,7 +163,7 @@ fn finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility() ->
                             );
                         }
                         let delta_only = engine.price_with_greeks(
-                            &dated(&option, &context),
+                            &option,
                             &context,
                             GreeksRequest::new([Greek::Delta]),
                         )?;
@@ -213,7 +204,7 @@ fn analytic_terminal_greeks_are_exact_next_to_the_strike() -> Result<()> {
                 let option =
                     EuropeanOption::new(direction, strike, start, context.valuation_time())?;
                 let result = AnalyticEuropeanEngine.price_with_greeks(
-                    &dated(&option, &context),
+                    &option,
                     &context,
                     GreeksRequest::all(),
                 )?;
@@ -221,10 +212,10 @@ fn analytic_terminal_greeks_are_exact_next_to_the_strike() -> Result<()> {
                 assert_eq!(
                     result,
                     generic.price_with_greeks_with_settings(
-                        &dated(&option, &context),
+                        &option,
                         &context,
                         GreeksRequest::all(),
-                        generic.greek_settings(&dated(&option, &context))
+                        generic.greek_settings(&option)
                     )?
                 );
                 assert_eq!(
@@ -285,17 +276,17 @@ fn automatic_spot_bumps_fit_small_price_units() -> Result<()> {
         )?;
         for engine in engines {
             let result = engine.price_with_greeks_with_settings(
-                &dated(&option, &context),
+                &option,
                 &context,
                 request,
-                engine.greek_settings(&dated(&option, &context)),
+                engine.greek_settings(&option),
             )?;
             assert!((result.require(Greek::Delta)? - 1.0).abs() < 1e-10);
             assert!((result.require(Greek::Gamma)? * spot).abs() < 1e-8);
         }
         let explicit = numerical_greeks(
             &AnalyticEuropeanEngine,
-            &dated(&option, &context),
+            &option,
             &context,
             request,
             NumericalShiftSettings {
@@ -315,11 +306,10 @@ fn automatic_spot_bumps_fit_small_price_units() -> Result<()> {
             strike: Some(spot),
             ..Default::default()
         })?;
-        let exact =
-            AnalyticEuropeanEngine.price_with_greeks(&dated(&atm, &active), &active, request)?;
+        let exact = AnalyticEuropeanEngine.price_with_greeks(&atm, &active, request)?;
         let numerical = numerical_greeks(
             &AnalyticEuropeanEngine,
-            &dated(&atm, &active),
+            &atm,
             &active,
             request,
             Default::default(),
@@ -355,12 +345,11 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
         BarrierType::UpAndOut,
     );
     terms.touch_state = Some(BarrierTouchState::Untouched);
-    terms.history_time = Some(terms.expiry_time);
     let barrier = BarrierOption::new(terms)?;
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?;
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?;
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None, None)?;
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?;
     macro_rules! check {
         ($engine:expr, $option:expr, $delta:expr) => {{
             let engine = $engine;
@@ -369,20 +358,9 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
                     spot_shift: Some(bump),
                     ..Default::default()
                 };
-                let direct = kiyosi::numerical_greeks(
-                    &engine,
-                    &dated($option, &context),
-                    &context,
-                    request,
-                    shifts,
-                )?;
-                let generic = kiyosi::numerical_greeks(
-                    &engine,
-                    &dated($option, &context),
-                    &context,
-                    request,
-                    shifts,
-                )?;
+                let direct = kiyosi::numerical_greeks(&engine, $option, &context, request, shifts)?;
+                let generic =
+                    kiyosi::numerical_greeks(&engine, $option, &context, request, shifts)?;
                 assert_eq!(direct, generic);
                 match expected {
                     Some(delta) => assert!((direct.require(Greek::Delta)? - delta).abs() < 1e-10),
@@ -394,7 +372,7 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
             assert!(matches!(
                 kiyosi::numerical_greeks(
                     &engine,
-                    &dated($option, &context),
+                    $option,
                     &context,
                     request,
                     NumericalShiftSettings {
@@ -453,10 +431,10 @@ fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<(
                 let option = $contract::new(direction, 100.0, start, context.valuation_time())?;
                 for engine in &$engines {
                     let result = engine.price_with_greeks_with_settings(
-                        &dated(&option, &context),
+                        &option,
                         &context,
                         GreeksRequest::all(),
-                        engine.greek_settings(&dated(&option, &context)),
+                        engine.greek_settings(&option),
                     )?;
                     assert!(
                         (result.require(Greek::Delta)?
@@ -485,7 +463,7 @@ fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<(
                     }
                     let bumped = numerical_greeks(
                         engine.as_ref(),
-                        &dated(&option, &context),
+                        &option,
                         &context,
                         GreeksRequest::new([Greek::Delta]),
                         Default::default(),
@@ -509,8 +487,7 @@ fn terminal_spot_stencils_respect_payoff_kinks_and_request_metadata() -> Result<
     let context = context(100.0)?;
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, context.valuation_time())?;
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]);
-    let result =
-        AnalyticEuropeanEngine.price_with_greeks(&dated(&option, &context), &context, request)?;
+    let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
     assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
     assert_eq!(result.status(Greek::Gamma), GreekStatus::Undefined);
     assert_eq!(result.require(Greek::Vega)?, 0.0);
@@ -521,7 +498,7 @@ fn terminal_spot_stencils_respect_payoff_kinks_and_request_metadata() -> Result<
     })?;
     let crossed = numerical_greeks(
         &AnalyticEuropeanEngine,
-        &dated(&option, &away),
+        &option,
         &away,
         request,
         NumericalShiftSettings {
@@ -556,7 +533,6 @@ fn terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes() -> 
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms)?;
     for (spot, delta) in [
         (60.0, None),
@@ -566,7 +542,7 @@ fn terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes() -> 
         (120.0, None),
     ] {
         let result = QuadratureAutocallableEngine::default().price_with_greeks(
-            &dated(&note, &context(spot)?),
+            &note,
             &context(spot)?,
             GreeksRequest::all(),
         )?;

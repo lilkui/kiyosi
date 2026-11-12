@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use chrono::{Datelike, NaiveDate};
 use kiyosi::*;
 
@@ -10,7 +7,6 @@ fn day(day: u32) -> Timestamp {
 
 fn terms() -> RangeAccrualTerms {
     RangeAccrualTerms {
-        history_time: None,
         observation_clock_time: (day(17)).time_of_day(),
         calendar: TradingCalendar::default(),
         notional: 1000.0,
@@ -78,7 +74,7 @@ fn automatic_time_bumps_recover_daily_risk_without_crossing_observations() -> Re
     let clock = TimeOfDay::new(15, 0, 0, 0)?;
     let mut terms = RangeAccrualTerms::new(1000.0, 0.12, 90.0, 110.0, day(1), day(5), clock);
     terms.realized_hit_count = Some(1);
-    terms.history_time = Some(terms.expiry_time);
+
     let option = RangeAccrualOption::new(terms)?;
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.0, 0.0)?,
@@ -86,17 +82,13 @@ fn automatic_time_bumps_recover_daily_risk_without_crossing_observations() -> Re
         day(2).date().at_time(TimeOfDay::new(12, 0, 0, 0)?),
     )?;
     let request = GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]);
-    let auto = AnalyticRangeAccrualEngine.price_with_greeks(
-        &dated(&option, &context),
-        &context,
-        request,
-    )?;
+    let auto = AnalyticRangeAccrualEngine.price_with_greeks(&option, &context, request)?;
     assert!((auto.require(Greek::Theta)? - 0.04 * auto.price()).abs() < 1e-9);
     assert_eq!(auto.require(Greek::Charm)?, 0.0);
     assert_eq!(auto.require(Greek::Color)?, 0.0);
     let explicit = numerical_greeks(
         &AnalyticRangeAccrualEngine,
-        &dated(&option, &context),
+        &option,
         &context,
         request,
         NumericalShiftSettings {
@@ -114,7 +106,7 @@ fn automatic_time_bumps_recover_daily_risk_without_crossing_observations() -> Re
     })?;
     assert_eq!(
         AnalyticRangeAccrualEngine
-            .price_with_greeks(&dated(&option, &at_observation), &at_observation, request,)?
+            .price_with_greeks(&option, &at_observation, request,)?
             .status(Greek::Theta),
         GreekStatus::StencilUnavailable
     );
@@ -137,18 +129,7 @@ fn dividend_coverage_ends_at_the_last_observation() -> Result<()> {
     ))?;
     let price = |risk_end, dividend_end| {
         AnalyticRangeAccrualEngine.price(
-            &dated(
-                &option,
-                &PricingContext::new(
-                    BlackScholesMertonParameters::new(
-                        RateTermStructure::bounded_flat(0.04, start, risk_end)?,
-                        RateTermStructure::bounded_flat(0.01, start, dividend_end)?,
-                        0.2,
-                    )?,
-                    100.0,
-                    start,
-                )?,
-            ),
+            &option,
             &PricingContext::new(
                 BlackScholesMertonParameters::new(
                     RateTermStructure::bounded_flat(0.04, start, risk_end)?,
@@ -302,7 +283,6 @@ fn dense_shifted_curves_match_independent_marginals_from_intraday_valuation() ->
         };
         if valuation != start {
             input.realized_hit_count = Some(3);
-            input.history_time = Some(valuation);
         }
         let option = RangeAccrualOption::new(input)?;
         for volatility in [0.2, 1e-10] {
@@ -345,9 +325,7 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
             })
             .unwrap();
         assert!(
-            (AnalyticRangeAccrualEngine
-                .price(&dated(&option, &context), &context)
-                .unwrap()
+            (AnalyticRangeAccrualEngine.price(&option, &context).unwrap()
                 - reference(&option, &context))
             .abs()
                 < 1e-10
@@ -361,17 +339,10 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
     .unwrap();
     let context = market(day(1), 100.0);
     let quote = reference(&annual, &context);
-    assert!(
-        (AnalyticRangeAccrualEngine
-            .price(&dated(&annual, &context), &context)
-            .unwrap()
-            - quote)
-            .abs()
-            < 1e-10
-    );
+    assert!((AnalyticRangeAccrualEngine.price(&annual, &context).unwrap() - quote).abs() < 1e-10);
     let sigma = implied_volatility(
         &AnalyticRangeAccrualEngine,
-        &dated(&annual, &context),
+        &annual,
         &context,
         quote,
         ImpliedVolatilitySettings::new(0.1, 0.4),
@@ -415,7 +386,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
         };
         let expected = numerical_greeks(
             &ReferenceEngine,
-            &dated(&option, &context),
+            &option,
             &context,
             GreeksRequest::all(),
             shifts,
@@ -423,7 +394,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
         .unwrap();
         let actual = kiyosi::numerical_greeks(
             &AnalyticRangeAccrualEngine,
-            &dated(&option, &context),
+            &option,
             &context,
             GreeksRequest::all(),
             shifts,
@@ -448,7 +419,6 @@ fn numerical_greeks_match_independent_payoff_reference() {
 #[test]
 fn terminal_coupon_counts_current_spot_inclusively() {
     let option = RangeAccrualOption::new(RangeAccrualTerms {
-        history_time: Some(day(3)),
         calendar: TradingCalendar::all_days(),
         expiry_time: day(3),
         realized_hit_count: Some(1),
@@ -457,10 +427,7 @@ fn terminal_coupon_counts_current_spot_inclusively() {
     .unwrap();
     for (spot, hits) in [(94.0, 1.0), (95.0, 2.0), (110.0, 2.0), (111.0, 1.0)] {
         let price = AnalyticRangeAccrualEngine
-            .price(
-                &dated(&option, &market(day(3), spot)),
-                &market(day(3), spot),
-            )
+            .price(&option, &market(day(3), spot))
             .unwrap();
         assert!((price - 120.0 / 365.0 * hits).abs() < 1e-12);
     }
@@ -475,16 +442,12 @@ fn greeks_respect_contract_life_and_observations() {
     .unwrap();
     let before = market(Date::new(2024, 12, 29).unwrap().start_of_day(), 99.0);
     assert!(matches!(
-        AnalyticRangeAccrualEngine.price_with_greeks(
-            &dated(&option, &before),
-            &before,
-            GreeksRequest::all()
-        ),
+        AnalyticRangeAccrualEngine.price_with_greeks(&option, &before, GreeksRequest::all()),
         Err(Error::InvalidInput(_))
     ));
     let current = market(day(2), 95.0);
     let result = AnalyticRangeAccrualEngine
-        .price_with_greeks(&dated(&option, &current), &current, GreeksRequest::all())
+        .price_with_greeks(&option, &current, GreeksRequest::all())
         .unwrap();
     for greek in Greek::ALL {
         assert_eq!(
@@ -506,11 +469,7 @@ fn greeks_respect_contract_life_and_observations() {
     let context = market(Timestamp::new(day(4).date(), 12, 0, 0, 0).unwrap(), 100.0);
     assert!(
         AnalyticRangeAccrualEngine
-            .price_with_greeks(
-                &dated(&weekend, &context),
-                &context,
-                GreeksRequest::new([Greek::Theta])
-            )
+            .price_with_greeks(&weekend, &context, GreeksRequest::new([Greek::Theta]))
             .unwrap()
             .has(Greek::Theta)
     );
@@ -537,13 +496,27 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
         terms()
     );
     let changed = option
-        .replace_history(Some(3), Some(option.expiry_time()))
+        .replace(RangeAccrualOptionChanges {
+            realized_hit_count: Some(Some(3)),
+            ..Default::default()
+        })
         .unwrap();
     assert_eq!(changed.realized_hit_count(), Some(3));
-    assert_eq!(changed.replace_history(None, None).unwrap(), option);
+    assert_eq!(
+        changed
+            .replace(RangeAccrualOptionChanges {
+                realized_hit_count: Some(None),
+                ..Default::default()
+            })
+            .unwrap(),
+        option
+    );
     assert!(matches!(
         option
-            .replace_history(Some(-1), Some(option.expiry_time()))
+            .replace(RangeAccrualOptionChanges {
+                realized_hit_count: Some(Some(-1)),
+                ..Default::default()
+            })
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -602,7 +575,6 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
         ),
         (
             RangeAccrualTerms {
-                history_time: Some((terms()).expiry_time),
                 realized_hit_count: Some(-1),
                 ..terms()
             },
@@ -648,13 +620,14 @@ fn history_is_strictly_prior_within_contract_life() {
         (day(9), Some(5)),
     ] {
         let live = option
-            .replace_history(hits, Some(option.expiry_time()))
+            .replace(RangeAccrualOptionChanges {
+                realized_hit_count: Some(hits),
+                ..Default::default()
+            })
             .unwrap();
         let context = market(at, 100.0);
         assert!(
-            (AnalyticRangeAccrualEngine
-                .price(&dated(&live, &context), &context)
-                .unwrap()
+            (AnalyticRangeAccrualEngine.price(&live, &context).unwrap()
                 - reference(&live, &context))
             .abs()
                 < 1e-10
@@ -666,7 +639,15 @@ fn history_is_strictly_prior_within_contract_life() {
         (Timestamp::new(day(2).date(), 12, 0, 0, 0).unwrap(), Some(2)),
     ] {
         assert!(matches!(
-            option.replace_history(hits, Some(at)),
+            AnalyticRangeAccrualEngine.price(
+                &option
+                    .replace(RangeAccrualOptionChanges {
+                        realized_hit_count: Some(hits),
+                        ..Default::default()
+                    })
+                    .unwrap(),
+                &market(at, 100.0)
+            ),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -678,7 +659,7 @@ fn history_is_strictly_prior_within_contract_life() {
     let after = market(Timestamp::new(day(17).date(), 0, 0, 0, 1).unwrap(), 100.0);
     assert!(matches!(
         AnalyticRangeAccrualEngine
-            .price(&dated(&option, &after), &after)
+            .price(&option, &after)
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -708,7 +689,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
             .unwrap();
         assert!(matches!(
             AnalyticRangeAccrualEngine
-                .price(&dated(&option, &context), &context)
+                .price(&option, &context)
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
@@ -719,17 +700,12 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
         })
         .unwrap();
         assert_eq!(
-            AnalyticRangeAccrualEngine
-                .price(&dated(&zero, &context), &context)
-                .unwrap(),
+            AnalyticRangeAccrualEngine.price(&zero, &context).unwrap(),
             0.0
         );
         assert!(matches!(
             AnalyticRangeAccrualEngine
-                .price(
-                    &dated(&zero, &market(day(4), 100.0)),
-                    &market(day(4), 100.0)
-                )
+                .price(&zero, &market(day(4), 100.0))
                 .unwrap_err(),
             Error::MissingHistory(_)
         ));
@@ -744,7 +720,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
     .unwrap();
     assert!(matches!(
         AnalyticRangeAccrualEngine
-            .price(&dated(&weekend, &context), &context)
+            .price(&weekend, &context)
             .unwrap_err(),
         Error::MissingHistory(_)
     ));
@@ -756,9 +732,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
     })
     .unwrap();
     assert!(
-        (AnalyticRangeAccrualEngine
-            .price(&dated(&monday, &context), &context)
-            .unwrap()
+        (AnalyticRangeAccrualEngine.price(&monday, &context).unwrap()
             - reference(&monday, &context))
         .abs()
             < 1e-12
@@ -801,12 +775,7 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
             })
             .unwrap();
         assert!(
-            (AnalyticRangeAccrualEngine
-                .price(&dated(&option, &context), &context)
-                .unwrap()
-                - expected)
-                .abs()
-                < 2e-14
+            (AnalyticRangeAccrualEngine.price(&option, &context).unwrap() - expected).abs() < 2e-14
         );
     }
     let mean = 100.0_f64.ln() + 0.01 / 365.0;
@@ -827,10 +796,7 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
             .exp();
     assert!(
         (AnalyticRangeAccrualEngine
-            .price(
-                &dated(&option, &market(day(1), 100.0)),
-                &market(day(1), 100.0)
-            )
+            .price(&option, &market(day(1), 100.0))
             .unwrap()
             / expected
             - 1.0)
@@ -846,10 +812,7 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
     .unwrap();
     assert!(matches!(
         AnalyticRangeAccrualEngine
-            .price(
-                &dated(&overflow, &market(day(1), 100.0)),
-                &market(day(1), 100.0)
-            )
+            .price(&overflow, &market(day(1), 100.0))
             .unwrap_err(),
         Error::ComputationFailure(_)
     ));
@@ -869,7 +832,7 @@ fn request_and_solver_errors_preserve_inputs() {
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,
-            &dated(&option, &context),
+            &option,
             &context,
             GreeksRequest::all(),
             NumericalShiftSettings {
@@ -882,7 +845,7 @@ fn request_and_solver_errors_preserve_inputs() {
     ));
     let unavailable = kiyosi::numerical_greeks(
         &engine,
-        &dated(&option, &context),
+        &option,
         &context,
         GreeksRequest::new([Greek::Delta]),
         NumericalShiftSettings {
@@ -894,8 +857,7 @@ fn request_and_solver_errors_preserve_inputs() {
     assert!(!unavailable.has(Greek::Delta));
     let settings = ImpliedVolatilitySettings::new(0.1, 0.4);
     assert!(matches!(
-        implied_volatility(&engine, &dated(&option, &context), &context, -1.0, settings)
-            .unwrap_err(),
+        implied_volatility(&engine, &option, &context, -1.0, settings).unwrap_err(),
         Error::RootNotBracketed(_)
     ));
     let zero = RangeAccrualOption::new(RangeAccrualTerms {
@@ -905,25 +867,22 @@ fn request_and_solver_errors_preserve_inputs() {
     })
     .unwrap();
     assert!(matches!(
-        implied_volatility(&engine, &dated(&zero, &context), &context, 0.0, settings).unwrap_err(),
+        implied_volatility(&engine, &zero, &context, 0.0, settings).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     let end = option
-        .replace_history(Some(15), Some(option.expiry_time()))
+        .replace(RangeAccrualOptionChanges {
+            realized_hit_count: Some(Some(15)),
+            ..Default::default()
+        })
         .unwrap();
     let terminal = market(day(17), 100.0);
     assert!(matches!(
-        implied_volatility(&engine, &dated(&end, &terminal), &terminal, 0.0, settings).unwrap_err(),
+        implied_volatility(&engine, &end, &terminal, 0.0, settings).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    let result = kiyosi::numerical_greeks(
-        &engine,
-        &dated(&end, &terminal),
-        &terminal,
-        GreeksRequest::all(),
-        shifts,
-    )
-    .unwrap();
+    let result =
+        kiyosi::numerical_greeks(&engine, &end, &terminal, GreeksRequest::all(), shifts).unwrap();
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }
@@ -962,9 +921,12 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
         .unwrap();
     let engine = AnalyticRangeAccrualEngine;
     let expected = 120.0 * 16.0 / 365.0 * (-0.8_f64 * 16.0 / 365.0).exp();
-    assert!((engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 1e-12);
+    assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-12);
     let seasoned = option
-        .replace_history(Some(3), Some(option.expiry_time()))
+        .replace(RangeAccrualOptionChanges {
+            realized_hit_count: Some(Some(3)),
+            ..Default::default()
+        })
         .unwrap();
     let live = context
         .replace(PricingContextChanges {
@@ -973,7 +935,7 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
         })
         .unwrap();
     let expected = 120.0 * 13.0 / 365.0 * (-0.8_f64 * 9.0 / 365.0).exp();
-    assert!((engine.price(&dated(&seasoned, &live), &live).unwrap() - expected).abs() < 1e-12);
+    assert!((engine.price(&seasoned, &live).unwrap() - expected).abs() < 1e-12);
 }
 
 #[test]
@@ -988,21 +950,18 @@ fn long_and_zero_lower_bound_contracts_support_shared_concurrent_reads() {
     let context = market(day(1), 100.0);
     let expected = reference(&option, &context);
     std::thread::scope(|scope| {
-        let parallel = scope.spawn(|| engine.price(&dated(&option, &context), &context).unwrap());
-        assert!(
-            (engine.price(&dated(&option, &context), &context).unwrap() - expected).abs() < 1e-8
-        );
+        let parallel = scope.spawn(|| engine.price(&option, &context).unwrap());
+        assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-8);
         assert!((parallel.join().unwrap() - expected).abs() < 1e-8);
     });
     let seasoned = option
-        .replace_history(Some(20000), Some(option.expiry_time()))
+        .replace(RangeAccrualOptionChanges {
+            realized_hit_count: Some(Some(20000)),
+            ..Default::default()
+        })
         .unwrap();
     let live = market(add(day(1), 20001), 100.0);
-    assert!(
-        (engine.price(&dated(&seasoned, &live), &live).unwrap() - reference(&seasoned, &live))
-            .abs()
-            < 1e-8
-    );
+    assert!((engine.price(&seasoned, &live).unwrap() - reference(&seasoned, &live)).abs() < 1e-8);
     let lower_zero = RangeAccrualOption::new(RangeAccrualTerms {
         calendar: TradingCalendar::all_days(),
         lower_bound: 0.0,
@@ -1010,11 +969,7 @@ fn long_and_zero_lower_bound_contracts_support_shared_concurrent_reads() {
     })
     .unwrap();
     assert!(
-        (engine
-            .price(&dated(&lower_zero, &context), &context)
-            .unwrap()
-            - reference(&lower_zero, &context))
-        .abs()
+        (engine.price(&lower_zero, &context).unwrap() - reference(&lower_zero, &context)).abs()
             < 1e-10
     );
 }
@@ -1059,7 +1014,7 @@ fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
         .unwrap();
         assert!(matches!(
             AnalyticRangeAccrualEngine
-                .price(&dated(&option, &context), &context)
+                .price(&option, &context)
                 .unwrap_err(),
             Error::ComputationFailure(_)
         ));
@@ -1067,14 +1022,11 @@ fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
         assert_eq!(
             AnalyticRangeAccrualEngine
                 .price(
-                    &dated(
-                        &RangeAccrualOption::new(RangeAccrualTerms {
-                            calendar: TradingCalendar::all_days(),
-                            ..input
-                        })
-                        .unwrap(),
-                        &context
-                    ),
+                    &RangeAccrualOption::new(RangeAccrualTerms {
+                        calendar: TradingCalendar::all_days(),
+                        ..input
+                    })
+                    .unwrap(),
                     &context
                 )
                 .unwrap(),

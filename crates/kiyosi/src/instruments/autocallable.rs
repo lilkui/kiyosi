@@ -21,14 +21,14 @@ pub enum KnockInObservationMode {
     AtExpiry,
 }
 
-/// Records events strictly before valuation; see [`SnowballOption::replace_history`].
+/// Records events strictly before valuation; see [`SnowballOption::replace`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AutocallableBarrierState {
-    /// Records known absence of prior events, distinct from unknown history.
+    /// Records no prior knock-in or knock-out, distinct from unknown history.
     NoEvent,
     /// Records a settled knock-out; no remaining cash flows are valued.
     KnockedOut,
-    /// Records an earlier downside breach.
+    /// Records a prior downside breach while the note remains outstanding.
     KnockedIn,
 }
 
@@ -305,10 +305,6 @@ pub fn autocallable_observations(
 /// Supplies basic snowball terms; see [`Self::new`] and [`SnowballOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnowballTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the explicitly supplied contractual observation calendar.
     pub calendar: TradingCalendar,
     /// Sets the finite annual maturity coupon rate when no knock-in occurs.
@@ -358,7 +354,6 @@ impl SnowballTerms {
         calendar: TradingCalendar,
     ) -> Self {
         Self {
-            history_time: None,
             calendar,
             maturity_coupon_rate,
             initial_spot,
@@ -384,10 +379,6 @@ pub struct PhoenixTerms {
     /// Must leave at least one eligible observation; coupons and knock-in remain active.
     /// See [`PhoenixPresetTerms::expand`] for an example.
     pub lockout_periods: usize,
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the explicitly supplied contractual observation calendar.
     pub calendar: TradingCalendar,
     /// Sets the finite signed coupon per qualifying observation, without time accrual.
@@ -438,7 +429,6 @@ impl PhoenixTerms {
     ) -> Self {
         Self {
             lockout_periods: DEFAULT_PHOENIX_LOCKOUT_PERIODS,
-            history_time: None,
             calendar,
             coupon_per_period,
             initial_spot,
@@ -466,10 +456,6 @@ pub type SnowballOption = AutocallableNote<SnowballTerms>;
 /// Supplies binary snowball terms; see [`Self::new`] and [`BinarySnowballOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinarySnowballTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the explicitly supplied contractual observation calendar.
     pub calendar: TradingCalendar,
     /// Sets the finite annual coupon rate used at maturity if no knock-out occurs.
@@ -498,7 +484,6 @@ impl BinarySnowballTerms {
         calendar: TradingCalendar,
     ) -> Self {
         Self {
-            history_time: None,
             calendar,
             maturity_coupon_rate,
             barrier_state: None,
@@ -519,10 +504,6 @@ pub type BinarySnowballOption = AutocallableNote<BinarySnowballTerms>;
 /// Supplies ternary snowball terms; see [`Self::new`] and [`TernarySnowballOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TernarySnowballTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the explicitly supplied contractual observation calendar.
     pub calendar: TradingCalendar,
     /// Sets the finite annual coupon rate used at maturity if no knock-out occurs.
@@ -566,7 +547,6 @@ impl TernarySnowballTerms {
         calendar: TradingCalendar,
     ) -> Self {
         Self {
-            history_time: None,
             calendar,
             maturity_coupon_rate,
             minimum_coupon_rate,
@@ -691,8 +671,6 @@ mod sealed {
     pub trait Terms {
         fn set_calendar(&mut self, calendar: crate::TradingCalendar);
         fn view(&self) -> View<'_>;
-        fn set_history(&mut self, state: Option<AutocallableBarrierState>);
-        fn set_history_time(&mut self, time: Option<Timestamp>);
     }
     pub trait SnowballCoupon: Sized {
         fn with_quoted_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention)
@@ -723,7 +701,6 @@ mod sealed {
     }
     pub struct View<'a> {
         pub lockout_periods: usize,
-        pub history_time: Option<Timestamp>,
         pub calendar: &'a crate::TradingCalendar,
         pub knock_in: Option<KnockIn>,
         pub coupon: Coupon,
@@ -742,20 +719,12 @@ macro_rules! terms_view {
     (@lockout $terms:ident, $field:ident) => { $terms.$field };
     ($terms:ty, $coupon:path, $rate:ident $(, $lockout:ident)?) => {
         impl sealed::Terms for $terms {
-            fn set_history_time(&mut self, time: Option<Timestamp>) {
-                self.history_time = time;
-            }
-
             fn set_calendar(&mut self, calendar: TradingCalendar) {
                 self.calendar = calendar;
-            }
-            fn set_history(&mut self, state: Option<AutocallableBarrierState>) {
-                self.barrier_state = state;
             }
             fn view(&self) -> sealed::View<'_> {
                 sealed::View {
                     lockout_periods: terms_view!(@lockout self $(, $lockout)?),
-                    history_time: self.history_time,
                     calendar: &self.calendar,
                     knock_in: Some(KnockIn {
                         level: self.knock_in_level,
@@ -787,20 +756,12 @@ terms_view!(
 );
 
 impl sealed::Terms for BinarySnowballTerms {
-    fn set_history_time(&mut self, time: Option<Timestamp>) {
-        self.history_time = time;
-    }
-
     fn set_calendar(&mut self, calendar: TradingCalendar) {
         self.calendar = calendar;
-    }
-    fn set_history(&mut self, state: Option<AutocallableBarrierState>) {
-        self.barrier_state = state;
     }
     fn view(&self) -> sealed::View<'_> {
         sealed::View {
             lockout_periods: 0,
-            history_time: self.history_time,
             calendar: &self.calendar,
             knock_in: None,
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
@@ -814,20 +775,12 @@ impl sealed::Terms for BinarySnowballTerms {
 }
 
 impl sealed::Terms for TernarySnowballTerms {
-    fn set_history_time(&mut self, time: Option<Timestamp>) {
-        self.history_time = time;
-    }
-
     fn set_calendar(&mut self, calendar: TradingCalendar) {
         self.calendar = calendar;
-    }
-    fn set_history(&mut self, state: Option<AutocallableBarrierState>) {
-        self.barrier_state = state;
     }
     fn view(&self) -> sealed::View<'_> {
         sealed::View {
             lockout_periods: 0,
-            history_time: self.history_time,
             calendar: &self.calendar,
             knock_in: Some(KnockIn {
                 level: self.knock_in_level,
@@ -858,14 +811,12 @@ pub struct AutocallableNote<T: AutocallableTerms>(T);
 impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Validates all terms before creating an owning note.
     ///
-    /// Calendar compatibility and supplied history timestamps are checked on construction.
+    /// Calendar compatibility and product state choices are checked on construction.
+    /// History describes events strictly before valuation; observations at valuation
+    /// use the current spot. Callers supply state applicable to each valuation.
     /// History consistency relative to valuation is checked during pricing.
     ///
     /// # Errors
-    ///
-    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
-    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid numeric terms or
     /// product-incompatible observation fields, reversed life, or empty, unordered
@@ -882,7 +833,10 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let terms = PhoenixTerms::new(0.02, 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?), kiyosi::TradingCalendar::weekdays());
     /// let note = PhoenixOption::new(terms)?;
-    /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent), Some(start.add_days(1)?))?;
+    /// let known = note.replace(PhoenixOptionChanges {
+    ///     barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
+    ///     ..Default::default()
+    /// })?;
     /// assert_eq!(known.observations(), note.observations());
     /// assert_eq!(note.barrier_state(), None);
     /// let records = autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?;
@@ -901,9 +855,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         let view = terms.view();
         view.validate()?;
         view.validate_calendar()?;
-        let note = Self(terms);
-        let history_time = note.history_time();
-        note.with_history_time(history_time)
+        Ok(Self(terms))
     }
 
     /// Replaces the owned monitoring calendar; see [`Self::new`] for construction.
@@ -919,87 +871,16 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Returns [`crate::Error::InvalidInput`] if explicit or expiry-only knock-in observations fall on closed dates.
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         let mut updated = self.clone();
         updated.0.set_calendar(calendar);
-        updated.view().validate_calendar()?;
-        self.validate_replacement_history(&updated, false)?;
-        updated.with_history_time(self.history_time())
-    }
-
-    fn validate_replacement_history(&self, updated: &Self, supplied: bool) -> Result<()> {
-        let old = self.view();
-        let new = updated.view();
-        let knock_in = |view: &sealed::View<'_>| {
-            view.knock_in
-                .map(|ki| (ki.level, ki.observation_mode, ki.observation_clock_time))
-        };
-        super::validate_history_replacement(
-            self.barrier_state().is_some(),
-            supplied,
-            || {
-                Ok((updated.history_time().is_some()
-                    && self.history_time() != updated.history_time())
-                    || self.history_time().is_none() && old.expiry_time != new.expiry_time
-                    || (old.effective_time, knock_in(&old)) != (new.effective_time, knock_in(&new))
-                    || old.daily_knock_in()
-                        && old.calendar != new.calendar
-                        && super::historical_times(
-                            self.daily_observation_schedule()?.times(),
-                            self.history_time(),
-                        ) != super::historical_times(
-                            updated.daily_observation_schedule()?.times(),
-                            self.history_time(),
-                        )
-                    || !old
-                        .observations
-                        .iter()
-                        .skip(old.lockout_periods)
-                        .filter(|r| self.history_time().is_none_or(|at| r.time < at))
-                        .map(|r| (r.time, r.knock_out_level))
-                        .eq(new
-                            .observations
-                            .iter()
-                            .skip(new.lockout_periods)
-                            .filter(|r| self.history_time().is_none_or(|at| r.time < at))
-                            .map(|r| (r.time, r.knock_out_level))))
-            },
-            "barrier_state",
-        )
+        Self::new(updated.0)
     }
 
     /// Borrows the contract's monitoring calendar; see [`Self::replace_calendar`].
     pub fn calendar(&self) -> &TradingCalendar {
         self.view().calendar
-    }
-    /// Returns a validated owning copy with only history replaced; preserves the original.
-    ///
-    /// `None` clears history; `Some(AutocallableBarrierState::NoEvent)` records no prior event.
-    /// See [`Self::new`] for an example. Time consistency is checked during pricing.
-    /// Replaces the snapshot timestamp together with the payload; `None` clears it.
-    /// Supplied times must lie within the contract life; see the [history example](crate).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a knock-in state on a binary snowball or a
-    /// snapshot timestamp outside the contract life.
-    /// Other terms retain their validated values; this note remains unchanged.
-    ///
-    pub fn replace_history(
-        &self,
-        barrier_state: Option<AutocallableBarrierState>,
-        history_time: Option<Timestamp>,
-    ) -> Result<Self> {
-        self.view().validate_history(barrier_state)?;
-        let mut terms = self.0.clone();
-        terms.set_history(barrier_state);
-        terms.set_history_time(history_time);
-        Self::new(terms)
     }
     /// Borrows validated payoff terms, including the contractual calendar. See [`Self::new`].
     pub fn terms(&self) -> &T {
@@ -1009,7 +890,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     pub fn observations(&self) -> &[AutocallableObservation] {
         self.view().observations
     }
-    /// Returns prior history, or `None` for unknown; see [`Self::replace_history`].
+    /// Returns events strictly before valuation, or `None` for unknown; see [`Self::new`].
     pub fn barrier_state(&self) -> Option<AutocallableBarrierState> {
         self.view().barrier_state
     }
@@ -1208,19 +1089,6 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
 }
 impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
-    fn history_time(&self) -> Option<Timestamp> {
-        self.view().history_time
-    }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-        super::validate_history_redating(&self, time, self.barrier_state().is_some())?;
-        self.0.set_history_time(time);
-        super::validate_history_snapshot(&self, self.barrier_state().is_some())?;
-        if let Some(time) = time.filter(|_| self.barrier_state().is_some()) {
-            self.prior(time)?;
-        }
-        Ok(self)
-    }
-
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -1561,8 +1429,6 @@ impl sealed::View<'_> {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct SnowballOptionChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](SnowballTerms::maturity_coupon_rate).
@@ -1599,24 +1465,10 @@ impl SnowballOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: SnowballOptionChanges) -> Result<Self> {
-        let history_supplied = changes.barrier_state.is_some();
-        let updated = Self::new(SnowballTerms {
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                changes.barrier_state.is_some()
-                    && changes
-                        .barrier_state
-                        .unwrap_or(self.barrier_state())
-                        .is_none(),
-            ),
+        Self::new(SnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             maturity_coupon_rate: changes
                 .maturity_coupon_rate
@@ -1640,9 +1492,7 @@ impl SnowballOption {
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
-        })?;
-        self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated)
+        })
     }
 }
 
@@ -1653,8 +1503,6 @@ impl SnowballOption {
 pub struct PhoenixOptionChanges {
     /// Replaces [`lockout_periods`](PhoenixTerms::lockout_periods) without regenerating barriers.
     pub lockout_periods: Option<usize>,
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`coupon_per_period`](PhoenixTerms::coupon_per_period).
@@ -1719,25 +1567,11 @@ impl PhoenixOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: PhoenixOptionChanges) -> Result<Self> {
-        let history_supplied = changes.barrier_state.is_some();
-        let updated = Self::new(PhoenixTerms {
+        Self::new(PhoenixTerms {
             lockout_periods: changes.lockout_periods.unwrap_or(self.0.lockout_periods),
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                changes.barrier_state.is_some()
-                    && changes
-                        .barrier_state
-                        .unwrap_or(self.barrier_state())
-                        .is_none(),
-            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             coupon_per_period: changes
                 .coupon_per_period
@@ -1761,9 +1595,7 @@ impl PhoenixOption {
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
-        })?;
-        self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated)
+        })
     }
 }
 
@@ -1772,8 +1604,6 @@ impl PhoenixOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BinarySnowballOptionChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](BinarySnowballTerms::maturity_coupon_rate).
@@ -1798,24 +1628,10 @@ impl BinarySnowballOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: BinarySnowballOptionChanges) -> Result<Self> {
-        let history_supplied = changes.barrier_state.is_some();
-        let updated = Self::new(BinarySnowballTerms {
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                changes.barrier_state.is_some()
-                    && changes
-                        .barrier_state
-                        .unwrap_or(self.barrier_state())
-                        .is_none(),
-            ),
+        Self::new(BinarySnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             maturity_coupon_rate: changes
                 .maturity_coupon_rate
@@ -1829,9 +1645,7 @@ impl BinarySnowballOption {
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
-        })?;
-        self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated)
+        })
     }
 }
 
@@ -1840,8 +1654,6 @@ impl BinarySnowballOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct TernarySnowballOptionChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](TernarySnowballTerms::maturity_coupon_rate).
@@ -1874,24 +1686,10 @@ impl TernarySnowballOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: TernarySnowballOptionChanges) -> Result<Self> {
-        let history_supplied = changes.barrier_state.is_some();
-        let updated = Self::new(TernarySnowballTerms {
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                changes.barrier_state.is_some()
-                    && changes
-                        .barrier_state
-                        .unwrap_or(self.barrier_state())
-                        .is_none(),
-            ),
+        Self::new(TernarySnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             maturity_coupon_rate: changes
                 .maturity_coupon_rate
@@ -1915,8 +1713,6 @@ impl TernarySnowballOption {
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
-        })?;
-        self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated)
+        })
     }
 }

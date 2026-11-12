@@ -17,13 +17,7 @@ pyo3::create_exception!(
     kiyosi._native,
     MissingHistoryError,
     InvalidInputError,
-    "Required history payload or snapshot timestamp is missing."
-);
-pyo3::create_exception!(
-    kiyosi._native,
-    StaleHistoryError,
-    InvalidInputError,
-    "History does not cover the requested valuation or observation terms."
+    "Required history payload is missing."
 );
 pyo3::create_exception!(
     kiyosi._native,
@@ -62,7 +56,6 @@ pub(crate) fn domain<T>(result: kiyosi::Result<T>) -> PyResult<T> {
         kiyosi::Error::MissingHistory(message) => {
             MissingHistoryError::new_err(message.into_owned())
         }
-        kiyosi::Error::StaleHistory(message) => StaleHistoryError::new_err(message.into_owned()),
         kiyosi::Error::UnsupportedOperation(message) => {
             UnsupportedOperationError::new_err(message.into_owned())
         }

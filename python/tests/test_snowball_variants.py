@@ -29,8 +29,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_decimal_equal, assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from test_snowball import END, START, autocallable_observations, market, structured
 
 
@@ -47,10 +45,10 @@ def test_european_snowball_signature_defaults_can_be_forwarded():
         "effective_time": START,
         "expiry_time": END,
     }
-    expected = factory(**history_fields(**fields))
+    expected = factory(**fields)
     bound = signature.bind(**fields)
     bound.apply_defaults()
-    assert factory(**history_fields(**bound.arguments)) == expected
+    assert factory(**bound.arguments) == expected
     assert expected.observation_clock_time is None
     assert expected.knock_in_observation_mode == "at_expiry"
 
@@ -71,12 +69,10 @@ def test_quadrature_covers_drift_into_future_knock_out():
     context = market(106, volatility=0.001, rate=0.05, dividend=0)
     engine = QuadratureAutocallableEngine()
     expected = 1.2 * math.exp(-0.05)
-    assert engine.price(dated_history(note, context), context) == pytest.approx(
-        expected, rel=0, abs=1e-7
-    )
+    assert engine.price(note, context) == pytest.approx(expected, rel=0, abs=1e-7)
     assert implied_snowball_coupon(
         engine,
-        dated_history(note, context),
+        note,
         context,
         expected,
         quote_convention="preserve_maturity_coupon",
@@ -104,7 +100,7 @@ def test_quadrature_covers_drift_below_future_knock_out():
     d2 = (math.log(115 / 110) - 0.05 - 0.5 * 0.005**2) / 0.005
     expected = 1 + 0.1 * math.erfc(-d2 / math.sqrt(2))
     assert QuadratureAutocallableEngine(asset_step_count=2048).price(
-        dated_history(note, context), context
+        note, context
     ) == pytest.approx(expected, rel=0, abs=1e-4)
 
 
@@ -113,24 +109,22 @@ def test_history_replacement_preserves_terms_and_rejects_binary_knock_in(
     subtests, kind
 ):
     note = make_fixed(kind)
+    engine = QuadratureAutocallableEngine()
     states = (None, "no_event")
     for state in states:
         with subtests.test(kind=kind.__name__, state=state):
-            replaced = note.replace_history(
+            replaced = note.replace(
                 barrier_state=state,
-                history_time=(note.history_time or note.effective_time)
-                if state is not None
-                else None,
             )
             assert replaced == make_fixed(kind, barrier_state=state)
-            assert replaced.replace_history(barrier_state=None) == note
+            assert replaced.replace(barrier_state=None) == note
     for state in ("knocked_in", "knocked_out"):
         with subtests.test(kind=kind.__name__, state=state):
             assert_rejection(
                 InvalidInputError,
-                note.replace_history,
-                barrier_state=state,
-                history_time=note.expiry_time,
+                lambda state=state: engine.price(
+                    note.replace(barrier_state=state), market(100, START)
+                ),
             )
     assert note == make_fixed(kind)
 
@@ -145,18 +139,14 @@ def test_fixed_terminal_regions_and_no_binary_monitoring():
             [END], [110], knock_out_coupon_rates=[0.08]
         ),
     }
-    binary = BinarySnowballOption(
-        calendar=weekdays_calendar(), **history_fields(**common)
-    )
+    binary = BinarySnowballOption(calendar=weekdays_calendar(), **common)
     ternary = TernarySnowballOption(
         calendar=weekdays_calendar(),
-        **history_fields(
-            observation_clock_time=None,
-            **common,
-            minimum_coupon_rate=-0.02,
-            knock_in_level=80,
-            knock_in_observation_mode="at_expiry",
-        ),
+        observation_clock_time=None,
+        **common,
+        minimum_coupon_rate=-0.02,
+        knock_in_level=80,
+        knock_in_observation_mode="at_expiry",
     )
     engine = QuadratureAutocallableEngine()
     valuation = datetime(2025, 2, 3)
@@ -168,9 +158,9 @@ def test_fixed_terminal_regions_and_no_binary_monitoring():
     expected = math.exp(-0.04 * time) * (
         0.5 + (0.06 + 0.02 * knock_out_probability) * 90 / 365
     )
-    assert engine.price(
-        dated_history(binary, market(80, valuation)), market(80, valuation)
-    ) == pytest.approx(expected, rel=0, abs=1e-12)
+    assert engine.price(binary, market(80, valuation)) == pytest.approx(
+        expected, rel=0, abs=1e-12
+    )
     for spot in (79.999, 80, 109, 110):
         for note in (binary, ternary):
             coupon = (
@@ -180,10 +170,7 @@ def test_fixed_terminal_regions_and_no_binary_monitoring():
                 if spot < 80 and note is ternary
                 else 0.06
             )
-            assert (
-                engine.price(dated_history(note, market(spot, END)), market(spot, END))
-                == 0.5 + coupon * 90 / 365
-            )
+            assert engine.price(note, market(spot, END)) == 0.5 + coupon * 90 / 365
 
 
 def make_fixed(kind, **changes):
@@ -209,7 +196,7 @@ def make_fixed(kind, **changes):
             if fields["knock_in_observation_mode"] == "every_trading_day"
             else None,
         )
-    return kind(calendar=weekdays_calendar(), **history_fields(**fields))
+    return kind(calendar=weekdays_calendar(), **fields)
 
 
 def test_existing_quantlib_terminal_portfolios(subtests):
@@ -239,17 +226,15 @@ def test_existing_quantlib_terminal_portfolios(subtests):
                     if inputs["knock_in_mode"] == "every_trading_day"
                     else None,
                 )
-            note = getattr(instruments, kind)(
-                calendar=weekdays_calendar(), **history_fields(**fields)
-            )
+            note = getattr(instruments, kind)(calendar=weekdays_calendar(), **fields)
             ctx = market(
                 inputs["spot"],
                 datetime.fromisoformat(inputs["valuation"]),
                 volatility=inputs["volatility"],
                 rate=inputs["rate"],
             )
-            assert engine.price(dated_history(note, ctx), ctx) == pytest.approx(
-                structured.price(dated_history(kind, inputs), inputs),
+            assert engine.price(note, ctx) == pytest.approx(
+                structured.price(kind, inputs),
                 rel=0,
                 abs=1e-10,
             )
@@ -370,13 +355,11 @@ def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
     for name, extra, levels, coupons, maturity, upper, lower, mode in cases:
         with subtests.test(preset=name):
             actual = getattr(instruments, name)(
-                **history_fields(
-                    observation_clock_time=clock_time()
-                    if mode == "every_trading_day"
-                    else None,
-                    **common,
-                    **extra,
-                )
+                observation_clock_time=clock_time()
+                if mode == "every_trading_day"
+                else None,
+                **common,
+                **extra,
             )
             explicit = SnowballOption(
                 calendar=weekdays_calendar(),
@@ -396,20 +379,15 @@ def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
                 observations=autocallable_observations(
                     dates, levels, knock_out_coupon_rates=coupons
                 ),
-                history_time=START,
             )
             assert actual == explicit
-            assert engine.price(dated_history(actual, ctx), ctx) == engine.price(
-                dated_history(explicit, ctx), ctx
-            )
+            assert engine.price(actual, ctx) == engine.price(explicit, ctx)
             mc = MonteCarloAutocallableEngine(path_count=128, seed=42)
-            assert mc.price(dated_history(actual, ctx), ctx) == mc.price(
-                dated_history(explicit, ctx), ctx
-            )
+            assert mc.price(actual, ctx) == mc.price(explicit, ctx)
             for note in (actual, explicit):
                 result = numerical_greeks(
                     engine,
-                    dated_history(note, ctx),
+                    note,
                     ctx,
                     ["delta", "vega"],
                     spot_shift=0.25,
@@ -420,17 +398,15 @@ def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
                 for note in (actual, explicit):
                     assert_rejection(
                         InvalidInputError,
-                        note.replace_history,
-                        barrier_state="knocked_in",
-                        history_time=note.expiry_time,
+                        lambda note=note: engine.price(
+                            note.replace(barrier_state="knocked_in"), market(100, START)
+                        ),
                     )
             else:
-                assert actual.replace_history(
+                assert actual.replace(
                     barrier_state="knocked_in",
-                    history_time=actual.expiry_time,
-                ) == explicit.replace_history(
+                ) == explicit.replace(
                     barrier_state="knocked_in",
-                    history_time=explicit.expiry_time,
                 )
             assert (
                 eval(
@@ -506,31 +482,32 @@ def test_native_representations_validation_timing_and_ownership():
             maturity_coupon_rate=math.nan,
         )
         with pytest.raises(ValueError):
-            note.replace_history(
+            note.replace(
                 barrier_state="unknown",
-                history_time=note.history_time or note.expiry_time,
             )
         with pytest.raises(TypeError):
-            note.replace_history(
+            note.replace(
                 barrier_state=True,
-                history_time=note.history_time or note.expiry_time,
             )
         assert note.barrier_state is None
         assert_rejection(
             InvalidInputError,
-            note.replace_history,
-            barrier_state="knocked_out",
-            history_time=note.expiry_time,
+            lambda note=note: engine.price(
+                note.replace(barrier_state="knocked_out"), market(100, START)
+            ),
         )
         assert_rejection(
             InvalidInputError,
             engine.price,
-            dated_history(note, market(100, datetime(2025, 4, 2))),
+            note,
             market(100, datetime(2025, 4, 2)),
         )
     binary = make_fixed(BinarySnowballOption)
     assert_rejection(
-        InvalidInputError, binary.replace_history, barrier_state="knocked_in"
+        InvalidInputError,
+        lambda: engine.price(
+            binary.replace(barrier_state="knocked_in"), market(100, START)
+        ),
     )
     assert binary.barrier_state is None
     for value in (True, "0.02"):
@@ -556,17 +533,13 @@ def test_native_representations_validation_timing_and_ownership():
     assert_rejection(
         MissingHistoryError,
         engine.price,
-        dated_history(daily, market(100, datetime(2025, 1, 2))),
+        daily,
         market(100, datetime(2025, 1, 2)),
     )
     assert (
         engine.price(
-            dated_history(
-                daily.replace_history(
-                    barrier_state="knocked_in",
-                    history_time=daily.expiry_time,
-                ),
-                market(100, END),
+            daily.replace(
+                barrier_state="knocked_in",
             ),
             market(100, END),
         )
@@ -581,7 +554,7 @@ def test_native_representations_validation_timing_and_ownership():
     assert_rejection(
         UnsupportedOperationError,
         engine.price,
-        dated_history(binary, market(rate=curve)),
+        binary,
         market(rate=curve),
     )
 
@@ -606,10 +579,7 @@ def test_preset_rejections_and_strict_numeric_conversion():
         for value in (True, "100"):
             with pytest.raises(TypeError):
                 instruments.standard_snowball(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        **(common | {field: value}),
-                    )
+                    observation_clock_time=clock_time(), **(common | {field: value})
                 )
     assert_rejection(
         InvalidInputError,
@@ -649,11 +619,9 @@ def test_preset_rejections_and_strict_numeric_conversion():
     )
     # A negative decrement is supported if the expanded levels remain positive.
     note = instruments.step_down_snowball(
-        **history_fields(
-            observation_clock_time=clock_time(),
-            **(stepped | {"observation_times": [datetime(2025, 2, 3), END]}),
-            knock_out_level_decrement=-2,
-        )
+        observation_clock_time=clock_time(),
+        **(stepped | {"observation_times": [datetime(2025, 2, 3), END]}),
+        knock_out_level_decrement=-2,
     )
     assert note.knock_out_levels == ((110, 112))
 
@@ -666,9 +634,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
     note = make_fixed(kind)
     ctx = market(103)
     original = repr(note)
-    result = numerical_greeks(
-        engine, dated_history(note, ctx), ctx, greeks="all", spot_shift=0.25
-    )
+    result = numerical_greeks(engine, note, ctx, greeks="all", spot_shift=0.25)
     for name in (
         "delta",
         "gamma",
@@ -684,7 +650,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
         assert math.isfinite(getattr(result, name)), name
     sigma = implied_volatility(
         engine,
-        dated_history(note, ctx),
+        note,
         ctx,
         result.price,
         lower_bound=0.2,
@@ -695,7 +661,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
         RootNotBracketedError,
         implied_volatility,
         engine,
-        dated_history(note, ctx),
+        note,
         ctx,
         10,
         lower_bound=0.0,
@@ -706,18 +672,11 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
     with ThreadPoolExecutor(max_workers=3) as pool:
         prices = list(
             pool.map(
-                lambda s, note=note: engine.price(
-                    dated_history(note, market(s)), market(s)
-                ),
+                lambda s, note=note: engine.price(note, market(s)),
                 [80, 100, 120],
             )
         )
-    assert prices == (
-        [
-            engine.price(dated_history(note, market(s)), market(s))
-            for s in [80, 100, 120]
-        ]
-    )
+    assert prices == ([engine.price(note, market(s)) for s in [80, 100, 120]])
     middle = datetime(2025, 2, 3)
     note = make_fixed(
         kind,
@@ -727,7 +686,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
         ),
     )
     current = engine.price_with_greeks(
-        dated_history(note, market(110, middle)),
+        note,
         market(110, middle),
         greeks="all",
     )
@@ -739,7 +698,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
         UnsupportedOperationError,
         implied_volatility,
         engine,
-        dated_history(note, market(110, middle)),
+        note,
         market(110, middle),
         current.price,
         lower_bound=0.0,
@@ -749,17 +708,13 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
     assert_rejection(
         MissingHistoryError,
         engine.price,
-        dated_history(note.replace_history(barrier_state=None), market(110, intraday)),
+        note.replace(barrier_state=None),
         market(110, intraday),
     )
     assert (
         engine.price(
-            dated_history(
-                note.replace_history(
-                    barrier_state="knocked_out",
-                    history_time=note.expiry_time,
-                ),
-                market(100, END),
+            note.replace(
+                barrier_state="knocked_out",
             ),
             market(100, END),
         )
@@ -773,16 +728,16 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
         ),
         **({"minimum_coupon_rate": 0} if kind is TernarySnowballOption else {}),
     )
-    assert engine.price(dated_history(fixed, ctx), ctx) == pytest.approx(
+    assert engine.price(fixed, ctx) == pytest.approx(
         math.exp(-0.04 * 90 / 365), rel=0, abs=1e-15
     )
     assert_rejection(
         UnsupportedOperationError,
         implied_volatility,
         engine,
-        dated_history(fixed, ctx),
+        fixed,
         ctx,
-        engine.price(dated_history(fixed, ctx), ctx),
+        engine.price(fixed, ctx),
         lower_bound=0.0,
         upper_bound=4.0,
     )
@@ -811,7 +766,7 @@ def test_multi_event_convergence_for_fixed_variants_and_both_monitoring_modes(
     prices = [
         QuadratureAutocallableEngine(
             asset_step_count=n, integration_standard_deviations=e
-        ).price(dated_history(note, ctx), ctx)
+        ).price(note, ctx)
         for n, e in ((512, 8), (1024, 8), (1024, 10))
     ]
     assert prices[0] == pytest.approx(prices[1], rel=0, abs=1e-4)
@@ -846,7 +801,7 @@ def test_signed_coupon_and_one_second_digital_regressions():
                     1 + coupon * math.erfc(-d2 / math.sqrt(2)) / 2
                 )
                 assert engine.price(
-                    dated_history(note, market(volatility=0.8)),
+                    note,
                     market(volatility=0.8),
                 ) == pytest.approx(expected, rel=0, abs=1e-12)
     valuation = datetime(2026, 1, 1) - timedelta(seconds=1)
@@ -868,6 +823,6 @@ def test_signed_coupon_and_one_second_digital_regressions():
                 1 + 0.1 * math.erfc(-d2 / math.sqrt(2)) / 2
             )
             assert engine.price(
-                dated_history(note, market(spot, valuation, volatility=sigma)),
+                note,
                 market(spot, valuation, volatility=sigma),
             ) == pytest.approx(expected, rel=0, abs=1e-9)

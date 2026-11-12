@@ -33,8 +33,6 @@ from kiyosi.pricing import (
 )
 from quantlib_reference import structured
 from support.assertions import assert_decimal_equal, assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 
 START, END = datetime(2025, 1, 1), datetime(2025, 4, 1)
 
@@ -56,13 +54,11 @@ def contract(**changes):
     }
     fields.update(changes)
     return SnowballOption(
-        **history_fields(
-            observation_clock_time=clock_time()
-            if fields.get("knock_in_observation_mode", "every_trading_day")
-            == "every_trading_day"
-            else None,
-            **fields,
-        )
+        observation_clock_time=clock_time()
+        if fields.get("knock_in_observation_mode", "every_trading_day")
+        == "every_trading_day"
+        else None,
+        **fields,
     )
 
 
@@ -83,7 +79,7 @@ def test_current_settlement(spot, expected):
     engine = QuadratureAutocallableEngine()
     note = contract()
     assert_decimal_equal(
-        engine.price(dated_history(note, market(spot, END)), market(spot, END)),
+        engine.price(note, market(spot, END)),
         expected,
     )
 
@@ -105,14 +101,13 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
     assert note.observation_times == ((END,))
     assert note.knock_out_levels == ((110,))
     assert note.knock_out_coupon_rates == ((0,))
-    known = note.replace_history(
+    known = note.replace(
         barrier_state="no_event",
-        history_time=note.history_time or note.expiry_time,
     )
     assert known.barrier_state == "no_event"
     for replacement in (
-        known.replace_history(),
-        known.replace_history(
+        known.replace(),
+        known.replace(
             barrier_state=Ellipsis,
         ),
     ):
@@ -120,15 +115,15 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
         assert replacement is not known
     assert known.observations == note.observations
     assert note.barrier_state is None
-    assert known.replace_history(barrier_state=None) == note
+    assert known.replace(barrier_state=None) == note
     for changes, exception in (
         ({"barrier_state": True}, TypeError),
         ({"barrier_state": "unknown"}, ValueError),
         ({"barrier_state": "none"}, ValueError),
-        ({"observations": []}, TypeError),
+        ({"observations": []}, InvalidInputError),
     ):
         with subtests.test(changes=changes), pytest.raises(exception):
-            note.replace_history(**changes)
+            note.replace(**changes)
     assert note == contract(
         observations=[AutocallableObservation.snowball(END, 110, coupon_rate=0)]
     )
@@ -202,19 +197,18 @@ def test_domain_validation_timing_and_failure_state():
     assert_rejection(
         MissingHistoryError,
         engine.price,
-        dated_history(unknown, market(valuation=datetime(2025, 1, 2))),
+        unknown,
         market(valuation=datetime(2025, 1, 2)),
     )
     assert_rejection(
         InvalidInputError,
-        contract,
-        barrier_state="knocked_in",
+        lambda: engine.price(contract(barrier_state="knocked_in"), market(100, START)),
     )
     assert_rejection(
         InvalidInputError,
-        unknown.replace_history,
-        barrier_state="knocked_out",
-        history_time=unknown.expiry_time,
+        lambda: engine.price(
+            unknown.replace(barrier_state="knocked_out"), market(100, START)
+        ),
     )
     # Calendar compatibility is checked before valuation-dependent history.
     with pytest.raises(InvalidInputError):
@@ -239,7 +233,7 @@ def test_domain_validation_timing_and_failure_state():
         assert_rejection(
             InvalidInputError,
             engine.price,
-            dated_history(contract(), market(valuation=valuation)),
+            contract(),
             market(valuation=valuation),
         )
     curve = RateTermStructure(
@@ -250,7 +244,7 @@ def test_domain_validation_timing_and_failure_state():
     assert_rejection(
         UnsupportedOperationError,
         engine.price_with_greeks,
-        dated_history(contract(), market(rate=curve)),
+        contract(),
         market(rate=curve),
         [],
     )
@@ -290,8 +284,8 @@ def test_independent_quantlib_terminal_portfolios(subtests):
             context = market(
                 inputs["spot"], valuation, inputs["volatility"], inputs["rate"]
             )
-            assert engine.price(dated_history(note, context), context) == pytest.approx(
-                structured.price(dated_history(kind, inputs), inputs),
+            assert engine.price(note, context) == pytest.approx(
+                structured.price(kind, inputs),
                 rel=0,
                 abs=1e-10,
             )
@@ -318,7 +312,7 @@ def test_zero_lower_strike_affine_tail_and_negative_price():
             [end], [100], knock_out_coupon_rates=[0]
         ),
     )
-    price = QuadratureAutocallableEngine().price(dated_history(note, context), context)
+    price = QuadratureAutocallableEngine().price(note, context)
     assert price < 0
     assert price == pytest.approx(0.25 * discount - put / 100, rel=0, abs=1e-10)
 
@@ -359,9 +353,9 @@ def test_multi_observation_affine_tails_preserve_cash_asset_and_greeks(
     # Recovery to the knock-in, cap or knock-out levels is negligible over 4.5 days.
     delta = math.exp(-dividend * time) / 100
     expected = 15 * delta + (principal - 1) * math.exp(-rate * time)
-    price = engine.price(dated_history(note, context), context)
+    price = engine.price(note, context)
     assert price == pytest.approx(expected, rel=0, abs=1e-9)
-    result = engine.price_with_greeks(dated_history(note, context), context, "delta")
+    result = engine.price_with_greeks(note, context, "delta")
     assert result.price == price
     assert result.delta == pytest.approx(delta, rel=0, abs=1e-8)
 
@@ -382,7 +376,7 @@ def test_daily_layers_and_domain_convergence():
         values = [
             QuadratureAutocallableEngine(
                 asset_step_count=n, integration_standard_deviations=e
-            ).price(dated_history(note, context), context)
+            ).price(note, context)
             for n, e in ((512, 8), (1024, 8), (1024, 10))
         ]
         assert values[0] == pytest.approx(values[1], rel=0, abs=1e-4)
@@ -401,9 +395,7 @@ def test_current_events_history_and_unavailable_sensitivities():
     )
     engine = QuadratureAutocallableEngine()
     current = market(110, middle)
-    result = engine.price_with_greeks(
-        dated_history(note, current), current, greeks="all"
-    )
+    result = engine.price_with_greeks(note, current, greeks="all")
     assert_decimal_equal(result.price, 1 + 0.08 * 33 / 365)
     assert result.delta is None
     assert result.gamma is None
@@ -413,7 +405,7 @@ def test_current_events_history_and_unavailable_sensitivities():
         UnsupportedOperationError,
         implied_volatility,
         engine,
-        dated_history(note, current),
+        note,
         current,
         result.price,
         lower_bound=0.0,
@@ -423,15 +415,14 @@ def test_current_events_history_and_unavailable_sensitivities():
     assert_rejection(
         MissingHistoryError,
         engine.price,
-        dated_history(note.replace_history(barrier_state=None), past),
+        note.replace(barrier_state=None),
         past,
     )
-    settled = note.replace_history(
+    settled = note.replace(
         barrier_state="knocked_out",
-        history_time=note.expiry_time,
     )
     result = engine.price_with_greeks(
-        dated_history(settled, market(valuation=datetime(2025, 3, 3))),
+        settled,
         market(valuation=datetime(2025, 3, 3)),
         greeks="all",
     )
@@ -449,23 +440,18 @@ def test_current_events_history_and_unavailable_sensitivities():
         "rho",
     ):
         assert getattr(result, greek) == 0
-    expiry = engine.price_with_greeks(
-        dated_history(note, market(80, END)), market(80, END), greeks="all"
-    )
+    expiry = engine.price_with_greeks(note, market(80, END), greeks="all")
     assert expiry.delta is None
     daily = contract(
         knock_in_observation_mode="every_trading_day", barrier_state="knocked_in"
     )
-    assert engine.price(dated_history(daily, market(90, END)), market(90, END)) == 0.9
+    assert engine.price(daily, market(90, END)) == 0.9
     # Midnight KI is strict; intraday spot does not create a historical breach.
-    daily = daily.replace_history(
+    daily = daily.replace(
         barrier_state="no_event",
-        history_time=daily.history_time or daily.expiry_time,
     )
     for when, has_theta in ((datetime(2025, 1, 2, 12), True),):
-        result = engine.price_with_greeks(
-            dated_history(daily, market(80, when)), market(80, when), "theta"
-        )
+        result = engine.price_with_greeks(daily, market(80, when), "theta")
         assert (result.theta is not None) == has_theta
 
 
@@ -486,9 +472,7 @@ def test_settings_errors_and_fixed_cashflows():
     )
     engine = QuadratureAutocallableEngine()
     context = market(80)
-    result = engine.price_with_greeks(
-        dated_history(note, context), context, greeks="all"
-    )
+    result = engine.price_with_greeks(note, context, greeks="all")
     assert result.price == pytest.approx(math.exp(-0.04 * 90 / 365), rel=0, abs=1e-15)
     assert result.delta == 0
     assert result.rho * -1 > 0
@@ -496,7 +480,7 @@ def test_settings_errors_and_fixed_cashflows():
         UnsupportedOperationError,
         implied_volatility,
         engine,
-        dated_history(note, context),
+        note,
         context,
         result.price,
         lower_bound=0.0,
@@ -559,7 +543,7 @@ def test_all_greeks_and_volatility_recovery_against_digital_formula(subtests):
     context = market(spot, volatility=vol, rate=rate)
     result = numerical_greeks(
         engine,
-        dated_history(note, context),
+        note,
         context,
         greeks="all",
         spot_shift=h,
@@ -574,7 +558,7 @@ def test_all_greeks_and_volatility_recovery_against_digital_formula(subtests):
     quote = value()
     solved = implied_volatility(
         engine,
-        dated_history(note, context),
+        note,
         context,
         quote,
         lower_bound=0.25,
@@ -586,7 +570,7 @@ def test_all_greeks_and_volatility_recovery_against_digital_formula(subtests):
         RootNotBracketedError,
         implied_volatility,
         engine,
-        dated_history(note, context),
+        note,
         context,
         10,
         lower_bound=0.1,
@@ -597,7 +581,7 @@ def test_all_greeks_and_volatility_recovery_against_digital_formula(subtests):
         prices = list(
             pool.map(
                 lambda s: engine.price(
-                    dated_history(note, market(s, volatility=vol, rate=rate)),
+                    note,
                     market(s, volatility=vol, rate=rate),
                 ),
                 [90, 100, 110],
@@ -688,9 +672,9 @@ def test_two_event_prices_match_independent_conditional_payoff_integral():
                 [middle, END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
             ),
         )
-        assert QuadratureAutocallableEngine().price(
-            dated_history(note, market()), market()
-        ) == pytest.approx(fine, rel=0, abs=1e-6)
+        assert QuadratureAutocallableEngine().price(note, market()) == pytest.approx(
+            fine, rel=0, abs=1e-6
+        )
 
 
 def test_dense_deterministic_ladders_and_short_terminal_transition():
@@ -715,15 +699,7 @@ def test_dense_deterministic_ladders_and_short_terminal_transition():
         (140, 0.58),
     ):
         assert engine.price(
-            dated_history(
-                note,
-                market(
-                    spot,
-                    volatility=1e-8,
-                    rate=0,
-                    dividend=0,
-                ),
-            ),
+            note,
             market(
                 spot,
                 volatility=1e-8,
@@ -746,7 +722,7 @@ def test_dense_deterministic_ladders_and_short_terminal_transition():
             1 + 0.1 * 90 / 365 * math.erfc(-d2 / math.sqrt(2)) / 2
         )
         assert engine.price(
-            dated_history(note, market(100, valuation, volatility=sigma)),
+            note,
             market(100, valuation, volatility=sigma),
         ) == pytest.approx(expected, rel=0, abs=1e-9)
 
@@ -767,18 +743,14 @@ def test_multi_event_greeks_stay_stable_across_grid_and_bump_refinement(subtests
     fine = {"spot_shift": 0.25, "volatility_shift": 0.001, "rate_shift": 0.0005}
     standard = numerical_greeks(
         QuadratureAutocallableEngine(),
-        dated_history(note, context),
+        note,
         context,
         greeks="all",
         **coarse,
     )
     engine = QuadratureAutocallableEngine(asset_step_count=1024)
-    refined = numerical_greeks(
-        engine, dated_history(note, context), context, greeks="all", **coarse
-    )
-    smaller = numerical_greeks(
-        engine, dated_history(note, context), context, greeks="all", **fine
-    )
+    refined = numerical_greeks(engine, note, context, greeks="all", **coarse)
+    smaller = numerical_greeks(engine, note, context, greeks="all", **fine)
     tolerances = {
         "delta": (3e-6, 0.005),
         "gamma": (3e-7, 0.01),

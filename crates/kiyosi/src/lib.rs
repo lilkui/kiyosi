@@ -26,19 +26,29 @@
 //! value and preserves the original on success and failure. See each contract's
 //! `replace` method for history preservation rules.
 //!
-//! # History snapshots
+//! # Caller-supplied history
 //!
-//! Supplied history requires `history_time` and covers events strictly before it.
-//! Discrete history can be reused between observations. Continuous barrier and Asian
-//! history require the same instant unless barrier monitoring is resolved. Refresh
-//! payload and timestamp together with `replace_history`; clearing all history
-//! permits clearing its timestamp. Numerical time sensitivities hold history fixed.
-//! Changing a dated snapshot's timestamp requires explicitly supplying its history payloads.
-//! Missing payloads or snapshot timestamps return [`Error::MissingHistory`]. History
-//! invalidated by valuation or observation edits returns [`Error::StaleHistory`].
-//! Impossible states and future timestamps return [`Error::InvalidInput`].
-//! Construction and replacement reject history impossible at its own snapshot time;
-//! pricing checks snapshot freshness and future timestamps against valuation.
+//! Supplied history describes events strictly before [`PricingContext::valuation_time`].
+//! Observations exactly at valuation use the current spot and are processed once.
+//! Bookkeeping owns lifecycle events, historical market data, state progression,
+//! settlement progression, and consistency with valuation time and contract terms.
+//! Callers must prevent stale-state and future-state misuse; Kiyosi does not check
+//! state age, reconstruct historical paths, or automatically advance supplied state.
+//!
+//! Absent history is unknown; explicit zero, false, untouched, and no-event states
+//! are known history where supported. [`AutocallableBarrierState::KnockedIn`]
+//! means prior knock-in on an outstanding note without prior knock-out;
+//! [`AutocallableBarrierState::NoEvent`] means neither occurred.
+//! [`AutocallableBarrierState::KnockedOut`] retains the contract's settled-state meaning.
+//! Missing required history returns [`Error::MissingHistory`]; intrinsically invalid
+//! inputs and impossible states return [`Error::InvalidInput`]. Constructors and
+//! replacement validate constraints known from their inputs; pricing validates
+//! constraints relative to valuation, including whether prior events are possible.
+//!
+//! `replace` validates terms and history together, preserving omitted fields and
+//! the original contract. Retained history is neither cleared nor reconstructed
+//! when terms change. Numerical time sensitivities hold supplied history fixed;
+//! observation boundaries still determine whether a time stencil is available.
 //!
 //! ```rust
 //! use kiyosi::*;
@@ -49,16 +59,15 @@
 //! let mut terms = RangeAccrualTerms::new(100.0, 0.1, 90.0, 110.0,
 //!     start, end, TimeOfDay::new(15, 0, 0, 0)?);
 //! terms.realized_hit_count = Some(1);
-//! terms.history_time = Some(at);
 //! let option = RangeAccrualOption::new(terms)?;
 //! let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?, 100.0, at)?;
 //! let price = AnalyticRangeAccrualEngine.price(&option, &context)?;
 //! let later = context.replace(PricingContextChanges {
 //!     valuation_time: Some(at.add_days(1)?), ..Default::default()
 //! })?;
-//! assert!(matches!(AnalyticRangeAccrualEngine.price(&option, &later), Err(Error::StaleHistory(_))));
+//! assert!(AnalyticRangeAccrualEngine.price(&option, &later)? < price);
 //! let refreshed = option.replace(RangeAccrualOptionChanges {
-//!     realized_hit_count: Some(Some(2)), history_time: Some(Some(later.valuation_time())),
+//!     realized_hit_count: Some(Some(2)),
 //!     ..Default::default()
 //! })?;
 //! assert_eq!(AnalyticRangeAccrualEngine.price(&refreshed, &later)?, price);
@@ -155,9 +164,7 @@ pub use engines::quadrature::{
     QuadratureVanillaSettings,
 };
 pub use error::{Error, Result};
-pub use instruments::accumulator::{
-    Accumulator, AccumulatorChanges, AccumulatorHistoryChanges, AccumulatorTerms,
-};
+pub use instruments::accumulator::{Accumulator, AccumulatorChanges, AccumulatorTerms};
 pub use instruments::asian::{
     ArithmeticAveragePriceOption, AveragePriceOptionChanges, DEFAULT_REALIZED_AVERAGE,
     GeometricAveragePriceOption,

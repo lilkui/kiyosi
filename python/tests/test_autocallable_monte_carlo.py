@@ -21,7 +21,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, contract, market
 
@@ -29,10 +28,10 @@ from test_snowball import END, START, contract, market
 def test_terminal_price_matches_quadrature_with_sampling_error():
     note, context = contract(), market()
     engine = MC(path_count=32768, seed=42)
-    result = engine.price_with_statistics(dated_history(note, context), context)
-    assert result.price == engine.price(dated_history(note, context), context)
+    result = engine.price_with_statistics(note, context)
+    assert result.price == engine.price(note, context)
     assert result.price == pytest.approx(
-        QuadratureAutocallableEngine().price(dated_history(note, context), context),
+        QuadratureAutocallableEngine().price(note, context),
         rel=0,
         abs=4 * result.standard_error,
     )
@@ -75,14 +74,12 @@ def test_defaults_strict_representations_and_validation(subtests):
         engine.seed = 42
     note, context = phoenix(), market()
     for operation in (
-        lambda: engine.price(dated_history(object(), context), context),
-        lambda: engine.price_with_statistics(dated_history(object(), context), context),
-        lambda: numerical_greeks(
-            engine, dated_history(note, context), context, "delta", spot_shift=True
-        ),
+        lambda: engine.price(object(), context),
+        lambda: engine.price_with_statistics(object(), context),
+        lambda: numerical_greeks(engine, note, context, "delta", spot_shift=True),
         lambda: implied_volatility(
             engine,
-            dated_history(note, context),
+            note,
             context,
             True,
             lower_bound=0.0,
@@ -90,22 +87,18 @@ def test_defaults_strict_representations_and_validation(subtests):
         ),
         lambda: implied_volatility(
             engine,
-            dated_history(note, context),
+            note,
             context,
             1,
             max_iterations=2.5,
             lower_bound=0.0,
             upper_bound=4.0,
         ),
-        lambda: implied_phoenix_coupon(
-            engine, dated_history(note, context), context, True
-        ),
-        lambda: implied_phoenix_coupon(
-            engine, dated_history(note, context), context, 1, max_iterations=True
-        ),
+        lambda: implied_phoenix_coupon(engine, note, context, True),
+        lambda: implied_phoenix_coupon(engine, note, context, 1, max_iterations=True),
         lambda: implied_phoenix_coupon(
             engine,
-            dated_history(note, context),
+            note,
             context,
             1,
             quote_convention="shift_maturity_coupon",
@@ -115,9 +108,7 @@ def test_defaults_strict_representations_and_validation(subtests):
             operation()
     assert_rejection(
         InvalidInputError,
-        lambda: numerical_greeks(
-            engine, dated_history(note, context), context, "delta", spot_shift=0
-        ),
+        lambda: numerical_greeks(engine, note, context, "delta", spot_shift=0),
     )
     curve = RateTermStructure(
         reference_time=START,
@@ -129,11 +120,11 @@ def test_defaults_strict_representations_and_validation(subtests):
     )
     assert_rejection(
         UnsupportedOperationError,
-        lambda: engine.price(dated_history(note, curved), curved),
+        lambda: engine.price(note, curved),
     )
     assert_rejection(
         UnsupportedOperationError,
-        lambda: engine.price_with_greeks(dated_history(note, curved), curved, []),
+        lambda: engine.price_with_greeks(note, curved, []),
     )
 
 
@@ -149,14 +140,14 @@ def test_statistics_counts_sobol_and_shared_engine_concurrency():
                     "antithetic": antithetic,
                 }
                 serial = MC(**fields, max_active_workers=1).price_with_statistics(
-                    dated_history(note, context), context
+                    note, context
                 )
                 engine = MC(**fields, max_active_workers=3)
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     results = list(
                         pool.map(
                             lambda _, engine=engine: engine.price_with_statistics(
-                                dated_history(note, context), context
+                                note, context
                             ),
                             range(2),
                         )
@@ -180,7 +171,7 @@ def test_statistics_counts_sobol_and_shared_engine_concurrency():
                 )
     assert (
         MC(path_count=31, antithetic=True, seed=42)
-        .price_with_statistics(dated_history(note, context), context)
+        .price_with_statistics(note, context)
         .standard_error
         is None
     )
@@ -195,13 +186,9 @@ def test_current_phoenix_coupon_paid_once_and_weekend_does_not_knock_in():
         )
     )
     at_event = market(100, datetime(2025, 2, 3), volatility=1e-12, rate=0, dividend=0)
-    assert engine.price(dated_history(note, at_event), at_event) == pytest.approx(
-        1 + 2 * 0.01, rel=0, abs=1e-14
-    )
+    assert engine.price(note, at_event) == pytest.approx(1 + 2 * 0.01, rel=0, abs=1e-14)
     after_event = at_event.replace(valuation_time=datetime(2025, 2, 3, 0, 0, 0, 1))
-    assert engine.price(dated_history(note, after_event), after_event) == pytest.approx(
-        1 + 0.01, rel=0, abs=1e-14
-    )
+    assert engine.price(note, after_event) == pytest.approx(1 + 0.01, rel=0, abs=1e-14)
     weekend = datetime(2025, 1, 4)
     snow = contract(
         expiry_time=datetime(2025, 1, 6),
@@ -213,13 +200,11 @@ def test_current_phoenix_coupon_paid_once_and_weekend_does_not_knock_in():
         ),
     )
     first = engine.price(
-        dated_history(snow, market(79, weekend, volatility=0.2)),
+        snow,
         market(79, weekend, volatility=0.2),
     )
     later = engine.price(
-        dated_history(
-            snow, market(79, weekend + timedelta(microseconds=1), volatility=0.2)
-        ),
+        snow,
         market(79, weekend + timedelta(microseconds=1), volatility=0.2),
     )
     assert first == pytest.approx(later, rel=0, abs=1e-7)
@@ -228,10 +213,10 @@ def test_current_phoenix_coupon_paid_once_and_weekend_does_not_knock_in():
 def test_solvers_reject_fixed_cashflows_and_preserve_state():
     engine, note, context = MC(path_count=4096, seed=42), phoenix(), market()
     snapshot = repr(note), repr(context)
-    quote = engine.price(dated_history(note, context), context)
+    quote = engine.price(note, context)
     sigma = implied_volatility(
         engine,
-        dated_history(note, context),
+        note,
         context,
         quote,
         lower_bound=0.2,
@@ -240,7 +225,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
     assert sigma == pytest.approx(0.3, rel=0, abs=1e-6)
     coupon = implied_phoenix_coupon(
         engine,
-        dated_history(note, context),
+        note,
         context,
         quote,
         lower_bound=-0.1,
@@ -260,14 +245,12 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
         ),
     )
     with pytest.raises(InvalidInputError):
-        implied_phoenix_coupon(
-            unseeded, dated_history(exposed, market(rate=0)), market(rate=0), 1.01
-        )
+        implied_phoenix_coupon(unseeded, exposed, market(rate=0), 1.01)
     for _ in range(3):
         replay = unseeded.with_resolved_seed()
         solved = implied_phoenix_coupon(
             replay,
-            dated_history(exposed, market(rate=0)),
+            exposed,
             market(rate=0),
             1.01,
             lower_bound=0,
@@ -277,7 +260,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
         assert solved["coupon_per_period"] > 0
         assert solved["coupon_per_period"] < 0.5
         assert replay.price(
-            dated_history(exposed.replace(**solved), market(rate=0)),
+            exposed.replace(**solved),
             market(rate=0),
         ) == pytest.approx(1.01, rel=0, abs=1e-12)
     assert unseeded.seed is None
@@ -290,9 +273,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
             [END], [110], knock_out_coupon_rates=[0]
         ),
     )
-    estimate = MC(path_count=1).price_with_statistics(
-        dated_history(fixed, market(rate=0)), market(rate=0)
-    )
+    estimate = MC(path_count=1).price_with_statistics(fixed, market(rate=0))
     assert (
         (estimate.price, estimate.standard_error, estimate.confidence_interval)
     ) == ((1, 0, (1, 1)))
@@ -300,7 +281,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
         UnsupportedOperationError,
         lambda: implied_volatility(
             engine,
-            dated_history(fixed, market(rate=0)),
+            fixed,
             market(rate=0),
             1,
             lower_bound=0.0,
@@ -311,7 +292,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
         UnsupportedOperationError,
         lambda: implied_snowball_coupon(
             engine,
-            dated_history(fixed, market(100, END)),
+            fixed,
             market(100, END),
             1,
             quote_convention="preserve_maturity_coupon",
@@ -319,15 +300,11 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
     )
     assert_rejection(
         InvalidInputError,
-        lambda: implied_phoenix_coupon(
-            engine, dated_history(note, context), context, math.nan
-        ),
+        lambda: implied_phoenix_coupon(engine, note, context, math.nan),
     )
     assert_rejection(
         RootNotBracketedError,
-        lambda: implied_phoenix_coupon(
-            engine, dated_history(note, context), context, 100
-        ),
+        lambda: implied_phoenix_coupon(engine, note, context, 100),
     )
 
 
@@ -346,9 +323,7 @@ def test_quantlib_terminal_payoff_portfolios(subtests):
     engine = MC(path_count=65536, seed=42, antithetic=True)
     for row in rows:
         with subtests.test(case=row["case_id"]):
-            result = engine.price_with_statistics(
-                dated_history(contract(row), market(row)), market(row)
-            )
+            result = engine.price_with_statistics(contract(row), market(row))
             assert result.price == pytest.approx(
                 float(row["outputs"]["price"]),
                 rel=0,
@@ -370,13 +345,8 @@ def test_sobol_dimension_limit_uses_remaining_monitoring_dates():
     assert_rejection(
         InvalidInputError,
         lambda: engine.price(
-            dated_history(
-                contract(**fields, knock_in_observation_mode="every_trading_day"),
-                market(),
-            ),
+            contract(**fields, knock_in_observation_mode="every_trading_day"),
             market(),
         ),
     )
-    assert math.isfinite(
-        engine.price(dated_history(contract(**fields), market()), market())
-    )
+    assert math.isfinite(engine.price(contract(**fields), market()))

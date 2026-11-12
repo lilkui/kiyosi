@@ -21,14 +21,10 @@ pub enum Error {
     ///
     /// See [`Error`] for an example.
     InvalidInput(Cow<'static, str>),
-    /// Requires a history payload or timestamp that the caller has not supplied.
+    /// Requires a history payload that the caller has not supplied.
     ///
-    /// Refresh history before retrying; see the [crate-level history contract](crate).
+    /// Supply history before retrying; see the [crate-level history contract](crate).
     MissingHistory(Cow<'static, str>),
-    /// Requires refreshed history for the requested valuation or observation terms.
-    ///
-    /// See the [crate-level history contract](crate) for snapshot reuse and replacement.
-    StaleHistory(Cow<'static, str>),
     /// Rejects an unsupported operation or an unavailable result measure.
     ///
     /// See [`crate::PricingResult::require`].
@@ -65,7 +61,6 @@ impl fmt::Display for Error {
         match self {
             Self::InvalidInput(message)
             | Self::MissingHistory(message)
-            | Self::StaleHistory(message)
             | Self::UnsupportedOperation(message)
             | Self::ComputationFailure(message)
             | Self::RootNotBracketed(message)
@@ -125,7 +120,6 @@ mod tests {
         let errors = [
             Error::InvalidInput(message.into()),
             Error::MissingHistory(message.into()),
-            Error::StaleHistory(message.into()),
             Error::UnsupportedOperation(message.to_owned().into()),
             Error::ComputationFailure(message.into()),
             Error::RootNotBracketed(message.into()),

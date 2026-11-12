@@ -33,7 +33,7 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 /// accumulated_quantity : float or None, optional
 ///     Outstanding quantity strictly before valuation. None means unknown;
 ///     zero means no units. Explicit history is required after any prior
-///     accumulation or knock-out observation. Construction rejects positive
+///     accumulation or knock-out observation. Pricing rejects positive
 ///     quantity before a strictly prior accumulation unless already settled.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
@@ -51,10 +51,6 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 ///     Explicit override. Omission or Ellipsis inherits a supplied
 ///     ObservationSchedule calendar; otherwise construction uses weekdays
 ///     and replacement retains the current calendar.
-/// history_time : datetime.datetime or None, optional
-///     Timestamp of supplied history, covering events strictly before it.
-///     Required with history; payloads must be possible strictly before this
-///     instant. Refresh payload and timestamp together.
 ///
 /// Raises
 /// ------
@@ -82,17 +78,6 @@ pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 
 #[pymethods]
 impl Accumulator {
-    /// Return the timestamp through which supplied history is known, or None.
-    #[getter]
-    fn history_time<'py>(
-        &self,
-        py: pyo3::Python<'py>,
-    ) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::PyAny>>> {
-        kiyosi::OptionContract::history_time(&self.0)
-            .map(|time| crate::conversions::python_timestamp(py, time))
-            .transpose()
-    }
-
     /// Return a validated replacement.
     ///
     /// Parameters
@@ -104,7 +89,8 @@ impl Accumulator {
     /// acceleration_factor : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// accumulated_quantity : float or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Quantity strictly before valuation; None clears to unknown.
+    ///     Omission or Ellipsis retains the current field.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observation_clock_time : datetime.time, optional
@@ -112,15 +98,12 @@ impl Accumulator {
     /// knock_out_observation_times : Iterable[datetime.datetime] | None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// knock_out_settled : bool or None, optional
-    ///     Records a settled knock-out strictly before valuation.
+    ///     Records a settled knock-out strictly before valuation; None clears to
+    ///     unknown. Omission or Ellipsis retains the current state.
     /// calendar : TradingCalendar, optional
     ///     Explicit override. Omission or Ellipsis inherits a supplied
     ///     ObservationSchedule calendar; otherwise construction uses weekdays
     ///     and replacement retains the current calendar.
-    /// history_time : datetime.datetime or None, optional
-    ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; payloads must be possible strictly before this
-    ///     instant. Refresh payload and timestamp together.
     ///
     /// Returns
     /// -------
@@ -135,7 +118,7 @@ impl Accumulator {
     /// TypeError
     ///     If a representation or field name is invalid.
     ///
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -166,17 +149,8 @@ impl Accumulator {
         >,
         #[pyo3(from_py_with = supplied)] knock_out_settled: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] calendar: Option<&Bound<'_, PyAny>>,
-
-        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<
-            &pyo3::Bound<'_, pyo3::PyAny>,
-        >,
     ) -> PyResult<Self> {
-        let history_time = history_time
-            .map(crate::conversions::optional_timestamp)
-            .transpose()?;
-
         let changes = kiyosi::AccumulatorChanges {
-            history_time,
             calendar: crate::calendar::observation_calendar(calendar, knock_out_observation_times)?,
             knock_out_settled: knock_out_settled.map(settlement).transpose()?,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
@@ -215,7 +189,7 @@ impl Accumulator {
         Ok(Self(domain(self.0.replace(changes))?))
     }
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=crate::conversions::OMITTED, history_time=None))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
@@ -230,10 +204,6 @@ impl Accumulator {
         knock_out_observation_times: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = settlement)] knock_out_settled: Option<bool>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
-
-        #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<
-            kiyosi::Timestamp,
-        >,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::AccumulatorTerms::new(
             real(strike)?,
@@ -252,70 +222,8 @@ impl Accumulator {
         terms.calendar =
             crate::calendar::observation_calendar(calendar, knock_out_observation_times)?
                 .unwrap_or_default();
-        terms.history_time = history_time;
         Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
     }
-    /// Return a validated replacement.
-    ///
-    /// Clearing the final history payload clears an omitted history_time. An
-    /// explicitly supplied history_time is validated and retained.
-    ///
-    /// Parameters
-    /// ----------
-    /// accumulated_quantity : float or None, optional
-    ///     Outstanding quantity strictly before valuation. None means unknown;
-    ///     zero means no units. Required after a prior observation unless
-    ///     knock_out_settled is True.
-    /// knock_out_settled : bool or None, optional
-    ///     None restores unknown history; omission retains the current state.
-    ///     Construction rejects knock-out settlement before or at the first knock-out
-    ///     observation.
-    /// history_time : datetime.datetime or None, optional
-    ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; payloads must be possible strictly before this
-    ///     instant. Refresh payload and timestamp together.
-    ///
-    /// Returns
-    /// -------
-    /// object
-    ///     New instance of the same class; omission or Ellipsis retains history.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If replacement terms fail domain validation.
-    ///
-    #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
-    fn replace_history(
-        &self,
-        #[pyo3(from_py_with = supplied)] accumulated_quantity: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] knock_out_settled: Option<&Bound<'_, PyAny>>,
-
-        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<
-            &pyo3::Bound<'_, pyo3::PyAny>,
-        >,
-    ) -> PyResult<Self> {
-        let history_time = history_time
-            .map(crate::conversions::optional_timestamp)
-            .transpose()?;
-
-        let changes = kiyosi::AccumulatorChanges {
-            history_time,
-            accumulated_quantity: accumulated_quantity
-                .map(|value| {
-                    if value.is_none() {
-                        Ok(None)
-                    } else {
-                        real(value).map(Some)
-                    }
-                })
-                .transpose()?,
-            knock_out_settled: knock_out_settled.map(settlement).transpose()?,
-            ..Default::default()
-        };
-        Ok(Self(domain(self.0.replace(changes))?))
-    }
-
     /// Return the explicitly specified daily observation clock time.
     #[getter]
     fn observation_clock_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {

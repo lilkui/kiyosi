@@ -14,7 +14,6 @@ pub(crate) fn validate_upper(lower: f64, upper: f64) -> Result<()> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Monitoring {
-    history_time: Option<Timestamp>,
     effective_time: Timestamp,
     expiry_time: Timestamp,
     barrier_level: f64,
@@ -24,10 +23,6 @@ pub(crate) struct Monitoring {
 }
 
 impl Monitoring {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "complete monitoring terms include their contractual calendar"
-    )]
     pub(crate) fn new(
         effective_time: Timestamp,
         expiry_time: Timestamp,
@@ -36,7 +31,6 @@ impl Monitoring {
         observation_times: Option<Vec<Timestamp>>,
         touch_state: Option<BarrierTouchState>,
         calendar: &TradingCalendar,
-        history_time: Option<Timestamp>,
     ) -> Result<Self> {
         if !barrier_level.is_finite() || barrier_level <= 0.0 {
             return Err(Error::InvalidInput(
@@ -54,50 +48,16 @@ impl Monitoring {
             expiry_time,
             calendar,
         )?;
-        let monitoring = Self {
-            history_time,
+        Ok(Self {
             effective_time,
             expiry_time,
             barrier_level,
             barrier_type,
             schedule,
             touch_state,
-        };
-        monitoring.with_history_time(history_time)
+        })
     }
 
-    pub(crate) fn validate_replacement_history(
-        &self,
-        updated: &Self,
-        supplied: bool,
-        upper_changed: bool,
-    ) -> Result<()> {
-        super::validate_history_replacement(
-            self.touch_state.is_some(),
-            supplied,
-            || {
-                Ok(
-                    (updated.history_time.is_some() && self.history_time != updated.history_time)
-                        || upper_changed
-                        || self.history_time.is_none() && self.expiry_time != updated.expiry_time
-                        || (
-                            self.effective_time,
-                            self.barrier_level,
-                            self.barrier_type.is_up(),
-                            self.observation_mode(),
-                            super::historical_times(self.schedule.times(), self.history_time),
-                        ) != (
-                            updated.effective_time,
-                            updated.barrier_level,
-                            updated.barrier_type.is_up(),
-                            updated.observation_mode(),
-                            super::historical_times(updated.schedule.times(), self.history_time),
-                        ),
-                )
-            },
-            "touch_state",
-        )
-    }
     pub(crate) fn calendar(&self) -> &TradingCalendar {
         self.schedule.calendar()
     }
@@ -169,12 +129,7 @@ impl Monitoring {
     ) -> Result<(bool, bool, bool)> {
         let time = context.valuation_time();
         let prior = self.prior(time)?;
-        super::validate_history_time(
-            self,
-            self.touch_state.is_some(),
-            context,
-            self.continuous() && !prior,
-        )?;
+
         let hit = (if self.barrier_type().is_up() {
             context.spot_price() >= self.barrier_level()
         } else {
@@ -265,19 +220,6 @@ impl Monitoring {
     }
 }
 impl OptionContract for Monitoring {
-    fn history_time(&self) -> Option<Timestamp> {
-        self.history_time
-    }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-        super::validate_history_redating(&self, time, self.touch_state.is_some())?;
-        self.history_time = time;
-        super::validate_history_snapshot(&self, self.touch_state.is_some())?;
-        if let Some(time) = time.filter(|_| self.touch_state.is_some()) {
-            self.prior(time)?;
-        }
-        Ok(self)
-    }
-
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }

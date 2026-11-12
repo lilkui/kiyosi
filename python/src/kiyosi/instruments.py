@@ -25,20 +25,19 @@ and ``observation_schedule`` return ``None`` for continuous monitoring. A schedu
 contract's ``observation_schedule`` can be passed as ``observation_times`` with its calendar intact.
 Timestamp tuples contain no calendar; forward the contract's calendar with them.
 
-Supplied history requires ``history_time`` and covers events strictly before it.
-Current observations use the current spot. Discrete history can be reused until
-the next observation; continuous barrier and Asian history require the same
-instant unless monitoring is resolved. Refresh payload and timestamp together
-with ``replace_history``. Numerical time sensitivities hold history fixed.
-Changing a dated snapshot's timestamp requires explicitly supplying its history
-payloads, even when their values stay the same.
+Supplied history describes events strictly before the requested valuation.
+Observations exactly at valuation use current spot once. Bookkeeping owns event
+records, lifecycle and settlement progression, and consistency with valuation time
+and contract terms, including preventing stale-state or future-state misuse.
+Kiyosi neither checks state age nor reconstructs history. Missing history is
+unknown; explicit zero, false, untouched, and no-event states are known history. Range accruals accept prior
+hit counts; accumulators accept prior quantity and knock-out settlement state.
+Asian options accept the realized average for the elapsed averaging interval.
+Numerical time sensitivities hold supplied history fixed.
 
 ``replace`` returns a validated copy. Omission or Ellipsis retains a field;
-``None`` clears nullable fields. Changes affecting past observations require an
-explicit history choice; schedule edits confined to future events retain dated
-history. Accumulators require choices for both quantity and knock-out settlement.
-Clearing the final history payload clears an omitted timestamp; an explicit
-timestamp is validated and retained.
+``None`` clears nullable fields to unknown. Terms and history are validated
+together, and each omitted history field retains its value independently.
 
 Use `AutocallableObservation.snowball` or `AutocallableObservation.phoenix` to
 construct product-specific observations. `PhoenixOption` accepts a finite signed
@@ -76,7 +75,7 @@ Edit a preset's observation and maturity coupons together:
 >>> note.maturity_coupon_rate
 0.12
 
-Refresh a continuous average and its snapshot timestamp together, then price it:
+Supply the realized average for an elapsed averaging interval, then price it:
 
 >>> from datetime import datetime
 >>> from kiyosi.market import BlackScholesMertonParameters, PricingContext
@@ -86,7 +85,7 @@ Refresh a continuous average and its snapshot timestamp together, then price it:
 ...     averaging_start_time=datetime(2025, 1, 1), expiry_time=datetime(2026, 1, 1),
 ... )
 >>> at = datetime(2025, 2, 1)
->>> seasoned = average.replace_history(realized_average=105, history_time=at)
+>>> seasoned = average.replace(realized_average=105)
 >>> context = PricingContext(
 ...     model_parameters=BlackScholesMertonParameters(
 ...         risk_free_rate=0, dividend_yield=0, volatility=0),

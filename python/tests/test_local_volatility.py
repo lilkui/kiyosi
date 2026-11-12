@@ -17,7 +17,6 @@ from kiyosi.market import (
     RateTermStructure,
 )
 from support.assertions import assert_decimal_equal
-from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_support_matrix import HESTON_ENGINES, terminal_cases, terminal_delta
 
@@ -190,9 +189,7 @@ def test_owned_inputs_properties_replacement_and_fixed_coordinates():
 
 def test_automatic_domains_ignore_surface_outside_remaining_horizon(subtests):
     e = pricing.FiniteDifferenceVanillaEngine()
-    baseline = e.price_with_greeks(
-        dated_history(option(), context()), context(), ["delta", "gamma"]
-    )
+    baseline = e.price_with_greeks(option(), context(), ["delta", "gamma"])
     assert baseline.price == pytest.approx(9.227005508154036, rel=0, abs=0.002)
     for past, future in [(1.5, 0.2), (0.2, 1.5), (1.5, 1.5)]:
         with subtests.test(past=past, future=future):
@@ -202,7 +199,7 @@ def test_automatic_domains_ignore_surface_outside_remaining_horizon(subtests):
                 values=[[past] * 2, [0.2] * 2, [0.2] * 2, [future] * 2],
             )
             actual = e.price_with_greeks(
-                dated_history(option(), context(extended)),
+                option(),
                 context(extended),
                 ["delta", "gamma"],
             )
@@ -220,10 +217,8 @@ def test_automatic_domains_preserve_interpolated_endpoint_volatility():
     )
     clipped = surface(((0.4, 0.4), (0.6, 0.6)))
     e = pricing.FiniteDifferenceVanillaEngine()
-    assert e.price(
-        dated_history(option(), context(extended)), context(extended)
-    ) == pytest.approx(
-        e.price(dated_history(option(), context(clipped)), context(clipped)),
+    assert e.price(option(), context(extended)) == pytest.approx(
+        e.price(option(), context(clipped)),
         rel=0,
         abs=1e-10,
     )
@@ -239,12 +234,12 @@ def test_constant_surface_prices_and_greeks_match_bsm(direction):
         valuation_time=START,
     )
     actual = engine().price_with_greeks(
-        dated_history(option(direction), context()),
+        option(direction),
         context(),
         ["delta", "gamma"],
     )
     expected = pricing.AnalyticEuropeanEngine().price_with_greeks(
-        dated_history(option(direction), bsm), bsm, ["delta", "gamma"]
+        option(direction), bsm, ["delta", "gamma"]
     )
     for value, ref, tolerance in [
         (actual.price, expected.price, 0.002),
@@ -275,12 +270,8 @@ def test_time_variation_matches_independent_integrated_variance():
         valuation_time=START,
     )
     for direction in ["call", "put"]:
-        assert engine().price(
-            dated_history(option(direction), context(s)), context(s)
-        ) == pytest.approx(
-            pricing.AnalyticEuropeanEngine().price(
-                dated_history(option(direction), bsm), bsm
-            ),
+        assert engine().price(option(direction), context(s)) == pytest.approx(
+            pricing.AnalyticEuropeanEngine().price(option(direction), bsm),
             rel=0,
             abs=0.002,
         )
@@ -290,10 +281,8 @@ def test_time_variation_matches_independent_integrated_variance():
         valuation_time=mid,
         model_parameters=bsm.model_parameters.replace(volatility=remaining_sigma),
     )
-    assert engine().price(dated_history(option(), rolled), rolled) == pytest.approx(
-        pricing.AnalyticEuropeanEngine().price(
-            dated_history(option(), reference), reference
-        ),
+    assert engine().price(option(), rolled) == pytest.approx(
+        pricing.AnalyticEuropeanEngine().price(option(), reference),
         rel=0,
         abs=0.002,
     )
@@ -301,24 +290,20 @@ def test_time_variation_matches_independent_integrated_variance():
 
 def test_skew_refines_time_space_domain_and_fixed_surface_greeks():
     c = context(surface(((0.3, 0.15), (0.35, 0.2))))
-    fine = engine(1600, 1600).price_with_greeks(
-        dated_history(option(), c), c, ["delta", "gamma"]
-    )
+    fine = engine(1600, 1600).price_with_greeks(option(), c, ["delta", "gamma"])
     for e, budget in [
         (engine(800, 800), 0.002),
         (engine(1600, 3200), 0.0001),
         (engine(2400, 1600, 600), 0.0001),
         (engine(1600, 1600, None), 0.002),
     ]:
-        assert e.price(dated_history(option(), c), c) == pytest.approx(
-            fine.price, rel=0, abs=budget
-        )
+        assert e.price(option(), c) == pytest.approx(fine.price, rel=0, abs=budget)
     up = engine(1600, 1600).price(
-        dated_history(option(), c.replace(spot_price=100.1)),
+        option(),
         c.replace(spot_price=100.1),
     )
     down = engine(1600, 1600).price(
-        dated_history(option(), c.replace(spot_price=99.9)),
+        option(),
         c.replace(spot_price=99.9),
     )
     assert fine.delta == pytest.approx((up - down) / 0.2, rel=0, abs=0.00001)
@@ -334,11 +319,9 @@ def test_short_maturity_matches_bsm():
             risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
         )
     )
-    actual = engine(12800, 1600).price_with_greeks(
-        dated_history(o, context()), context(), ["delta", "gamma"]
-    )
+    actual = engine(12800, 1600).price_with_greeks(o, context(), ["delta", "gamma"])
     expected = pricing.AnalyticEuropeanEngine().price_with_greeks(
-        dated_history(o, bsm), bsm, ["delta", "gamma"]
+        o, bsm, ["delta", "gamma"]
     )
     for value, ref, budget in [
         (actual.price, expected.price, 0.001),
@@ -361,13 +344,13 @@ def test_existing_schemes_and_explicit_stability():
             scheme=scheme,
             asset_upper_boundary=400,
         )
-        assert e.price(dated_history(option(), context()), context()) == pytest.approx(
+        assert e.price(option(), context()) == pytest.approx(
             9.227005508154036, rel=0, abs=0.015
         )
     with pytest.raises(InvalidInputError):
         pricing.FiniteDifferenceVanillaEngine(
             scheme="explicit_euler", time_step_count=1
-        ).price(dated_history(option(), context()), context())
+        ).price(option(), context())
 
 
 def test_skew_prices_and_greeks_match_converged_quantlib_reference(subtests):
@@ -393,7 +376,7 @@ def test_skew_prices_and_greeks_match_converged_quantlib_reference(subtests):
                             fine[3].localVol(182 / 365, price, True),
                         )
                     result = engine(1600, 1600).price_with_greeks(
-                        dated_history(option(direction), context(s, spot)),
+                        option(direction),
                         context(s, spot),
                         ["delta", "gamma"],
                     )
@@ -422,19 +405,15 @@ def test_product_engine_matrix_including_terminal_shortcuts(subtests):
                         or name in HESTON_ENGINES
                     ):
                         with pytest.raises(UnsupportedOperationError):
-                            e.price(dated_history(contract, c), c)
+                            e.price(contract, c)
                         continue
                     bsm = c.replace(
                         model_parameters=BlackScholesMertonParameters(
                             risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
                         )
                     )
-                    result = e.price_with_greeks(
-                        dated_history(contract, c), c, ["delta", "gamma"]
-                    )
-                    expected = e.price_with_greeks(
-                        dated_history(contract, bsm), bsm, ["delta", "gamma"]
-                    )
+                    result = e.price_with_greeks(contract, c, ["delta", "gamma"])
+                    expected = e.price_with_greeks(contract, bsm, ["delta", "gamma"])
                     assert result.price == pytest.approx(
                         expected.price, rel=0, abs=0.002
                     )
@@ -456,9 +435,7 @@ def test_product_engine_matrix_including_terminal_shortcuts(subtests):
                         "all",
                         ["delta", "vega"],
                     ]:
-                        result = e.price_with_greeks(
-                            dated_history(contract, c), c, request
-                        )
+                        result = e.price_with_greeks(contract, c, request)
                         assert result.vega is None
 
 
@@ -466,47 +443,41 @@ def test_unsupported_greeks_solvers_expiry_and_coverage():
     c = context()
     for time in [START, END]:
         rolled = c.replace(valuation_time=time)
-        baseline = engine().price_with_greeks(
-            dated_history(option(), rolled), rolled, ["delta", "gamma"]
-        )
+        baseline = engine().price_with_greeks(option(), rolled, ["delta", "gamma"])
         for greeks in ["all", ["delta", "vega"]]:
-            result = engine().price_with_greeks(
-                dated_history(option(), rolled), rolled, greeks
-            )
+            result = engine().price_with_greeks(option(), rolled, greeks)
             assert result.price == baseline.price
             assert result.vega is None
             assert result.theta is None
             assert result.speed is None
             assert result.delta == baseline.delta
-        result = engine().price_with_greeks(
-            dated_history(option(), rolled), rolled, "theta"
-        )
+        result = engine().price_with_greeks(option(), rolled, "theta")
         assert result.price == baseline.price
         assert result.status("theta") == "unsupported"
         with pytest.raises(UnsupportedOperationError):
             pricing.implied_volatility(
                 engine(),
-                dated_history(option(), rolled),
+                option(),
                 rolled,
                 10,
                 lower_bound=0.0,
                 upper_bound=4.0,
             )
     terminal = engine().price_with_greeks(
-        dated_history(option(), c.replace(valuation_time=END, spot_price=110)),
+        option(),
         c.replace(valuation_time=END, spot_price=110),
         ["delta", "gamma"],
     )
     assert terminal.price == 10
     assert_terminal_greeks(terminal, 1)
     with pytest.raises(InvalidInputError):
-        engine().price(dated_history(option(end=END + timedelta(days=1)), c), c)
+        engine().price(option(end=END + timedelta(days=1)), c)
     dated = RateTermStructure(
         reference_time=START, times=[START + timedelta(days=182)], factors=[0.98]
     )
     short = c.replace(model_parameters=c.model_parameters.replace(risk_free_rate=dated))
     with pytest.raises(InvalidInputError):
-        engine().price(dated_history(option(), short), short)
+        engine().price(option(), short)
 
 
 def test_nonflat_rates_and_shared_concurrent_pricing():
@@ -524,12 +495,11 @@ def test_nonflat_rates_and_shared_concurrent_pricing():
     assert c.model_parameters.risk_free_curve == risk
     assert c.model_parameters.dividend_curve == dividend
     e = engine(200, 200)
-    expected = e.price(dated_history(option(), c), c)
+    expected = e.price(option(), c)
     assert expected == pytest.approx(9.227005508154036, rel=0, abs=0.02)
     with ThreadPoolExecutor(max_workers=4) as pool:
         assert (
-            list(pool.map(lambda _: e.price(dated_history(option(), c), c), range(8)))
-            == [expected] * 8
+            list(pool.map(lambda _: e.price(option(), c), range(8))) == [expected] * 8
         )
 
 

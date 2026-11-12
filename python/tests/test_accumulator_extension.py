@@ -8,8 +8,6 @@ import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi.instruments import Accumulator
 from kiyosi.market import all_days_calendar, monthly_schedule, weekdays_calendar
-from support.history import dated as dated_history
-from support.history import history_fields
 from test_accumulator import START, market
 
 END = datetime(2025, 1, 6)
@@ -17,20 +15,18 @@ END = datetime(2025, 1, 6)
 
 def contract(**changes):
     return Accumulator(
-        **history_fields(
-            observation_clock_time=clock_time(),
-            **{
-                "knock_out_settled": False,
-                "strike": 100,
-                "knock_out_level": 110,
-                "daily_quantity": 1,
-                "acceleration_factor": 2,
-                "accumulated_quantity": 3,
-                "effective_time": START,
-                "expiry_time": END,
-            }
-            | changes,
-        )
+        observation_clock_time=clock_time(),
+        **{
+            "knock_out_settled": False,
+            "strike": 100,
+            "knock_out_level": 110,
+            "daily_quantity": 1,
+            "acceleration_factor": 2,
+            "accumulated_quantity": 3,
+            "effective_time": START,
+            "expiry_time": END,
+        }
+        | changes,
     )
 
 
@@ -108,18 +104,16 @@ def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
     returned = list(option.knock_out_observation_times)
     returned.clear()
     assert option.knock_out_observation_times == ((START, END))
-    updated = option.replace_history(
+    updated = option.replace(
         accumulated_quantity=0.25,
-        history_time=option.history_time or option.expiry_time,
     )
     assert updated.option_type == "put"
     assert updated.knock_out_observation_times == ((START, END))
     assert updated.accumulated_quantity == 0.25
     assert option.accumulated_quantity == 3
     assert (
-        updated.replace_history(
+        updated.replace(
             accumulated_quantity=3,
-            history_time=updated.history_time or updated.expiry_time,
         )
         == option
     )
@@ -138,11 +132,8 @@ def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
         with subtests.test(field=field), pytest.raises(AttributeError):
             setattr(option, field, value)
     with pytest.raises(InvalidInputError):
-        option.replace_history(
+        option.replace(
             accumulated_quantity=-1,
-            history_time=(option.history_time or option.effective_time)
-            if -1 is not None
-            else None,
         )
     assert option.knock_out_observation_times == ((START, END))
     signature = inspect.signature(Accumulator)
@@ -207,16 +198,13 @@ def test_trading_calendar_validation_precedes_pricing(subtests):
         with subtests.test(engine=type(engine).__name__):
             assert (
                 engine.price(
-                    dated_history(
-                        weekend.replace(calendar=all_days_calendar()),
-                        market(110, END),
-                    ),
+                    weekend.replace(calendar=all_days_calendar()),
                     market(110, END),
                 )
                 == 40
             )
             assert engine.price(
-                dated_history(weekend_expiry, market(90, datetime(2025, 1, 5))),
+                weekend_expiry,
                 market(90, datetime(2025, 1, 5)),
             ) == (-30)
 
@@ -250,12 +238,7 @@ def test_terminal_events_mirror_directions_and_observe_only_listed_dates(subtest
                     knock_out_level=barrier,
                     knock_out_observation_times=dates,
                 )
-                assert (
-                    engine.price(
-                        dated_history(option, market(spot, END)), market(spot, END)
-                    )
-                    == expected
-                )
+                assert engine.price(option, market(spot, END)) == expected
         for direction, spot in (("call", 90), ("put", 110)):
             option = contract(
                 option_type=direction,
@@ -264,9 +247,7 @@ def test_terminal_events_mirror_directions_and_observe_only_listed_dates(subtest
                 accumulated_quantity=0.25,
                 knock_out_observation_times=[],
             )
-            assert engine.price(
-                dated_history(option, market(spot, END)), market(spot, END)
-            ) == (-5)
+            assert engine.price(option, market(spot, END)) == (-5)
 
 
 def test_sparse_and_empty_schedules_keep_every_daily_accumulation(subtests):
@@ -294,9 +275,9 @@ def test_sparse_and_empty_schedules_keep_every_daily_accumulation(subtests):
                         expiry_time=end,
                         knock_out_observation_times=observations,
                     )
-                    assert engine.price(
-                        dated_history(option, context), context
-                    ) == pytest.approx(quantity * unit, rel=0, abs=1e-6)
+                    assert engine.price(option, context) == pytest.approx(
+                        quantity * unit, rel=0, abs=1e-6
+                    )
 
 
 def test_explicit_daily_schedule_matches_default_prices_and_greeks(subtests):
@@ -311,16 +292,14 @@ def test_explicit_daily_schedule_matches_default_prices_and_greeks(subtests):
                 knock_out_observation_times=dates,
             )
             with subtests.test(engine=type(engine).__name__, direction=direction):
-                assert engine.price(
-                    dated_history(default, context), context
-                ) == engine.price(dated_history(explicit, context), context)
+                assert engine.price(default, context) == engine.price(explicit, context)
                 first = engine.price_with_greeks(
-                    dated_history(default, context),
+                    default,
                     context,
                     ["delta", "gamma", "vega"],
                 )
                 second = engine.price_with_greeks(
-                    dated_history(explicit, context),
+                    explicit,
                     context,
                     ["delta", "gamma", "vega"],
                 )
@@ -350,19 +329,14 @@ def test_midnight_and_intraday_history_and_first_observation_knock_out(subtests)
             )
             context = market(spot, midnight)
             expected = terminal_reference(
-                option.replace_history(
+                option.replace(
                     accumulated_quantity=quantity,
-                    history_time=(option.history_time or option.effective_time)
-                    if quantity is not None
-                    else None,
                 ),
                 context,
             )
-            actual = engine.price(dated_history(option, context), context)
+            actual = engine.price(option, context)
             if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
-                statistics = engine.price_with_statistics(
-                    dated_history(option, context), context
-                )
+                statistics = engine.price_with_statistics(option, context)
                 limit = 4 * statistics.standard_error + 0.003
             else:
                 limit = 0.003
@@ -371,15 +345,10 @@ def test_midnight_and_intraday_history_and_first_observation_knock_out(subtests)
             ):
                 assert actual == pytest.approx(expected, rel=0, abs=limit)
                 intraday = market(spot, midnight + timedelta(hours=12))
-                seasoned = option.replace_history(
+                seasoned = option.replace(
                     accumulated_quantity=quantity,
-                    history_time=(option.history_time or option.effective_time)
-                    if quantity is not None
-                    else None,
                 )
-                assert engine.price(
-                    dated_history(seasoned, intraday), intraday
-                ) == pytest.approx(
+                assert engine.price(seasoned, intraday) == pytest.approx(
                     terminal_reference(seasoned, intraday), rel=0, abs=limit
                 )
         for direction, spot, barrier in (("call", 110, 110), ("put", 90, 90)):
@@ -390,7 +359,7 @@ def test_midnight_and_intraday_history_and_first_observation_knock_out(subtests)
             )
             assert (
                 engine.price(
-                    dated_history(first_hit, market(spot, observation)),
+                    first_hit,
                     market(spot, observation),
                 )
                 == 30
@@ -422,13 +391,11 @@ def test_terminal_prices_match_independent_lognormal_expectation(subtests):
                     )
                     expected = terminal_reference(option, context)
                     if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
-                        estimate = engine.price_with_statistics(
-                            dated_history(option, context), context
-                        )
+                        estimate = engine.price_with_statistics(option, context)
                         actual = estimate.price
                         limit = 4 * estimate.standard_error + 0.003
                     else:
-                        actual = engine.price(dated_history(option, context), context)
+                        actual = engine.price(option, context)
                         limit = (
                             1e-9
                             if isinstance(engine, pricing.QuadratureAccumulatorEngine)
@@ -452,10 +419,10 @@ def test_decumulator_risk_and_unidentifiable_no_knock_out_volatility(subtests):
     for engine in engines():
         with subtests.test(engine=type(engine).__name__):
             result = engine.price_with_greeks(
-                dated_history(option, context), context, ["delta", "gamma", "vega"]
+                option, context, ["delta", "gamma", "vega"]
             )
             assert result.price == pytest.approx(
-                engine.price(dated_history(option, context), context),
+                engine.price(option, context),
                 rel=0,
                 abs=1e-10,
             )
@@ -464,7 +431,7 @@ def test_decumulator_risk_and_unidentifiable_no_knock_out_volatility(subtests):
             assert result.vega < 0
             recovered = pricing.implied_volatility(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 result.price,
                 lower_bound=0.2,
@@ -481,9 +448,9 @@ def test_decumulator_risk_and_unidentifiable_no_knock_out_volatility(subtests):
                 with pytest.raises(UnsupportedOperationError):
                     pricing.implied_volatility(
                         engine,
-                        dated_history(linear, context),
+                        linear,
                         context,
-                        engine.price(dated_history(linear, context), context),
+                        engine.price(linear, context),
                         lower_bound=0.0,
                         upper_bound=4.0,
                     )
@@ -540,7 +507,7 @@ def test_sparse_knock_out_prices_survive_drift_back_inside_barrier(
     for nodes, tolerance in ((512, 0.002), (2048, 0.00002)):
         with subtests.test(direction=direction, sigma=sigma, nodes=nodes):
             actual = pricing.QuadratureAccumulatorEngine(asset_step_count=nodes).price(
-                dated_history(option, context), context
+                option, context
             )
             assert actual == pytest.approx(expected, rel=0, abs=tolerance)
 
@@ -566,27 +533,22 @@ def test_explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validat
             knock_out_observation_times=observations,
         )
         with subtests.test(direction=direction, observations=observations):
-            result = monte_carlo.price_with_statistics(
-                dated_history(option, context), context
-            )
+            result = monte_carlo.price_with_statistics(option, context)
             assert result.price == 0
             assert result.standard_error == 0
             assert result.confidence_interval == ((0, 0))
-            assert clipped.price(dated_history(option, context), context) == 0
-            holding = option.replace_history(
+            assert clipped.price(option, context) == 0
+            holding = option.replace(
                 accumulated_quantity=3,
                 knock_out_settled=option.knock_out_settled,
-                history_time=context.valuation_time,
             )
             holding_context = market(
                 85 if direction == "call" else 115, rate=0, dividend=0
             )
-            assert clipped.price(
-                dated_history(holding, holding_context), holding_context
-            ) == (-45)
+            assert clipped.price(holding, holding_context) == (-45)
             assert (
                 monte_carlo.price_with_statistics(
-                    dated_history(holding, holding_context), holding_context
+                    holding, holding_context
                 ).standard_error
                 == 0
             )
@@ -620,7 +582,7 @@ def test_adjacent_barrier_levels_preserve_forward_prices_and_greeks(
         )
         with subtests.test(direction=direction, sigma=sigma, barrier=barrier):
             result = engine.price_with_greeks(
-                dated_history(option, context),
+                option,
                 context,
                 ["delta", "gamma"],
             )
@@ -667,5 +629,5 @@ def test_terminal_digital_portfolios_match_quantlib(
         )
         with subtests.test(direction=direction, observations=observations):
             assert pricing.QuadratureAccumulatorEngine().price(
-                dated_history(option, context), context
+                option, context
             ) == pytest.approx(expected, rel=0, abs=1e-9)

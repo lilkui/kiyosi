@@ -128,10 +128,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         py.get_type::<error::MissingHistoryError>(),
     )?;
     module.add(
-        "StaleHistoryError",
-        py.get_type::<error::StaleHistoryError>(),
-    )?;
-    module.add(
         "UnsupportedOperationError",
         py.get_type::<error::UnsupportedOperationError>(),
     )?;

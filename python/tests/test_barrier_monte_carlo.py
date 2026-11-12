@@ -19,8 +19,6 @@ from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
@@ -44,9 +42,9 @@ def test_tiny_volatility_payoffs_match_the_vanilla_limit(subtests):
         context = market(spot, rate=0, dividend=0, volatility=sigma)
         expected = spot * sigma / math.sqrt(math.tau)
         with subtests.test(spot=spot, direction=direction, mode=mode):
-            assert engine.price(
-                dated_history(contract, context), context
-            ) == pytest.approx(expected, rel=0, abs=1e-3 * expected)
+            assert engine.price(contract, context) == pytest.approx(
+                expected, rel=0, abs=1e-3 * expected
+            )
 
 
 @pytest.mark.parametrize("spot,shift", ((0.005, 0.01), (100, 1e-300)))
@@ -62,12 +60,12 @@ def test_at_hit_rebate_greeks_require_a_usable_spot_stencil(spot, shift):
     )
     result = numerical_greeks(
         engine,
-        dated_history(contract, context),
+        contract,
         context,
         ("delta", "gamma"),
         spot_shift=shift,
     )
-    assert result.price == engine.price(dated_history(contract, context), context)
+    assert result.price == engine.price(contract, context)
     for name in ("delta", "gamma"):
         assert getattr(result, name) is None
         with pytest.raises(UnsupportedOperationError):
@@ -75,14 +73,14 @@ def test_at_hit_rebate_greeks_require_a_usable_spot_stencil(spot, shift):
     controls = {"spot_shift": 1e-4 * spot}
     actual = numerical_greeks(
         engine,
-        dated_history(contract, context),
+        contract,
         context,
         ("delta", "gamma"),
         **controls,
     )
     expected = numerical_greeks(
         pricing.AnalyticBarrierEngine(),
-        dated_history(contract, context),
+        contract,
         context,
         ("delta", "gamma"),
         **controls,
@@ -101,11 +99,9 @@ def test_continuous_prices_and_native_greeks_match_analytic(
         path_count=131072, seed=42, sampling=sampling
     )
     contract = option(kind, direction, rebate=2)
-    actual = engine.price_with_greeks(
-        dated_history(contract, market()), market(), greeks="all"
-    )
+    actual = engine.price_with_greeks(contract, market(), greeks="all")
     expected = pricing.AnalyticBarrierEngine().price_with_greeks(
-        dated_history(contract, market()), market(), ("delta", "gamma")
+        contract, market(), ("delta", "gamma")
     )
     for name, budget in (
         ("price", 0.12),
@@ -118,7 +114,7 @@ def test_continuous_prices_and_native_greeks_match_analytic(
             assert getattr(actual, name) == pytest.approx(
                 getattr(expected, name), rel=0, abs=budget
             )
-    assert actual.price == engine.price(dated_history(contract, market()), market())
+    assert actual.price == engine.price(contract, market())
     for name in OTHER_GREEKS:
         assert getattr(actual, name) is None
 
@@ -138,11 +134,9 @@ def test_scheduled_prices_greeks_and_early_monitoring_match_quadrature(subtests)
                 rebate=2,
                 observation_times=dates,
             )
-            actual = engine.price_with_greeks(
-                dated_history(contract, market()), market(), greeks="all"
-            )
+            actual = engine.price_with_greeks(contract, market(), greeks="all")
             expected = pricing.QuadratureBarrierEngine().price_with_greeks(
-                dated_history(contract, market()), market(), ("delta", "gamma")
+                contract, market(), ("delta", "gamma")
             )
             for name, budget in (
                 ("price", 0.08),
@@ -158,7 +152,7 @@ def test_scheduled_prices_greeks_and_early_monitoring_match_quadrature(subtests)
         strike=130,
         observation_times=[START + timedelta(days=90)],
     )
-    assert engine.price(dated_history(contract, market()), market()) > 0.01
+    assert engine.price(contract, market()) > 0.01
 
 
 def test_hit_rebates_and_negative_rates_match_analytic_values():
@@ -169,11 +163,9 @@ def test_hit_rebates_and_negative_rates_match_analytic_values():
         contract = option(kind, rebate=10, rebate_timing="at_hit")
         for rate in (-0.02, 0.04):
             context = market(rate=rate)
-            actual = engine.price_with_greeks(
-                dated_history(contract, context), context, greeks="all"
-            )
+            actual = engine.price_with_greeks(contract, context, greeks="all")
             expected = pricing.AnalyticBarrierEngine().price_with_greeks(
-                dated_history(contract, context), context, ("delta", "gamma")
+                contract, context, ("delta", "gamma")
             )
             for name, budget in (
                 ("price", 0.015),
@@ -195,8 +187,8 @@ def test_hit_rebates_and_negative_rates_match_analytic_values():
     time = 180 / 365
     threshold = (math.log(1.2) - 0.01 * time) / (0.2 * math.sqrt(time))
     expected = 10 * math.exp(-0.04 * time) * 0.5 * math.erfc(threshold / math.sqrt(2))
-    assert engine.price(dated_history(with_rebate, context), context) - engine.price(
-        dated_history(without_rebate, context), context
+    assert engine.price(with_rebate, context) - engine.price(
+        without_rebate, context
     ) == pytest.approx(expected, rel=0, abs=0.025)
 
 
@@ -230,17 +222,13 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
                 parallel = pricing.MonteCarloBarrierEngine(
                     max_active_workers=4, **settings
                 )
-                expected = serial.price_with_greeks(
-                    dated_history(contract, context), context, greeks="all"
-                )
+                expected = serial.price_with_greeks(contract, context, greeks="all")
 
                 def evaluate(
                     index, parallel=parallel, serial=serial, contract=contract
                 ):
                     engine = parallel if index % 2 else serial
-                    result = engine.price_with_greeks(
-                        dated_history(contract, context), context, greeks="all"
-                    )
+                    result = engine.price_with_greeks(contract, context, greeks="all")
                     return result.price, result.delta, result.gamma
 
                 with ThreadPoolExecutor(max_workers=4) as pool:
@@ -254,12 +242,10 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
     for paths in (1, 2, 3, 5, 257):
         settings = {"path_count": paths, "seed": 42, "antithetic": True}
         engine = pricing.MonteCarloBarrierEngine(**settings)
-        total = engine.price(
-            dated_history(option("down_and_in"), context), context
-        ) + engine.price(dated_history(option(), context), context)
-        expected = pricing.MonteCarloVanillaEngine(**settings).price(
-            dated_history(vanilla, context), context
+        total = engine.price(option("down_and_in"), context) + engine.price(
+            option(), context
         )
+        expected = pricing.MonteCarloVanillaEngine(**settings).price(vanilla, context)
         assert total == pytest.approx(expected, rel=0, abs=1e-12)
 
 
@@ -271,11 +257,9 @@ def test_history_current_equality_expiry_and_finished_monitoring():
         ):
             contract = option(kind, rebate=7, rebate_timing=timing)
             context = market(spot=contract.barrier_level)
-            result = engine.price_with_greeks(
-                dated_history(contract, context), context, greeks="all"
-            )
+            result = engine.price_with_greeks(contract, context, greeks="all")
             assert result.price == pricing.AnalyticBarrierEngine().price(
-                dated_history(contract, context), context
+                contract, context
             )
             for name in ("delta", "gamma", *OTHER_GREEKS):
                 assert getattr(result, name) is None
@@ -288,30 +272,24 @@ def test_history_current_equality_expiry_and_finished_monitoring():
                 contract,
                 later,
             )
-            touched = contract.replace_history(
+            touched = contract.replace(
                 touch_state="touched",
-                history_time=contract.expiry_time,
             )
             assert_rejection(InvalidInputError, engine.price, touched, context)
             assert engine.price(
-                dated_history(touched, later), later
-            ) == pricing.AnalyticBarrierEngine().price(
-                dated_history(touched, later), later
-            )
+                touched, later
+            ) == pricing.AnalyticBarrierEngine().price(touched, later)
             for history in ("touched", "untouched"):
-                known = contract.replace_history(
+                known = contract.replace(
                     touch_state=history,
-                    history_time=contract.expiry_time if history is not None else None,
                 )
                 expired = market(spot=contract.barrier_level, valuation=END)
-                result = engine.price_with_greeks(
-                    dated_history(known, expired), expired, greeks="all"
-                )
+                result = engine.price_with_greeks(known, expired, greeks="all")
                 assert result.price == pricing.AnalyticBarrierEngine().price(
-                    dated_history(known, expired), expired
+                    known, expired
                 )
                 reference = pricing.AnalyticBarrierEngine().price_with_greeks(
-                    dated_history(known, expired), expired, "all"
+                    known, expired, "all"
                 )
                 assert result.delta == reference.delta
                 assert result.gamma == reference.gamma
@@ -324,28 +302,21 @@ def test_history_current_equality_expiry_and_finished_monitoring():
             )
             on_date = market(spot=contract.barrier_level, valuation=observation)
             assert engine.price(
-                dated_history(scheduled, on_date), on_date
-            ) == pricing.AnalyticBarrierEngine().price(
-                dated_history(scheduled, on_date), on_date
-            )
+                scheduled, on_date
+            ) == pricing.AnalyticBarrierEngine().price(scheduled, on_date)
             after = on_date.replace(
                 valuation_time=datetime.combine(observation, datetime.min.time())
                 + timedelta(microseconds=1)
             )
-            untouched = scheduled.replace_history(
+            untouched = scheduled.replace(
                 touch_state="untouched",
-                history_time=scheduled.history_time or scheduled.expiry_time,
             )
             assert engine.price(
-                dated_history(untouched, after), after
-            ) == pricing.AnalyticBarrierEngine().price(
-                dated_history(untouched, after), after
-            )
+                untouched, after
+            ) == pricing.AnalyticBarrierEngine().price(untouched, after)
             assert contract.touch_state is None
     near_barrier = market(spot=80.005)
-    result = engine.price_with_greeks(
-        dated_history(option(), near_barrier), near_barrier, greeks="all"
-    )
+    result = engine.price_with_greeks(option(), near_barrier, greeks="all")
     assert result.delta is None
     assert result.gamma is None
 
@@ -374,16 +345,16 @@ def test_defaults_and_strict_representations():
             None if name != "seed" else object(),
         ):
             with pytest.raises(TypeError):
-                factory(**history_fields(**{name: value}))
+                factory(**{name: value})
         with pytest.raises(OverflowError):
-            factory(**history_fields(**{name: 1 << 100}))
+            factory(**{name: 1 << 100})
     for fields in (
         {"antithetic": 1},
         {"unknown": 1},
         {"sampling": True},
     ):
         with pytest.raises(TypeError):
-            factory(**history_fields(**fields))
+            factory(**fields)
     with pytest.raises(ValueError):
         factory(sampling="unknown")
     for fields in (
@@ -408,18 +379,16 @@ def test_defaults_and_strict_representations():
         with pytest.raises(TypeError):
             numerical_greeks(
                 engine,
-                dated_history(option(), market()),
+                option(),
                 market(),
                 "delta",
                 **fields,
             )
     seeded = factory(path_count=32, seed=42)
-    expected = seeded.price_with_greeks(
-        dated_history(option(), market()), market(), "delta"
-    )
+    expected = seeded.price_with_greeks(option(), market(), "delta")
     controlled = numerical_greeks(
         seeded,
-        dated_history(option(), market()),
+        option(),
         market(),
         "delta",
         volatility_shift=0.001,
@@ -430,12 +399,8 @@ def test_defaults_and_strict_representations():
     h = (100 + 0.01) - 100
     assert controlled.delta == pytest.approx(
         (
-            seeded.price(
-                dated_history(option(), market(spot=100 + h)), market(spot=100 + h)
-            )
-            - seeded.price(
-                dated_history(option(), market(spot=100 - h)), market(spot=100 - h)
-            )
+            seeded.price(option(), market(spot=100 + h))
+            - seeded.price(option(), market(spot=100 - h))
         )
         / (2 * h),
         rel=0,
@@ -459,7 +424,7 @@ def test_defaults_and_strict_representations():
 def test_applicability_errors_validation_order_and_failure_state():
     engine = pricing.MonteCarloBarrierEngine(path_count=32, seed=42)
     contract, context = option(), market()
-    quote = engine.price(dated_history(contract, context), context)
+    quote = engine.price(contract, context)
     curve = RateTermStructure(
         reference_time=START,
         times=[END, END + (END - START)],
@@ -484,7 +449,7 @@ def test_applicability_errors_validation_order_and_failure_state():
             UnsupportedOperationError,
             pricing.implied_volatility,
             engine,
-            dated_history(contract, curved),
+            contract,
             curved,
             math.nan,
             lower_bound=0.0,
@@ -512,7 +477,7 @@ def test_applicability_errors_validation_order_and_failure_state():
             contract,
             market(volatility=sigma, rate=rate),
         )
-    assert engine.price(dated_history(contract, context), context) == quote
+    assert engine.price(contract, context) == quote
     assert context.model_parameters.volatility == 0.2
     assert contract.touch_state is None
 
@@ -520,12 +485,12 @@ def test_applicability_errors_validation_order_and_failure_state():
 def test_solver_pins_draws_checks_fixed_cashflows_and_keeps_inputs():
     engine = pricing.MonteCarloBarrierEngine(path_count=8192, seed=42, sampling="sobol")
     contract, context = option(), market()
-    quote = engine.price(dated_history(contract, context), context)
+    quote = engine.price(contract, context)
 
     def solve(index):
         return pricing.implied_volatility(
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             quote,
             lower_bound=0.15,
@@ -544,27 +509,26 @@ def test_solver_pins_draws_checks_fixed_cashflows_and_keeps_inputs():
             expected_error,
             pricing.implied_volatility,
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             observed,
             **{"lower_bound": 0.0, "upper_bound": 4.0, **controls},
         )
-    fixed = contract.replace_history(
+    fixed = contract.replace(
         touch_state="touched",
-        history_time=contract.expiry_time,
     )
     later = market(valuation=START + timedelta(days=1))
     assert_rejection(
         UnsupportedOperationError,
         pricing.implied_volatility,
         engine,
-        dated_history(fixed, later),
+        fixed,
         later,
-        engine.price(dated_history(fixed, later), later),
+        engine.price(fixed, later),
         lower_bound=0.0,
         upper_bound=4.0,
     )
-    assert engine.price(dated_history(contract, context), context) == quote
+    assert engine.price(contract, context) == quote
     assert context.model_parameters.volatility == 0.2
 
 
@@ -583,14 +547,11 @@ def test_scaled_rare_hits_and_only_requested_greek_failures():
     engine = pricing.MonteCarloBarrierEngine(path_count=1, seed=42)
     contract = option("down_and_in", strike=1, barrier_level=1e300 * math.exp(-20))
     context = market(spot=1e300, rate=0.5, dividend=0, volatility=1)
-    assert engine.price(dated_history(contract, context), context) > 0
+    assert engine.price(contract, context) > 0
     contract = option()
     context = market(volatility=1e-200)
-    price = engine.price(dated_history(contract, context), context)
-    assert (
-        engine.price_with_greeks(dated_history(contract, context), context, []).price
-        == price
-    )
+    price = engine.price(contract, context)
+    assert engine.price_with_greeks(contract, context, []).price == price
     assert_rejection(
         ComputationFailureError,
         engine.price_with_greeks,

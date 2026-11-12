@@ -17,7 +17,6 @@ from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import history_fields
 
 START, END = (datetime(2025, 1, 1), datetime(2026, 1, 1))
 GREEKS = (
@@ -444,13 +443,11 @@ def test_scaled_payoffs_discounting_and_selected_overflow():
         for cls in (CashOrNothingOption, AssetOrNothingOption):
             spot = 100 if cls is CashOrNothingOption else min(amount, 1e300)
             option = cls(
-                **history_fields(
-                    option_type="call",
-                    strike=spot,
-                    effective_time=START,
-                    expiry_time=END,
-                    **({"payout": amount} if cls is CashOrNothingOption else {}),
-                )
+                option_type="call",
+                strike=spot,
+                effective_time=START,
+                expiry_time=END,
+                **({"payout": amount} if cls is CashOrNothingOption else {}),
             )
             context = market(spot=spot, rate=rate, dividend=rate)
             expected = pricing.AnalyticDigitalEngine().price(option, context)
@@ -507,13 +504,11 @@ def test_path_counts_statistics_and_live_quantlib_reference(subtests):
             CashOrNothingOption if inputs["payoff"] == "cash" else AssetOrNothingOption
         )
         option = cls(
-            **history_fields(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
-            )
+            option_type=inputs["option"],
+            strike=inputs["strike"],
+            effective_time=datetime.fromisoformat(inputs["effective_time"]),
+            expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+            **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
         )
         context = market(
             spot=inputs["spot"],

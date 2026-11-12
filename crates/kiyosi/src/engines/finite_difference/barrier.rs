@@ -20,8 +20,8 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve/surface coverage, for
     /// impossible history, clipped or
@@ -195,8 +195,8 @@ impl FiniteDifferenceDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Reuses [`FiniteDifferenceBarrierEngine::price`] categories and validation timing,
     /// including explicit upper-domain coverage checks when a full-domain grid is needed.

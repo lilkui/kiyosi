@@ -25,8 +25,8 @@ impl AnalyticDoubleTouchEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves, then
     /// [`Error::InvalidInput`] outside life, for impossible history,
@@ -107,8 +107,8 @@ impl AnalyticDoubleTouchEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
     ///

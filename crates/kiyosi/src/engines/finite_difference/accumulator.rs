@@ -17,8 +17,8 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside contract life or curve coverage,
     /// for impossible history, clipped domains or unstable explicit steps.

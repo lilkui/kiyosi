@@ -3,64 +3,11 @@ macro_rules! monitoring_properties {
         #[pyo3::pymethods]
         impl $name {
             $($extra)*
-            /// Return the timestamp through which supplied history is known, or None.
-            #[getter]
-            fn history_time<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::PyAny>>> {
-                kiyosi::OptionContract::history_time(&self.0).map(|time| crate::conversions::python_timestamp(py, time)).transpose()
-            }
 
             /// Return an owned copy of the contract's observation calendar.
             #[getter]
             fn calendar(&self) -> $crate::calendar::TradingCalendar {
                 $crate::calendar::TradingCalendar(self.0.calendar().clone())
-            }
-            /// Return a validated replacement.
-            ///
-            /// Clearing the final history payload clears an omitted history_time. An
-            /// explicitly supplied history_time is validated and retained.
-            ///
-            /// Parameters
-            /// ----------
-            /// touch_state : {'untouched', 'touched'} or None, optional
-            ///     Strictly prior history. None means unknown; untouched means known no
-            ///     hit.
-            /// history_time : datetime.datetime or None, optional
-            ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required with history; refresh payload and timestamp together.
-            ///
-            /// Returns
-            /// -------
-            /// object
-            ///     Validated copy; omitted fields or Ellipsis retain their values.
-            ///
-            /// Raises
-            /// ------
-            /// InvalidInputError
-            ///     If supplied history has no timestamp or history_time falls outside the
-            ///     contract life.
-            /// TypeError
-            ///     If a field is unknown or touch_state is not a string, None or Ellipsis.
-            /// ValueError
-            ///     If touch_state is an unknown choice.
-            ///
-            #[pyo3(signature = (*, touch_state=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
-            fn replace_history(
-                &self,
-                #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<
-                    &pyo3::Bound<'_, pyo3::PyAny>,
-                >,
-
-                #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
-            ) -> pyo3::PyResult<Self> {
-                let history_time = history_time
-                    .map(crate::conversions::optional_timestamp)
-                    .transpose()?;
-
-                Ok(Self($crate::error::domain(self.0.replace(kiyosi::$changes {
-                    touch_state: touch_state.map($crate::instruments::barrier::history).transpose()?,
-                    history_time,
-                    ..Default::default()
-                }))?))
             }
             /// Return the inclusive contract start.
             #[getter]

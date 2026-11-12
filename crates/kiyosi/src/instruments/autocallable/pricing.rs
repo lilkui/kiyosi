@@ -90,12 +90,6 @@ pub(crate) fn validate<T: AutocallableTerms>(
         ));
     }
     note.prior(context.valuation_time())?;
-    crate::instruments::validate_history_time(
-        note,
-        note.barrier_state().is_some(),
-        context,
-        false,
-    )?;
     Ok(())
 }
 

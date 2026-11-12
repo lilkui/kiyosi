@@ -40,8 +40,6 @@ from kiyosi.pricing import (
     QuadratureAutocallableEngine,
     numerical_greeks,
 )
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 def time(day, hour, microsecond=0):
@@ -68,9 +66,7 @@ def accumulator(**changes):
         "expiry_time": time(7, 15),
     }
     fields.update(changes)
-    return Accumulator(
-        **history_fields(observation_clock_time=clock_time(15), **fields)
-    )
+    return Accumulator(observation_clock_time=clock_time(15), **fields)
 
 
 def accumulator_engines():
@@ -95,27 +91,23 @@ def test_closed_date_settlement_preserves_open_date_observations():
             "calendar": calendar,
         }
         range_option = RangeAccrualOption(
-            **history_fields(
-                notional=1000,
-                annual_coupon_rate=0.12,
-                lower_bound=80,
-                upper_bound=120,
-                observation_clock_time=clock_time(15),
-                realized_hit_count=1,
-                **life,
-            )
+            notional=1000,
+            annual_coupon_rate=0.12,
+            lower_bound=80,
+            upper_bound=120,
+            observation_clock_time=clock_time(15),
+            realized_hit_count=1,
+            **life,
         )
         accumulated = Accumulator(
-            **history_fields(
-                knock_out_settled=False,
-                strike=90,
-                knock_out_level=110,
-                daily_quantity=1,
-                acceleration_factor=2,
-                accumulated_quantity=3,
-                observation_clock_time=clock_time(15),
-                **life,
-            )
+            knock_out_settled=False,
+            strike=90,
+            knock_out_level=110,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=3,
+            observation_clock_time=clock_time(15),
+            **life,
         )
         fields = dict(
             maturity_coupon_rate=0.12,
@@ -130,14 +122,12 @@ def test_closed_date_settlement_preserves_open_date_observations():
             barrier_state="no_event",
             **life,
         )
-        note = SnowballOption(**history_fields(**fields))
+        note = SnowballOption(**fields)
         binary = BinarySnowballOption(
-            **history_fields(
-                maturity_coupon_rate=0.12,
-                observations=fields["observations"],
-                barrier_state="no_event",
-                **life,
-            )
+            maturity_coupon_rate=0.12,
+            observations=fields["observations"],
+            barrier_state="no_event",
+            **life,
         )
         for schedule in (
             range_option.observation_schedule,
@@ -148,14 +138,12 @@ def test_closed_date_settlement_preserves_open_date_observations():
             assert list(schedule) == [observation]
         with pytest.raises(InvalidInputError):
             SnowballOption(
-                **history_fields(
-                    **(
-                        fields
-                        | {
-                            "knock_in_observation_mode": "at_expiry",
-                            "observation_clock_time": None,
-                        }
-                    )
+                **(
+                    fields
+                    | {
+                        "knock_in_observation_mode": "at_expiry",
+                        "observation_clock_time": None,
+                    }
                 )
             )
         coupon = 0.12 * (expiry - start).total_seconds() / (365 * 86400)
@@ -172,7 +160,7 @@ def test_closed_date_settlement_preserves_open_date_observations():
                     -0.05 * (expiry - at).total_seconds() / (365 * 86400)
                 )
                 assert AnalyticRangeAccrualEngine().price(
-                    dated_history(range_option, context), context
+                    range_option, context
                 ) == pytest.approx(1000 * coupon * discount, rel=0, abs=1e-12)
                 for option in (note, binary):
                     assert pickle.loads(pickle.dumps(option)) == option
@@ -181,14 +169,12 @@ def test_closed_date_settlement_preserves_open_date_observations():
                         FiniteDifferenceAutocallableEngine(),
                         MonteCarloAutocallableEngine(),
                     ):
-                        assert engine.price(
-                            dated_history(option, context), context
-                        ) == pytest.approx((1 + coupon) * discount, rel=0, abs=1e-12)
+                        assert engine.price(option, context) == pytest.approx(
+                            (1 + coupon) * discount, rel=0, abs=1e-12
+                        )
                 if at == expiry:
                     for engine in accumulator_engines():
-                        assert engine.price(
-                            dated_history(accumulated, context), context
-                        ) == (-60)
+                        assert engine.price(accumulated, context) == (-60)
 
 
 def test_contract_schedules_expose_effective_observations(subtests):
@@ -201,27 +187,23 @@ def test_contract_schedules_expose_effective_observations(subtests):
     expiry = datetime(2025, 1, 8, 17)
     life = {"effective_time": start, "expiry_time": expiry, "calendar": calendar}
     accrual = RangeAccrualOption(
-        **history_fields(
-            notional=1000,
-            annual_coupon_rate=0.12,
-            lower_bound=90,
-            upper_bound=110,
-            observation_clock_time=clock,
-            **life,
-        )
+        notional=1000,
+        annual_coupon_rate=0.12,
+        lower_bound=90,
+        upper_bound=110,
+        observation_clock_time=clock,
+        **life,
     )
     schedule = accrual.observation_schedule
     del accrual
     assert list(schedule) == [last]
     accumulator = Accumulator(
-        **history_fields(
-            strike=90,
-            knock_out_level=120,
-            daily_quantity=1,
-            acceleration_factor=2,
-            observation_clock_time=clock,
-            **life,
-        )
+        strike=90,
+        knock_out_level=120,
+        daily_quantity=1,
+        acceleration_factor=2,
+        observation_clock_time=clock,
+        **life,
     )
     assert list(accumulator.accumulation_schedule) == [start, last]
     assert (
@@ -244,27 +226,23 @@ def test_contract_schedules_expose_effective_observations(subtests):
         **life,
     )
     notes = [
-        SnowballOption(**history_fields(maturity_coupon_rate=0.1, **terms)),
+        SnowballOption(maturity_coupon_rate=0.1, **terms),
         PhoenixOption(
-            **history_fields(
-                coupon_per_period=0.1,
-                **dict(
-                    terms,
-                    observations=autocallable_observations(
-                        [expiry], [110], coupon_barrier_levels=[0]
-                    ),
+            coupon_per_period=0.1,
+            **dict(
+                terms,
+                observations=autocallable_observations(
+                    [expiry], [110], coupon_barrier_levels=[0]
                 ),
-            )
+            ),
         ),
         TernarySnowballOption(
-            **history_fields(
-                maturity_coupon_rate=0.1,
-                minimum_coupon_rate=0.02,
-                knock_in_level=80,
-                observation_clock_time=clock,
-                observations=observations,
-                **life,
-            )
+            maturity_coupon_rate=0.1,
+            minimum_coupon_rate=0.02,
+            knock_in_level=80,
+            observation_clock_time=clock,
+            observations=observations,
+            **life,
         ),
     ]
     for note in notes:
@@ -278,7 +256,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
             exported.clear()
             assert list(note.knock_in_observation_schedule) == [start, last]
     binary = BinarySnowballOption(
-        **history_fields(maturity_coupon_rate=0.1, observations=observations, **life)
+        maturity_coupon_rate=0.1, observations=observations, **life
     )
     assert binary.knock_in_observation_schedule is None
 
@@ -303,14 +281,12 @@ def test_subday_time_bumps_converge_to_intraday_theta(subtests):
         valuation_time=time(2, 12),
     )
     engine = AnalyticEuropeanEngine()
-    exact = engine.price_with_greeks(
-        dated_history(option, context), context, "theta"
-    ).require("theta")
+    exact = engine.price_with_greeks(option, context, "theta").require("theta")
     errors = [
         abs(
             numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 "theta",
                 time_shift=timedelta(seconds=seconds),
@@ -325,7 +301,7 @@ def test_subday_time_bumps_converge_to_intraday_theta(subtests):
         with subtests.test(shift=shift), pytest.raises(InvalidInputError):
             numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 "theta",
                 time_shift=shift,
@@ -334,7 +310,7 @@ def test_subday_time_bumps_converge_to_intraday_theta(subtests):
         with subtests.test(shift=shift), pytest.raises(TypeError):
             numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 "theta",
                 time_shift=shift,
@@ -391,21 +367,16 @@ def test_intraday_expiry_and_accrual_preserve_microseconds(subtests):
     put = call.replace(option_type="put")
     years = (18000 + 0.530865) / (365 * 86400)
     engine = AnalyticEuropeanEngine()
-    assert engine.price(dated_history(call, context), context) - engine.price(
-        dated_history(put, context), context
-    ) == pytest.approx(
+    assert engine.price(call, context) - engine.price(put, context) == pytest.approx(
         100 * (math.exp(-0.02 * years) - math.exp(-0.05 * years)), rel=0, abs=1e-12
     )
     assert context.model_parameters.risk_free_curve.factor(
         start, expiry
     ) == pytest.approx(math.exp(-0.05 * years), rel=0, abs=1e-15)
-    assert (
-        engine.price(dated_history(call, market(expiry, 110)), market(expiry, 110))
-        == 10
-    )
+    assert engine.price(call, market(expiry, 110)) == 10
     for at in (time(6, 15, 654323), time(6, 15, 654322)):
         with subtests.test(at=at), pytest.raises(InvalidInputError):
-            engine.price(dated_history(call, market(at)), market(at))
+            engine.price(call, market(at))
     assert pickle.loads(pickle.dumps(call)) == call
     assert call.expiry_time.tzinfo is None
     assert call.expiry_time == expiry
@@ -466,27 +437,24 @@ def test_scheduled_barriers_use_exact_current_observations_and_strict_history():
     engine = AnalyticBarrierEngine()
     assert (
         engine.price(
-            dated_history(option, market(time(6, 10), 110)),
+            option,
             market(time(6, 10), 110),
         )
         == 7
     )
     with pytest.raises(InvalidInputError):
         engine.price(
-            dated_history(option, market(time(6, 10, 1), 100)),
+            option,
             market(time(6, 10, 1), 100),
         )
-    touched = option.replace_history(
+    touched = option.replace(
         touch_state="touched",
-        history_time=option.expiry_time,
     )
     with pytest.raises(InvalidInputError):
-        engine.price(
-            dated_history(touched, market(time(6, 9), 110)), market(time(6, 9), 110)
-        )
+        engine.price(touched, market(time(6, 9), 110))
     assert (
         engine.price(
-            dated_history(touched, market(time(6, 10, 1), 100)),
+            touched,
             market(time(6, 10, 1), 100),
         )
         == 0
@@ -505,22 +473,18 @@ def test_range_accrual_observes_same_day_and_excludes_only_the_effective_instant
     )
     engine = AnalyticRangeAccrualEngine()
     assert engine.price(
-        dated_history(option, market(time(6, 15), 100)),
+        option,
         market(time(6, 15), 100),
     ) == pytest.approx(120 * 6 / (24 * 365), rel=0, abs=1e-14)
     option = option.replace(effective_time=time(6, 15), expiry_time=time(7, 15))
     assert engine.price(
-        dated_history(option, market(time(6, 15, 1), 100)),
+        option,
         market(time(6, 15, 1), 100),
     ) == pytest.approx(120 / 365, rel=0, abs=1e-14)
     with pytest.raises(InvalidInputError):
         engine.price(
-            dated_history(
-                option.replace_history(
-                    realized_hit_count=1,
-                    history_time=option.history_time or option.expiry_time,
-                ),
-                market(time(6, 15, 1), 100),
+            option.replace(
+                realized_hit_count=1,
             ),
             market(time(6, 15, 1), 100),
         )
@@ -530,21 +494,16 @@ def test_daily_history_uses_observation_clock_and_inclusive_start(subtests):
     option = accumulator()
     for engine in accumulator_engines():
         with subtests.test(engine=type(engine).__name__):
-            assert engine.price(
-                dated_history(option, market(time(6, 10))), market(time(6, 10))
-            ) == pytest.approx(10, rel=0, abs=1e-4)
+            assert engine.price(option, market(time(6, 10))) == pytest.approx(
+                10, rel=0, abs=1e-4
+            )
             with pytest.raises(InvalidInputError):
                 engine.price(
-                    dated_history(option, market(time(6, 15, 1))),
+                    option,
                     market(time(6, 15, 1)),
                 )
             single = option.replace(effective_time=time(7, 15))
-            assert (
-                engine.price(
-                    dated_history(single, market(time(7, 15))), market(time(7, 15))
-                )
-                == 5
-            )
+            assert engine.price(single, market(time(7, 15))) == 5
     note = SnowballOption(
         calendar=weekdays_calendar(),
         observation_clock_time=clock_time(15),
@@ -560,12 +519,12 @@ def test_daily_history_uses_observation_clock_and_inclusive_start(subtests):
         ),
     )
     engine = QuadratureAutocallableEngine()
-    assert engine.price(
-        dated_history(note, market(time(6, 10), 100)), market(time(6, 10), 100)
-    ) == pytest.approx(1 + 0.06 * 30 / (365 * 24), rel=0, abs=1e-12)
+    assert engine.price(note, market(time(6, 10), 100)) == pytest.approx(
+        1 + 0.06 * 30 / (365 * 24), rel=0, abs=1e-12
+    )
     with pytest.raises(InvalidInputError):
         engine.price(
-            dated_history(note, market(time(6, 15, 1), 100)),
+            note,
             market(time(6, 15, 1), 100),
         )
 
@@ -582,7 +541,7 @@ def test_explicit_accumulator_knock_outs_do_not_add_daily_quantity(
     for engine in accumulator_engines():
         with subtests.test(hour=hour, barrier=barrier, engine=type(engine).__name__):
             assert engine.price(
-                dated_history(option, market(time(6, 9))),
+                option,
                 market(time(6, 9)),
             ) == pytest.approx(expected, rel=0, abs=1e-4)
 
@@ -614,7 +573,7 @@ def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(subtests):
     )
     for engine in engines:
         with subtests.test(engine=type(engine).__name__):
-            assert engine.price(dated_history(note, context), context) == pytest.approx(
+            assert engine.price(note, context) == pytest.approx(
                 1 + 0.12 * 6 / (365 * 24), rel=0, abs=1e-6
             )
     note = note.replace(
@@ -626,7 +585,7 @@ def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(subtests):
     for engine in engines:
         with subtests.test(engine=type(engine).__name__):
             assert engine.price(
-                dated_history(note, market(time(6, 9), 120)),
+                note,
                 market(time(6, 9), 120),
             ) == pytest.approx(1 + 0.12 / (365 * 24), rel=0, abs=1e-6)
 
@@ -645,9 +604,7 @@ def test_nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega():
         spot_price=110,
         valuation_time=time(4, 15),
     )
-    result = QuadratureAccumulatorEngine().price_with_greeks(
-        dated_history(option, context), context, "vega"
-    )
+    result = QuadratureAccumulatorEngine().price_with_greeks(option, context, "vega")
     root_time = math.sqrt(2 / 365)
     expected = (
         -105
@@ -679,9 +636,7 @@ def test_finite_difference_rejects_unresolvable_microsecond_events():
     )
     context = market(start, 100)
     with pytest.raises(ComputationFailureError):
-        FiniteDifferenceAutocallableEngine().price(
-            dated_history(note, context), context
-        )
-    assert QuadratureAutocallableEngine().price(
-        dated_history(note, context), context
-    ) == pytest.approx(1.02, rel=0, abs=1e-12)
+        FiniteDifferenceAutocallableEngine().price(note, context)
+    assert QuadratureAutocallableEngine().price(note, context) == pytest.approx(
+        1.02, rel=0, abs=1e-12
+    )

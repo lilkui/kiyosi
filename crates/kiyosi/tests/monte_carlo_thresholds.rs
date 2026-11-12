@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 fn context(volatility: f64, intraday: bool) -> PricingContext {
@@ -41,10 +38,7 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
                 terms.observation_times = Some(vec![end]);
                 terms.rebate = 2.0;
                 let option = BarrierOption::new(terms).unwrap();
-                assert!(
-                    (single.price(&dated(&option, &context), &context).unwrap() - 6.0).abs()
-                        < 1e-12
-                );
+                assert!((single.price(&option, &context).unwrap() - 6.0).abs() < 1e-12);
 
                 let kind = match kind {
                     BarrierType::UpAndIn | BarrierType::DownAndIn => DoubleBarrierType::KnockIn,
@@ -56,10 +50,7 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
                 terms.observation_times = Some(vec![end]);
                 terms.rebate = 2.0;
                 let option = DoubleBarrierOption::new(terms).unwrap();
-                assert!(
-                    (double.price(&dated(&option, &context), &context).unwrap() - 6.0).abs()
-                        < 1e-12
-                );
+                assert!((double.price(&option, &context).unwrap() - 6.0).abs() < 1e-12);
             }
         }
     }
@@ -81,10 +72,7 @@ fn snowball_thresholds_preserve_price_and_sampling_uncertainty() {
         for antithetic in [false, true] {
             let engine = MonteCarloAutocallableEngine::new(settings(antithetic)).unwrap();
             let estimate = engine
-                .price_with_statistics(
-                    &dated(&note, &context(volatility, false)),
-                    &context(volatility, false),
-                )
+                .price_with_statistics(&note, &context(volatility, false))
                 .unwrap();
             let error = estimate.standard_error().unwrap();
             if antithetic {
@@ -123,13 +111,8 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             terms.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
                 .then_some(terms.expiry_time.time_of_day());
             terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-            terms.history_time = Some(terms.effective_time);
             let note = TernarySnowballOption::new(terms).unwrap();
-            assert!(
-                (engine.price(&dated(&note, &context), &context).unwrap() - (1.0 + 0.07 / 365.0))
-                    .abs()
-                    < 1e-12
-            );
+            assert!((engine.price(&note, &context).unwrap() - (1.0 + 0.07 / 365.0)).abs() < 1e-12);
         }
         let mut terms = PhoenixTerms::new(
             0.0,
@@ -147,7 +130,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         terms.observation_clock_time = None;
         let note = PhoenixOption::new(terms).unwrap();
-        assert!((engine.price(&dated(&note, &context), &context).unwrap() - 1.06).abs() < 1e-12);
+        assert!((engine.price(&note, &context).unwrap() - 1.06).abs() < 1e-12);
     }
 }
 
@@ -166,13 +149,11 @@ fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
                 AccumulatorTerms::new(strike, 100.0, 1.0, 1.0, start, end, (end).time_of_day());
             terms.option_type = direction;
             terms.accumulated_quantity = Some(1.0);
-            terms.history_time = Some(terms.expiry_time);
+
             terms.knock_out_settled = Some(false);
-            terms.history_time = Some(terms.expiry_time);
+
             let option = Accumulator::new(terms).unwrap();
-            assert!(
-                (engine.price(&dated(&option, &context), &context).unwrap() - 15.0).abs() < 1e-12
-            );
+            assert!((engine.price(&option, &context).unwrap() - 15.0).abs() < 1e-12);
 
             let mut terms = AccumulatorTerms::new(
                 100.0,
@@ -184,17 +165,14 @@ fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
                 (end).time_of_day(),
             );
             terms.accumulated_quantity = Some(0.0);
-            terms.history_time = Some(terms.expiry_time);
+
             terms.knock_out_settled = Some(false);
-            terms.history_time = Some(terms.expiry_time);
+
             terms.option_type = direction;
             let option = Accumulator::new(terms).unwrap();
             let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();
-            let expected = -AnalyticEuropeanEngine
-                .price(&dated(&vanilla, &context), &context)
-                .unwrap()
-                / volatility;
-            let actual = engine.price(&dated(&option, &context), &context).unwrap();
+            let expected = -AnalyticEuropeanEngine.price(&vanilla, &context).unwrap() / volatility;
+            let actual = engine.price(&option, &context).unwrap();
             assert!(
                 (actual - expected).abs() < 0.02 * expected.abs(),
                 "{actual} != {expected}"

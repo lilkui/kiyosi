@@ -35,12 +35,10 @@ print(f"累沽价值：{engine.price(decumulator, context):.6f}")
 
 # 进入存续期后，输入此前累计且尚未结算的实际数量，不能从当前现货重建。
 later = context.replace(valuation_time=datetime(2025, 1, 16, 15), spot_price=98)
-live = accumulator.replace_history(
-    accumulated_quantity=10, knock_out_settled=False, history_time=later.valuation_time
-)
+live = accumulator.replace(accumulated_quantity=10, knock_out_settled=False)
 print(f"此前累计 10 单位的存续价值：{engine.price(live, later):.6f}")
 
 # knock_out_settled=True 表示此前敲出且已结算；剩余价值为零。
-settled = live.replace_history(knock_out_settled=True)
+settled = live.replace(knock_out_settled=True)
 print(f"已终止并结算的剩余价值：{engine.price(settled, later):.6f}")
 assert engine.price(settled, later) == 0

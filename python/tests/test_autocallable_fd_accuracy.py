@@ -21,7 +21,6 @@ from kiyosi.market import (
     sse_calendar,
     weekdays_calendar,
 )
-from support.history import dated as dated_history
 
 
 def test_nearby_barriers_preserve_prices_and_greeks(subtests):
@@ -51,9 +50,7 @@ def test_nearby_barriers_preserve_prices_and_greeks(subtests):
                 knock_out_coupon_rates=[0.08, 0.08],
             ),
         )
-        return engine.price_with_greeks(
-            dated_history(option, context), context, ["delta", "gamma"]
-        )
+        return engine.price_with_greeks(option, context, ["delta", "gamma"])
 
     expected = price(100)
     for barrier in (math.nextafter(100, 200), 100 + 1e-12, 100 + 1e-8, 100 + 1e-4):
@@ -101,11 +98,9 @@ def test_near_expiry_greeks_match_an_analytic_digital(subtests, volatility, seco
                 spot_price=spot,
                 valuation_time=valuation,
             )
-            actual = engine.price_with_greeks(
-                dated_history(option, context), context, ["delta", "gamma"]
-            )
+            actual = engine.price_with_greeks(option, context, ["delta", "gamma"])
             expected = pricing.AnalyticDigitalEngine().price_with_greeks(
-                dated_history(digital, context), context, ["delta", "gamma"]
+                digital, context, ["delta", "gamma"]
             )
             assert actual.price == pytest.approx(
                 math.exp(-0.04 * time) + expected.price, rel=0, abs=1e-5
@@ -146,7 +141,6 @@ def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(subtes
         observations=autocallable_observations(
             dates, [103] * len(dates), knock_out_coupon_rates=[0.2] * len(dates)
         ),
-        history_time=start,
     )
     model = BlackScholesMertonParameters(
         risk_free_rate=0.02, dividend_yield=0, volatility=0.2
@@ -171,7 +165,7 @@ def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(subtes
     ):
         with subtests.test(spot=spot):
             result = engine.price_with_greeks(
-                dated_history(note, context(spot)),
+                note,
                 context(spot),
                 ["delta", "gamma"],
             )
@@ -179,12 +173,8 @@ def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(subtes
                 expected, rel=0, abs=tolerance
             )
             bump = 0.005
-            low = engine.price(
-                dated_history(note, context(spot - bump)), context(spot - bump)
-            )
-            high = engine.price(
-                dated_history(note, context(spot + bump)), context(spot + bump)
-            )
+            low = engine.price(note, context(spot - bump))
+            high = engine.price(note, context(spot + bump))
             assert 100 * result.delta == pytest.approx(
                 100 * (high - low) / (2 * bump), rel=0, abs=1e-5
             )
@@ -216,13 +206,11 @@ def test_coarse_grids_preserve_positive_payoff_bounds_and_flat_greeks(seconds, c
     engine = pricing.FiniteDifferenceAutocallableEngine(
         asset_step_count=count, time_step_count=2000
     )
-    result = engine.price_with_greeks(
-        dated_history(option, context), context, ["delta", "gamma"]
-    )
+    result = engine.price_with_greeks(option, context, ["delta", "gamma"])
     assert result.price >= 1 - 1e-10
     assert result.price <= 1.1 + 1e-10
     assert result.price == pytest.approx(1.1, rel=0, abs=1e-6)
-    assert engine.price(dated_history(option, context), context) == result.price
+    assert engine.price(option, context) == result.price
     assert result.delta == pytest.approx(0, rel=0, abs=1e-8)
     assert result.gamma == pytest.approx(0, rel=0, abs=1e-8)
 
@@ -262,9 +250,9 @@ def test_terminal_digital_separates_space_time_domain_and_barrier_placement_erro
             asset_upper_boundary=upper,
         )
         expected = math.exp(-0.05) + pricing.AnalyticDigitalEngine().price(
-            dated_history(digital, context), context
+            digital, context
         )
-        return abs(engine.price(dated_history(option, context), context) - expected)
+        return abs(engine.price(option, context) - expected)
 
     coarse = error(200, 2000, 400)
     for assets in (400, 800, 1600):
@@ -301,7 +289,6 @@ def test_projection_preserves_exact_current_event_barrier_comparisons(subtests):
         observations=autocallable_observations(
             [end], [100], coupon_barrier_levels=[100]
         ),
-        history_time=start,
     )
     engine = pricing.FiniteDifferenceAutocallableEngine()
     for spot, expected in (
@@ -319,9 +306,7 @@ def test_projection_preserves_exact_current_event_barrier_comparisons(subtests):
                 spot_price=spot,
                 valuation_time=end,
             )
-            result = engine.price_with_greeks(
-                dated_history(option, context), context, ["delta", "gamma"]
-            )
+            result = engine.price_with_greeks(option, context, ["delta", "gamma"])
             assert result.price == expected
             assert result.delta is None
             assert result.gamma is None
@@ -350,7 +335,6 @@ def test_cash_carry_portfolio_is_preserved_across_event_restarts(subtests):
             [110] * 4,
             knock_out_coupon_rates=[carry_rate(day) for day in dates],
         ),
-        history_time=start,
     )
     context = PricingContext(
         model_parameters=BlackScholesMertonParameters(
@@ -372,10 +356,8 @@ def test_cash_carry_portfolio_is_preserved_across_event_restarts(subtests):
                 scheme=scheme,
                 asset_upper_boundary=400,
             )
-            result = engine.price_with_greeks(
-                dated_history(option, context), context, ["delta", "gamma"]
-            )
+            result = engine.price_with_greeks(option, context, ["delta", "gamma"])
             assert result.price == pytest.approx(1, rel=0, abs=1e-5)
             assert result.delta == pytest.approx(0, rel=0, abs=1e-6)
             assert result.gamma == pytest.approx(0, rel=0, abs=1e-7)
-            assert engine.price(dated_history(option, context), context) == result.price
+            assert engine.price(option, context) == result.price

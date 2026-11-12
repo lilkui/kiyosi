@@ -51,7 +51,5 @@ assert abs(estimate.price - exact) <= 5 * estimate.standard_error + 1e-10
 # 算术平均的置信区间只衡量抽样误差，不包括时间离散偏差；还需加密 step_count。
 # 估值进入平均期后，必须提供估值时刻之前对应种类的已实现平均值。
 later = context.replace(valuation_time=datetime(2025, 7, 1), spot_price=103)
-seasoned = arithmetic.replace_history(
-    realized_average=102, history_time=later.valuation_time
-)
+seasoned = arithmetic.replace(realized_average=102)
 print(f"含历史算术平均值的存续价格：{mc.price(seasoned, later):.6f}")

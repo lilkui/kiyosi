@@ -16,10 +16,6 @@ pub enum DoubleBarrierType {
 /// Input terms validated by [`DoubleBarrierOption::new`]; see its example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleBarrierOptionTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
@@ -59,7 +55,6 @@ impl DoubleBarrierOptionTerms {
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
-            history_time: None,
             calendar: TradingCalendar::default(),
             option_type,
             strike,
@@ -79,7 +74,7 @@ impl DoubleBarrierOptionTerms {
 /// Owns two ordered boundaries sharing monitoring and strictly prior history.
 ///
 /// Shared pricing and replacement are safe under the crate concurrency contract.
-/// See [`Self::new`] and [`Self::replace_history`] for examples.
+/// See [`Self::new`] and [`Self::replace`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleBarrierOption {
     pub(crate) lower: BarrierOption,
@@ -118,9 +113,6 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
-    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`crate::Error::InvalidInput`] unless finite `0 < lower < upper`,
     /// then reuses [`BarrierOption::new`] categories and validation order, including
@@ -157,48 +149,9 @@ impl DoubleBarrierOption {
         lower.rebate_timing = terms.rebate_timing;
         lower.observation_times = terms.observation_times;
         lower.touch_state = terms.touch_state;
-        lower.history_time = terms.history_time;
         Ok(Self {
             lower: BarrierOption::new(lower)?,
             upper: terms.upper_barrier,
-        })
-    }
-    /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
-    ///
-    /// Time consistency is checked during pricing. The original is preserved on every outcome.
-    ///
-    /// Preserves validated monitoring terms through [`BarrierOption::replace_history`].
-    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::*;
-    /// # fn main() -> Result<()> {
-    /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0,
-    ///     DoubleBarrierType::KnockOut))?;
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched),
-    ///     Some(option.effective_time().add_days(1)?))?;
-    /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
-    /// assert_eq!(option.touch_state(), None);
-    /// # Ok(()) }
-    /// ```
-    ///
-    /// The supplied timestamp is validated and retained, including with unknown history.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] for a timestamp outside the contract life.
-    pub fn replace_history(
-        &self,
-        touch_state: Option<BarrierTouchState>,
-        history_time: Option<Timestamp>,
-    ) -> Result<Self> {
-        self.replace(DoubleBarrierOptionChanges {
-            touch_state: Some(touch_state),
-            history_time: Some(history_time),
-            ..Default::default()
         })
     }
     /// Returns the payoff direction; see [`Self::new`].
@@ -289,14 +242,6 @@ impl DoubleBarrierOption {
     }
 }
 impl OptionContract for DoubleBarrierOption {
-    fn history_time(&self) -> Option<Timestamp> {
-        self.lower.history_time()
-    }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-        self.lower = self.lower.with_history_time(time)?;
-        Ok(self)
-    }
-
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -338,8 +283,6 @@ impl OptionContract for DoubleBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleBarrierOptionChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`DoubleBarrierOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](DoubleBarrierOptionTerms::option_type).
@@ -375,21 +318,10 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: DoubleBarrierOptionChanges) -> Result<Self> {
-        let history_supplied = changes.touch_state.is_some();
         let updated = Self::new(DoubleBarrierOptionTerms {
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                changes.touch_state.is_some()
-                    && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
-            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -405,11 +337,7 @@ impl DoubleBarrierOption {
                 .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         })?;
-        self.lower.monitoring.validate_replacement_history(
-            &updated.lower.monitoring,
-            history_supplied,
-            self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
-        )?;
+
         Ok(updated)
     }
 }

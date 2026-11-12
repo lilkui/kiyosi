@@ -14,8 +14,6 @@ from kiyosi.market import (
     PricingContext,
     weekdays_calendar,
 )
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 @pytest.mark.parametrize("history", (None, "no_event"))
@@ -34,21 +32,20 @@ def test_autocallable_engines_share_domain_validation_precedence(subtests, histo
     with pytest.raises(InvalidInputError):
         BinarySnowballOption(
             calendar=weekdays_calendar(),
-            **history_fields(
-                **(
-                    fields
-                    | {
-                        "observations": [
-                            AutocallableObservation.snowball(end, 110, coupon_rate=0)
-                        ]
-                    }
-                ),
-                expiry_time=end,
+            **(
+                fields
+                | {
+                    "observations": [
+                        AutocallableObservation.snowball(end, 110, coupon_rate=0)
+                    ]
+                }
             ),
+            expiry_time=end,
         )
     note = BinarySnowballOption(
         calendar=weekdays_calendar(),
-        **history_fields(**fields, expiry_time=datetime(2025, 1, 3)),
+        **fields,
+        expiry_time=datetime(2025, 1, 3),
     )
     valuations = [datetime(2024, 12, 31), datetime(2025, 1, 4)]
     if history is None:
@@ -74,17 +71,15 @@ def test_autocallable_engines_share_domain_validation_precedence(subtests, histo
         ):
             for operation in (
                 lambda engine=engine, note=note, context=context: engine.price(
-                    dated_history(note, context), context
+                    note, context
                 ),
                 lambda engine=engine, note=note, context=context: (
-                    engine.price_with_greeks(
-                        dated_history(note, context), context, "delta"
-                    )
+                    engine.price_with_greeks(note, context, "delta")
                 ),
                 lambda engine=engine, note=note, context=context: (
                     pricing.implied_volatility(
                         engine,
-                        dated_history(note, context),
+                        note,
                         context,
                         1,
                         lower_bound=0.0,

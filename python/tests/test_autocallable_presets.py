@@ -29,8 +29,6 @@ from kiyosi.pricing import (
     implied_phoenix_coupon,
 )
 from support.assertions import assert_decimal_equal
-from support.history import dated as dated_history
-from support.history import history_fields
 from test_snowball import market
 
 START, MIDDLE, END = datetime(2025, 1, 1), datetime(2025, 2, 3), datetime(2025, 4, 1)
@@ -180,21 +178,15 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
 )
 def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, barrier):
     dates = [MIDDLE, END]
-    note = factory(
-        **history_fields(
-            coupon_per_period=0.01, **terms(observation_times=dates), **extra
-        )
-    )
+    note = factory(coupon_per_period=0.01, **terms(observation_times=dates), **extra)
     expected = PhoenixOption(
         calendar=weekdays_calendar(),
-        **history_fields(
-            observation_clock_time=None,
-            coupon_per_period=0.01,
-            **phoenix_fields(
-                barrier_state=None,
-                observations=autocallable_observations(
-                    dates, [110, 110], coupon_barrier_levels=[barrier, barrier]
-                ),
+        observation_clock_time=None,
+        coupon_per_period=0.01,
+        **phoenix_fields(
+            barrier_state=None,
+            observations=autocallable_observations(
+                dates, [110, 110], coupon_barrier_levels=[barrier, barrier]
             ),
         ),
     )
@@ -209,17 +201,15 @@ def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, bar
     dates.clear()
     assert note.observation_times == ((MIDDLE, END))
     assert (
-        note.replace_history(
+        note.replace(
             barrier_state="no_event",
-            history_time=note.history_time or note.expiry_time,
         ).coupon_per_period
         == 0.01
     )
     assert (
-        note.replace_history(
+        note.replace(
             barrier_state="no_event",
-            history_time=note.history_time or note.expiry_time,
-        ).replace_history(barrier_state=None)
+        ).replace(barrier_state=None)
         == note
     )
 
@@ -230,9 +220,9 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
     assert signature.parameters["coupon_per_period"].default is inspect.Parameter.empty
     note = PhoenixOption(
         calendar=weekdays_calendar(),
-        **history_fields(
-            observation_clock_time=None, coupon_per_period=-0.01, **phoenix_fields()
-        ),
+        observation_clock_time=None,
+        coupon_per_period=-0.01,
+        **phoenix_fields(),
     )
     assert note.coupon_per_period == (-0.01)
     assert "coupon_per_period=-0.01" in repr(note)
@@ -260,9 +250,9 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
         with subtests.test(fields=fields), pytest.raises(TypeError):
             PhoenixOption(
                 calendar=weekdays_calendar(),
-                **history_fields(
-                    observation_clock_time=None, **fields, **phoenix_fields()
-                ),
+                observation_clock_time=None,
+                **fields,
+                **phoenix_fields(),
             )
     for operation in (note.replace, note.with_quoted_coupon):
         with pytest.raises(TypeError):
@@ -271,21 +261,17 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
         with subtests.test(value=value), pytest.raises(TypeError):
             PhoenixOption(
                 calendar=weekdays_calendar(),
-                **history_fields(
-                    observation_clock_time=None,
-                    coupon_per_period=value,
-                    **phoenix_fields(),
-                ),
+                observation_clock_time=None,
+                coupon_per_period=value,
+                **phoenix_fields(),
             )
     for value in (math.nan, math.inf, -math.inf):
         with subtests.test(value=value), pytest.raises(InvalidInputError):
             PhoenixOption(
                 calendar=weekdays_calendar(),
-                **history_fields(
-                    observation_clock_time=None,
-                    coupon_per_period=value,
-                    **phoenix_fields(),
-                ),
+                observation_clock_time=None,
+                coupon_per_period=value,
+                **phoenix_fields(),
             )
 
 
@@ -296,11 +282,9 @@ def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(subt
     ):
         for coupon in (0.01, -0.01):
             note = factory(
-                **history_fields(
-                    coupon_per_period=coupon,
-                    **terms(principal_redemption_ratio=0.25, barrier_state="no_event"),
-                    **extra,
-                )
+                coupon_per_period=coupon,
+                **terms(principal_redemption_ratio=0.25, barrier_state="no_event"),
+                **extra,
             )
             for engine in engines():
                 for spot, base in (
@@ -316,7 +300,7 @@ def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(subt
                         expected = base + (coupon if spot >= barrier else 0)
                         assert_decimal_equal(
                             engine.price(
-                                dated_history(note, market(spot, END)),
+                                note,
                                 market(spot, END),
                             ),
                             expected,
@@ -324,24 +308,19 @@ def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(subt
                         )
                 assert_decimal_equal(
                     engine.price(
-                        dated_history(note, market(110, MIDDLE)),
+                        note,
                         market(110, MIDDLE),
                     ),
                     0.25 + coupon,
                     places=14,
                 )
     note = digital_coupon_note(
-        **history_fields(
-            coupon_per_period=0.01,
-            coupon_barrier_level=90,
-            **terms(knock_out_level=85, barrier_state="no_event"),
-        )
+        coupon_per_period=0.01,
+        coupon_barrier_level=90,
+        **terms(knock_out_level=85, barrier_state="no_event"),
     )
     for engine in engines():
-        assert (
-            engine.price(dated_history(note, market(85, MIDDLE)), market(85, MIDDLE))
-            == 1
-        )
+        assert engine.price(note, market(85, MIDDLE)) == 1
 
 
 def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtests):
@@ -352,15 +331,13 @@ def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtes
         (digital_coupon_note, {"coupon_barrier_level": 90}, 85, 1.0),
     ):
         note = factory(
-            **history_fields(
-                coupon_per_period=0.01, **terms(barrier_state="no_event"), **extra
-            )
+            coupon_per_period=0.01, **terms(barrier_state="no_event"), **extra
         )
         for engine in engines():
             with subtests.test(factory=factory, spot=spot, engine=engine):
                 context = market(spot, START, rate=0, dividend=0, volatility=1e-8)
                 assert_decimal_equal(
-                    engine.price(dated_history(note, context), context),
+                    engine.price(note, context),
                     expected,
                     places=9,
                 )
@@ -370,17 +347,11 @@ def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtes
                 remaining = expected - (
                     0.01 if factory is fixed_coupon_note or spot >= 90 else 0
                 )
-                assert_decimal_equal(
-                    engine.price(dated_history(note, after), after), remaining, places=9
-                )
+                assert_decimal_equal(engine.price(note, after), remaining, places=9)
                 assert (
                     engine.price(
-                        dated_history(
-                            note.replace_history(
-                                barrier_state="knocked_out",
-                                history_time=note.expiry_time,
-                            ),
-                            after,
+                        note.replace(
+                            barrier_state="knocked_out",
                         ),
                         after,
                     )
@@ -388,15 +359,13 @@ def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtes
                 )
     fixed = PhoenixOption(
         calendar=weekdays_calendar(),
-        **history_fields(
-            observation_clock_time=None, coupon_per_period=0.01, **phoenix_fields()
-        ),
+        observation_clock_time=None,
+        coupon_per_period=0.01,
+        **phoenix_fields(),
     )
     engine = QuadratureAutocallableEngine()
     for at in (MIDDLE, END):
-        assert_decimal_equal(
-            engine.price(dated_history(fixed, market(110, at)), market(110, at)), 1.01
-        )
+        assert_decimal_equal(engine.price(fixed, market(110, at)), 1.01)
 
 
 @pytest.mark.parametrize(
@@ -404,14 +373,14 @@ def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtes
     ((fixed_coupon_note, {}), (digital_coupon_note, {"coupon_barrier_level": 90})),
 )
 def test_implied_coupon_bounds_tolerance_and_result_use_contract_units(factory, extra):
-    note = factory(**history_fields(coupon_per_period=0.01, **terms(), **extra))
-    target = factory(**history_fields(coupon_per_period=-0.02, **terms(), **extra))
+    note = factory(coupon_per_period=0.01, **terms(), **extra)
+    target = factory(coupon_per_period=-0.02, **terms(), **extra)
     for engine in engines():
         context = market()
-        quote = engine.price(dated_history(target, context), context)
+        quote = engine.price(target, context)
         solved = implied_phoenix_coupon(
             engine,
-            dated_history(note, context),
+            note,
             context,
             quote,
             lower_bound=-0.05,
@@ -443,14 +412,12 @@ def test_staged_snowballs_use_inclusive_cutoffs_and_whole_holding_coupons():
     )
     for factory, extra, rates in cases:
         note = factory(
-            **history_fields(
-                observation_clock_time=clock_time(),
-                first_coupon_rate=0.2,
-                second_coupon_rate=0.05,
-                first_stage_end_time=MIDDLE,
-                **terms(observation_times=dates, barrier_state="no_event"),
-                **extra,
-            )
+            observation_clock_time=clock_time(),
+            first_coupon_rate=0.2,
+            second_coupon_rate=0.05,
+            first_stage_end_time=MIDDLE,
+            **terms(observation_times=dates, barrier_state="no_event"),
+            **extra,
         )
         assert note.knock_out_coupon_rates == tuple(rates)
         assert note.maturity_coupon_rate == rates[-1]
@@ -458,16 +425,12 @@ def test_staged_snowballs_use_inclusive_cutoffs_and_whole_holding_coupons():
             expected = 1 + rate * (day - START).days / 365
             for engine in engines():
                 assert_decimal_equal(
-                    engine.price(
-                        dated_history(note, market(110, day)), market(110, day)
-                    ),
+                    engine.price(note, market(110, day)),
                     expected,
                     places=14,
                 )
         assert_decimal_equal(
-            QuadratureAutocallableEngine().price(
-                dated_history(note, market(100, END)), market(100, END)
-            ),
+            QuadratureAutocallableEngine().price(note, market(100, END)),
             1 + rates[-1] * 90 / 365,
         )
 
@@ -479,45 +442,35 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
         "first_stage_end_time": datetime(2025, 2, 1),
     }
     note = early_profit_snowball(
-        **history_fields(
-            observation_clock_time=clock_time(),
-            **fields,
-            **terms(observation_times=[END]),
-        )
+        observation_clock_time=clock_time(), **fields, **terms(observation_times=[END])
     )
     assert note.knock_out_coupon_rates == ((-0.02,))
     increasing = butterfly_snowball(
-        **history_fields(
-            observation_clock_time=clock_time(),
-            first_coupon_rate=-0.02,
-            second_coupon_rate=0,
-            third_coupon_rate=0.2,
-            first_stage_end_time=datetime(2025, 2, 1),
-            second_stage_end_time=datetime(2025, 3, 1),
-            **terms(),
-        )
+        observation_clock_time=clock_time(),
+        first_coupon_rate=-0.02,
+        second_coupon_rate=0,
+        third_coupon_rate=0.2,
+        first_stage_end_time=datetime(2025, 2, 1),
+        second_stage_end_time=datetime(2025, 3, 1),
+        **terms(),
     )
     assert increasing.knock_out_coupon_rates == ((0, 0.2))
     assert increasing.maturity_coupon_rate == 0.2
     for cutoff in (datetime(2024, 12, 31), END, datetime(2025, 4, 2)):
         with pytest.raises(InvalidInputError):
             early_profit_snowball(
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **(fields | {"first_stage_end_time": cutoff}),
-                    **terms(),
-                )
+                observation_clock_time=clock_time(),
+                **(fields | {"first_stage_end_time": cutoff}),
+                **terms(),
             )
     for cutoff in (datetime(2025, 1, 31), datetime(2025, 2, 1), END):
         with pytest.raises(InvalidInputError):
             butterfly_snowball(
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **fields,
-                    third_coupon_rate=0.01,
-                    second_stage_end_time=cutoff,
-                    **terms(),
-                )
+                observation_clock_time=clock_time(),
+                **fields,
+                third_coupon_rate=0.01,
+                second_stage_end_time=cutoff,
+                **terms(),
             )
     for key in ("first_coupon_rate", "second_coupon_rate"):
         for value in (math.nan, math.inf, -math.inf):
@@ -526,57 +479,47 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
                 pytest.raises(InvalidInputError),
             ):
                 early_profit_snowball(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        **(fields | {key: value}),
-                        **terms(observation_times=[END]),
-                    )
+                    observation_clock_time=clock_time(),
+                    **(fields | {key: value}),
+                    **terms(observation_times=[END]),
                 )
     for value in (math.nan, math.inf, -math.inf):
         with pytest.raises(InvalidInputError):
             butterfly_snowball(
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **fields,
-                    third_coupon_rate=value,
-                    second_stage_end_time=datetime(2025, 3, 1),
-                    **terms(),
-                )
+                observation_clock_time=clock_time(),
+                **fields,
+                third_coupon_rate=value,
+                second_stage_end_time=datetime(2025, 3, 1),
+                **terms(),
             )
     for value in (True, "2025-02-01", datetime(2025, 2, 1, tzinfo=UTC)):
         with pytest.raises(TypeError):
             early_profit_snowball(
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **(fields | {"first_stage_end_time": value}),
-                    **terms(),
-                )
+                observation_clock_time=clock_time(),
+                **(fields | {"first_stage_end_time": value}),
+                **terms(),
             )
 
 
 def test_preset_representation_and_domain_errors_use_native_categories():
     for value in (True, "0.01", None):
         with pytest.raises(TypeError):
-            fixed_coupon_note(**history_fields(coupon_per_period=value, **terms()))
+            fixed_coupon_note(coupon_per_period=value, **terms())
     for value in (math.nan, math.inf, -math.inf):
         with pytest.raises(InvalidInputError):
-            fixed_coupon_note(**history_fields(coupon_per_period=value, **terms()))
+            fixed_coupon_note(coupon_per_period=value, **terms())
     for barrier in (-1, math.nan, math.inf):
         with pytest.raises(InvalidInputError):
             digital_coupon_note(
-                **history_fields(
-                    coupon_per_period=0.01, coupon_barrier_level=barrier, **terms()
-                )
+                coupon_per_period=0.01, coupon_barrier_level=barrier, **terms()
             )
     for schedule in ([], [END, MIDDLE], [MIDDLE, MIDDLE], [datetime(2025, 4, 2)]):
         with pytest.raises(InvalidInputError):
             fixed_coupon_note(
-                **history_fields(
-                    coupon_per_period=0.01, **terms(observation_times=schedule)
-                )
+                coupon_per_period=0.01, **terms(observation_times=schedule)
             )
     with pytest.raises(TypeError):
-        digital_coupon_note(**history_fields(coupon_per_period=0.01, **terms()))
+        digital_coupon_note(coupon_per_period=0.01, **terms())
     for factory, parameter in (
         (fixed_coupon_note, "coupon_per_period"),
         (digital_coupon_note, "coupon_barrier_level"),

@@ -27,8 +27,6 @@ from quantlib_reference.local_volatility_paths import (
     trading_dates,
 )
 from support.assertions import assert_decimal_equal
-from support.history import dated as dated_history
-from support.history import history_fields
 
 START, END = (datetime.combine(value, datetime.min.time()) for value in (START, END))
 OBSERVATIONS = tuple(
@@ -75,54 +73,48 @@ def contracts():
             daily_quantity=1,
             acceleration_factor=2,
             accumulated_quantity=3,
-            history_time=START,
         )
     }
     for suffix, mode in [("daily", "every_trading_day"), ("terminal", "at_expiry")]:
         state = {"knock_in_observation_mode": mode, "barrier_state": "no_event"}
         result[f"snowball_{suffix}"] = ins.SnowballOption(
             calendar=weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time()
-                if mode == "every_trading_day"
-                else None,
-                **common,
-                **loss,
-                **state,
-                maturity_coupon_rate=0.06,
-            ),
+            observation_clock_time=clock_time()
+            if mode == "every_trading_day"
+            else None,
+            **common,
+            **loss,
+            **state,
+            maturity_coupon_rate=0.06,
         )
         result[f"ternary_{suffix}"] = ins.TernarySnowballOption(
             calendar=weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time()
-                if mode == "every_trading_day"
-                else None,
-                **common,
-                **state,
-                maturity_coupon_rate=0.06,
-                minimum_coupon_rate=0.01,
-                knock_in_level=95,
-            ),
+            observation_clock_time=clock_time()
+            if mode == "every_trading_day"
+            else None,
+            **common,
+            **state,
+            maturity_coupon_rate=0.06,
+            minimum_coupon_rate=0.01,
+            knock_in_level=95,
         )
         result[f"phoenix_{suffix}"] = ins.PhoenixOption(
             calendar=weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time()
-                if mode == "every_trading_day"
-                else None,
-                **dates,
-                **loss,
-                **state,
-                coupon_per_period=0.08,
-                observations=ins.autocallable_observations(
-                    OBSERVATIONS, KNOCK_OUT_LEVELS, coupon_barrier_levels=[95] * 3
-                ),
+            observation_clock_time=clock_time()
+            if mode == "every_trading_day"
+            else None,
+            **dates,
+            **loss,
+            **state,
+            coupon_per_period=0.08,
+            observations=ins.autocallable_observations(
+                OBSERVATIONS, KNOCK_OUT_LEVELS, coupon_barrier_levels=[95] * 3
             ),
         )
     result["binary_snowball"] = ins.BinarySnowballOption(
         calendar=weekdays_calendar(),
-        **history_fields(**common, maturity_coupon_rate=0.06),
+        **common,
+        maturity_coupon_rate=0.06,
     )
     return result
 
@@ -183,7 +175,7 @@ def test_skew_multievent_prices_match_independent_controlled_paths(subtests):
                 + 2 * (abs(bias["fine_minus_coarse"]) + 5 * bias["standard_error"])
                 + (0.5 if name == "accumulator" else 0.0001)
             )
-            actual = engine(name).price(dated_history(contract, market()), market())
+            actual = engine(name).price(contract, market())
             assert actual == pytest.approx(ref["price"], rel=0, abs=budget)
 
 
@@ -191,22 +183,17 @@ def test_skew_refines_time_space_domain_and_preserves_surface_greeks(subtests):
     for name, contract in contracts().items():
         with subtests.test(product=name):
             e = engine(name)
-            result = e.price_with_greeks(
-                dated_history(contract, market()), market(), ["delta", "gamma"]
-            )
+            result = e.price_with_greeks(contract, market(), ["delta", "gamma"])
             budget = 0.5 if name == "accumulator" else 0.00015
             for other in [
                 engine(name, time=800),
                 engine(name, space=800),
                 engine(name, space=2400, upper=660),
             ]:
-                assert other.price(
-                    dated_history(contract, market()), market()
-                ) == pytest.approx(result.price, rel=0, abs=budget)
-            up, down = [
-                e.price(dated_history(contract, market(spot)), market(spot))
-                for spot in [101.1, 100.9]
-            ]
+                assert other.price(contract, market()) == pytest.approx(
+                    result.price, rel=0, abs=budget
+                )
+            up, down = [e.price(contract, market(spot)) for spot in [101.1, 100.9]]
             assert result.delta == pytest.approx(
                 (up - down) / 0.2,
                 rel=0,
@@ -230,7 +217,7 @@ def test_structured_greeks_match_independent_common_random_paths(subtests):
     coarse = evidence["sensitivities"]["coarse"]["results"]
     for name, contract in contracts().items():
         actual = engine(name).price_with_greeks(
-            dated_history(contract, market(103)), market(103), ["delta", "gamma"]
+            contract, market(103), ["delta", "gamma"]
         )
         for greek in ["delta", "gamma"]:
             with subtests.test(product=name, greek=greek):

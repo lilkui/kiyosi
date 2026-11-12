@@ -7,8 +7,6 @@ from pathlib import Path
 import pytest
 from kiyosi import instruments as ins
 from kiyosi import pricing
-from support.history import dated as dated_history
-from support.history import history_fields
 from test_local_volatility_structured import END, OBSERVATIONS, START, market
 
 
@@ -26,20 +24,15 @@ def contracts(scheduled):
     for direction in ["call", "put"]:
         for kind in ["in", "out"]:
             result[f"{direction}_{kind}"] = ins.DoubleBarrierOption(
-                **history_fields(
-                    **terms,
-                    option_type=direction,
-                    strike=100,
-                    barrier_type=f"knock_{kind}",
-                )
+                **terms, option_type=direction, strike=100, barrier_type=f"knock_{kind}"
             )
     result["touch_expiry"] = ins.cash_double_touch(
-        **history_fields(**terms, payout=10, settlement_timing="at_expiry")
+        **terms, payout=10, settlement_timing="at_expiry"
     )
     result["touch_hit"] = ins.cash_double_touch(
-        **history_fields(**terms, payout=10, settlement_timing="at_hit")
+        **terms, payout=10, settlement_timing="at_hit"
     )
-    result["no_touch"] = ins.cash_double_no_touch(**history_fields(**terms, payout=10))
+    result["no_touch"] = ins.cash_double_no_touch(**terms, payout=10)
     return result
 
 
@@ -87,9 +80,9 @@ def test_skew_prices_match_paths_with_separate_monitoring_error(subtests, schedu
                 second = abs(fine["monitoring_2_4"][name]["price"])
                 assert first < second
             budget = 5 * ref["standard_error"] + bias + 0.003
-            assert engine(name).price(
-                dated_history(contract, market()), market()
-            ) == pytest.approx(expected, rel=0, abs=budget)
+            assert engine(name).price(contract, market()) == pytest.approx(
+                expected, rel=0, abs=budget
+            )
 
 
 @pytest.mark.parametrize("scheduled", [False, True])
@@ -97,21 +90,16 @@ def test_double_boundaries_refine_and_supply_fixed_surface_greeks(subtests, sche
     for name, contract in contracts(scheduled).items():
         with subtests.test(name=name, scheduled=scheduled):
             e = engine(name)
-            result = e.price_with_greeks(
-                dated_history(contract, market()), market(), ["delta", "gamma"]
-            )
+            result = e.price_with_greeks(contract, market(), ["delta", "gamma"])
             for other in [
                 engine(name, time=800),
                 engine(name, space=800),
                 engine(name, space=2400, upper=660),
             ]:
-                assert other.price(
-                    dated_history(contract, market()), market()
-                ) == pytest.approx(result.price, rel=0, abs=0.005)
-            up, down = [
-                e.price(dated_history(contract, market(spot)), market(spot))
-                for spot in [101.1, 100.9]
-            ]
+                assert other.price(contract, market()) == pytest.approx(
+                    result.price, rel=0, abs=0.005
+                )
+            up, down = [e.price(contract, market(spot)) for spot in [101.1, 100.9]]
             assert result.delta == pytest.approx((up - down) / 0.2, rel=0, abs=0.0002)
             assert result.gamma == pytest.approx(
                 (up + down - 2 * result.price) / 0.01, rel=0, abs=0.0002

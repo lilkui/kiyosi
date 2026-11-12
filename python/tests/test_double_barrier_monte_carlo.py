@@ -19,8 +19,6 @@ from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from test_double_barrier import END, START, contract, market, reference
 from test_double_barrier_finite_difference import (
     FIRST,
@@ -48,9 +46,9 @@ def test_tiny_volatility_payoffs_match_the_vanilla_limit(subtests):
         context = market(spot, rate=0, dividend=0, volatility=sigma)
         expected = spot * sigma / math.sqrt(math.tau)
         with subtests.test(spot=spot, direction=direction, mode=mode):
-            assert engine.price(
-                dated_history(option, context), context
-            ) == pytest.approx(expected, rel=0, abs=1e-3 * expected)
+            assert engine.price(option, context) == pytest.approx(
+                expected, rel=0, abs=1e-3 * expected
+            )
 
 
 def test_at_hit_rebate_greeks_require_a_usable_spot_stencil():
@@ -63,24 +61,22 @@ def test_at_hit_rebate_greeks_require_a_usable_spot_stencil():
     )
     context = market(1e16)
     engine = pricing.MonteCarloDoubleBarrierEngine(path_count=32, seed=42)
-    result = engine.price_with_greeks(
-        dated_history(option, context), context, ("delta", "gamma")
-    )
-    assert result.price == engine.price(dated_history(option, context), context)
+    result = engine.price_with_greeks(option, context, ("delta", "gamma"))
+    assert result.price == engine.price(option, context)
     for name in ("delta", "gamma"):
         assert getattr(result, name) is None
         with pytest.raises(UnsupportedOperationError):
             result.require(name)
     actual = numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         ("delta", "gamma"),
         spot_shift=1e12,
     )
     expected = numerical_greeks(
         pricing.AnalyticDoubleBarrierEngine(),
-        dated_history(option, context),
+        option,
         context,
         ("delta", "gamma"),
         spot_shift=1e12,
@@ -96,18 +92,14 @@ def test_continuous_prices_and_shared_sample_greeks_match_quantlib(direction, ki
         path_count=32768, seed=42, sampling="sobol"
     )
     option = contract(option_type=direction, barrier_type=kind)
-    actual = engine.price_with_greeks(
-        dated_history(option, market()), market(), greeks="all"
-    )
-    assert actual.price == pytest.approx(
-        reference(dated_history(direction, kind), kind), rel=0, abs=0.01
-    )
+    actual = engine.price_with_greeks(option, market(), greeks="all")
+    assert actual.price == pytest.approx(reference(direction, kind), rel=0, abs=0.01)
     expected = pricing.AnalyticDoubleBarrierEngine().price_with_greeks(
-        dated_history(option, market()), market(), ("delta", "gamma")
+        option, market(), ("delta", "gamma")
     )
     assert actual.delta == pytest.approx(expected.delta, rel=0, abs=0.003)
     assert actual.gamma == pytest.approx(expected.gamma, rel=0, abs=0.003)
-    assert actual.price == engine.price(dated_history(option, market()), market())
+    assert actual.price == engine.price(option, market())
     assert actual.vega is None
 
 
@@ -132,13 +124,11 @@ def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
         )
         assert expected == pytest.approx(refined, rel=0, abs=1e-8)
         context = market(100.25)
-        result = engine.price_with_greeks(
-            dated_history(option, context), context, greeks="all"
-        )
+        result = engine.price_with_greeks(option, context, greeks="all")
         assert result.price == pytest.approx(expected, rel=0, abs=0.025)
         fd = pricing.FiniteDifferenceDoubleBarrierEngine(
             asset_step_count=1200, time_step_count=1200
-        ).price_with_greeks(dated_history(option, context), context, ("delta", "gamma"))
+        ).price_with_greeks(option, context, ("delta", "gamma"))
         assert result.delta == pytest.approx(fd.delta, rel=0, abs=0.025)
         assert result.gamma == pytest.approx(fd.gamma, rel=0, abs=0.01)
     for direction in ("call", "put"):
@@ -147,7 +137,7 @@ def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
             rebate=2,
             observation_times=[END],
         )
-        assert engine.price(dated_history(option, market()), market()) == pytest.approx(
+        assert engine.price(option, market()) == pytest.approx(
             terminal_reference(100, direction, 80, 120, 1), rel=0, abs=0.002
         )
         for final in (False, True):
@@ -166,11 +156,11 @@ def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
                     100.25, direction, "at_expiry", final_fixing=final
                 )
             )
-            assert engine.price(
-                dated_history(inside, market(100.25)), market(100.25)
-            ) == pytest.approx(expected, rel=0, abs=0.025)
+            assert engine.price(inside, market(100.25)) == pytest.approx(
+                expected, rel=0, abs=0.025
+            )
     option = contract(strike=130, observation_times=[FIRST])
-    assert engine.price(dated_history(option, market()), market()) > 0.01
+    assert engine.price(option, market()) > 0.01
 
 
 def test_series_switch_extreme_bands_and_tiny_volatility():
@@ -198,7 +188,7 @@ def test_series_switch_extreme_bands_and_tiny_volatility():
         ),
     ):
         result = engine.price_with_greeks(
-            dated_history(contract(), market(volatility=volatility)),
+            contract(),
             market(volatility=volatility),
             greeks="all",
         )
@@ -209,14 +199,12 @@ def test_series_switch_extreme_bands_and_tiny_volatility():
         ):
             assert actual == pytest.approx(expected, rel=0, abs=0.003)
     assert engine.price(
-        dated_history(contract(lower_barrier=99.99, upper_barrier=100.01), market()),
+        contract(lower_barrier=99.99, upper_barrier=100.01),
         market(),
     ) == pytest.approx(0, rel=0, abs=1e-12)
     wide = contract(lower_barrier=0.01, upper_barrier=10000)
-    assert engine.price(dated_history(wide, market()), market()) == pytest.approx(
-        pricing.AnalyticDoubleBarrierEngine().price(
-            dated_history(wide, market()), market()
-        ),
+    assert engine.price(wide, market()) == pytest.approx(
+        pricing.AnalyticDoubleBarrierEngine().price(wide, market()),
         rel=0,
         abs=0.025,
     )
@@ -229,9 +217,7 @@ def test_series_switch_extreme_bands_and_tiny_volatility():
         )
         time = math.log(1.02 if up else 100 / 98) / 0.03 if timing == "at_hit" else 1
         assert engine.price(
-            dated_history(
-                option, market(dividend=0.01 if up else 0.07, volatility=1e-12)
-            ),
+            option,
             market(dividend=0.01 if up else 0.07, volatility=1e-12),
         ) == pytest.approx(3 * math.exp(-0.04 * time), rel=0, abs=1e-7)
 
@@ -276,14 +262,12 @@ def test_rebates_match_independent_exit_series_with_negative_rates():
                 "rebate_timing": timing,
             }
             option = contract(**terms, rebate=3)
-            actual = engine.price_with_greeks(
-                dated_history(option, context), context, greeks="all"
-            )
+            actual = engine.price_with_greeks(option, context, greeks="all")
             assert actual.price - engine.price(
-                dated_history(contract(**terms), context), context
+                contract(**terms), context
             ) == pytest.approx(refs[index], rel=0, abs=0.004)
             expected = pricing.AnalyticDoubleBarrierEngine().price_with_greeks(
-                dated_history(option, context), context, ("delta", "gamma")
+                option, context, ("delta", "gamma")
             )
             assert actual.delta == pytest.approx(expected.delta, rel=0, abs=0.006)
             assert actual.gamma == pytest.approx(expected.gamma, rel=0, abs=0.003)
@@ -310,13 +294,11 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
         parallel = pricing.MonteCarloDoubleBarrierEngine(
             max_active_workers=4, **settings
         )
-        expected = serial.price_with_greeks(
-            dated_history(option, context), context, greeks="all"
-        )
+        expected = serial.price_with_greeks(option, context, greeks="all")
 
         def evaluate(index, parallel=parallel, serial=serial, option=option):
             result = (parallel if index % 2 else serial).price_with_greeks(
-                dated_history(option, context), context, greeks="all"
+                option, context, greeks="all"
             )
             return result.price, result.delta, result.gamma
 
@@ -330,12 +312,10 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
         settings = {"path_count": paths, "seed": 42, "antithetic": True}
         engine = pricing.MonteCarloDoubleBarrierEngine(**settings)
         assert sum(
-            engine.price(dated_history(contract(barrier_type=kind), context), context)
+            engine.price(contract(barrier_type=kind), context)
             for kind in ("knock_in", "knock_out")
         ) == pytest.approx(
-            pricing.MonteCarloVanillaEngine(**settings).price(
-                dated_history(vanilla, context), context
-            ),
+            pricing.MonteCarloVanillaEngine(**settings).price(vanilla, context),
             rel=0,
             abs=1e-12,
         )
@@ -352,42 +332,28 @@ def test_current_equality_prior_history_expiry_and_finished_monitoring():
         option = contract(barrier_type=kind, rebate=7, rebate_timing=timing)
         for spot in (79, 80, 120, 121):
             context = market(spot)
-            assert engine.price(
-                dated_history(option, context), context
-            ) == analytic.price(dated_history(option, context), context)
+            assert engine.price(option, context) == analytic.price(option, context)
             if spot in (80, 120):
-                result = engine.price_with_greeks(
-                    dated_history(option, context), context, greeks="all"
-                )
+                result = engine.price_with_greeks(option, context, greeks="all")
                 assert result.delta is None
                 assert result.gamma is None
             later = context.replace(
                 valuation_time=datetime(2025, 1, 1) + timedelta(microseconds=1)
             )
             assert_rejection(MissingHistoryError, engine.price, option, later)
-            touched = option.replace_history(
+            touched = option.replace(
                 touch_state="touched",
-                history_time=option.expiry_time,
             )
             assert_rejection(InvalidInputError, engine.price, touched, context)
-            assert engine.price(dated_history(touched, later), later) == analytic.price(
-                dated_history(touched, later), later
-            )
+            assert engine.price(touched, later) == analytic.price(touched, later)
             for history in ("touched", "untouched"):
-                known = option.replace_history(
+                known = option.replace(
                     touch_state=history,
-                    history_time=option.expiry_time if history is not None else None,
                 )
                 expired = market(spot, time=END)
-                result = engine.price_with_greeks(
-                    dated_history(known, expired), expired, greeks="all"
-                )
-                assert result.price == analytic.price(
-                    dated_history(known, expired), expired
-                )
-                reference = analytic.price_with_greeks(
-                    dated_history(known, expired), expired, "all"
-                )
+                result = engine.price_with_greeks(known, expired, greeks="all")
+                assert result.price == analytic.price(known, expired)
+                reference = analytic.price_with_greeks(known, expired, "all")
                 assert result.delta == reference.delta
                 assert result.gamma == reference.gamma
         scheduled = contract(
@@ -397,25 +363,18 @@ def test_current_equality_prior_history_expiry_and_finished_monitoring():
             observation_times=[FIRST],
         )
         on_date = market(120, time=FIRST)
-        assert engine.price(
-            dated_history(scheduled, on_date), on_date
-        ) == analytic.price(dated_history(scheduled, on_date), on_date)
+        assert engine.price(scheduled, on_date) == analytic.price(scheduled, on_date)
         after = on_date.replace(
             valuation_time=datetime.combine(FIRST, datetime.min.time())
             + timedelta(microseconds=1)
         )
-        untouched = scheduled.replace_history(
+        untouched = scheduled.replace(
             touch_state="untouched",
-            history_time=scheduled.history_time or scheduled.expiry_time,
         )
-        assert engine.price(dated_history(untouched, after), after) == analytic.price(
-            dated_history(untouched, after), after
-        )
+        assert engine.price(untouched, after) == analytic.price(untouched, after)
         assert option.touch_state is None
     for spot in (80.005, 119.995):
-        result = engine.price_with_greeks(
-            dated_history(contract(), market(spot)), market(spot), greeks="all"
-        )
+        result = engine.price_with_greeks(contract(), market(spot), greeks="all")
         assert result.delta is None
         assert result.gamma is None
 
@@ -444,16 +403,16 @@ def test_defaults_exports_and_strict_representations():
             None if name != "seed" else object(),
         ):
             with pytest.raises(TypeError):
-                factory(**history_fields(**{name: value}))
+                factory(**{name: value})
         with pytest.raises(OverflowError):
-            factory(**history_fields(**{name: 1 << 100}))
+            factory(**{name: 1 << 100})
     for fields in (
         {"antithetic": 1},
         {"unknown": 1},
         {"sampling": True},
     ):
         with pytest.raises(TypeError):
-            factory(**history_fields(**fields))
+            factory(**fields)
     with pytest.raises(ValueError):
         factory(sampling="unknown")
     for fields in (
@@ -478,7 +437,7 @@ def test_defaults_exports_and_strict_representations():
         with pytest.raises(TypeError):
             numerical_greeks(
                 engine,
-                dated_history(contract(), market()),
+                contract(),
                 market(),
                 "delta",
                 **fields,
@@ -516,7 +475,7 @@ def test_defaults_exports_and_strict_representations():
 def test_errors_validation_order_and_failure_state():
     engine = pricing.MonteCarloDoubleBarrierEngine(path_count=32, seed=42)
     option, context = contract(), market()
-    quote = engine.price(dated_history(option, context), context)
+    quote = engine.price(option, context)
     curve = RateTermStructure(
         reference_time=START,
         times=[END, END + (END - START)],
@@ -536,7 +495,7 @@ def test_errors_validation_order_and_failure_state():
             UnsupportedOperationError,
             pricing.implied_volatility,
             engine,
-            dated_history(option, curved),
+            option,
             curved,
             math.nan,
             lower_bound=0.0,
@@ -565,10 +524,8 @@ def test_errors_validation_order_and_failure_state():
             market(rate=rate, dividend=rate, volatility=volatility),
         )
     tiny = market(volatility=1e-200)
-    price = engine.price(dated_history(option, tiny), tiny)
-    assert (
-        engine.price_with_greeks(dated_history(option, tiny), tiny, []).price == price
-    )
+    price = engine.price(option, tiny)
+    assert engine.price_with_greeks(option, tiny, []).price == price
     assert_rejection(
         ComputationFailureError,
         engine.price_with_greeks,
@@ -580,7 +537,7 @@ def test_errors_validation_order_and_failure_state():
         contract(
             observation_times=[START + timedelta(days=3)],
         )
-    assert engine.price(dated_history(option, context), context) == quote
+    assert engine.price(option, context) == quote
     assert context.model_parameters.volatility == 0.2
     assert option.touch_state is None
 
@@ -591,12 +548,12 @@ def test_solver_replays_draws_rejects_fixed_cashflows_and_preserves_inputs():
     )
     option = contract(lower_barrier=50, upper_barrier=200)
     context = market()
-    quote = engine.price(dated_history(option, context), context)
+    quote = engine.price(option, context)
 
     def solve(index):
         return pricing.implied_volatility(
             engine,
-            dated_history(option, context),
+            option,
             context,
             quote,
             lower_bound=0.15,
@@ -615,7 +572,7 @@ def test_solver_replays_draws_rejects_fixed_cashflows_and_preserves_inputs():
             expected_error,
             pricing.implied_volatility,
             engine,
-            dated_history(option, context),
+            option,
             context,
             observed,
             **{"lower_bound": 0.0, "upper_bound": 4.0, **controls},
@@ -638,15 +595,15 @@ def test_solver_replays_draws_rejects_fixed_cashflows_and_preserves_inputs():
             UnsupportedOperationError,
             pricing.implied_volatility,
             engine,
-            dated_history(option, context),
+            option,
             context,
-            engine.price(dated_history(option, context), context),
+            engine.price(option, context),
             lower_bound=0.0,
             upper_bound=4.0,
         )
     assert (
         engine.price(
-            dated_history(contract(lower_barrier=50, upper_barrier=200), market()),
+            contract(lower_barrier=50, upper_barrier=200),
             market(),
         )
         == quote

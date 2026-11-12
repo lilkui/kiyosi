@@ -7,8 +7,6 @@ from datetime import datetime
 import pytest
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 @pytest.mark.parametrize("direction,level", (("up", 120), ("down", 80)))
@@ -61,7 +59,7 @@ def test_payoff_kind_is_explicit_and_null_amount_cannot_change_cash_settlement(
         "barrier_level": 120,
         "barrier_type": "up_and_in",
     }
-    cash = cls(**history_fields(**common, **extra, payoff_type="cash", payout=10))
+    cash = cls(**common, **extra, payoff_type="cash", payout=10)
     for fields, error in (
         ({"payoff_type": "cash"}, TypeError),
         ({"payoff_type": "cash", "payout": None}, TypeError),
@@ -70,7 +68,7 @@ def test_payoff_kind_is_explicit_and_null_amount_cannot_change_cash_settlement(
         ({"payoff_type": True}, TypeError),
     ):
         with pytest.raises(error):
-            cls(**history_fields(**common, **extra, **fields))
+            cls(**common, **extra, **fields)
     with pytest.raises(TypeError):
         cash.replace(payout=None)
     assert ((cash.payoff_type, cash.payout)) == (("cash", 10))
@@ -140,7 +138,7 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
     ]
     for cls, factory, terms, expected in cases:
         with subtests.test(contract=cls.__name__, factory=factory.__name__):
-            fields = history_fields(**life, **terms, **monitoring)
+            fields = {**life, **terms, **monitoring}
             if cls is not ins.DoubleTouchOption:
                 fields["payoff_type"] = (
                     "cash" if terms["payout"] is not None else "asset"
@@ -154,7 +152,7 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
                 factory_fields.pop("barrier_type")
             elif fields["payout"] is None:
                 factory_fields.pop("payout")
-            assert contract == factory(**history_fields(**factory_fields))
+            assert contract == factory(**factory_fields)
             assert contract.payout == terms["payout"]
             assert contract.calendar == calendar
             assert contract.observation_times == ((end,))
@@ -164,23 +162,16 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
                 if cls is ins.DoubleTouchOption
                 else pricing.AnalyticBinaryBarrierEngine()
             )
-            assert engine.price(dated_history(contract, context), context) == expected
+            assert engine.price(contract, context) == expected
             restored = pickle.loads(pickle.dumps(contract))
             assert restored == contract
-            assert engine.price(dated_history(restored, context), context) == expected
+            assert engine.price(restored, context) == expected
             if terms["payout"] is None:
                 cash = contract.replace(payoff_type="cash", payout=5)
                 assert cash.payout == 5
-                assert engine.price(dated_history(cash, context), context) == (
-                    5 if expected else 0
-                )
+                assert engine.price(cash, context) == (5 if expected else 0)
             else:
-                assert (
-                    engine.price(
-                        dated_history(contract.replace(payout=5), context), context
-                    )
-                    == expected / 2
-                )
+                assert engine.price(contract.replace(payout=5), context) == expected / 2
             with pytest.raises(InvalidInputError):
                 contract.replace(calendar=market.weekdays_calendar())
             assert contract.calendar == calendar
@@ -227,21 +218,19 @@ def test_constructors_validate_representations_and_domain_inputs(subtests):
                 subtests.test(contract=cls.__name__, changes=changes),
                 pytest.raises(error),
             ):
-                cls(**history_fields(**(fields | changes)))
+                cls(**(fields | changes))
         without_payout = fields.copy()
         without_payout.pop("payout")
         with pytest.raises(TypeError):
-            cls(**history_fields(**without_payout))
+            cls(**without_payout)
         with pytest.raises(TypeError):
             cls(10)
     with pytest.raises(TypeError):
         ins.DoubleTouchOption(
-            **history_fields(
-                **(life | {"payout": None}),
-                lower_barrier=80,
-                upper_barrier=120,
-                barrier_type="knock_in",
-            )
+            **(life | {"payout": None}),
+            lower_barrier=80,
+            upper_barrier=120,
+            barrier_type="knock_in",
         )
 
 
@@ -252,48 +241,40 @@ def test_at_hit_settlement_requires_one_touch(subtests):
     }
     for payout in (10, None):
         contract = ins.TouchOption(
-            **history_fields(
-                payoff_type="cash" if payout is not None else "asset",
-                **life,
-                barrier_level=120,
-                barrier_type="up_and_in",
-                payout=payout,
-                settlement_timing="at_hit",
-            )
+            payoff_type="cash" if payout is not None else "asset",
+            **life,
+            barrier_level=120,
+            barrier_type="up_and_in",
+            payout=payout,
+            settlement_timing="at_hit",
         )
         assert contract.settlement_timing == "at_hit"
         assert contract.is_one_touch
         with subtests.test(payout=payout), pytest.raises(InvalidInputError):
             ins.TouchOption(
-                **history_fields(
-                    payoff_type="cash" if payout is not None else "asset",
-                    **life,
-                    barrier_level=120,
-                    barrier_type="up_and_out",
-                    payout=payout,
-                    settlement_timing="at_hit",
-                )
+                payoff_type="cash" if payout is not None else "asset",
+                **life,
+                barrier_level=120,
+                barrier_type="up_and_out",
+                payout=payout,
+                settlement_timing="at_hit",
             )
     contract = ins.DoubleTouchOption(
-        **history_fields(
-            **life,
-            lower_barrier=80,
-            upper_barrier=120,
-            barrier_type="knock_in",
-            payout=10,
-            settlement_timing="at_hit",
-        )
+        **life,
+        lower_barrier=80,
+        upper_barrier=120,
+        barrier_type="knock_in",
+        payout=10,
+        settlement_timing="at_hit",
     )
     assert contract.settlement_timing == "at_hit"
     assert contract.is_one_touch
     with pytest.raises(InvalidInputError):
         ins.DoubleTouchOption(
-            **history_fields(
-                **life,
-                lower_barrier=80,
-                upper_barrier=120,
-                barrier_type="knock_out",
-                payout=10,
-                settlement_timing="at_hit",
-            )
+            **life,
+            lower_barrier=80,
+            upper_barrier=120,
+            barrier_type="knock_out",
+            payout=10,
+            settlement_timing="at_hit",
         )

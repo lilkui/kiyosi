@@ -36,7 +36,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -67,7 +66,7 @@ def contract(kind, direction="call", strike=100):
     }
     if kind is CashOrNothingOption:
         terms["payout"] = 10
-    return kind(**history_fields(**terms))
+    return kind(**terms)
 
 
 def market(spot=100, rate=0.05, dividend=0.02, sigma=0.2, valuation=START):

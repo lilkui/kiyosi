@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 #[test]
@@ -129,7 +126,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
         );
         terms.calendar = calendar.clone();
         terms.realized_hit_count = Some(1);
-        terms.history_time = Some(terms.expiry_time);
+
         let range = RangeAccrualOption::new(terms)?;
         assert_eq!(range.observation_schedule().times(), &[observation]);
 
@@ -144,9 +141,9 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
         );
         terms.calendar = calendar.clone();
         terms.accumulated_quantity = Some(3.0);
-        terms.history_time = Some(terms.expiry_time);
+
         terms.knock_out_settled = Some(false);
-        terms.history_time = Some(terms.expiry_time);
+
         let accumulator = Accumulator::new(terms)?;
         assert_eq!(accumulator.accumulation_schedule()?.times(), &[observation]);
         assert_eq!(
@@ -168,7 +165,6 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
             calendar.clone(),
         );
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-        terms.history_time = Some(terms.effective_time);
         let note = SnowballOption::new(terms.clone())?;
         assert_eq!(
             note.knock_in_observation_schedule()?.unwrap().times(),
@@ -183,7 +179,6 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
 
         let mut terms = BinarySnowballTerms::new(0.12, start, expiry, records, calendar.clone());
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-        terms.history_time = Some(terms.effective_time);
         let binary = BinarySnowballOption::new(terms)?;
         let coupon = 0.12 * start.years_until(expiry);
         for volatility in [0.0, 0.2] {
@@ -195,7 +190,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
                 )?;
                 let discount = (-0.05 * at.years_until(expiry)).exp();
                 assert!(
-                    (AnalyticRangeAccrualEngine.price(&dated(&range, &context), &context)?
+                    (AnalyticRangeAccrualEngine.price(&range, &context)?
                         - 1000.0 * coupon * discount)
                         .abs()
                         < 1e-12
@@ -208,8 +203,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
                             &MonteCarloAutocallableEngine::default(),
                         ] {
                             assert!(
-                                (engine.price(&dated($option, &context), &context)?
-                                    - (1.0 + coupon) * discount)
+                                (engine.price($option, &context)? - (1.0 + coupon) * discount)
                                     .abs()
                                     < 1e-12
                             );
@@ -220,10 +214,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
                 check_note!(&binary);
                 if at == expiry {
                     for engine in accumulator_engines() {
-                        assert_eq!(
-                            engine.price(&dated(&accumulator, &context), &context)?,
-                            -60.0
-                        );
+                        assert_eq!(engine.price(&accumulator, &context)?, -60.0);
                     }
                 }
             }
@@ -241,12 +232,8 @@ fn intraday_expiry_and_accrual_preserve_microseconds() {
     let call = EuropeanOption::new(OptionType::Call, 100.0, start, expiry).unwrap();
     let put = EuropeanOption::new(OptionType::Put, 100.0, start, expiry).unwrap();
     let years = (18_000.0 + 0.530_865) / (365.0 * 86_400.0);
-    let parity = AnalyticEuropeanEngine
-        .price(&dated(&call, &context), &context)
-        .unwrap()
-        - AnalyticEuropeanEngine
-            .price(&dated(&put, &context), &context)
-            .unwrap();
+    let parity = AnalyticEuropeanEngine.price(&call, &context).unwrap()
+        - AnalyticEuropeanEngine.price(&put, &context).unwrap();
     assert!(
         (parity - 100.0 * ((-0.02_f64 * years).exp() - (-0.05_f64 * years).exp())).abs() < 1e-12
     );
@@ -263,16 +250,13 @@ fn intraday_expiry_and_accrual_preserve_microseconds() {
     assert_eq!(call.expiry_time(), expiry);
     assert_eq!(
         AnalyticEuropeanEngine
-            .price(
-                &dated(&call, &market(expiry, 110.0)),
-                &market(expiry, 110.0)
-            )
+            .price(&call, &market(expiry, 110.0))
             .unwrap(),
         10.0
     );
     for at in [time(6, 15, 654_322), time(6, 15, 654_323)] {
         assert!(matches!(
-            AnalyticEuropeanEngine.price(&dated(&call, &market(at, 110.0)), &market(at, 110.0)),
+            AnalyticEuropeanEngine.price(&call, &market(at, 110.0)),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -336,36 +320,27 @@ fn scheduled_barriers_use_exact_current_observations_and_strict_history() {
     let option = BarrierOption::new(terms).unwrap();
     assert_eq!(
         AnalyticBarrierEngine
-            .price(
-                &dated(&option, &market(time(6, 10, 0), 110.0)),
-                &market(time(6, 10, 0), 110.0)
-            )
+            .price(&option, &market(time(6, 10, 0), 110.0))
             .unwrap(),
         7.0
     );
     assert!(matches!(
-        AnalyticBarrierEngine.price(
-            &dated(&option, &market(time(6, 10, 1), 100.0)),
-            &market(time(6, 10, 1), 100.0)
-        ),
+        AnalyticBarrierEngine.price(&option, &market(time(6, 10, 1), 100.0)),
         Err(Error::MissingHistory(_))
     ));
     let touched = option
-        .replace_history(Some(BarrierTouchState::Touched), Some(option.expiry_time()))
+        .replace(BarrierOptionChanges {
+            touch_state: Some(Some(BarrierTouchState::Touched)),
+            ..Default::default()
+        })
         .unwrap();
     assert!(matches!(
-        AnalyticBarrierEngine.price(
-            &dated(&touched, &market(time(6, 9, 0), 110.0)),
-            &market(time(6, 9, 0), 110.0)
-        ),
+        AnalyticBarrierEngine.price(&touched, &market(time(6, 9, 0), 110.0)),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
         AnalyticBarrierEngine
-            .price(
-                &dated(&touched, &market(time(6, 10, 1), 100.0)),
-                &market(time(6, 10, 1), 100.0)
-            )
+            .price(&touched, &market(time(6, 10, 1), 100.0))
             .unwrap(),
         0.0
     );
@@ -386,10 +361,7 @@ fn range_accrual_observes_same_day_and_excludes_only_the_effective_instant() {
     let expected = 1000.0 * 0.12 * 6.0 / (24.0 * 365.0);
     assert!(
         (AnalyticRangeAccrualEngine
-            .price(
-                &dated(&option, &market(time(6, 15, 0), 100.0)),
-                &market(time(6, 15, 0), 100.0)
-            )
+            .price(&option, &market(time(6, 15, 0), 100.0))
             .unwrap()
             - expected)
             .abs()
@@ -404,17 +376,22 @@ fn range_accrual_observes_same_day_and_excludes_only_the_effective_instant() {
         .unwrap();
     assert!(
         (AnalyticRangeAccrualEngine
-            .price(
-                &dated(&option, &market(time(6, 15, 1), 100.0)),
-                &market(time(6, 15, 1), 100.0)
-            )
+            .price(&option, &market(time(6, 15, 1), 100.0))
             .unwrap()
             - 120.0 / 365.0)
             .abs()
             < 1e-14
     );
     assert!(matches!(
-        option.replace_history(Some(1), Some(option.expiry_time())),
+        AnalyticRangeAccrualEngine.price(
+            &option
+                .replace(RangeAccrualOptionChanges {
+                    realized_hit_count: Some(Some(1)),
+                    ..Default::default()
+                })
+                .unwrap(),
+            &market(time(6, 15, 1), 100.0)
+        ),
         Err(Error::InvalidInput(_))
     ));
 }
@@ -434,20 +411,14 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
     for engine in accumulator_engines() {
         assert!(
             (engine
-                .price(
-                    &dated(&option, &market(time(6, 10, 0), 105.0)),
-                    &market(time(6, 10, 0), 105.0)
-                )
+                .price(&option, &market(time(6, 10, 0), 105.0))
                 .unwrap()
                 - 10.0)
                 .abs()
                 < 1e-4
         );
         assert!(matches!(
-            engine.price(
-                &dated(&option, &market(time(6, 15, 1), 105.0)),
-                &market(time(6, 15, 1), 105.0)
-            ),
+            engine.price(&option, &market(time(6, 15, 1), 105.0)),
             Err(Error::MissingHistory(_))
         ));
         let single = option
@@ -458,10 +429,7 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
             .unwrap();
         assert_eq!(
             engine
-                .price(
-                    &dated(&single, &market(time(7, 15, 0), 105.0)),
-                    &market(time(7, 15, 0), 105.0)
-                )
+                .price(&single, &market(time(7, 15, 0), 105.0))
                 .unwrap(),
             5.0
         );
@@ -481,20 +449,14 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
     .unwrap();
     assert!(
         (QuadratureAutocallableEngine::default()
-            .price(
-                &dated(&note, &market(time(6, 10, 0), 100.0)),
-                &market(time(6, 10, 0), 100.0)
-            )
+            .price(&note, &market(time(6, 10, 0), 100.0))
             .unwrap()
             - (1.0 + 0.06 * 30.0 / (365.0 * 24.0)))
             .abs()
             < 1e-12
     );
     assert!(matches!(
-        QuadratureAutocallableEngine::default().price(
-            &dated(&note, &market(time(6, 15, 1), 100.0)),
-            &market(time(6, 15, 1), 100.0)
-        ),
+        QuadratureAutocallableEngine::default().price(&note, &market(time(6, 15, 1), 100.0)),
         Err(Error::MissingHistory(_))
     ));
 }
@@ -566,49 +528,29 @@ fn daily_clock_controls_current_history_and_does_not_add_expiry_units() -> Resul
     ))?;
     assert_eq!(option.observation_clock_time(), clock);
     for engine in accumulator_engines() {
-        let before = engine.price(
-            &dated(&option, &market(time(6, 15, 123_455), 105.0)),
-            &market(time(6, 15, 123_455), 105.0),
-        )?;
+        let before = engine.price(&option, &market(time(6, 15, 123_455), 105.0))?;
         assert!((before - 5.0).abs() < 1e-4, "before={before}");
-        let current = engine.price(
-            &dated(&option, &market(time(6, 15, 123_456), 105.0)),
-            &market(time(6, 15, 123_456), 105.0),
-        )?;
+        let current = engine.price(&option, &market(time(6, 15, 123_456), 105.0))?;
         assert!((current - 5.0).abs() < 1e-4);
         assert_eq!(
-            engine.price(
-                &dated(&option, &market(time(6, 15, 123_456), 115.0)),
-                &market(time(6, 15, 123_456), 115.0)
-            )?,
+            engine.price(&option, &market(time(6, 15, 123_456), 115.0))?,
             0.0
         );
         assert!(matches!(
-            engine.price(
-                &dated(&option, &market(time(6, 15, 123_457), 105.0)),
-                &market(time(6, 15, 123_457), 105.0)
-            ),
+            engine.price(&option, &market(time(6, 15, 123_457), 105.0)),
             Err(Error::MissingHistory(_))
         ));
-        let seasoned = option.replace_history(
-            AccumulatorHistoryChanges {
-                accumulated_quantity: Some(Some(1.0)),
-                knock_out_settled: Some(Some(false)),
-            },
-            Some(option.expiry_time()),
-        )?;
+        let seasoned = option.replace(AccumulatorChanges {
+            accumulated_quantity: Some(Some(1.0)),
+            knock_out_settled: Some(Some(false)),
+            ..Default::default()
+        })?;
         assert_eq!(
-            engine.price(
-                &dated(&seasoned, &market(time(6, 18, 0), 105.0)),
-                &market(time(6, 18, 0), 105.0)
-            )?,
+            engine.price(&seasoned, &market(time(6, 18, 0), 105.0))?,
             5.0
         );
         assert_eq!(
-            engine.price(
-                &dated(&seasoned, &market(time(6, 18, 0), 115.0)),
-                &market(time(6, 18, 0), 115.0)
-            )?,
+            engine.price(&seasoned, &market(time(6, 18, 0), 115.0))?,
             15.0
         );
     }
@@ -624,13 +566,7 @@ fn empty_daily_windows_are_valid_except_for_range_accrual() -> Result<()> {
         100.0, 110.0, 1.0, 1.0, start, end, clock,
     ))?;
     for engine in accumulator_engines() {
-        assert_eq!(
-            engine.price(
-                &dated(&option, &market(start, 105.0)),
-                &market(start, 105.0)
-            )?,
-            0.0
-        );
+        assert_eq!(engine.price(&option, &market(start, 105.0))?, 0.0);
     }
     assert!(matches!(
         RangeAccrualOption::new(RangeAccrualTerms::new(
@@ -651,8 +587,7 @@ fn empty_daily_windows_are_valid_except_for_range_accrual() -> Result<()> {
         TradingCalendar::weekdays(),
     ))?;
     assert_eq!(
-        QuadratureAutocallableEngine::default()
-            .price(&dated(&note, &market(start, 70.0)), &market(start, 70.0))?,
+        QuadratureAutocallableEngine::default().price(&note, &market(start, 70.0))?,
         1.0
     );
     Ok(())
@@ -678,8 +613,11 @@ fn range_accrual_discounts_known_coupon_between_final_observation_and_payment() 
             time(6, hour, 0),
         )?;
         let expected = coupon * (-0.5 * f64::from(18 - hour) / (365.0 * 24.0)).exp();
-        let seasoned = option.replace_history(hits, Some(option.expiry_time()))?;
-        let actual = AnalyticRangeAccrualEngine.price(&dated(&seasoned, &context), &context)?;
+        let seasoned = option.replace(RangeAccrualOptionChanges {
+            realized_hit_count: Some(hits),
+            ..Default::default()
+        })?;
+        let actual = AnalyticRangeAccrualEngine.price(&seasoned, &context)?;
         assert!(
             (actual - expected).abs() < 1e-14,
             "hour={hour}: {actual} != {expected}"
@@ -687,7 +625,7 @@ fn range_accrual_discounts_known_coupon_between_final_observation_and_payment() 
         assert!(matches!(
             implied_volatility(
                 &AnalyticRangeAccrualEngine,
-                &dated(&seasoned, &context),
+                &seasoned,
                 &context,
                 actual,
                 kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0),
@@ -726,7 +664,6 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    terms.history_time = Some(terms.effective_time);
     let daily = SnowballOption::new(terms)?;
     let at_expiry = daily.replace(SnowballOptionChanges {
         barrier_state: Some(daily.barrier_state()),
@@ -750,19 +687,19 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
                 time(6, hour, 0),
             )?;
             for engine in [&mc as &dyn PricingEngine<SnowballOption>, &fd, &quad] {
-                let actual = engine.price(&dated(&daily, &context), &context)?;
+                let actual = engine.price(&daily, &context)?;
                 assert!((actual - expected).abs() < 1e-8, "{actual} != {expected}");
                 assert!(matches!(
                     implied_volatility(
                         engine,
-                        &dated(&daily, &context),
+                        &daily,
                         &context,
                         actual,
                         kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
                     ),
                     Err(Error::UnsupportedOperation(_))
                 ));
-                let observed = engine.price(&dated(&at_expiry, &context), &context)?;
+                let observed = engine.price(&at_expiry, &context)?;
                 assert!((observed - 0.7).abs() < 1e-5, "{observed} != 0.7");
             }
         }
@@ -774,32 +711,26 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
     )?;
     let expected_discounted = expected * (1000.0_f64 * 4.0 / (365.0 * 24.0)).exp();
     for engine in [&mc as &dyn PricingEngine<SnowballOption>, &fd, &quad] {
-        let actual = engine.price(
-            &dated(&daily, &before_final_observation),
-            &before_final_observation,
-        )?;
+        let actual = engine.price(&daily, &before_final_observation)?;
         assert!(
             (actual - expected_discounted).abs() < 1e-5,
             "daily: {actual} != {expected_discounted}"
         );
-        let observed = engine.price(
-            &dated(&at_expiry, &before_final_observation),
-            &before_final_observation,
-        )?;
+        let observed = engine.price(&at_expiry, &before_final_observation)?;
         assert!((observed - 1.0).abs() < 1e-5, "at_expiry: {observed} != 1");
     }
     let context = market(time(6, 18, 0), 80.0);
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
     for result in [
-        quad.price_with_greeks(&dated(&daily, &context), &context, request)?,
-        fd.price_with_greeks(&dated(&daily, &context), &context, request)?,
-        mc.price_with_greeks(&dated(&daily, &context), &context, request)?,
+        quad.price_with_greeks(&daily, &context, request)?,
+        fd.price_with_greeks(&daily, &context, request)?,
+        mc.price_with_greeks(&daily, &context, request)?,
     ] {
         assert_eq!(result.require(Greek::Delta)?, 0.0);
         assert_eq!(result.require(Greek::Gamma)?, 0.0);
     }
     assert_eq!(
-        quad.price_with_greeks(&dated(&at_expiry, &context), &context, request)?
+        quad.price_with_greeks(&at_expiry, &context, request)?
             .get(Greek::Delta),
         None
     );
@@ -890,10 +821,7 @@ fn explicit_accumulator_knock_outs_do_not_add_daily_quantity() {
         let option = Accumulator::new(terms).unwrap();
         for engine in accumulator_engines() {
             let actual = engine
-                .price(
-                    &dated(&option, &market(time(6, 9, 0), 105.0)),
-                    &market(time(6, 9, 0), 105.0),
-                )
+                .price(&option, &market(time(6, 9, 0), 105.0))
                 .unwrap();
             assert!(
                 (actual - expected).abs() < 1e-4,
@@ -936,7 +864,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
     let quad = QuadratureAutocallableEngine::default();
     let expected = 1.0 + 0.12 * 6.0 / (365.0 * 24.0);
     for engine in [&mc as &dyn PricingEngine<SnowballOption>, &fd, &quad] {
-        let actual = engine.price(&dated(&note, &context), &context).unwrap();
+        let actual = engine.price(&note, &context).unwrap();
         assert!((actual - expected).abs() < 1e-6, "{actual} != {expected}");
     }
     let mut terms = SnowballTerms::new(
@@ -961,14 +889,13 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
     let context = market(start, 120.0);
     let expected = 1.0 + 0.12 / (365.0 * 24.0);
     for engine in [&mc as &dyn PricingEngine<SnowballOption>, &fd, &quad] {
-        assert!((engine.price(&dated(&note, &context), &context).unwrap() - expected).abs() < 1e-6);
+        assert!((engine.price(&note, &context).unwrap() - expected).abs() < 1e-6);
     }
 }
 
 #[test]
 fn nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega() {
     let option = Accumulator::new(AccumulatorTerms {
-        history_time: Some(time(3, 15, 1)),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -989,11 +916,7 @@ fn nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega() {
     )
     .unwrap();
     let result = QuadratureAccumulatorEngine::default()
-        .price_with_greeks(
-            &dated(&option, &context),
-            &context,
-            GreeksRequest::new([Greek::Vega]),
-        )
+        .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Vega]))
         .unwrap();
     let root_time = (2.0_f64 / 365.0).sqrt();
     let z = 0.1 * root_time;
@@ -1029,12 +952,12 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
     .unwrap();
     let context = market(start, 100.0);
     assert!(matches!(
-        FiniteDifferenceAutocallableEngine::default().price(&dated(&note, &context), &context),
+        FiniteDifferenceAutocallableEngine::default().price(&note, &context),
         Err(Error::ComputationFailure(_))
     ));
     assert!(
         (QuadratureAutocallableEngine::default()
-            .price(&dated(&note, &context), &context)
+            .price(&note, &context)
             .unwrap()
             - 1.02)
             .abs()
@@ -1056,13 +979,13 @@ fn subday_time_bumps_converge_to_intraday_theta() -> Result<()> {
     )?;
     let request = GreeksRequest::new([Greek::Theta]);
     let exact = AnalyticEuropeanEngine
-        .price_with_greeks(&dated(&option, &context), &context, request)?
+        .price_with_greeks(&option, &context, request)?
         .require(Greek::Theta)?;
     let mut errors = Vec::new();
     for seconds in [60, 1] {
         let value = numerical_greeks(
             &AnalyticEuropeanEngine,
-            &dated(&option, &context),
+            &option,
             &context,
             request,
             NumericalShiftSettings {

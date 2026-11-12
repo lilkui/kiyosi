@@ -17,7 +17,6 @@ from kiyosi.market import (
     sse_calendar,
     weekdays_calendar,
 )
-from support.history import history_fields
 
 
 def test_schedules_retain_calendars_for_contract_composition(subtests):
@@ -489,22 +488,18 @@ def test_validation_errors_and_order():
         for value in (0, -1, minimum):
             with pytest.raises(InvalidInputError) as error:
                 factory(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: value},
-                    )
+                    observation_clock_time=clock_time(),
+                    start_time=start,
+                    end_time=end,
+                    **{field: value},
                 )
             assert type(error.value) is InvalidInputError
             with pytest.raises(InvalidInputError) as error:
                 factory(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        start_time=end,
-                        end_time=start,
-                        **{field: value},
-                    )
+                    observation_clock_time=clock_time(),
+                    start_time=end,
+                    end_time=start,
+                    **{field: value},
                 )
             assert type(error.value) is InvalidInputError
     for operation in (
@@ -535,51 +530,41 @@ def test_representations_use_native_errors_and_integer_protocol():
         for value in (Index(), IndexOnly()):
             assert (
                 factory(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: value},
-                    )
+                    observation_clock_time=clock_time(),
+                    start_time=start,
+                    end_time=end,
+                    **{field: value},
                 ).times
                 == factory(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: 1},
-                    )
+                    observation_clock_time=clock_time(),
+                    start_time=start,
+                    end_time=end,
+                    **{field: 1},
                 ).times
             )
         for value in (True, 1.0, 1.5, "1", None):
             with pytest.raises(TypeError):
                 factory(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: value},
-                    )
+                    observation_clock_time=clock_time(),
+                    start_time=start,
+                    end_time=end,
+                    **{field: value},
                 )
         for value in (-(2**bits) - 1, 2**bits):
             with pytest.raises(OverflowError):
                 factory(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        start_time=start,
-                        end_time=end,
-                        **{field: value},
-                    )
+                    observation_clock_time=clock_time(),
+                    start_time=start,
+                    end_time=end,
+                    **{field: value},
                 )
         for value in (date(2025, 1, 1), "2025-01-01", True):
             with pytest.raises(TypeError):
                 factory(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        start_time=value,
-                        end_time=end,
-                        **{field: 1},
-                    )
+                    observation_clock_time=clock_time(),
+                    start_time=value,
+                    end_time=end,
+                    **{field: 1},
                 )
     with pytest.raises(ValueError):
         weekdays_calendar().adjust(start.date(), "modified_following")

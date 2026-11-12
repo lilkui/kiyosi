@@ -12,8 +12,6 @@ from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
 from kiyosi import instruments as ins
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_decimal_equal
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 def test_greek_requests_report_disjoint_support_and_preserve_partial_results(subtests):
@@ -59,7 +57,6 @@ def test_greek_requests_report_disjoint_support_and_preserve_partial_results(sub
         barrier_level=120,
         barrier_type="up_and_out",
         touch_state="untouched",
-        history_time=start,
     )
     double = ins.DoubleBarrierOption(
         **fields,
@@ -67,7 +64,6 @@ def test_greek_requests_report_disjoint_support_and_preserve_partial_results(sub
         upper_barrier=120,
         barrier_type="knock_out",
         touch_state="untouched",
-        history_time=start,
     )
     sampling = {"path_count": 128, "seed": 42, "max_active_workers": 1}
     for engine, instrument, snapshot, partial in (
@@ -132,7 +128,7 @@ def test_greek_requests_report_disjoint_support_and_preserve_partial_results(sub
         for at in (start, end):
             with subtests.test(engine=engine, at=at):
                 context = snapshot.replace(valuation_time=at)
-                option = dated_history(instrument, context)
+                option = instrument
                 result = engine.price_with_greeks(option, context, "vega")
                 assert result.price == engine.price(option, context)
                 assert result.vega is None
@@ -224,7 +220,6 @@ def test_autocallable_constructors_require_an_explicit_calendar(subtests):
             ins.TernarySnowballOption,
         ):
             continue
-        fields = history_fields(**fields)
         calendar = fields.pop("calendar")
         with subtests.test(contract=cls.__name__):
             assert (
@@ -274,7 +269,6 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
         "observation_clock_time": clock_time(15),
         "observations": records,
         "barrier_state": "no_event",
-        "history_time": at,
     }
     note = ins.SnowballOption(**fields, calendar=schedule.calendar)
     assert note.calendar == calendar
@@ -299,7 +293,6 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
         observation_clock_time=clock_time(15),
         observation_times=schedule,
         barrier_state="no_event",
-        history_time=at,
     )
     assert preset == note
 
@@ -334,7 +327,6 @@ def test_observation_coupon_choices_are_explicit_and_control_cashflows():
                 ins.AutocallableObservation.snowball(end, 110, coupon_rate=coupon)
             ],
             barrier_state="no_event",
-            history_time=end,
         )
         assert engine.price(note, context) == pytest.approx(expected, rel=0, abs=1e-12)
     for barrier, expected in ((0, 1.03), (90, 1)):
@@ -355,7 +347,6 @@ def test_observation_coupon_choices_are_explicit_and_control_cashflows():
                 )
             ],
             barrier_state="no_event",
-            history_time=end,
         )
         assert engine.price(note, context.replace(spot_price=50)) == pytest.approx(
             expected, rel=0, abs=1e-12
@@ -419,13 +410,11 @@ def test_european_digitals_allow_pre_effective_pricing_greeks_and_solves(
         mc,
     ]
     future = kind(
-        **history_fields(
-            option_type=direction,
-            strike=100,
-            effective_time=effective,
-            expiry_time=expiry,
-            **({"payout": 10} if kind is ins.CashOrNothingOption else {}),
-        )
+        option_type=direction,
+        strike=100,
+        effective_time=effective,
+        expiry_time=expiry,
+        **({"payout": 10} if kind is ins.CashOrNothingOption else {}),
     )
     existing = future.replace(effective_time=start)
     for volatility in (0, 0.2):
@@ -444,44 +433,40 @@ def test_european_digitals_allow_pre_effective_pricing_greeks_and_solves(
                     at=at,
                     engine=type(engine).__name__,
                 ):
-                    price = engine.price(dated_history(future, context), context)
-                    assert price == engine.price(
-                        dated_history(existing, context), context
-                    )
-                    native = engine.price_with_greeks(
-                        dated_history(future, context), context, "delta"
-                    )
+                    price = engine.price(future, context)
+                    assert price == engine.price(existing, context)
+                    native = engine.price_with_greeks(future, context, "delta")
                     assert native == engine.price_with_greeks(
-                        dated_history(existing, context),
+                        existing,
                         context,
                         "delta",
                     )
                     assert math.isfinite(native.require("delta"))
                     numerical = numerical_greeks(
                         engine,
-                        dated_history(future, context),
+                        future,
                         context,
                         "theta",
                     )
                     assert math.isfinite(numerical.require("theta"))
                     assert numerical == numerical_greeks(
                         engine,
-                        dated_history(existing, context),
+                        existing,
                         context,
                         "theta",
                     )
                     if volatility:
                         assert pricing.implied_volatility(
                             engine,
-                            dated_history(future, context),
+                            future,
                             context,
                             price,
                             lower_bound=0.2,
                             upper_bound=0.3,
                         ) == pytest.approx(0.2, rel=0, abs=1e-12)
             assert mc.price_with_statistics(
-                dated_history(future, context), context
-            ) == mc.price_with_statistics(dated_history(existing, context), context)
+                future, context
+            ) == mc.price_with_statistics(existing, context)
         short = market.RateTermStructure.bounded_flat(
             0.05, reference_time=start, max_time=expiry - timedelta(days=1)
         )
@@ -493,7 +478,7 @@ def test_european_digitals_allow_pre_effective_pricing_greeks_and_solves(
         for engine in engines:
             for invalid in (uncovered, expired):
                 with pytest.raises(InvalidInputError):
-                    engine.price(dated_history(future, invalid), invalid)
+                    engine.price(future, invalid)
     surface = market.LocalVolatilitySurface(
         times=[start, expiry],
         spots=[50, 150],
@@ -505,9 +490,7 @@ def test_european_digitals_allow_pre_effective_pricing_greeks_and_solves(
         ),
         valuation_time=start,
     )
-    assert fd.price(dated_history(future, local), local) == fd.price(
-        dated_history(existing, local), local
-    )
+    assert fd.price(future, local) == fd.price(existing, local)
     assert future.effective_time == effective
 
 
@@ -537,21 +520,17 @@ def test_european_pre_effective_pricing_preserves_contract_and_model_coverage(su
         )
         for engine in engines:
             with subtests.test(engine=type(engine).__name__, volatility=volatility):
-                assert engine.price(
-                    dated_history(future, context), context
-                ) == engine.price(dated_history(existing, context), context)
+                assert engine.price(future, context) == engine.price(existing, context)
                 assert math.isfinite(
-                    engine.price_with_greeks(
-                        dated_history(future, context), context, "delta"
-                    ).require("delta")
+                    engine.price_with_greeks(future, context, "delta").require("delta")
                 )
         if volatility:
             engine = engines[0]
             assert pricing.implied_volatility(
                 engine,
-                dated_history(future, context),
+                future,
                 context,
-                engine.price(dated_history(future, context), context),
+                engine.price(future, context),
                 lower_bound=0.0,
                 upper_bound=4.0,
             ) == pytest.approx(volatility, rel=0, abs=1e-7)
@@ -571,9 +550,7 @@ def test_european_pre_effective_pricing_preserves_contract_and_model_coverage(su
             asset_step_count=40, variance_step_count=10, time_step_count=20
         ),
     ):
-        assert engine.price(dated_history(future, context), context) == engine.price(
-            dated_history(existing, context), context
-        )
+        assert engine.price(future, context) == engine.price(existing, context)
     surface = market.LocalVolatilitySurface(
         times=[valuation, expiry], spots=[50, 150], values=[[0.2, 0.2], [0.2, 0.2]]
     )
@@ -581,18 +558,13 @@ def test_european_pre_effective_pricing_preserves_contract_and_model_coverage(su
         risk_free_rate=0.05, dividend_yield=0.02, surface=surface
     )
     context = context.replace(model_parameters=local)
-    assert engines[2].price(dated_history(future, context), context) == engines[
-        2
-    ].price(dated_history(existing, context), context)
+    assert engines[2].price(future, context) == engines[2].price(existing, context)
     bounded = market.RateTermStructure.bounded_flat(
         0.05, reference_time=effective, max_time=expiry
     )
     with pytest.raises(InvalidInputError):
         engines[0].price(
-            dated_history(
-                future,
-                context.replace(model_parameters=model.replace(risk_free_rate=bounded)),
-            ),
+            future,
             context.replace(model_parameters=model.replace(risk_free_rate=bounded)),
         )
     assert future.effective_time == effective
@@ -638,7 +610,7 @@ def test_snowball_coupon_diagnostics_identify_the_supplied_field(subtests, inval
     ):
         with subtests.test(contract=factory.__name__, field=field):
             with pytest.raises(InvalidInputError) as error:
-                factory(**history_fields(**common, **fields))
+                factory(**common, **fields)
             assert field in str(error.value)
 
 
@@ -670,7 +642,6 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
         accumulated_quantity=3,
         effective_time=start,
         expiry_time=end,
-        history_time=valuation,
     )
     note = ins.BinarySnowballOption(
         calendar=market.weekdays_calendar(),
@@ -683,7 +654,6 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
             [120, 120, 120],
             knock_out_coupon_rates=[0] * 3,
         ),
-        history_time=valuation,
     )
     for kind, contract, settled, active, current_value in (
         (
@@ -691,25 +661,19 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
             accumulator,
             accumulator.replace(
                 knock_out_settled=True,
-                history_time=accumulator.history_time or accumulator.expiry_time,
             ),
             accumulator.replace(
                 knock_out_level=150,
                 accumulated_quantity=accumulator.accumulated_quantity,
                 knock_out_settled=accumulator.knock_out_settled,
-                history_time=(accumulator.history_time or accumulator.effective_time)
-                if accumulator.accumulated_quantity is not None
-                or accumulator.knock_out_settled is not None
-                else None,
             ),
             75,
         ),
         (
             "Autocallable",
             note,
-            note.replace_history(
+            note.replace(
                 barrier_state="knocked_out",
-                history_time=note.expiry_time,
             ),
             note.replace(
                 barrier_state=note.barrier_state,
@@ -718,9 +682,6 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
                     [150, 150, 150],
                     knock_out_coupon_rates=[0] * 3,
                 ),
-                history_time=(note.history_time or note.effective_time)
-                if note.barrier_state is not None
-                else None,
             ),
             1,
         ),
@@ -728,23 +689,13 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
         for family in ("FiniteDifference", "Quadrature", "MonteCarlo"):
             engine = getattr(pricing, family + kind + "Engine")()
             with subtests.test(kind=kind, engine=family):
-                assert engine.price(dated_history(settled, context), context) == 0
-                assert (
-                    engine.price(dated_history(contract, context), context)
-                    == current_value
-                )
-                assert (
-                    engine.price_with_greeks(
-                        dated_history(settled, context), context, "delta"
-                    ).delta
-                    == 0
-                )
+                assert engine.price(settled, context) == 0
+                assert engine.price(contract, context) == current_value
+                assert engine.price_with_greeks(settled, context, "delta").delta == 0
                 with pytest.raises(InvalidInputError):
-                    engine.price(dated_history(active, context), context)
+                    engine.price(active, context)
                 if family == "MonteCarlo":
-                    estimate = engine.price_with_statistics(
-                        dated_history(settled, context), context
-                    )
+                    estimate = engine.price_with_statistics(settled, context)
                     assert estimate.price == 0
                     assert estimate.standard_error == 0
 
@@ -777,18 +728,14 @@ def test_accumulator_settlement_requires_a_strictly_prior_knock_out_observation(
             first_explicit + timedelta(microseconds=1),
             end,
         ):
-            if first is None or first >= valuation:
-                with pytest.raises(InvalidInputError):
-                    original.replace_history(
-                        knock_out_settled=True, history_time=valuation
-                    )
-                continue
-            settled = original.replace_history(
-                knock_out_settled=True, history_time=valuation
-            )
+            settled = original.replace(knock_out_settled=True)
             context = market.PricingContext(
                 model_parameters=model, spot_price=100, valuation_time=valuation
             )
+            if first is None or first >= valuation:
+                with pytest.raises(InvalidInputError):
+                    pricing.QuadratureAccumulatorEngine().price(settled, context)
+                continue
             for family in ("FiniteDifference", "Quadrature", "MonteCarlo"):
                 engine = getattr(pricing, family + "AccumulatorEngine")()
                 with subtests.test(schedule=times, valuation=valuation, engine=family):
@@ -908,10 +855,8 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
     for factory, fields in factories:
         with subtests.test(contract=factory.__name__):
             with pytest.raises(InvalidInputError):
-                factory(**history_fields(**fields, calendar=market.weekdays_calendar()))
-            option = factory(
-                **history_fields(**fields, calendar=market.all_days_calendar())
-            )
+                factory(**fields, calendar=market.weekdays_calendar())
+            option = factory(**fields, calendar=market.all_days_calendar())
             with pytest.raises(InvalidInputError):
                 option.replace(calendar=market.weekdays_calendar())
             assert option.calendar == market.all_days_calendar()
@@ -938,20 +883,11 @@ def test_bounded_barrier_grids_keep_resolution_when_unused_upper_bound_changes(
         "effective_time": start,
         "expiry_time": end,
     }
-    single = ins.BarrierOption(
-        **history_fields(**terms, barrier_level=120, barrier_type="up_and_out")
-    )
+    single = ins.BarrierOption(**terms, barrier_level=120, barrier_type="up_and_out")
     double = ins.DoubleBarrierOption(
-        **history_fields(
-            **terms,
-            lower_barrier=80,
-            upper_barrier=120,
-            barrier_type="knock_out",
-        )
+        **terms, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
     )
-    expected = pricing.AnalyticBarrierEngine().price(
-        dated_history(single, context), context
-    )
+    expected = pricing.AnalyticBarrierEngine().price(single, context)
     previous = None
     settings = {
         "asset_step_count": 200,
@@ -959,12 +895,8 @@ def test_bounded_barrier_grids_keep_resolution_when_unused_upper_bound_changes(
         "asset_upper_boundary": upper,
     }
     actual = (
-        pricing.FiniteDifferenceBarrierEngine(**settings).price(
-            dated_history(single, context), context
-        ),
-        pricing.FiniteDifferenceDoubleBarrierEngine(**settings).price(
-            dated_history(double, context), context
-        ),
+        pricing.FiniteDifferenceBarrierEngine(**settings).price(single, context),
+        pricing.FiniteDifferenceDoubleBarrierEngine(**settings).price(double, context),
     )
     assert actual[0] == pytest.approx(expected, rel=0, abs=0.003)
     if previous is not None:
@@ -1003,16 +935,10 @@ def test_barrier_engines_require_curve_coverage_only_for_remaining_cashflows(fac
         barrier_type="up_and_out",
         touch_state="touched",
         rebate_timing="at_hit",
-        history_time=context.valuation_time,
     )
     engine = factory()
-    assert engine.price(dated_history(settled, context), context) == 0
-    assert (
-        engine.price_with_greeks(
-            dated_history(settled, context), context, "delta"
-        ).delta
-        == 0
-    )
+    assert engine.price(settled, context) == 0
+    assert engine.price_with_greeks(settled, context, "delta").delta == 0
     for changes in (
         {"touch_state": "untouched"},
         {"rebate": 10, "rebate_timing": "at_expiry"},
@@ -1020,7 +946,7 @@ def test_barrier_engines_require_curve_coverage_only_for_remaining_cashflows(fac
         {"touch_state": None},
     ):
         with pytest.raises(InvalidInputError):
-            engine.price(dated_history(settled.replace(**changes), context), context)
+            engine.price(settled.replace(**changes), context)
 
 
 def test_structured_contract_calendars_control_observations_and_survive_reconstruction():
@@ -1040,22 +966,16 @@ def test_structured_contract_calendars_control_observations_and_survive_reconstr
         effective_time=start,
         expiry_time=end,
         realized_hit_count=0,
-        history_time=start,
     )
     expiry = context.replace(valuation_time=end)
     engine = pricing.AnalyticRangeAccrualEngine()
-    price = engine.price(dated_history(accrual, expiry), expiry)
+    price = engine.price(accrual, expiry)
     assert price == pytest.approx(360 / 365, rel=0, abs=1e-12)
     daily = accrual.replace(
         calendar=market.all_days_calendar(),
         realized_hit_count=accrual.realized_hit_count,
-        history_time=(accrual.history_time or accrual.effective_time)
-        if accrual.realized_hit_count is not None
-        else None,
     )
-    assert engine.price(dated_history(daily, expiry), expiry) == pytest.approx(
-        price / 3, rel=0, abs=1e-12
-    )
+    assert engine.price(daily, expiry) == pytest.approx(price / 3, rel=0, abs=1e-12)
     accumulator = ins.Accumulator(
         observation_clock_time=clock_time(),
         strike=90,
@@ -1079,7 +999,6 @@ def test_structured_contract_calendars_control_observations_and_survive_reconstr
     for value in (daily, accumulator, note):
         assert value.replace().calendar == value.calendar
         assert pickle.loads(pickle.dumps(value)).calendar == value.calendar
-        assert value.replace_history().calendar == value.calendar
     assert (
         note.with_quoted_coupon(0.2, quote_convention="shift_maturity_coupon").calendar
         == note.calendar
@@ -1124,13 +1043,11 @@ def test_constant_node_curves_match_scalars_and_keep_coverage(subtests):
         pricing.MonteCarloVanillaEngine(path_count=512, seed=42, max_active_workers=1),
     ):
         with subtests.test(engine=type(engine).__name__):
-            assert engine.price(
-                dated_history(option, context), context
-            ) == pytest.approx(
-                engine.price(dated_history(option, nodes), nodes), rel=0, abs=1e-9
+            assert engine.price(option, context) == pytest.approx(
+                engine.price(option, nodes), rel=0, abs=1e-9
             )
             with pytest.raises(InvalidInputError):
-                engine.price(dated_history(option, short), short)
+                engine.price(option, short)
 
 
 def test_heston_greeks_check_model_before_request_controls(subtests):
@@ -1156,7 +1073,7 @@ def test_heston_greeks_check_model_before_request_controls(subtests):
             ):
                 numerical_greeks(
                     engine,
-                    dated_history(option, context),
+                    option,
                     context,
                     request,
                     time_shift=timedelta(days=0),
@@ -1176,14 +1093,12 @@ def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(subt
         (
             pricing.AnalyticRangeAccrualEngine(),
             ins.RangeAccrualOption(
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    notional=100,
-                    annual_coupon_rate=coupon,
-                    lower_bound=90,
-                    upper_bound=110,
-                    **life,
-                )
+                observation_clock_time=clock_time(),
+                notional=100,
+                annual_coupon_rate=coupon,
+                lower_bound=90,
+                upper_bound=110,
+                **life,
             ),
         )
         for coupon in (0, 0.1)
@@ -1207,20 +1122,13 @@ def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(subt
             )
             with subtests.test(instrument=type(option).__name__, at=at):
                 if valid:
-                    assert engine.price(dated_history(option, context), context) >= 0
-                    assert (
-                        engine.price_with_greeks(
-                            dated_history(option, context), context, "delta"
-                        ).price
-                        >= 0
-                    )
+                    assert engine.price(option, context) >= 0
+                    assert engine.price_with_greeks(option, context, "delta").price >= 0
                 else:
                     with pytest.raises(InvalidInputError):
-                        engine.price(dated_history(option, context), context)
+                        engine.price(option, context)
                     with pytest.raises(InvalidInputError):
-                        engine.price_with_greeks(
-                            dated_history(option, context), context, "delta"
-                        )
+                        engine.price_with_greeks(option, context, "delta")
 
 
 def test_observation_construction_validates_numeric_terms_before_note_creation(
@@ -1292,25 +1200,21 @@ def test_asian_history_uses_optional_positive_averages(subtests):
             )
             assert original.realized_average is None
             with pytest.raises(InvalidInputError):
-                engine.price(dated_history(original, context), context)
-            seasoned = original.replace_history(
+                engine.price(original, context)
+            seasoned = original.replace(
                 realized_average=110,
-                history_time=context.valuation_time,
             )
             assert seasoned.realized_average == 110
-            assert engine.price(dated_history(seasoned, context), context) > 0
-            assert seasoned.replace_history() == seasoned
-            assert seasoned.replace_history(realized_average=None) == original
+            assert engine.price(seasoned, context) > 0
+            assert seasoned.replace() == seasoned
+            assert seasoned.replace(realized_average=None) == original
             assert seasoned.replace(realized_average=None) == original
             assert pickle.loads(pickle.dumps(original)) == original
             assert pickle.loads(pickle.dumps(seasoned)) == seasoned
             for invalid in (0, -1, float("nan"), float("inf")):
                 with pytest.raises(InvalidInputError):
-                    seasoned.replace_history(
+                    seasoned.replace(
                         realized_average=invalid,
-                        history_time=(seasoned.history_time or seasoned.effective_time)
-                        if invalid is not None
-                        else None,
                     )
             assert seasoned.realized_average == 110
 
@@ -1432,10 +1336,10 @@ def test_decimal_conversion_preserves_context_and_error_categories():
             expiry_time=expiry,
         )
         engine = pricing.AnalyticEuropeanEngine()
-        quote = engine.price(dated_history(option, context), context)
+        quote = engine.price(option, context)
         assert pricing.implied_volatility(
             engine,
-            dated_history(option, context),
+            option,
             context,
             Decimal.from_float(quote),
             lower_bound=Decimal("0.125"),
@@ -1473,15 +1377,13 @@ def test_settled_accumulators_have_no_remaining_cashflows(subtests):
         effective_time=start,
         expiry_time=end,
     )
-    settled = option.replace_history(
+    settled = option.replace(
         knock_out_settled=True,
-        history_time=start + timedelta(days=1),
     )
     assert not (option.knock_out_settled)
     assert settled.replace(strike=95).knock_out_settled
-    assert settled.replace_history(
+    assert settled.replace(
         accumulated_quantity=3,
-        history_time=settled.history_time or settled.expiry_time,
     ).knock_out_settled
     assert pickle.loads(pickle.dumps(settled)) == settled
     assert ins.Accumulator(
@@ -1493,7 +1395,6 @@ def test_settled_accumulators_have_no_remaining_cashflows(subtests):
         effective_time=start,
         expiry_time=end,
         knock_out_settled=True,
-        history_time=start + timedelta(days=1),
     ).knock_out_settled
     context = market.PricingContext(
         model_parameters=market.BlackScholesMertonParameters(
@@ -1511,40 +1412,29 @@ def test_settled_accumulators_have_no_remaining_cashflows(subtests):
         if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
             engine = engine.with_resolved_seed()
         with subtests.test(engine=factory.__name__):
-            assert engine.price(dated_history(settled, context), context) == 0
+            assert engine.price(settled, context) == 0
             assert (
                 engine.price(
-                    dated_history(
-                        settled.replace_history(
-                            accumulated_quantity=3,
-                            history_time=settled.history_time or settled.expiry_time,
-                        ),
-                        context,
+                    settled.replace(
+                        accumulated_quantity=3,
                     ),
                     context,
                 )
                 == 0
             )
-            active = settled.replace_history(
+            active = settled.replace(
                 knock_out_settled=False,
                 accumulated_quantity=0,
-                history_time=settled.history_time or settled.expiry_time,
             )
-            assert engine.price(dated_history(active, context), context) > 0
+            assert engine.price(active, context) > 0
             with pytest.raises(InvalidInputError):
                 engine.price(
-                    dated_history(
-                        settled.replace_history(
-                            knock_out_settled=False,
-                            history_time=settled.history_time or settled.expiry_time,
-                        ),
-                        context,
+                    settled.replace(
+                        knock_out_settled=False,
                     ),
                     context,
                 )
-            result = engine.price_with_greeks(
-                dated_history(settled, context), context, "all"
-            )
+            result = engine.price_with_greeks(settled, context, "all")
             for greek in (
                 "delta",
                 "gamma",
@@ -1556,7 +1446,7 @@ def test_settled_accumulators_have_no_remaining_cashflows(subtests):
             with pytest.raises(UnsupportedOperationError):
                 pricing.implied_volatility(
                     engine,
-                    dated_history(settled, context),
+                    settled,
                     context,
                     0,
                     lower_bound=0.0,
@@ -1564,11 +1454,8 @@ def test_settled_accumulators_have_no_remaining_cashflows(subtests):
                 )
     for invalid in (0, 1, "yes"):
         with subtests.test(invalid=invalid), pytest.raises(TypeError):
-            option.replace_history(
+            option.replace(
                 knock_out_settled=invalid,
-                history_time=(option.history_time or option.effective_time)
-                if invalid is not None
-                else None,
             )
 
 
@@ -1586,7 +1473,7 @@ def test_automatic_volatility_bumps_preserve_explicit_controls_and_zero_boundary
     engine = pricing.AnalyticEuropeanEngine()
     unavailable = numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         "vega",
         volatility_shift=0.0001,
@@ -1598,12 +1485,12 @@ def test_automatic_volatility_bumps_preserve_explicit_controls_and_zero_boundary
     assert restored.status("vega") == "stencil_unavailable"
     recovered = numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         "vega",
         volatility_shift=0.00001,
     )
-    exact = engine.price_with_greeks(dated_history(option, context), context, "vega")
+    exact = engine.price_with_greeks(option, context, "vega")
     assert recovered.status("vega") == "available"
     assert recovered.vega == pytest.approx(exact.vega, rel=0, abs=1e-7)
     for control in ({}, {"volatility_shift": None}, {"volatility_shift": Ellipsis}):
@@ -1613,12 +1500,7 @@ def test_automatic_volatility_bumps_preserve_explicit_controls_and_zero_boundary
             exact.require("vega"), rel=0, abs=1e-7
         )
     zero = context.replace(model_parameters=model.replace(volatility=0))
-    assert (
-        numerical_greeks(engine, dated_history(option, zero), zero, "vega").status(
-            "vega"
-        )
-        == "undefined"
-    )
+    assert numerical_greeks(engine, option, zero, "vega").status("vega") == "undefined"
 
 
 def test_digital_fallback_shifts_preserve_analytic_spot_greeks(subtests):
@@ -1637,13 +1519,11 @@ def test_digital_fallback_shifts_preserve_analytic_spot_greeks(subtests):
             (ins.AssetOrNothingOption, {}, 50),
         ):
             option = kind(
-                **history_fields(
-                    option_type=direction,
-                    strike=100,
-                    effective_time=start,
-                    expiry_time=end,
-                    **fields,
-                )
+                option_type=direction,
+                strike=100,
+                effective_time=start,
+                expiry_time=end,
+                **fields,
             )
             native = engine.price_with_greeks(
                 option, context, ["delta", "gamma", "vega"], volatility_shift=0.0001
@@ -1756,7 +1636,7 @@ def test_fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates(subtest
             continue
         factory = getattr(pricing, name)
         with subtests.test(engine=name):
-            configured = factory(**history_fields(**shifts))
+            configured = factory(**shifts)
             restored = pickle.loads(pickle.dumps(configured))
             assert restored == configured
             for field, expected in shifts.items():
@@ -1768,14 +1648,14 @@ def test_fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates(subtest
                 ("time_shift", timedelta(seconds=-1)),
             ):
                 with pytest.raises(InvalidInputError):
-                    factory(**history_fields(**{field: bad}))
+                    factory(**{field: bad})
             for field, bad in (
                 ("volatility_shift", True),
                 ("rate_shift", True),
                 ("time_shift", 1),
             ):
                 with pytest.raises(TypeError):
-                    factory(**history_fields(**{field: bad}))
+                    factory(**{field: bad})
 
 
 def test_greek_status_distinguishes_requests_support_and_stencils():
@@ -1791,20 +1671,20 @@ def test_greek_status_distinguishes_requests_support_and_stencils():
         valuation_time=start,
     )
     result = pricing.AnalyticEuropeanEngine().price_with_greeks(
-        dated_history(option, context), context, "delta"
+        option, context, "delta"
     )
     assert result.status("delta") == "available"
     assert result.status("gamma") == "not_requested"
     assert result.requested == (("delta",))
     terminal = pricing.AnalyticEuropeanEngine().price_with_greeks(
-        dated_history(option, context.replace(valuation_time=end)),
+        option,
         context.replace(valuation_time=end),
         "delta",
     )
     assert terminal.status("delta") == "undefined"
     collapsed = numerical_greeks(
         pricing.QuadratureVanillaEngine(),
-        dated_history(option, context),
+        option,
         context,
         "delta",
         spot_shift=400,
@@ -1850,7 +1730,7 @@ def test_greek_status_distinguishes_requests_support_and_stencils():
         )
     )
     partial = pricing.FiniteDifferenceVanillaEngine().price_with_greeks(
-        dated_history(option, local), local, ["delta", "vega"]
+        option, local, ["delta", "vega"]
     )
     assert partial.status("delta") == "available"
     assert partial.status("vega") == "unsupported"
@@ -1895,7 +1775,7 @@ def test_numerical_greeks_has_uniform_controls_across_engines(subtests):
     )
     expected = (
         pricing.AnalyticEuropeanEngine()
-        .price_with_greeks(dated_history(option, context), context, "delta")
+        .price_with_greeks(option, context, "delta")
         .require("delta")
     )
     for engine in (
@@ -1909,18 +1789,18 @@ def test_numerical_greeks_has_uniform_controls_across_engines(subtests):
         with subtests.test(engine=type(engine).__name__):
             result = pricing.numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 "delta",
                 spot_shift=0.2,
             )
-            assert result.price == engine.price(dated_history(option, context), context)
+            assert result.price == engine.price(option, context)
             assert result.require("delta") == pytest.approx(expected, rel=0, abs=0.03)
             assert result.requested == (("delta",))
             with pytest.raises(InvalidInputError):
                 pricing.numerical_greeks(
                     engine,
-                    dated_history(option, context),
+                    option,
                     context,
                     "delta",
                     rate_shift=0,
@@ -1928,7 +1808,7 @@ def test_numerical_greeks_has_uniform_controls_across_engines(subtests):
     with pytest.raises(TypeError):
         pricing.numerical_greeks(
             pricing.AnalyticEuropeanEngine(),
-            dated_history(option, context),
+            option,
             context,
             "delta",
             spot_shift=True,
@@ -1936,14 +1816,11 @@ def test_numerical_greeks_has_uniform_controls_across_engines(subtests):
     with pytest.raises(UnsupportedOperationError):
         pricing.numerical_greeks(
             pricing.AnalyticEuropeanEngine(),
-            dated_history(
-                ins.AmericanOption(
-                    option_type="call",
-                    strike=100,
-                    effective_time=start,
-                    expiry_time=end,
-                ),
-                context,
+            ins.AmericanOption(
+                option_type="call",
+                strike=100,
+                effective_time=start,
+                expiry_time=end,
             ),
             context,
             "unknown",
@@ -1985,14 +1862,12 @@ def test_shift_validation_is_independent_of_estimator_and_valuation_time(subtest
         (
             pricing.CoxRossRubinsteinBarrierEngine(),
             ins.BarrierOption(
-                **history_fields(
-                    option_type="call",
-                    strike=100,
-                    barrier_level=120,
-                    barrier_type="up_and_out",
-                    touch_state="untouched",
-                    **life,
-                )
+                option_type="call",
+                strike=100,
+                barrier_level=120,
+                barrier_type="up_and_out",
+                touch_state="untouched",
+                **life,
             ),
             bsm,
         ),
@@ -2000,43 +1875,32 @@ def test_shift_validation_is_independent_of_estimator_and_valuation_time(subtest
         (
             pricing.MonteCarloBarrierEngine(**sampling),
             ins.BarrierOption(
-                **history_fields(
-                    option_type="call",
-                    strike=100,
-                    barrier_level=120,
-                    barrier_type="up_and_out",
-                    touch_state="untouched",
-                    **life,
-                )
+                option_type="call",
+                strike=100,
+                barrier_level=120,
+                barrier_type="up_and_out",
+                touch_state="untouched",
+                **life,
             ),
             bsm,
         ),
         (
             pricing.MonteCarloDoubleBarrierEngine(**sampling),
             ins.DoubleBarrierOption(
-                **history_fields(
-                    option_type="call",
-                    strike=100,
-                    lower_barrier=80,
-                    upper_barrier=120,
-                    barrier_type="knock_out",
-                    touch_state="untouched",
-                    **life,
-                )
+                option_type="call",
+                strike=100,
+                lower_barrier=80,
+                upper_barrier=120,
+                barrier_type="knock_out",
+                touch_state="untouched",
+                **life,
             ),
             bsm,
         ),
         *(
             (
                 pricing.MonteCarloAsianEngine(**sampling),
-                kind(
-                    **history_fields(
-                        option_type="call",
-                        strike=100,
-                        averaging_start_time=end,
-                        **life,
-                    )
-                ),
+                kind(option_type="call", strike=100, averaging_start_time=end, **life),
                 bsm,
             )
             for kind in (
@@ -2051,12 +1915,7 @@ def test_shift_validation_is_independent_of_estimator_and_valuation_time(subtest
                 model_parameters=model, spot_price=110, valuation_time=at
             )
             with subtests.test(engine=type(engine).__name__, at=at):
-                assert (
-                    engine.price_with_greeks(
-                        dated_history(option, context), context, "delta"
-                    ).price
-                    >= 0
-                )
+                assert engine.price_with_greeks(option, context, "delta").price >= 0
                 for field in (
                     "spot_shift",
                     "volatility_shift",
@@ -2075,7 +1934,7 @@ def test_shift_validation_is_independent_of_estimator_and_valuation_time(subtest
                         ):
                             numerical_greeks(
                                 engine,
-                                dated_history(option, context),
+                                option,
                                 context,
                                 "delta",
                                 **{field: bad},
@@ -2124,7 +1983,7 @@ def test_settings_diagnostics_identify_invalid_fields(subtests):
     for factory, field, invalid in cases:
         with subtests.test(engine=factory.__name__, field=field):
             with pytest.raises(InvalidInputError) as caught:
-                factory(**history_fields(**{field: invalid}))
+                factory(**{field: invalid})
             assert field in str(caught.value)
 
 
@@ -2144,14 +2003,10 @@ def test_greek_methods_check_curve_support_without_rejecting_asian_settlement(su
     american = ins.AmericanOption(option_type="put", strike=100, **life)
     digital = ins.CashOrNothingOption(option_type="call", strike=100, payout=10, **life)
     geometric = ins.GeometricAveragePriceOption(
-        **history_fields(
-            option_type="call", strike=100, averaging_start_time=start, **life
-        )
+        option_type="call", strike=100, averaging_start_time=start, **life
     )
     arithmetic = ins.ArithmeticAveragePriceOption(
-        **history_fields(
-            option_type="call", strike=100, averaging_start_time=start, **life
-        )
+        option_type="call", strike=100, averaging_start_time=start, **life
     )
     mc = pricing.MonteCarloAsianEngine(path_count=16, seed=42, max_active_workers=1)
     curve = market.RateTermStructure(
@@ -2180,7 +2035,7 @@ def test_greek_methods_check_curve_support_without_rejecting_asian_settlement(su
     ]:
         with subtests.test(engine=type(engine).__name__, option=type(option).__name__):
             assert engine.greek_method(option, context) == method
-            assert math.isfinite(engine.price(dated_history(option, context), context))
+            assert math.isfinite(engine.price(option, context))
             for dividend in (False, True):
                 for volatility in (0, 0.2):
                     unsupported = context.replace(
@@ -2191,7 +2046,7 @@ def test_greek_methods_check_curve_support_without_rejecting_asian_settlement(su
                         )
                     )
                     with pytest.raises(UnsupportedOperationError):
-                        engine.price(dated_history(option, unsupported), unsupported)
+                        engine.price(option, unsupported)
                     with pytest.raises(UnsupportedOperationError):
                         engine.greek_method(option, unsupported)
                     with pytest.raises(UnsupportedOperationError):
@@ -2200,21 +2055,20 @@ def test_greek_methods_check_curve_support_without_rejecting_asian_settlement(su
         model_parameters=context.model_parameters.replace(risk_free_rate=curve)
     )
     assert mc.greek_method(arithmetic, curved) == "native"
-    assert math.isfinite(mc.price(dated_history(arithmetic, curved), curved))
+    assert math.isfinite(mc.price(arithmetic, curved))
     analytic = pricing.AnalyticGeometricAveragePriceEngine()
     assert analytic.greek_method(geometric, curved) == "numerical"
-    assert math.isfinite(analytic.price(dated_history(geometric, curved), curved))
+    assert math.isfinite(analytic.price(geometric, curved))
     terminal = curved.replace(valuation_time=end)
     for engine, option in (
         (mc, geometric),
         (pricing.TurnbullWakemanArithmeticAveragePriceEngine(), arithmetic),
     ):
-        option = option.replace_history(
+        option = option.replace(
             realized_average=110,
-            history_time=terminal.valuation_time,
         )
         assert engine.greek_method(option, terminal) == "terminal"
-        assert engine.price(dated_history(option, terminal), terminal) == 10
+        assert engine.price(option, terminal) == 10
 
 
 def test_greek_methods_report_estimators_and_active_controls(subtests):
@@ -2223,13 +2077,11 @@ def test_greek_methods_report_estimators_and_active_controls(subtests):
     option = ins.EuropeanOption(option_type="call", strike=100, **life)
     digital = ins.CashOrNothingOption(option_type="call", strike=100, payout=10, **life)
     barrier = ins.BarrierOption(
-        **history_fields(
-            option_type="call",
-            strike=100,
-            barrier_level=120,
-            barrier_type="up_and_out",
-            **life,
-        )
+        option_type="call",
+        strike=100,
+        barrier_level=120,
+        barrier_type="up_and_out",
+        **life,
     )
     context = market.PricingContext(
         model_parameters=market.BlackScholesMertonParameters(
@@ -2371,21 +2223,21 @@ def test_zero_coupon_observations_preserve_product_identity(subtests):
     with pytest.raises(InvalidInputError):
         ins.BinarySnowballOption(
             calendar=market.weekdays_calendar(),
-            **history_fields(maturity_coupon_rate=0.1, observations=[phoenix], **life),
+            maturity_coupon_rate=0.1,
+            observations=[phoenix],
+            **life,
         )
     with pytest.raises(InvalidInputError):
         ins.PhoenixOption(
             calendar=market.weekdays_calendar(),
-            **history_fields(
-                coupon_per_period=0.1,
-                initial_spot=100,
-                knock_in_level=80,
-                upper_strike=100,
-                lower_strike=0,
-                observations=[snowball],
-                observation_clock_time=end.time(),
-                **life,
-            ),
+            coupon_per_period=0.1,
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=0,
+            observations=[snowball],
+            observation_clock_time=end.time(),
+            **life,
         )
 
 

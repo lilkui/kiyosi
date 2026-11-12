@@ -273,14 +273,11 @@ pub(crate) fn complete_greeks(
             },
             ..Default::default()
         })?;
-        let mut shifted = context.replace(PricingContextChanges {
+        context.replace(PricingContextChanges {
             model_parameters: Some(parameters.into()),
             spot_price: Some(spot),
             valuation_time: Some(valuation_time),
-        })?;
-        // Time sensitivities hold observed history fixed while moving hypothetical valuation.
-        shifted.history_anchor = Some(context.history_anchor.unwrap_or(context.valuation_time()));
-        Ok(shifted)
+        })
     };
     let price = |s, vol, r, t| -> Result<f64> {
         Ok(native(&shifted(s, vol, r, t)?, GreeksRequest::new([]))?.price())

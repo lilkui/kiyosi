@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {
@@ -28,7 +25,7 @@ fn terms() -> PhoenixTerms {
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    terms.history_time = Some(terms.effective_time);
+
     terms
 }
 fn market(spot: f64, valuation: Timestamp) -> PricingContext {
@@ -114,7 +111,7 @@ fn lockout_preserves_daily_knock_in_and_first_eligible_knock_out() {
         let expected = 0.01 + (0.9 + 0.01) * (-rate * horizon).exp();
         assert!((engine.price(&note, &context).unwrap() - expected).abs() < 1e-12);
         let context = market(200.0, date(4, 1));
-        assert!((engine.price(&dated(&note, &context), &context).unwrap() - 1.01).abs() < 1e-14);
+        assert!((engine.price(&note, &context).unwrap() - 1.01).abs() < 1e-14);
     }
 }
 
@@ -176,7 +173,7 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
     let mut input = terms();
     input.lockout_periods = 1;
     input.barrier_state = None;
-    input.history_time = None;
+
     input.observations = autocallable_observations(
         &[date(2, 3), date(3, 3), date(4, 1)],
         &[110.0; 3],
@@ -192,15 +189,21 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
         Err(Error::MissingHistory(_))
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::NoEvent), Some(date(2, 4)))
-        .unwrap();
-    assert!(matches!(
-        known.replace(PhoenixOptionChanges {
-            lockout_periods: Some(0),
+        .replace(PhoenixOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
             ..Default::default()
-        }),
-        Err(Error::StaleHistory(_))
-    ));
+        })
+        .unwrap();
+    assert_eq!(
+        known
+            .replace(PhoenixOptionChanges {
+                lockout_periods: Some(0),
+                ..Default::default()
+            })
+            .unwrap()
+            .barrier_state(),
+        known.barrier_state()
+    );
     assert_eq!(known.lockout_periods(), 1);
     assert_eq!(
         known
@@ -213,11 +216,22 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
         2
     );
     assert!(matches!(
-        note.replace_history(Some(AutocallableBarrierState::KnockedOut), Some(date(2, 4))),
+        engine.price(
+            &note
+                .replace(PhoenixOptionChanges {
+                    barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),
+                    ..Default::default()
+                })
+                .unwrap(),
+            &market(100.0, date(2, 4))
+        ),
         Err(Error::InvalidInput(_))
     ));
     let possible = note
-        .replace_history(Some(AutocallableBarrierState::KnockedOut), Some(date(3, 4)))
+        .replace(PhoenixOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),
+            ..Default::default()
+        })
         .unwrap();
     assert_eq!(
         engine.price(&possible, &market(100.0, date(3, 4))).unwrap(),
@@ -256,11 +270,7 @@ fn lockout_validates_counts_and_ignores_disabled_greek_discontinuities() {
     }
     let context = market(110.0, date(2, 3));
     let greeks = QuadratureAutocallableEngine::default()
-        .price_with_greeks(
-            &dated(&note, &context),
-            &context,
-            GreeksRequest::new([Greek::Delta]),
-        )
+        .price_with_greeks(&note, &context, GreeksRequest::new([Greek::Delta]))
         .unwrap();
     assert!(greeks.require(Greek::Delta).unwrap().is_finite());
     assert_eq!(note.lockout_periods(), 1);
@@ -284,10 +294,10 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
         expected.coupon_per_period = coupon;
         assert_eq!(quoted.terms(), &expected);
         let quote = 1.0 + coupon;
-        assert!((engine.price(&dated(&quoted, &context), &context).unwrap() - quote).abs() < 1e-14);
+        assert!((engine.price(&quoted, &context).unwrap() - quote).abs() < 1e-14);
         let solved = implied_phoenix_coupon(
             &engine,
-            &dated(&note, &context),
+            &note,
             &context,
             quote,
             ImpliedCouponSettings {
@@ -303,9 +313,7 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
                 ..Default::default()
             })
             .unwrap();
-        assert!(
-            (engine.price(&dated(&repriced, &context), &context).unwrap() - quote).abs() < 1e-12
-        );
+        assert!((engine.price(&repriced, &context).unwrap() - quote).abs() < 1e-12);
     }
     let quoted = note.with_quoted_coupon(0.12).unwrap();
     assert_eq!(quoted.terms().coupon_per_period, 0.12);
@@ -336,26 +344,11 @@ fn conditional_period_coupons_are_inclusive_and_independent_of_principal_and_los
         ] {
             let expected = base + if paid { coupon } else { 0.0 };
             assert!(
-                (engine
-                    .price(
-                        &dated(&note, &market(spot, date(4, 1))),
-                        &market(spot, date(4, 1))
-                    )
-                    .unwrap()
-                    - expected)
-                    .abs()
-                    < 1e-14
+                (engine.price(&note, &market(spot, date(4, 1))).unwrap() - expected).abs() < 1e-14
             );
         }
         assert!(
-            (engine
-                .price(
-                    &dated(&note, &market(110.0, date(2, 3))),
-                    &market(110.0, date(2, 3))
-                )
-                .unwrap()
-                - (0.25 + coupon))
-                .abs()
+            (engine.price(&note, &market(110.0, date(2, 3))).unwrap() - (0.25 + coupon)).abs()
                 < 1e-14
         );
     }
@@ -376,7 +369,6 @@ fn periodic_coupons_ignore_unequal_and_zero_length_periods_in_all_engines() {
         let note = PhoenixOption::new(input).unwrap();
         for at in [date(1, 1), date(2, 3), date(4, 1)] {
             let context = market(110.0, at);
-            let note = dated(&note, &context);
             for engine in [
                 &QuadratureAutocallableEngine::default() as &dyn PricingEngine<PhoenixOption>,
                 &FiniteDifferenceAutocallableEngine::default(),
@@ -405,11 +397,8 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             let put = |strike| {
                 AnalyticEuropeanEngine
                     .price(
-                        &dated(
-                            &EuropeanOption::new(OptionType::Put, strike, t.effective_time, end)
-                                .unwrap(),
-                            &ctx,
-                        ),
+                        &EuropeanOption::new(OptionType::Put, strike, t.effective_time, end)
+                            .unwrap(),
                         &ctx,
                     )
                     .unwrap()
@@ -423,13 +412,10 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             )
             .unwrap();
             let expected = 0.25 * (-0.04_f64).exp()
-                + coupon.signum()
-                    * AnalyticDigitalEngine
-                        .price(&dated(&digital, &ctx), &ctx)
-                        .unwrap()
+                + coupon.signum() * AnalyticDigitalEngine.price(&digital, &ctx).unwrap()
                 - (put(100.0) - if lower == 0.0 { 0.0 } else { put(lower) }) / 100.0;
             let actual = QuadratureAutocallableEngine::default()
-                .price(&dated(&PhoenixOption::new(t).unwrap(), &ctx), &ctx)
+                .price(&PhoenixOption::new(t).unwrap(), &ctx)
                 .unwrap();
             assert!((actual - expected).abs() < 1e-12, "{actual} != {expected}");
         }
@@ -479,42 +465,37 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     let engine = QuadratureAutocallableEngine::default();
     let ctx = market(100.0, date(2, 3));
     assert!(matches!(
-        engine.price(&dated(&note, &ctx), &ctx).unwrap_err(),
+        engine.price(&note, &ctx).unwrap_err(),
         Error::MissingHistory(_)
     ));
     let known = note
-        .replace_history(
-            Some(AutocallableBarrierState::NoEvent),
-            Some(note.history_time().unwrap_or(note.effective_time())),
-        )
+        .replace(PhoenixOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
+            ..Default::default()
+        })
         .unwrap();
     assert_eq!(known.observations(), note.observations());
     assert_eq!(note.barrier_state(), None);
-    assert!(
-        engine
-            .price(&dated(&known, &ctx), &ctx)
-            .unwrap()
-            .is_finite()
-    );
+    assert!(engine.price(&known, &ctx).unwrap().is_finite());
     let impossible = note
-        .replace_history(
-            Some(AutocallableBarrierState::KnockedOut),
-            Some(note.expiry_time()),
-        )
+        .replace(PhoenixOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),
+            ..Default::default()
+        })
         .unwrap();
     assert!(matches!(
         engine
-            .price(
-                &dated(&impossible, &market(100.0, date(1, 1))),
-                &market(100.0, date(1, 1))
-            )
+            .price(&impossible, &market(100.0, date(1, 1)))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let mut t = terms();
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
-    t.history_time = Some(t.expiry_time);
-    assert!(matches!(PhoenixOption::new(t), Err(Error::InvalidInput(_))));
+
+    assert!(matches!(
+        engine.price(&PhoenixOption::new(t).unwrap(), &market(100.0, date(1, 1))),
+        Err(Error::InvalidInput(_))
+    ));
 }
 
 #[test]
@@ -524,7 +505,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     let engine = QuadratureAutocallableEngine::default();
     let result = kiyosi::numerical_greeks(
         &engine,
-        &dated(&note, &ctx),
+        &note,
         &ctx,
         GreeksRequest::all(),
         NumericalShiftSettings {
@@ -538,7 +519,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     }
     let sigma = implied_volatility(
         &engine,
-        &dated(&note, &ctx),
+        &note,
         &ctx,
         result.price(),
         ImpliedVolatilitySettings::new(0.2, 0.4),
@@ -548,31 +529,26 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     assert_eq!(ctx.model_parameters().as_bsm().unwrap().volatility(), 0.3);
     let ctx = market(90.0, date(2, 3));
     let result = engine
-        .price_with_greeks(&dated(&note, &ctx), &ctx, GreeksRequest::all())
+        .price_with_greeks(&note, &ctx, GreeksRequest::all())
         .unwrap();
     assert!(!result.has(Greek::Delta));
     assert!(!result.has(Greek::Theta));
     assert!(result.has(Greek::Vega));
     assert!(result.has(Greek::Rho));
     let settled = note
-        .replace_history(
-            Some(AutocallableBarrierState::KnockedOut),
-            Some(note.expiry_time()),
-        )
+        .replace(PhoenixOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),
+            ..Default::default()
+        })
         .unwrap();
     assert_eq!(
-        engine
-            .price(
-                &dated(&settled, &market(100.0, date(3, 3))),
-                &market(100.0, date(3, 3))
-            )
-            .unwrap(),
+        engine.price(&settled, &market(100.0, date(3, 3))).unwrap(),
         0.0
     );
     assert!(matches!(
         implied_volatility(
             &engine,
-            &dated(&settled, &market(100.0, date(3, 3))),
+            &settled,
             &market(100.0, date(3, 3)),
             0.0,
             kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
@@ -617,7 +593,7 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     ] {
         let actual = QuadratureAutocallableEngine::new(settings)
             .unwrap()
-            .price(&dated(&note, &ctx), &ctx)
+            .price(&note, &ctx)
             .unwrap();
         assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
     }
@@ -651,10 +627,7 @@ fn phoenix_daily_layers_converge_with_conditional_coupons() {
                     integration_standard_deviations: e,
                 })
                 .unwrap()
-                .price(
-                    &dated(&note, &market(100.0, date(1, 1))),
-                    &market(100.0, date(1, 1)),
-                )
+                .price(&note, &market(100.0, date(1, 1)))
                 .unwrap()
             })
             .collect();

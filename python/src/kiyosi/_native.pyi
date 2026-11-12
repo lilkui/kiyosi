@@ -21,10 +21,7 @@ class InvalidInputError(KiyosiError, ValueError):
     """Invalid parameters, dates, schedules or contract history."""
 
 class MissingHistoryError(InvalidInputError):
-    """Required history payload or snapshot timestamp is missing."""
-
-class StaleHistoryError(InvalidInputError):
-    """History does not cover the requested valuation or observation terms."""
+    """Required history payload is missing."""
 
 class UnsupportedOperationError(KiyosiError):
     """Unsupported pricing combination or unavailable result measure."""
@@ -8915,12 +8912,8 @@ class GeometricAveragePriceOption:
     realized_average : float or None, optional
         Positive finite prior average; defaults to None (unknown). Must be None
         at or before averaging starts, and supplied strictly after it; time
-        consistency is checked at pricing.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
-        A supplied average requires a timestamp strictly after averaging starts.
+        consistency is checked at pricing. History covers averaging strictly
+        before valuation; callers supply the applicable average.
 
     Raises
     ------
@@ -8928,10 +8921,6 @@ class GeometricAveragePriceOption:
         If strike, realized_average, life times or the averaging window are
         invalid.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     def replace(
         self,
@@ -8942,7 +8931,6 @@ class GeometricAveragePriceOption:
         averaging_start_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         realized_average: _Real | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -8957,11 +8945,7 @@ class GeometricAveragePriceOption:
         expiry_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
         realized_average : float or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
+            Omission or Ellipsis retains the average; None clears it to unknown.
 
         Returns
         -------
@@ -8986,40 +8970,7 @@ class GeometricAveragePriceOption:
         averaging_start_time: datetime,
         expiry_time: datetime,
         realized_average: _Real | None = None,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        realized_average: _Real | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        realized_average : float or None, optional
-            Prior average; None restores unknown history. Pricing checks time
-            consistency.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Validated copy; omitted fields or Ellipsis retain their values.
-
-        Raises
-        ------
-        KiyosiError
-            If replacement terms fail domain validation.
-        """
-
     @property
     def option_type(self) -> Literal["call", "put"]:
         """Return call or put payoff direction."""
@@ -9214,12 +9165,8 @@ class ArithmeticAveragePriceOption:
     realized_average : float or None, optional
         Positive finite prior average; defaults to None (unknown). Must be None
         at or before averaging starts, and supplied strictly after it; time
-        consistency is checked at pricing.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
-        A supplied average requires a timestamp strictly after averaging starts.
+        consistency is checked at pricing. History covers averaging strictly
+        before valuation; callers supply the applicable average.
 
     Raises
     ------
@@ -9227,10 +9174,6 @@ class ArithmeticAveragePriceOption:
         If strike, realized_average, life times or the averaging window are
         invalid.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     def replace(
         self,
@@ -9241,7 +9184,6 @@ class ArithmeticAveragePriceOption:
         averaging_start_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         realized_average: _Real | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -9256,11 +9198,7 @@ class ArithmeticAveragePriceOption:
         expiry_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
         realized_average : float or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
+            Omission or Ellipsis retains the average; None clears it to unknown.
 
         Returns
         -------
@@ -9285,40 +9223,7 @@ class ArithmeticAveragePriceOption:
         averaging_start_time: datetime,
         expiry_time: datetime,
         realized_average: _Real | None = None,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        realized_average: _Real | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        realized_average : float or None, optional
-            Prior average; None restores unknown history. Pricing checks time
-            consistency.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Validated copy; omitted fields or Ellipsis retain their values.
-
-        Raises
-        ------
-        KiyosiError
-            If replacement terms fail domain validation.
-        """
-
     @property
     def option_type(self) -> Literal["call", "put"]:
         """Return call or put payoff direction."""
@@ -9526,10 +9431,6 @@ class BarrierOption:
         Explicit override. Omission or Ellipsis inherits a supplied
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -9538,10 +9439,6 @@ class BarrierOption:
         timing are invalid. Trading-day compatibility is checked on
         construction; valuation-history checks occur at pricing.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @property
     def calendar(self) -> TradingCalendar:
@@ -9562,7 +9459,6 @@ class BarrierOption:
         observation_times: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -9591,10 +9487,6 @@ class BarrierOption:
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
             and replacement retains the current calendar.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -9624,44 +9516,7 @@ class BarrierOption:
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        touch_state : {'untouched', 'touched'} or None, optional
-            Strictly prior history. None means unknown; untouched means known no
-            hit.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Validated copy; omitted fields or Ellipsis retain their values.
-
-        Raises
-        ------
-        InvalidInputError
-            If supplied history has no timestamp or history_time falls outside the
-            contract life.
-        TypeError
-            If a field is unknown or touch_state is not a string, None or Ellipsis.
-        ValueError
-            If touch_state is an unknown choice.
-        """
-
     @property
     def option_type(self) -> Literal["call", "put"]:
         """Return call or put payoff direction."""
@@ -9899,10 +9754,6 @@ class DoubleBarrierOption:
         Explicit override. Omission or Ellipsis inherits a supplied
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -9911,10 +9762,6 @@ class DoubleBarrierOption:
         rebate timing are invalid. Calendar compatibility is checked on
         construction; history is checked during pricing.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @property
     def calendar(self) -> TradingCalendar:
@@ -9935,7 +9782,6 @@ class DoubleBarrierOption:
         observation_times: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -9964,10 +9810,6 @@ class DoubleBarrierOption:
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
             and replacement retains the current calendar.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -9998,44 +9840,7 @@ class DoubleBarrierOption:
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        touch_state : {'untouched', 'touched'} or None, optional
-            Strictly prior history. None means unknown; untouched means known no
-            hit.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Validated copy; omitted fields or Ellipsis retain their values.
-
-        Raises
-        ------
-        InvalidInputError
-            If supplied history has no timestamp or history_time falls outside the
-            contract life.
-        TypeError
-            If a field is unknown or touch_state is not a string, None or Ellipsis.
-        ValueError
-            If touch_state is an unknown choice.
-        """
-
     @property
     def option_type(self) -> Literal["call", "put"]:
         """Return call or put payoff direction."""
@@ -10112,10 +9917,6 @@ class RangeAccrualOption:
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays, independently of
         PricingContext.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -10133,10 +9934,6 @@ class RangeAccrualOption:
     expiry; a completed observation schedule still has a discounted future
     payment.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @property
     def observation_schedule(self) -> ObservationSchedule:
@@ -10164,7 +9961,6 @@ class RangeAccrualOption:
         observation_clock_time: time | EllipsisType = ...,
         realized_hit_count: SupportsIndex | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -10177,13 +9973,10 @@ class RangeAccrualOption:
         observation_clock_time : datetime.time, optional
             Daily observation clock, without timezone information.
         realized_hit_count : int | None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Hits strictly before valuation; None clears to unknown.
+            Omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -10211,39 +10004,7 @@ class RangeAccrualOption:
         observation_clock_time: time,
         realized_hit_count: SupportsIndex | None = ...,
         calendar: TradingCalendar = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        realized_hit_count: SupportsIndex | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        realized_hit_count : int or None, optional
-            Hits strictly before valuation, or None for unknown history.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Validated copy; omitted fields or Ellipsis retain their values.
-
-        Raises
-        ------
-        KiyosiError
-            If replacement terms fail domain validation.
-        """
-
     @property
     def notional(self) -> float:
         """Return positive finite coupon notional, without principal repayment."""
@@ -10764,10 +10525,6 @@ class BinaryBarrierOption:
         Explicit override. Omission or Ellipsis inherits a supplied
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -10780,10 +10537,6 @@ class BinaryBarrierOption:
     are conveniences. Barrier equality touches; terminal strike equality pays
     zero.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @overload
     def __init__(
@@ -10800,7 +10553,6 @@ class BinaryBarrierOption:
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -10817,7 +10569,6 @@ class BinaryBarrierOption:
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
     @property
     def calendar(self) -> TradingCalendar:
@@ -10838,7 +10589,6 @@ class BinaryBarrierOption:
         payoff_type: Literal["cash", "asset"] | EllipsisType = ...,
         payout: _Real | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -10868,10 +10618,6 @@ class BinaryBarrierOption:
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
             and replacement retains the current calendar.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -10885,42 +10631,6 @@ class BinaryBarrierOption:
             If the resulting contract fails core validation.
         TypeError
             If a representation or field name is invalid.
-        """
-
-    def replace_history(
-        self,
-        *,
-        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        touch_state : {'untouched', 'touched'} or None, optional
-            Strictly prior history. None means unknown; untouched means known no
-            hit.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Validated copy; omitted fields or Ellipsis retain their values.
-
-        Raises
-        ------
-        InvalidInputError
-            If supplied history has no timestamp or history_time falls outside the
-            contract life.
-        TypeError
-            If a field is unknown or touch_state is not a string, None or Ellipsis.
-        ValueError
-            If touch_state is an unknown choice.
         """
 
     @property
@@ -11003,10 +10713,6 @@ class TouchOption:
         Explicit override. Omission or Ellipsis inherits a supplied
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -11020,10 +10726,6 @@ class TouchOption:
     contracts; cash_no_touch_option and asset_no_touch_option create no-touch contracts.
     Prior at-hit payments are settled.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @overload
     def __init__(
@@ -11039,7 +10741,6 @@ class TouchOption:
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -11055,7 +10756,6 @@ class TouchOption:
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
     @property
     def calendar(self) -> TradingCalendar:
@@ -11075,7 +10775,6 @@ class TouchOption:
         payoff_type: Literal["cash", "asset"] | EllipsisType = ...,
         payout: _Real | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -11103,10 +10802,6 @@ class TouchOption:
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
             and replacement retains the current calendar.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -11120,42 +10815,6 @@ class TouchOption:
             If the resulting contract fails core validation.
         TypeError
             If a representation or field name is invalid.
-        """
-
-    def replace_history(
-        self,
-        *,
-        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        touch_state : {'untouched', 'touched'} or None, optional
-            Strictly prior history. None means unknown; untouched means known no
-            hit.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Validated copy; omitted fields or Ellipsis retain their values.
-
-        Raises
-        ------
-        InvalidInputError
-            If supplied history has no timestamp or history_time falls outside the
-            contract life.
-        TypeError
-            If a field is unknown or touch_state is not a string, None or Ellipsis.
-        ValueError
-            If touch_state is an unknown choice.
         """
 
     @property
@@ -11228,7 +10887,6 @@ def cash_binary_barrier_option(
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> BinaryBarrierOption:
     """Create a barrier cash digital with strict terminal exercise.
 
@@ -11258,8 +10916,6 @@ def cash_binary_barrier_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history; required when history is known.
 
     Returns
     -------
@@ -11289,7 +10945,6 @@ def asset_binary_barrier_option(
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> BinaryBarrierOption:
     """Create a barrier asset digital with strict terminal exercise.
 
@@ -11317,8 +10972,6 @@ def asset_binary_barrier_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history; required when history is known.
 
     Returns
     -------
@@ -11348,7 +11001,6 @@ def cash_touch_option(
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> TouchOption:
     """Create a cash or asset one-touch contract.
 
@@ -11376,8 +11028,6 @@ def cash_touch_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history; required when history is known.
 
     Returns
     -------
@@ -11410,7 +11060,6 @@ def cash_no_touch_option(
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> TouchOption:
     """Create a cash or asset no-touch contract.
 
@@ -11438,8 +11087,6 @@ def cash_no_touch_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history; required when history is known.
 
     Returns
     -------
@@ -11471,7 +11118,6 @@ def asset_touch_option(
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> TouchOption:
     """Create a cash or asset one-touch contract.
 
@@ -11497,8 +11143,6 @@ def asset_touch_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history; required when history is known.
 
     Returns
     -------
@@ -11530,7 +11174,6 @@ def asset_no_touch_option(
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> TouchOption:
     """Create a cash or asset no-touch contract.
 
@@ -11556,8 +11199,6 @@ def asset_no_touch_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history; required when history is known.
 
     Returns
     -------
@@ -11753,10 +11394,6 @@ class DoubleTouchOption:
         Explicit override. Omission or Ellipsis inherits a supplied
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -11772,10 +11409,6 @@ class DoubleTouchOption:
     have no remaining value.
     """
 
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
-
     def __init__(
         self,
         *,
@@ -11789,7 +11422,6 @@ class DoubleTouchOption:
         observation_times: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
     @property
     def calendar(self) -> TradingCalendar:
@@ -11808,7 +11440,6 @@ class DoubleTouchOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payout: _Real | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -11833,10 +11464,6 @@ class DoubleTouchOption:
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
             and replacement retains the current calendar.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -11850,42 +11477,6 @@ class DoubleTouchOption:
             If the resulting contract fails core validation.
         TypeError
             If a representation or field name is invalid.
-        """
-
-    def replace_history(
-        self,
-        *,
-        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        touch_state : {'untouched', 'touched'} or None, optional
-            Strictly prior history. None means unknown; untouched means known no
-            hit.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            Validated copy; omitted fields or Ellipsis retain their values.
-
-        Raises
-        ------
-        InvalidInputError
-            If supplied history has no timestamp or history_time falls outside the
-            contract life.
-        TypeError
-            If a field is unknown or touch_state is not a string, None or Ellipsis.
-        ValueError
-            If touch_state is an unknown choice.
         """
 
     @property
@@ -11947,7 +11538,6 @@ def cash_double_touch(
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> DoubleTouchOption:
     """Create a cash payment activated by either inclusive boundary.
 
@@ -11975,8 +11565,6 @@ def cash_double_touch(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history; required when history is known.
 
     Returns
     -------
@@ -12006,7 +11594,6 @@ def cash_double_no_touch(
     observation_times: Iterable[datetime] | None = None,
     touch_state: Literal["untouched", "touched"] | None = None,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> DoubleTouchOption:
     """Create an expiry cash payment requiring neither boundary to be touched.
 
@@ -12032,8 +11619,6 @@ def cash_double_no_touch(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history; required when history is known.
 
     Returns
     -------
@@ -12502,18 +12087,16 @@ class SnowballOption:
     observations : iterable of AutocallableObservation
         Nonempty, strictly ordered contractual observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
         observations independently of PricingContext.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -12522,10 +12105,6 @@ class SnowballOption:
         Calendar compatibility is checked on construction; prior barrier
         history is checked during pricing.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @property
     def knock_in_observation_schedule(self) -> ObservationSchedule:
@@ -12559,7 +12138,6 @@ class SnowballOption:
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -12583,10 +12161,6 @@ class SnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -12645,42 +12219,7 @@ class SnowballOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
-        | None
-        | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> SnowballOption:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Strictly prior events. None is unknown; the string no_event means no
-            event.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            New instance of the same class; omission or Ellipsis retains history.
-
-        Raises
-        ------
-        KiyosiError
-            If replacement terms fail domain validation.
-        """
-
     @property
     def observations(self) -> tuple[AutocallableObservation, ...]:
         """Return owned copies of the contractual observations."""
@@ -12771,18 +12310,16 @@ class PhoenixOption:
         Initial observations excluded from knock-out; defaults to zero and must
         leave at least one eligible observation. Coupons and knock-in remain active.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
         observations independently of PricingContext.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -12805,10 +12342,6 @@ class PhoenixOption:
     @property
     def lockout_periods(self) -> int:
         """Return the number of initial observations excluded from knock-out."""
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     def with_quoted_coupon(self, *, coupon_per_period: _Real) -> Self:
         """Return a note with the supplied periodic coupon rate.
@@ -12866,7 +12399,6 @@ class PhoenixOption:
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -12892,10 +12424,6 @@ class PhoenixOption:
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -12928,42 +12456,7 @@ class PhoenixOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
-        | None
-        | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> PhoenixOption:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Strictly prior events. None is unknown; the string no_event means no
-            event.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            New instance of the same class; omission or Ellipsis retains history.
-
-        Raises
-        ------
-        KiyosiError
-            If replacement terms fail domain validation.
-        """
-
     @property
     def observations(self) -> tuple[AutocallableObservation, ...]:
         """Return owned copies of the contractual observations."""
@@ -13038,18 +12531,16 @@ class BinarySnowballOption:
     observations : iterable of AutocallableObservation
         Nonempty, strictly ordered contractual observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
         observations independently of PricingContext.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -13057,10 +12548,6 @@ class BinarySnowballOption:
         If coupons, principal, times or observations are invalid, or
         barrier_state is knocked_in; this contract has no knock-in barrier.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @property
     def knock_in_observation_schedule(self) -> None:
@@ -13083,7 +12570,6 @@ class BinarySnowballOption:
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -13101,10 +12587,6 @@ class BinarySnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -13157,42 +12639,7 @@ class BinarySnowballOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
-        | None
-        | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> BinarySnowballOption:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Strictly prior events. None is unknown; the string no_event means no
-            event.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            New instance of the same class; omission or Ellipsis retains history.
-
-        Raises
-        ------
-        KiyosiError
-            If replacement terms fail domain validation.
-        """
-
     @property
     def observations(self) -> tuple[AutocallableObservation, ...]:
         """Return owned copies of the contractual observations."""
@@ -13255,18 +12702,16 @@ class TernarySnowballOption:
     observations : iterable of AutocallableObservation
         Nonempty, strictly ordered contractual observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
         observations independently of PricingContext.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -13274,10 +12719,6 @@ class TernarySnowballOption:
         If coupons, principal, barriers, times or observations are invalid.
         minimum_coupon_rate must not exceed maturity_coupon_rate.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @property
     def knock_in_observation_schedule(self) -> ObservationSchedule:
@@ -13309,7 +12750,6 @@ class TernarySnowballOption:
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -13331,10 +12771,6 @@ class TernarySnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -13391,42 +12827,7 @@ class TernarySnowballOption:
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
-        history_time: datetime | None = None,
     ) -> None: ...
-    def replace_history(
-        self,
-        *,
-        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
-        | None
-        | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> TernarySnowballOption:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Strictly prior events. None is unknown; the string no_event means no
-            event.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            New instance of the same class; omission or Ellipsis retains history.
-
-        Raises
-        ------
-        KiyosiError
-            If replacement terms fail domain validation.
-        """
-
     @property
     def observations(self) -> tuple[AutocallableObservation, ...]:
         """Return owned copies of the contractual observations."""
@@ -13492,7 +12893,6 @@ def standard_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create constant knock-out coupons and levels with daily knock-in monitoring.
 
@@ -13517,18 +12917,16 @@ def standard_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13573,7 +12971,6 @@ def european_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with knock-in observed only at expiry.
 
@@ -13598,18 +12995,16 @@ def european_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13655,7 +13050,6 @@ def step_down_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with decreasing knock-out levels.
 
@@ -13682,18 +13076,16 @@ def step_down_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13742,7 +13134,6 @@ def both_down_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with decreasing coupons and knock-out levels.
 
@@ -13771,18 +13162,16 @@ def both_down_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13830,7 +13219,6 @@ def dual_coupon_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with separate knock-out and maturity coupons.
 
@@ -13857,18 +13245,16 @@ def dual_coupon_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13914,7 +13300,6 @@ def parachute_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with a distinct final knock-out level.
 
@@ -13941,18 +13326,16 @@ def parachute_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -13998,7 +13381,6 @@ def otm_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball with a replaced upper terminal strike.
 
@@ -14025,18 +13407,16 @@ def otm_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14082,7 +13462,6 @@ def loss_capped_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a snowball whose lower terminal strike caps downside loss.
 
@@ -14109,18 +13488,16 @@ def loss_capped_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14174,7 +13551,7 @@ class Accumulator:
     accumulated_quantity : float or None, optional
         Outstanding quantity strictly before valuation. None means unknown;
         zero means no units. Explicit history is required after any prior
-        accumulation or knock-out observation. Construction rejects positive
+        accumulation or knock-out observation. Pricing rejects positive
         quantity before a strictly prior accumulation unless already settled.
     option_type : {'call', 'put'}, optional
         Call accumulates purchases (the default); put accumulates sales.
@@ -14192,10 +13569,6 @@ class Accumulator:
         Explicit override. Omission or Ellipsis inherits a supplied
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Raises
     ------
@@ -14217,10 +13590,6 @@ class Accumulator:
     strike); puts pay its negative. Intraday history includes that day's
     earlier accumulation. Record settled contracts with knock_out_settled=True.
     """
-
-    @property
-    def history_time(self) -> datetime | None:
-        """Return the timestamp through which supplied history is known, or None."""
 
     @property
     def accumulation_schedule(self) -> ObservationSchedule:
@@ -14258,7 +13627,6 @@ class Accumulator:
         knock_out_observation_times: Iterable[datetime] | None | EllipsisType = ...,
         knock_out_settled: bool | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
 
@@ -14271,7 +13639,8 @@ class Accumulator:
         acceleration_factor : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         accumulated_quantity : float or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Quantity strictly before valuation; None clears to unknown.
+            Omission or Ellipsis retains the current field.
         effective_time, expiry_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
         observation_clock_time : datetime.time, optional
@@ -14279,15 +13648,12 @@ class Accumulator:
         knock_out_observation_times : Iterable[datetime.datetime] | None, optional
             Replacement value; omission or Ellipsis retains the current field.
         knock_out_settled : bool or None, optional
-            Records a settled knock-out strictly before valuation.
+            Records a settled knock-out strictly before valuation; None clears to
+            unknown. Omission or Ellipsis retains the current state.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
             and replacement retains the current calendar.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
 
         Returns
         -------
@@ -14318,7 +13684,6 @@ class Accumulator:
         knock_out_observation_times: Iterable[datetime] | None = None,
         knock_out_settled: bool | None = ...,
         calendar: TradingCalendar | EllipsisType = ...,
-        history_time: datetime | None = None,
     ) -> None: ...
     @property
     def option_type(self) -> Literal["call", "put"]:
@@ -14359,44 +13724,6 @@ class Accumulator:
     @property
     def expiry_time(self) -> datetime:
         """Return inclusive expiry time."""
-
-    def replace_history(
-        self,
-        *,
-        accumulated_quantity: _Real | None | EllipsisType = ...,
-        knock_out_settled: bool | None | EllipsisType = ...,
-        history_time: datetime | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated replacement.
-
-        Clearing the final history payload clears an omitted history_time. An
-        explicitly supplied history_time is validated and retained.
-
-        Parameters
-        ----------
-        accumulated_quantity : float or None, optional
-            Outstanding quantity strictly before valuation. None means unknown;
-            zero means no units. Required after a prior observation unless
-            knock_out_settled is True.
-        knock_out_settled : bool or None, optional
-            None restores unknown history; omission retains the current state.
-            Construction rejects knock-out settlement before or at the first knock-out
-            observation.
-        history_time : datetime.datetime or None, optional
-            Timestamp of supplied history, covering events strictly before it.
-            Required with history; payloads must be possible strictly before this
-            instant. Refresh payload and timestamp together.
-
-        Returns
-        -------
-        object
-            New instance of the same class; omission or Ellipsis retains history.
-
-        Raises
-        ------
-        KiyosiError
-            If replacement terms fail domain validation.
-        """
 
     def __eq__(self, other: object) -> bool: ...
     @property
@@ -14610,7 +13937,6 @@ def standard_phoenix(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> PhoenixOption:
     """Create a standard Phoenix with a constant knock-out barrier and optional initial lockout.
 
@@ -14640,7 +13966,9 @@ def standard_phoenix(
     expiry_time : datetime.datetime
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events; None means unknown history.
+        State strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out, knocked_in means outstanding after knock-in, and
+        knocked_out means settled. Current observations use current spot.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss
         components.
@@ -14648,10 +13976,6 @@ def standard_phoenix(
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14693,7 +14017,6 @@ def step_down_phoenix(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> PhoenixOption:
     """Create a step-down Phoenix whose first eligible knock-out uses the initial level.
 
@@ -14725,7 +14048,9 @@ def step_down_phoenix(
     expiry_time : datetime.datetime
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events; None means unknown history.
+        State strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out, knocked_in means outstanding after knock-in, and
+        knocked_out means settled. Current observations use current spot.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss
         components.
@@ -14733,10 +14058,6 @@ def step_down_phoenix(
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14775,7 +14096,6 @@ def fixed_coupon_note(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> PhoenixOption:
     """Create a fixed coupon note with unconditional surviving coupons.
 
@@ -14801,7 +14121,9 @@ def fixed_coupon_note(
     expiry_time : datetime.datetime
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events; None means unknown history.
+        State strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out, knocked_in means outstanding after knock-in, and
+        knocked_out means settled. Current observations use current spot.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss
         components.
@@ -14809,10 +14131,6 @@ def fixed_coupon_note(
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14852,7 +14170,6 @@ def digital_coupon_note(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> PhoenixOption:
     """Create a digital coupon note with barrier-conditional fixed coupons.
 
@@ -14880,7 +14197,9 @@ def digital_coupon_note(
     expiry_time : datetime.datetime
         Inclusive expiry time.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events; None means unknown history.
+        State strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out, knocked_in means outstanding after knock-in, and
+        knocked_out means settled. Current observations use current spot.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss
         components.
@@ -14888,10 +14207,6 @@ def digital_coupon_note(
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -14932,7 +14247,6 @@ def early_profit_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a two-stage early-profit snowball.
 
@@ -14961,18 +14275,16 @@ def early_profit_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------
@@ -15023,7 +14335,6 @@ def butterfly_snowball(
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
-    history_time: datetime | None = None,
 ) -> SnowballOption:
     """Create a three-stage butterfly snowball.
 
@@ -15056,18 +14367,16 @@ def butterfly_snowball(
     observation_clock_time : datetime.time or None
         Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Strictly prior events. None is unknown; the string no_event means no
-        event.
+        Events strictly before valuation. None is unknown; no_event means no prior
+        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+        knocked_out means settled with no remaining value. The engine handles
+        observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-    history_time : datetime.datetime or None, optional
-        Timestamp of supplied history, covering events strictly before it.
-        Required with history; payloads must be possible strictly before this
-        instant. Refresh payload and timestamp together.
 
     Returns
     -------

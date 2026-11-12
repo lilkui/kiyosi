@@ -133,42 +133,6 @@ pub trait OptionContract {
     /// Returns the inclusive expiry timestamp. See [`DigitalOption::expiry_time`].
     fn expiry_time(&self) -> Timestamp;
 
-    /// Returns the timestamp through which supplied history is known, if dated.
-    ///
-    /// History describes events strictly before this timestamp. See [`Self::with_history_time`].
-    fn history_time(&self) -> Option<Timestamp> {
-        None
-    }
-
-    /// Dates supplied history at `time`, consuming and returning this contract.
-    ///
-    /// Built-in path-dependent contracts require dated history on construction and replacement. Reuse across
-    /// observations is rejected; continuously accumulated history requires the same instant.
-    /// Dates after valuation are rejected at pricing. Contracts without history reject
-    /// a supplied timestamp; clearing with `None` retains their value.
-    /// Changing a dated snapshot with known history requires its payload through
-    /// the contract's `replace_history` method; repeating its timestamp is valid.
-    /// See the [crate-level history example](crate).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for a supplied timestamp when history
-    /// is unsupported, [`Error::InvalidInput`] for a supported timestamp outside life
-    /// or history impossible at the snapshot time, or [`Error::MissingHistory`]
-    /// for clearing the timestamp while history remains known.
-    /// Returns [`Error::StaleHistory`] when redating known history without its payload.
-    fn with_history_time(self, time: Option<Timestamp>) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        if time.is_some() {
-            return Err(Error::UnsupportedOperation(
-                "this contract does not support history timestamps".into(),
-            ));
-        }
-        Ok(self)
-    }
-
     /// Returns the earliest valuation time, or `None` when pre-effective valuation is valid.
     ///
     /// European vanilla and digital contracts allow earlier valuation. Other built-in contracts

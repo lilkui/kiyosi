@@ -24,8 +24,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_decimal_equal, assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 GREEKS = (
@@ -67,7 +65,7 @@ def make_touch(factory=ins.cash_touch_option, **changes):
             if factory is ins.cash_touch_option
             else ins.asset_no_touch_option
         )
-    return factory(**history_fields(**terms))
+    return factory(**terms)
 
 
 def make_context(
@@ -103,25 +101,22 @@ def test_strict_history_current_and_paid_cash_and_asset_settlement():
                 if timing == "at_hit"
                 else amount * math.exp(-(0.01 if asset else 0.04))
             )
-            assert engine.price(
-                dated_history(option, make_context(130)), make_context(130)
-            ) == pytest.approx(expected, rel=0, abs=1e-12)
+            assert engine.price(option, make_context(130)) == pytest.approx(
+                expected, rel=0, abs=1e-12
+            )
             assert_rejection(
                 MissingHistoryError,
                 lambda option=option: engine.price(
-                    dated_history(option, make_context(130, datetime(2025, 1, 2))),
+                    option,
                     make_context(130, datetime(2025, 1, 2)),
                 ),
             )
-            known = option.replace_history(
+            known = option.replace(
                 touch_state="touched",
-                history_time=option.expiry_time,
             )
             assert_rejection(
                 InvalidInputError,
-                lambda known=known: engine.price(
-                    dated_history(known, make_context(130)), make_context(130)
-                ),
+                lambda known=known: engine.price(known, make_context(130)),
             )
             context = make_context(time=datetime(2025, 7, 1))
             expected = (
@@ -130,15 +125,15 @@ def test_strict_history_current_and_paid_cash_and_asset_settlement():
                 else (100 if asset else 10)
                 * math.exp(-(0.01 if asset else 0.04) * 184 / 365)
             )
-            assert engine.price(
-                dated_history(known, context), context
-            ) == pytest.approx(expected, rel=0, abs=1e-12)
+            assert engine.price(known, context) == pytest.approx(
+                expected, rel=0, abs=1e-12
+            )
             assert_rejection(
                 UnsupportedOperationError,
                 lambda context=context, expected=expected, known=known: (
                     implied_volatility(
                         engine,
-                        dated_history(known, context),
+                        known,
                         context,
                         expected,
                         lower_bound=0.0,
@@ -146,44 +141,40 @@ def test_strict_history_current_and_paid_cash_and_asset_settlement():
                     )
                 ),
             )
-            assert known.replace_history(touch_state=None) == option
-            assert option.replace_history() == option
+            assert known.replace(touch_state=None) == option
+            assert option.replace() == option
             with pytest.raises(ValueError):
-                option.replace_history(
+                option.replace(
                     touch_state="unknown",
-                    history_time=option.history_time or option.expiry_time,
                 )
             with pytest.raises(TypeError):
-                option.replace_history(
+                option.replace(
                     touch_state=True,
-                    history_time=option.history_time or option.expiry_time,
                 )
-            with pytest.raises(TypeError):
-                option.replace_history(payout=7)
+            assert option.replace(payoff_type="cash", payout=7).payout == 7
             assert option.touch_state is None
     for kind in ("up_and_in", "up_and_out"):
         option = ins.cash_binary_barrier_option(
-            **history_fields(**make_terms(barrier_type=kind), payout=10)
+            **make_terms(barrier_type=kind), payout=10
         )
         assert_rejection(
             MissingHistoryError,
             lambda option=option: engine.price(
-                dated_history(option, make_context(130, datetime(2025, 7, 1))),
+                option,
                 make_context(130, datetime(2025, 7, 1)),
             ),
         )
-        known = option.replace_history(
+        known = option.replace(
             touch_state="touched",
-            history_time=option.expiry_time,
         )
         assert (
             engine.price(
-                dated_history(known, make_context(100, datetime(2025, 7, 1))),
+                known,
                 make_context(100, datetime(2025, 7, 1)),
             )
             == 0
         ) == (kind == "up_and_out")
-        assert known.replace_history(touch_state=None) == option
+        assert known.replace(touch_state=None) == option
 
 
 def test_representation_domain_validation_and_failure_state(subtests):
@@ -192,23 +183,23 @@ def test_representation_domain_validation_and_failure_state(subtests):
         ins.asset_binary_barrier_option,
     ):
         extra = {"payout": 10} if factory is ins.cash_binary_barrier_option else {}
-        option = factory(**history_fields(**make_terms(), **extra))
+        option = factory(**make_terms(), **extra)
         for field in ("strike", "barrier_level", *extra):
             for value in (True, "100", None, 1 + 0j):
                 with (
                     subtests.test(field=field, value=value),
                     pytest.raises(TypeError),
                 ):
-                    factory(**history_fields(**(make_terms() | extra | {field: value})))
+                    factory(**(make_terms() | extra | {field: value}))
         for field in (
             "option_type",
             "barrier_type",
             "touch_state",
         ):
             with subtests.test(field=field), pytest.raises(TypeError):
-                factory(**history_fields(**(make_terms() | extra | {field: True})))
+                factory(**(make_terms() | extra | {field: True}))
             with subtests.test(field=field), pytest.raises(ValueError):
-                factory(**history_fields(**(make_terms() | extra | {field: "unknown"})))
+                factory(**(make_terms() | extra | {field: "unknown"}))
         for fields, expected_error in (
             ({"strike": 0, "barrier_level": 0}, InvalidInputError),
             ({"barrier_level": 0}, InvalidInputError),
@@ -230,13 +221,13 @@ def test_representation_domain_validation_and_failure_state(subtests):
             assert_rejection(
                 expected_error,
                 lambda fields=fields, factory=factory, extra=extra: factory(
-                    **history_fields(**(make_terms() | extra | fields))
+                    **(make_terms() | extra | fields)
                 ),
             )
-        for fields in ({"strike": 7}, {"touch_state": True}):
+        for fields in ({"strike": True}, {"touch_state": True}):
             with pytest.raises(TypeError):
-                option.replace_history(**fields)
-        assert option == factory(**history_fields(**make_terms(), **extra))
+                option.replace(**fields)
+        assert option == factory(**make_terms(), **extra)
         with pytest.raises(AttributeError):
             option.strike = 0
     for payout in (0, -1, math.inf, math.nan):
@@ -246,7 +237,7 @@ def test_representation_domain_validation_and_failure_state(subtests):
         assert_rejection(
             InvalidInputError,
             lambda payout=payout: ins.cash_binary_barrier_option(
-                **history_fields(**make_terms(strike=0), payout=payout)
+                **make_terms(strike=0), payout=payout
             ),
         )
     for field in (
@@ -270,9 +261,7 @@ def test_representation_domain_validation_and_failure_state(subtests):
     with pytest.raises(TypeError):
         make_touch(effective_time=datetime(2025, 1, 1).date())
     with pytest.raises(TypeError):
-        AnalyticBinaryBarrierEngine().price(
-            dated_history(object(), make_context()), make_context()
-        )
+        AnalyticBinaryBarrierEngine().price(object(), make_context())
 
 
 @pytest.mark.parametrize("factory", (ins.cash_touch_option, ins.asset_touch_option))
@@ -324,43 +313,36 @@ def test_scheduled_boundaries_history_and_owned_dates():
         )
         assert_rejection(
             UnsupportedOperationError,
-            lambda option=option: engine.price(
-                dated_history(option, make_context()), make_context()
-            ),
+            lambda option=option: engine.price(option, make_context()),
         )
         assert_rejection(
             InvalidInputError,
             lambda option=option: engine.price(
-                dated_history(
-                    option.replace_history(
-                        touch_state="touched",
-                        history_time=option.expiry_time,
-                    ),
-                    make_context(120, fixing),
+                option.replace(
+                    touch_state="touched",
                 ),
                 make_context(120, fixing),
             ),
         )
         expected = 10 * math.exp(-0.04 * 364 / 365) if one else 0
         assert engine.price(
-            dated_history(option, make_context(120, fixing)),
+            option,
             make_context(120, fixing),
         ) == pytest.approx(expected, rel=0, abs=1e-12)
         noon = datetime(2025, 1, 2, 12)
         assert_rejection(
             MissingHistoryError,
             lambda option=option, noon=noon: engine.price(
-                dated_history(option, make_context(130, noon)),
+                option,
                 make_context(130, noon),
             ),
         )
-        known = option.replace_history(
+        known = option.replace(
             touch_state="untouched",
-            history_time=option.history_time or option.expiry_time,
         )
         expected = 0 if one else 10 * math.exp(-0.04 * 363 / 365)
         assert engine.price(
-            dated_history(known, make_context(130, datetime(2025, 1, 3))),
+            known,
             make_context(130, datetime(2025, 1, 3)),
         ) == pytest.approx(expected, rel=0, abs=1e-12)
         dates = list(known.observation_times)
@@ -379,19 +361,17 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
     engine = AnalyticBinaryBarrierEngine()
     options = [
         ins.cash_binary_barrier_option(
-            **history_fields(**make_terms(touch_state="untouched"), payout=10)
+            **make_terms(touch_state="untouched"), payout=10
         ),
         make_touch(touch_state="untouched"),
     ]
     for option in options:
         context = make_context(time=datetime(2025, 7, 1))
-        result = engine.price_with_greeks(
-            dated_history(option, context), context, greeks="all"
-        )
+        result = engine.price_with_greeks(option, context, greeks="all")
         assert all(getattr(result, g) is not None for g in GREEKS)
         sigma = implied_volatility(
             engine,
-            dated_history(option, context),
+            option,
             context,
             result.price,
             lower_bound=0.15,
@@ -402,21 +382,21 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
             InvalidInputError,
             lambda context=context, option=option: numerical_greeks(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 "delta",
                 spot_shift=0,
             ),
         )
         boundary = engine.price_with_greeks(
-            dated_history(option, make_context(120)),
+            option,
             make_context(120),
             greeks="all",
         )
         assert boundary.delta is None
         assert boundary.gamma is None
         near = engine.price_with_greeks(
-            dated_history(option, make_context(119.995)),
+            option,
             make_context(119.995),
             greeks="all",
         )
@@ -424,9 +404,7 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
         assert near.speed is None
         assert near.vega is not None
         expiry = make_context(time=datetime(2026, 1, 1))
-        terminal = engine.price_with_greeks(
-            dated_history(option, expiry), expiry, greeks="all"
-        )
+        terminal = engine.price_with_greeks(option, expiry, greeks="all")
         assert_terminal_greeks(
             terminal,
             None if isinstance(option, ins.BinaryBarrierOption) else 0,
@@ -435,7 +413,7 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
             UnsupportedOperationError,
             lambda option=option, expiry=expiry, terminal=terminal: implied_volatility(
                 engine,
-                dated_history(option, expiry),
+                option,
                 expiry,
                 terminal.price,
                 lower_bound=0.0,
@@ -445,9 +423,7 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
         assert_rejection(
             InvalidInputError,
             lambda option=option: engine.price(
-                dated_history(
-                    option, make_context(time=datetime(2026, 1, 1, 0, 0, 0, 1))
-                ),
+                option,
                 make_context(time=datetime(2026, 1, 1, 0, 0, 0, 1)),
             ),
         )
@@ -462,21 +438,19 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
         curves = make_context(rate=curve)
         assert_rejection(
             UnsupportedOperationError,
-            lambda curves=curves, option=option: engine.price(
-                dated_history(option, curves), curves
-            ),
+            lambda curves=curves, option=option: engine.price(option, curves),
         )
         assert_rejection(
             UnsupportedOperationError,
             lambda curves=curves, option=option: engine.price_with_greeks(
-                dated_history(option, curves), curves, []
+                option, curves, []
             ),
         )
         with ThreadPoolExecutor(4) as pool:
             prices = list(
                 pool.map(
                     lambda _, context=context, option=option: engine.price(
-                        dated_history(option, context), context
+                        option, context
                     ),
                     range(16),
                 )
@@ -490,7 +464,7 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
         calendar=all_days_calendar(),
     )
     result = engine.price_with_greeks(
-        dated_history(dense, make_context(time=datetime(2025, 1, 1, 12))),
+        dense,
         make_context(time=datetime(2025, 1, 1, 12)),
         greeks="all",
     )
@@ -521,11 +495,7 @@ def test_existing_quantlib_price_and_greek_scenarios(subtests, quantlib_settings
                     else (ins.asset_touch_option if asset else ins.cash_touch_option)
                 )
                 option = factory(
-                    **history_fields(
-                        **terms,
-                        barrier_type=kind,
-                        settlement_timing=inputs["settlement"],
-                    )
+                    **terms, barrier_type=kind, settlement_timing=inputs["settlement"]
                 )
             else:
                 factory = (
@@ -534,12 +504,10 @@ def test_existing_quantlib_price_and_greek_scenarios(subtests, quantlib_settings
                     else ins.cash_binary_barrier_option
                 )
                 option = factory(
-                    **history_fields(
-                        **terms,
-                        option_type=inputs["option"],
-                        strike=inputs["strike"],
-                        barrier_type=kind,
-                    )
+                    **terms,
+                    option_type=inputs["option"],
+                    strike=inputs["strike"],
+                    barrier_type=kind,
                 )
             context = make_context(
                 inputs["spot"],
@@ -549,19 +517,19 @@ def test_existing_quantlib_price_and_greek_scenarios(subtests, quantlib_settings
                 sigma=inputs["volatility"],
             )
             expected = reference.measure(inputs, "price")
-            assert engine.price(
-                dated_history(option, context), context
-            ) == pytest.approx(expected, rel=0, abs=reference.BUDGET["price"])
+            assert engine.price(option, context) == pytest.approx(
+                expected, rel=0, abs=reference.BUDGET["price"]
+            )
             if not reference.exclusions(inputs):
                 result = numerical_greeks(
                     engine,
-                    dated_history(option, context),
+                    option,
                     context,
                     greeks="all",
                     spot_shift=0.02,
                 )
                 expected_greeks, metadata = reference.g.reference(
-                    dated_history(inputs, reference.STABILITY),
+                    inputs,
                     reference.STABILITY,
                     measure_fn=reference.measure,
                     unavailable=reference.exclusions(inputs),
@@ -580,7 +548,4 @@ def test_subnormal_ratio_retains_half_probability_at_expiry():
     drift = math.log(barrier) - math.log(spot)
     option = make_touch(barrier_type="down_and_in", barrier_level=barrier, payout=1)
     context = make_context(spot, rate=0, dividend=-drift, sigma=1e-200)
-    assert (
-        AnalyticBinaryBarrierEngine().price(dated_history(option, context), context)
-        == 0.5
-    )
+    assert AnalyticBinaryBarrierEngine().price(option, context) == 0.5

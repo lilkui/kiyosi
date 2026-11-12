@@ -37,8 +37,8 @@ impl AnalyticRangeAccrualEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required prior history returns [`crate::Error::MissingHistory`].
+    /// Supplied history covers events strictly before valuation.
     ///
     /// Checks valuation outside contract life, missing or excessive
     /// prior hits, and required curve coverage, in that order. Invalid life, excessive
@@ -52,7 +52,7 @@ impl AnalyticRangeAccrualEngine {
     /// # use kiyosi::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
-    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace_history(Some(1), Some(Date::new(2025, 1, 3)?.start_of_day()))?;
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace(RangeAccrualOptionChanges { realized_hit_count: Some(Some(1)), ..Default::default() })?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     95.0, option.expiry_time().into())?;
     /// assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - 240.0 / 365.0).abs() < 1e-12);
@@ -77,12 +77,6 @@ impl AnalyticRangeAccrualEngine {
         if option.realized_hit_count().unwrap_or(0) as usize > first {
             return Err(Error::InvalidInput("excessive prior hits".into()));
         }
-        crate::instruments::validate_history_time(
-            option,
-            option.realized_hit_count().is_some(),
-            context,
-            false,
-        )?;
         let mut hits = f64::from(option.realized_hit_count().unwrap_or(0));
         let mut future = first;
         if dates.get(future).is_some_and(|date| *date == valuation) {

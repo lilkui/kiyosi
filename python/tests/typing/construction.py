@@ -140,9 +140,9 @@ def observation_choices(at: datetime) -> None:
 
 def accumulator_history(option: Accumulator) -> None:
     assert_type(option.knock_out_settled, bool | None)
-    assert_type(option.replace_history(knock_out_settled=None), Accumulator)
+    assert_type(option.replace(knock_out_settled=None), Accumulator)
     assert_type(option.replace(knock_out_settled=False), Accumulator)
-    option.replace_history(knock_out_settled=0)  # ty: ignore[invalid-argument-type]
+    option.replace(knock_out_settled=0)  # ty: ignore[invalid-argument-type]
 
 
 def phoenix_periodic_coupon() -> None:

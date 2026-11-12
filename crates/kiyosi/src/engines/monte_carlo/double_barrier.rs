@@ -64,8 +64,8 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves,
     /// [`crate::Error::InvalidInput`] outside life,

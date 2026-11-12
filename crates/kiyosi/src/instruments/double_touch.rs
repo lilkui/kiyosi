@@ -7,10 +7,6 @@ use crate::{
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleTouchOptionTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Inclusive effective time.
@@ -40,7 +36,6 @@ impl DoubleTouchOptionTerms {
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
-            history_time: None,
             calendar: TradingCalendar::default(),
             effective_time,
             expiry_time,
@@ -99,9 +94,6 @@ impl DoubleTouchOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
-    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid positive finite payout,
     /// then for at-hit no-touch settlement. Shared monitoring validation then
@@ -122,7 +114,7 @@ impl DoubleTouchOption {
     ///     120.0, start.into())?;
     /// let engine = FiniteDifferenceDoubleTouchEngine::default();
     /// assert!((engine.price(&option, &context)? - 10.0 * (-0.03_f64).exp()).abs() < 1e-12);
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched), Some(start.add_days(1)?))?;
+    /// let known = option.replace(DoubleTouchOptionChanges { touch_state: Some(Some(BarrierTouchState::Untouched)), ..Default::default() })?;
     /// assert_eq!(option.touch_state(), None);
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// # Ok(()) }
@@ -153,7 +145,6 @@ impl DoubleTouchOption {
             terms.observation_times,
             terms.touch_state,
             &terms.calendar,
-            terms.history_time,
         )?;
         Ok(Self {
             monitoring,
@@ -218,27 +209,6 @@ impl DoubleTouchOption {
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
         self.monitoring.touch_state()
     }
-    /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::cash`].
-    ///
-    /// The original value remains unchanged.
-    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
-    ///
-    /// The supplied timestamp is validated and retained, including with unknown history.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a timestamp outside the contract life.
-    pub fn replace_history(
-        &self,
-        touch_state: Option<BarrierTouchState>,
-        history_time: Option<Timestamp>,
-    ) -> Result<Self> {
-        self.replace(DoubleTouchOptionChanges {
-            touch_state: Some(touch_state),
-            history_time: Some(history_time),
-            ..Default::default()
-        })
-    }
     pub(crate) fn contract(&self) -> crate::instruments::binary_barrier::Contract<'_> {
         crate::instruments::binary_barrier::Contract {
             monitoring: &self.monitoring,
@@ -250,14 +220,6 @@ impl DoubleTouchOption {
     }
 }
 impl OptionContract for DoubleTouchOption {
-    fn history_time(&self) -> Option<Timestamp> {
-        self.monitoring.history_time()
-    }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-        self.monitoring = self.monitoring.with_history_time(time)?;
-        Ok(self)
-    }
-
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -288,8 +250,6 @@ impl OptionContract for DoubleTouchOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleTouchOptionChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`DoubleTouchOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`effective_time`](DoubleTouchOptionTerms::effective_time).
@@ -321,22 +281,11 @@ impl DoubleTouchOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: DoubleTouchOptionChanges) -> Result<Self> {
-        let history_supplied = changes.touch_state.is_some();
         let updated = Self::cash(
             DoubleTouchOptionTerms {
-                history_time: super::replacement_history_time(
-                    self.history_time(),
-                    changes.history_time,
-                    changes.touch_state.is_some()
-                        && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
-                ),
                 calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
                 effective_time: changes.effective_time.unwrap_or(self.effective_time()),
                 expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
@@ -353,11 +302,7 @@ impl DoubleTouchOption {
             },
             changes.payout.unwrap_or(self.payout()),
         )?;
-        self.monitoring.validate_replacement_history(
-            &updated.monitoring,
-            history_supplied,
-            self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
-        )?;
+
         Ok(updated)
     }
 }

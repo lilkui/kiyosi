@@ -29,8 +29,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -55,9 +53,7 @@ def contract(**changes):
         "expiry_time": START + timedelta(days=16),
     }
     values.update(changes)
-    return RangeAccrualOption(
-        **history_fields(observation_clock_time=clock_time(), **values)
-    )
+    return RangeAccrualOption(observation_clock_time=clock_time(), **values)
 
 
 def market(valuation=START, spot=100, rate=0.04, dividend=0.01, volatility=0.2):
@@ -143,9 +139,7 @@ def test_dense_shifted_curves_match_independent_intraday_marginals(subtests):
     for valuation in (START, START + timedelta(days=5, hours=9)):
         option = contract(expiry_time=START + timedelta(days=730))
         if valuation != START:
-            option = option.replace_history(
-                realized_hit_count=3, history_time=valuation
-            )
+            option = option.replace(realized_hit_count=3)
         for volatility in (0.2, 1e-10):
             context = market(
                 valuation=valuation,
@@ -182,25 +176,24 @@ def test_automatic_time_bumps_recover_daily_risk_without_crossing_observations()
         expiry_time=datetime(2025, 1, 5),
         observation_clock_time=clock_time(15),
         realized_hit_count=1,
-        history_time=START + timedelta(days=1),
     )
     context = market(datetime(2025, 1, 2, 12), rate=0.04, dividend=0, volatility=0)
     engine = AnalyticRangeAccrualEngine()
     request = ["theta", "charm", "color"]
-    auto = engine.price_with_greeks(dated_history(option, context), context, request)
+    auto = engine.price_with_greeks(option, context, request)
     assert auto.require("theta") == pytest.approx(0.04 * auto.price, rel=0, abs=1e-9)
     assert auto.require("charm") == 0
     assert auto.require("color") == 0
     assert auto == numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         request,
         time_shift=None,
     )
     explicit = numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         request,
         time_shift=timedelta(days=1),
@@ -208,9 +201,7 @@ def test_automatic_time_bumps_recover_daily_risk_without_crossing_observations()
     assert explicit.status("theta") == "stencil_unavailable"
     at_observation = context.replace(valuation_time=datetime(2025, 1, 2, 15))
     assert (
-        engine.price_with_greeks(
-            dated_history(option, at_observation), at_observation, request
-        ).status("theta")
+        engine.price_with_greeks(option, at_observation, request).status("theta")
         == "stencil_unavailable"
     )
 
@@ -231,18 +222,7 @@ def test_dividend_coverage_ends_at_the_last_observation(subtests):
 
     def price(risk_end, dividend_end):
         return AnalyticRangeAccrualEngine().price(
-            dated_history(
-                option,
-                market(
-                    valuation=start,
-                    rate=RateTermStructure.bounded_flat(
-                        0.04, reference_time=start, max_time=risk_end
-                    ),
-                    dividend=RateTermStructure.bounded_flat(
-                        0.01, reference_time=start, max_time=dividend_end
-                    ),
-                ),
-            ),
+            option,
             market(
                 valuation=start,
                 rate=RateTermStructure.bounded_flat(
@@ -277,18 +257,15 @@ def test_unresolvable_curve_knots_fail_before_future_pricing():
         assert_rejection(
             ComputationFailureError,
             engine.price,
-            dated_history(option, context),
+            option,
             context,
         )
         assert (
             engine.price(
-                dated_history(
-                    contract(
-                        effective_time=option.effective_time,
-                        expiry_time=expiry,
-                        annual_coupon_rate=0,
-                    ),
-                    context,
+                contract(
+                    effective_time=option.effective_time,
+                    expiry_time=expiry,
+                    annual_coupon_rate=0,
                 ),
                 context,
             )
@@ -317,31 +294,27 @@ def test_native_representation_errors_and_unsupported_pairs(subtests):
                 contract(**{field: value})
     for value in (2**31, -(2**31) - 1):
         with pytest.raises(OverflowError):
-            option.replace_history(
+            option.replace(
                 realized_hit_count=value,
-                history_time=(option.history_time or option.effective_time)
-                if value is not None
-                else None,
             )
-    with pytest.raises(TypeError):
-        option.replace_history(notional=2000)
+    assert option.replace(notional=2000).notional == 2000
     with pytest.raises(UnsupportedOperationError):
-        engine.price(dated_history(vanilla, context), context)
+        engine.price(vanilla, context)
     with pytest.raises(UnsupportedOperationError):
         implied_volatility(
             engine,
-            dated_history(vanilla, context),
+            vanilla,
             context,
             1,
             lower_bound=0.0,
             upper_bound=4.0,
         )
     with pytest.raises(UnsupportedOperationError):
-        AnalyticEuropeanEngine().price(dated_history(option, context), context)
+        AnalyticEuropeanEngine().price(option, context)
     with pytest.raises(TypeError):
         numerical_greeks(
             engine,
-            dated_history(option, context),
+            option,
             context,
             "delta",
             spot_shift=True,
@@ -349,13 +322,13 @@ def test_native_representation_errors_and_unsupported_pairs(subtests):
     with pytest.raises(TypeError):
         implied_volatility(
             engine,
-            dated_history(option, context),
+            option,
             context,
             True,
             lower_bound=0.0,
             upper_bound=4.0,
         )
-    assert option.replace_history() == option
+    assert option.replace() == option
     assert option == contract()
 
 
@@ -365,7 +338,7 @@ def test_solver_failures_and_no_mutation():
         RootNotBracketedError,
         implied_volatility,
         engine,
-        dated_history(option, context),
+        option,
         context,
         -1,
         lower_bound=0.1,
@@ -375,7 +348,7 @@ def test_solver_failures_and_no_mutation():
         UnsupportedOperationError,
         implied_volatility,
         engine,
-        dated_history(contract(annual_coupon_rate=0), context),
+        contract(annual_coupon_rate=0),
         context,
         0,
         lower_bound=0.0,
@@ -385,12 +358,8 @@ def test_solver_failures_and_no_mutation():
         UnsupportedOperationError,
         implied_volatility,
         engine,
-        dated_history(
-            option.replace_history(
-                realized_hit_count=15,
-                history_time=option.history_time or option.expiry_time,
-            ),
-            market(option.expiry_time),
+        option.replace(
+            realized_hit_count=15,
         ),
         market(option.expiry_time),
         0,
@@ -401,7 +370,7 @@ def test_solver_failures_and_no_mutation():
         MissingHistoryError,
         implied_volatility,
         engine,
-        dated_history(option, market(START + timedelta(days=3))),
+        option,
         market(START + timedelta(days=3)),
         0,
         lower_bound=0.0,
@@ -414,16 +383,14 @@ def test_solver_failures_and_no_mutation():
 def test_daily_coupon_matches_exact_marginal_sum():
     option = contract(expiry_time=START + timedelta(days=365))
     context = market()
-    assert AnalyticRangeAccrualEngine().price(
-        dated_history(option, context), context
-    ) == pytest.approx(
-        reference(dated_history(option, context), context), rel=0, abs=1e-10
+    assert AnalyticRangeAccrualEngine().price(option, context) == pytest.approx(
+        reference(option, context), rel=0, abs=1e-10
     )
     assert implied_volatility(
         AnalyticRangeAccrualEngine(),
-        dated_history(option, context),
+        option,
         context,
-        reference(dated_history(option, context), context),
+        reference(option, context),
         lower_bound=0.1,
         upper_bound=0.4,
     ) == pytest.approx(context.model_parameters.volatility, rel=0, abs=1e-8)
@@ -436,22 +403,18 @@ def test_terms_representation_and_owning_replacement(subtests):
     assert option.annual_coupon_rate == 0.12
     assert option.lower_bound == 95
     assert option.upper_bound == 110
-    changed = option.replace_history(
+    changed = option.replace(
         realized_hit_count=3,
-        history_time=option.history_time or option.expiry_time,
     )
     assert changed.realized_hit_count == 3
-    assert changed.replace_history(realized_hit_count=None) == option
+    assert changed.replace(realized_hit_count=None) == option
     for value in (True, 1.0, 1.5, "1"):
         with subtests.test(value=value):
             with pytest.raises(TypeError):
                 contract(realized_hit_count=value)
             with pytest.raises(TypeError):
-                option.replace_history(
+                option.replace(
                     realized_hit_count=value,
-                    history_time=(option.history_time or option.effective_time)
-                    if value is not None
-                    else None,
                 )
     with pytest.raises(OverflowError):
         contract(realized_hit_count=2**100)
@@ -472,11 +435,8 @@ def test_terms_representation_and_owning_replacement(subtests):
             contract(**values)
     assert_rejection(InvalidInputError, contract, expiry_time=START)
     with pytest.raises(InvalidInputError, match="realized_hit_count"):
-        option.replace_history(
+        option.replace(
             realized_hit_count=-1,
-            history_time=(option.history_time or option.effective_time)
-            if -1 is not None
-            else None,
         )
     assert option == contract()
     assert "realized_hit_count" in repr(changed)
@@ -497,7 +457,7 @@ def test_closed_bounds_and_expiry_coupon(subtests):
     ):
         with subtests.test(spot=spot):
             result = engine.price_with_greeks(
-                dated_history(option, market(option.expiry_time, spot)),
+                option,
                 market(option.expiry_time, spot),
                 greeks="all",
             )
@@ -519,10 +479,8 @@ def test_history_midnight_and_intraday_within_contract_life(subtests):
         with subtests.test(valuation=valuation):
             option = contract(realized_hit_count=hits)
             context = market(valuation)
-            assert engine.price(
-                dated_history(option, context), context
-            ) == pytest.approx(
-                reference(dated_history(option, context), context), rel=0, abs=1e-10
+            assert engine.price(option, context) == pytest.approx(
+                reference(option, context), rel=0, abs=1e-10
             )
     for valuation, count in (
         (START, 1),
@@ -531,20 +489,21 @@ def test_history_midnight_and_intraday_within_contract_life(subtests):
     ):
         assert_rejection(
             InvalidInputError,
-            contract,
-            realized_hit_count=count,
-            history_time=valuation,
+            engine.price,
+            contract(realized_hit_count=count),
+            market(valuation),
         )
     assert_rejection(
         MissingHistoryError,
         engine.price,
-        dated_history(contract(), market(START + timedelta(days=2))),
+        contract(),
         market(START + timedelta(days=2)),
     )
     assert_rejection(
         InvalidInputError,
-        contract,
-        realized_hit_count=16,
+        engine.price,
+        contract(realized_hit_count=16),
+        market(START + timedelta(days=16)),
     )
 
 
@@ -556,12 +515,12 @@ def test_weekend_calendar_full_term_and_zero_coupon():
     )
     context = market(datetime(2025, 1, 3))
     engine = AnalyticRangeAccrualEngine()
-    assert engine.price(dated_history(option, context), context) == pytest.approx(
-        reference(dated_history(option, context), context), rel=0, abs=1e-12
+    assert engine.price(option, context) == pytest.approx(
+        reference(option, context), rel=0, abs=1e-12
     )
     sunday = contract(calendar=weekdays_calendar(), expiry_time=datetime(2025, 1, 5))
-    assert engine.price(dated_history(sunday, market()), market()) == pytest.approx(
-        reference(dated_history(sunday, market()), market()), rel=0, abs=1e-12
+    assert engine.price(sunday, market()) == pytest.approx(
+        reference(sunday, market()), rel=0, abs=1e-12
     )
     short_curve = RateTermStructure(
         reference_time=START, times=[START + timedelta(days=1)], factors=[0.999]
@@ -570,19 +529,14 @@ def test_weekend_calendar_full_term_and_zero_coupon():
     assert_rejection(
         InvalidInputError,
         engine.price,
-        dated_history(
-            contract(
-                calendar=weekdays_calendar(),
-            ),
-            short,
+        contract(
+            calendar=weekdays_calendar(),
         ),
         short,
     )
     assert (
         engine.price(
-            dated_history(
-                contract(calendar=weekdays_calendar(), annual_coupon_rate=0), short
-            ),
+            contract(calendar=weekdays_calendar(), annual_coupon_rate=0),
             short,
         )
         == 0
@@ -590,26 +544,17 @@ def test_weekend_calendar_full_term_and_zero_coupon():
     assert_rejection(
         InvalidInputError,
         engine.price,
-        dated_history(
-            contract(
-                calendar=weekdays_calendar(),
-            ),
-            market(dividend=short_curve),
+        contract(
+            calendar=weekdays_calendar(),
         ),
         market(dividend=short_curve),
     )
     weekend = market(datetime(2025, 1, 4, 12))
-    result = engine.price_with_greeks(
-        dated_history(option, weekend), weekend, ["theta", "charm", "color"]
-    )
+    result = engine.price_with_greeks(option, weekend, ["theta", "charm", "color"])
     before = market(datetime(2025, 1, 3, 12))
     after = market(datetime(2025, 1, 5, 12))
     assert result.theta == pytest.approx(
-        (
-            reference(dated_history(option, after), after)
-            - reference(dated_history(option, before), before)
-        )
-        / (2 / 365),
+        (reference(option, after) - reference(option, before)) / (2 / 365),
         rel=0,
         abs=3.65e-10,
     )
@@ -618,10 +563,7 @@ def test_weekend_calendar_full_term_and_zero_coupon():
     assert_rejection(
         MissingHistoryError,
         engine.price,
-        dated_history(
-            contract(calendar=weekdays_calendar(), annual_coupon_rate=0),
-            market(START + timedelta(days=3)),
-        ),
+        contract(calendar=weekdays_calendar(), annual_coupon_rate=0),
         market(START + timedelta(days=3)),
     )
 
@@ -630,22 +572,19 @@ def test_coupon_is_weighted_over_full_contract_and_discounted_only_at_expiry():
     option = contract()
     engine = AnalyticRangeAccrualEngine()
     context = market(rate=0.8, dividend=0.8, volatility=1e-9)
-    assert engine.price(dated_history(option, context), context) == pytest.approx(
+    assert engine.price(option, context) == pytest.approx(
         120 * 16 / 365 * math.exp(-0.8 * 16 / 365), rel=0, abs=1e-12
     )
-    live = option.replace_history(
+    live = option.replace(
         realized_hit_count=3,
-        history_time=option.history_time or option.expiry_time,
     )
     current = market(START + timedelta(days=7), rate=0.8, dividend=0.8, volatility=1e-9)
-    assert engine.price(dated_history(live, current), current) == pytest.approx(
+    assert engine.price(live, current) == pytest.approx(
         120 * 13 / 365 * math.exp(-0.8 * 9 / 365), rel=0, abs=1e-12
     )
     assert (
         engine.price(
-            dated_history(
-                option, market(spot=80, rate=0.8, dividend=0.8, volatility=1e-9)
-            ),
+            option,
             market(spot=80, rate=0.8, dividend=0.8, volatility=1e-9),
         )
         == 0
@@ -670,12 +609,12 @@ def test_flat_nonflat_and_negative_rates_against_independent_probabilities():
         market(rate=-0.03),
         market(rate=rate, dividend=dividend),
     ):
-        assert engine.price(dated_history(option, context), context) == pytest.approx(
-            reference(dated_history(option, context), context), rel=0, abs=1e-10
+        assert engine.price(option, context) == pytest.approx(
+            reference(option, context), rel=0, abs=1e-10
         )
     lower_zero = contract(lower_bound=0)
-    assert engine.price(dated_history(lower_zero, market()), market()) == pytest.approx(
-        reference(dated_history(lower_zero, market()), market()), rel=0, abs=1e-10
+    assert engine.price(lower_zero, market()) == pytest.approx(
+        reference(lower_zero, market()), rel=0, abs=1e-10
     )
 
 
@@ -697,14 +636,14 @@ def test_extreme_coupon_tail_scaling_and_overflow():
         - 804.608442013753788
     )
     engine = AnalyticRangeAccrualEngine()
-    assert engine.price(
-        dated_history(option, market()), market()
-    ) / expected == pytest.approx(1, rel=0, abs=2e-11)
+    assert engine.price(option, market()) / expected == pytest.approx(
+        1, rel=0, abs=2e-11
+    )
     overflow = contract(notional=1e300, annual_coupon_rate=1e100)
     assert_rejection(
         ComputationFailureError,
         engine.price,
-        dated_history(overflow, market()),
+        overflow,
         market(),
     )
 
@@ -733,31 +672,31 @@ def test_adjacent_price_bounds_at_tiny_volatility(subtests):
                 expiry_time=START + timedelta(days=days),
             )
             context = market(rate=0, dividend=0, volatility=volatility)
-            assert engine.price(
-                dated_history(option, context), context
-            ) == pytest.approx(expected, rel=0, abs=2e-14)
+            assert engine.price(option, context) == pytest.approx(
+                expected, rel=0, abs=2e-14
+            )
 
 
 def test_exact_prices_and_greeks_support_concurrent_reads():
     option, context = contract(), market()
     engine = AnalyticRangeAccrualEngine()
-    expected = reference(dated_history(option, context), context)
+    expected = reference(option, context)
     with ThreadPoolExecutor(2) as pool:
         for value in pool.map(
-            lambda _: engine.price(dated_history(option, context), context),
+            lambda _: engine.price(option, context),
             range(4),
         ):
             assert value == pytest.approx(expected, rel=0, abs=1e-10)
     result = numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         ["delta", "gamma"],
         spot_shift=0.25,
     )
-    up = engine.price(dated_history(option, market(spot=100.25)), market(spot=100.25))
-    down = engine.price(dated_history(option, market(spot=99.75)), market(spot=99.75))
-    assert result.price == engine.price(dated_history(option, context), context)
+    up = engine.price(option, market(spot=100.25))
+    down = engine.price(option, market(spot=99.75))
+    assert result.price == engine.price(option, context)
     assert result.delta == pytest.approx((up - down) / 0.5, rel=0, abs=1e-12)
     assert result.gamma == pytest.approx(
         (up - 2 * result.price + down) / 0.25**2, rel=0, abs=1e-12
@@ -787,7 +726,7 @@ def test_smoothed_greeks_against_independent_reference(subtests):
         engine = AnalyticRangeAccrualEngine()
         result = numerical_greeks(
             engine,
-            dated_history(option, context),
+            option,
             context,
             greeks="all",
             spot_shift=0.1,
@@ -806,14 +745,7 @@ def test_smoothed_greeks_against_independent_reference(subtests):
                 volatility=vol,
             )
             return reference(
-                dated_history(
-                    option,
-                    PricingContext(
-                        model_parameters=model,
-                        spot_price=spot,
-                        valuation_time=when,
-                    ),
-                ),
+                option,
                 PricingContext(
                     model_parameters=model,
                     spot_price=spot,
@@ -881,15 +813,9 @@ def test_curve_knot_uses_right_hand_time_greek_between_observations():
     )
     context = market(valuation, rate=rate)
     after = market(valuation + timedelta(days=1), rate=rate)
-    result = AnalyticRangeAccrualEngine().price_with_greeks(
-        dated_history(option, context), context, "theta"
-    )
+    result = AnalyticRangeAccrualEngine().price_with_greeks(option, context, "theta")
     assert result.theta == pytest.approx(
-        (
-            reference(dated_history(option, after), after)
-            - reference(dated_history(option, context), context)
-        )
-        * 365,
+        (reference(option, after) - reference(option, context)) * 365,
         rel=0,
         abs=3.65e-10,
     )
@@ -898,21 +824,20 @@ def test_curve_knot_uses_right_hand_time_greek_between_observations():
 def test_long_contract_and_current_spot_stencil():
     engine = AnalyticRangeAccrualEngine()
     option = contract(expiry_time=START + timedelta(days=21204))
-    assert engine.price(dated_history(option, market()), market()) == pytest.approx(
-        reference(dated_history(option, market()), market()), rel=0, abs=1e-8
+    assert engine.price(option, market()) == pytest.approx(
+        reference(option, market()), rel=0, abs=1e-8
     )
-    seasoned = option.replace_history(
+    seasoned = option.replace(
         realized_hit_count=20000,
-        history_time=option.history_time or option.expiry_time,
     )
     context = market(START + timedelta(days=20001))
-    assert engine.price(dated_history(seasoned, context), context) == pytest.approx(
-        reference(dated_history(seasoned, context), context), rel=0, abs=1e-8
+    assert engine.price(seasoned, context) == pytest.approx(
+        reference(seasoned, context), rel=0, abs=1e-8
     )
     current = contract(realized_hit_count=0)
     for spot, available in ((95.005, False), (95.1, True)):
         result = engine.price_with_greeks(
-            dated_history(current, market(START + timedelta(days=1), spot=spot)),
+            current,
             market(START + timedelta(days=1), spot=spot),
             "delta",
         )
@@ -923,7 +848,7 @@ def test_event_availability_and_shift_validation():
     engine = AnalyticRangeAccrualEngine()
     option = contract(realized_hit_count=0)
     result = engine.price_with_greeks(
-        dated_history(option, market(START + timedelta(days=1), spot=95)),
+        option,
         market(START + timedelta(days=1), spot=95),
         greeks="all",
     )

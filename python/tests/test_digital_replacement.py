@@ -5,7 +5,6 @@ from datetime import datetime
 import pytest
 from kiyosi import InvalidInputError
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
-from support.history import history_fields
 
 
 @pytest.mark.parametrize("cls", (CashOrNothingOption, AssetOrNothingOption))
@@ -17,7 +16,7 @@ def test_replacements_validate_and_preserve_originals(cls):
         "expiry_time": datetime(2026, 1, 1),
     }
     extra = {"payout": 10} if cls is CashOrNothingOption else {}
-    original = cls(**history_fields(**terms, **extra))
+    original = cls(**terms, **extra)
     assert original.replace() == original
     replaced = original.replace(
         option_type="put", strike=105, expiry_time=datetime(2027, 1, 1)
@@ -43,7 +42,7 @@ def test_replacements_validate_and_preserve_originals(cls):
     ):
         with pytest.raises(TypeError):
             original.replace(**fields)
-    assert original == cls(**history_fields(**terms, **extra))
+    assert original == cls(**terms, **extra)
     if extra:
         assert original.replace(payout=7).payout == 7
         with pytest.raises(InvalidInputError) as error:

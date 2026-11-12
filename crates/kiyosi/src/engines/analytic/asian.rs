@@ -23,8 +23,8 @@ impl AnalyticGeometricAveragePriceEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
     /// [`Error::InvalidInput`] outside life or curve coverage,
@@ -39,7 +39,7 @@ impl AnalyticGeometricAveragePriceEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None, None)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// assert!((AnalyticGeometricAveragePriceEngine.price(&option, &context)? - 5.035867546515384).abs() < 1e-12);
     /// # Ok(()) }
@@ -171,8 +171,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Reuses geometric life/history errors, then returns
     /// [`Error::UnsupportedOperation`] for nonconstant rate curves before expiry,
@@ -187,7 +187,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = ArithmeticAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None, None)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let result = TurnbullWakemanArithmeticAveragePriceEngine.price_with_greeks(
     ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;

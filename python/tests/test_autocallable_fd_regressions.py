@@ -27,8 +27,6 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
-from support.history import dated as dated_history
-from support.history import history_fields
 
 
 @pytest.mark.parametrize("mode", ("every_trading_day", "at_expiry"))
@@ -64,7 +62,6 @@ def test_finite_difference_greek_workspaces_preserve_independent_prices(subtests
             [110, 105],
             knock_out_coupon_rates=[0.08, 0.08],
         ),
-        history_time=start,
     )
     expected = price_differences(
         engine,
@@ -73,9 +70,7 @@ def test_finite_difference_greek_workspaces_preserve_independent_prices(subtests
         ["vega", "rho"],
         **shifts,
     )
-    actual = numerical_greeks(
-        engine, dated_history(note, context), context, greeks="all", **shifts
-    )
+    actual = numerical_greeks(engine, note, context, greeks="all", **shifts)
     assert actual.price == expected.price
     assert actual.vega == expected.vega
     assert actual.rho == expected.rho
@@ -87,9 +82,7 @@ def test_finite_difference_greek_workspaces_preserve_independent_prices(subtests
         "color",
     ):
         with subtests.test(mode=mode, greek=greek):
-            single = numerical_greeks(
-                engine, dated_history(note, context), context, greek, **shifts
-            )
+            single = numerical_greeks(engine, note, context, greek, **shifts)
             assert getattr(single, greek) == getattr(actual, greek)
 
 
@@ -118,17 +111,15 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         effective_time=start,
         expiry_time=end,
     )
-    expected = 1 + pricing.AnalyticDigitalEngine().price(
-        dated_history(digital, context), context
-    )
+    expected = 1 + pricing.AnalyticDigitalEngine().price(digital, context)
     for steps in (200, 2000):
         engine = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=steps, time_step_count=2000
         )
         with subtests.test(steps=steps):
-            assert engine.price(
-                dated_history(binary, context), context
-            ) == pytest.approx(expected, rel=0, abs=0.0003)
+            assert engine.price(binary, context) == pytest.approx(
+                expected, rel=0, abs=0.0003
+            )
     common = {
         "effective_time": start,
         "expiry_time": end,
@@ -137,14 +128,11 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
     }
     downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
     put = lambda strike: pricing.AnalyticEuropeanEngine().price(
-        dated_history(
-            EuropeanOption(
-                option_type="put",
-                strike=strike,
-                effective_time=start,
-                expiry_time=end,
-            ),
-            context,
+        EuropeanOption(
+            option_type="put",
+            strike=strike,
+            effective_time=start,
+            expiry_time=end,
         ),
         context,
     )
@@ -153,27 +141,23 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         (
             SnowballOption(
                 calendar=weekdays_calendar(),
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **common,
-                    **downside,
-                    maturity_coupon_rate=0,
-                    observations=binary.observations,
-                ),
+                observation_clock_time=clock_time(),
+                **common,
+                **downside,
+                maturity_coupon_rate=0,
+                observations=binary.observations,
             ),
             expected_downside,
         ),
         (
             PhoenixOption(
                 calendar=weekdays_calendar(),
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **common,
-                    **downside,
-                    coupon_per_period=0.1,
-                    observations=autocallable_observations(
-                        [end], [100], coupon_barrier_levels=[100]
-                    ),
+                observation_clock_time=clock_time(),
+                **common,
+                **downside,
+                coupon_per_period=0.1,
+                observations=autocallable_observations(
+                    [end], [100], coupon_barrier_levels=[100]
                 ),
             ),
             expected_downside,
@@ -181,28 +165,26 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         (
             TernarySnowballOption(
                 calendar=weekdays_calendar(),
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **common,
-                    maturity_coupon_rate=0.1,
-                    minimum_coupon_rate=0,
-                    observations=binary.observations,
-                ),
+                observation_clock_time=clock_time(),
+                **common,
+                maturity_coupon_rate=0.1,
+                minimum_coupon_rate=0,
+                observations=binary.observations,
             ),
             expected,
         ),
     ):
         with subtests.test(product=type(note).__name__):
-            assert engine.price(dated_history(note, context), context) == pytest.approx(
+            assert engine.price(note, context) == pytest.approx(
                 value, rel=0, abs=0.0003
             )
     result = engine.price_with_greeks(
-        dated_history(binary, context),
+        binary,
         context,
         ["delta", "gamma", "vega", "rho"],
     )
     reference = pricing.AnalyticDigitalEngine().price_with_greeks(
-        dated_history(digital, context),
+        digital,
         context,
         ["delta", "gamma", "vega", "rho"],
     )
@@ -216,26 +198,26 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         assert getattr(result, greek) == pytest.approx(
             value, rel=0, abs=abs(value) * 0.02 + 1e-8
         )
-    quote = engine.price(dated_history(binary, context), context)
+    quote = engine.price(binary, context)
     fixed = pricing.FiniteDifferenceAutocallableEngine(
         asset_step_count=2000, time_step_count=2000, asset_upper_boundary=1e6
     )
     delta = (
         fixed.price(
-            dated_history(binary, context.replace(spot_price=100.1)),
+            binary,
             context.replace(spot_price=100.1),
         )
         - fixed.price(
-            dated_history(binary, context.replace(spot_price=99.9)),
+            binary,
             context.replace(spot_price=99.9),
         )
     ) / 0.2
-    assert fixed.price_with_greeks(
-        dated_history(binary, context), context, "delta"
-    ).delta == pytest.approx(delta, rel=0, abs=abs(delta) * 0.02)
+    assert fixed.price_with_greeks(binary, context, "delta").delta == pytest.approx(
+        delta, rel=0, abs=abs(delta) * 0.02
+    )
     volatility = pricing.implied_volatility(
         engine,
-        dated_history(binary, context),
+        binary,
         context,
         quote,
         lower_bound=1.5,
@@ -246,15 +228,11 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
     recovered = context.replace(
         model_parameters=context.model_parameters.replace(volatility=volatility)
     )
-    assert engine.price(dated_history(binary, recovered), recovered) == pytest.approx(
-        quote, rel=0, abs=1e-8
-    )
+    assert engine.price(binary, recovered) == pytest.approx(quote, rel=0, abs=1e-8)
     explicit = pricing.FiniteDifferenceAutocallableEngine(
         asset_step_count=200, time_step_count=2000, scheme="explicit_euler"
     )
-    assert explicit.price(dated_history(binary, context), context) == pytest.approx(
-        expected, rel=0, abs=0.0003
-    )
+    assert explicit.price(binary, context) == pytest.approx(expected, rel=0, abs=0.0003)
 
 
 def test_finite_difference_volatility_trials_refresh_operators_and_isolate_requests(
@@ -338,9 +316,7 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
             ),
         )
         for kind, terms, engine_type in cases:
-            note = kind(
-                calendar=weekdays_calendar(), **history_fields(**common, **terms)
-            )
+            note = kind(calendar=weekdays_calendar(), **common, **terms)
             for scheme in (
                 "explicit_euler",
                 "implicit_euler",
@@ -353,7 +329,7 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
                     )
                     quotes = [
                         engine.price(
-                            dated_history(note, context(volatility)),
+                            note,
                             context(volatility),
                         )
                         for volatility in (0.17, 0.33)
@@ -362,7 +338,7 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
                     def solve(quote, *, engine=engine, note=note):
                         return pricing.implied_volatility(
                             engine,
-                            dated_history(note, base),
+                            note,
                             base,
                             quote,
                             **{"lower_bound": 0.0, "upper_bound": 4.0, **bounds},
@@ -371,7 +347,7 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
                     expected = [solve(quote) for quote in quotes]
                     for quote, volatility in zip(quotes, expected):
                         assert engine.price(
-                            dated_history(note, context(volatility)),
+                            note,
                             context(volatility),
                         ) == pytest.approx(quote, rel=0, abs=1e-10)
                     with pytest.raises(RootNotBracketedError) as error:
@@ -456,7 +432,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
         ),
     )
     for kind, terms, engine_type in cases:
-        note = kind(calendar=weekdays_calendar(), **history_fields(**common, **terms))
+        note = kind(calendar=weekdays_calendar(), **common, **terms)
         engines = [
             (
                 engine_type(
@@ -488,7 +464,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
             )
         )
         for engine, scheme in engines:
-            quote = engine.price(dated_history(note, context), context)
+            quote = engine.price(note, context)
             conventions = (
                 ({},)
                 if kind is PhoenixOption
@@ -510,12 +486,10 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                     if convention["quote_convention"] == "shift_maturity_coupon":
                         alternate_terms["maturity_coupon_rate"] = 0.12
                 alternate_quote = engine.price(
-                    dated_history(
-                        kind(
-                            calendar=weekdays_calendar(),
-                            **history_fields(**common, **alternate_terms),
-                        ),
-                        context,
+                    kind(
+                        calendar=weekdays_calendar(),
+                        **common,
+                        **alternate_terms,
                     ),
                     context,
                 )
@@ -534,7 +508,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                         else pricing.implied_snowball_coupon
                     )(
                         engine,
-                        dated_history(note, context),
+                        note,
                         context,
                         observed_price,
                         lower_bound=0,
@@ -561,9 +535,9 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                         results, (quote, alternate_quote), strict=True
                     ):
                         repriced = note.with_quoted_coupon(**result)
-                        assert engine.price(
-                            dated_history(repriced, context), context
-                        ) == pytest.approx(target, rel=0, abs=1e-12)
+                        assert engine.price(repriced, context) == pytest.approx(
+                            target, rel=0, abs=1e-12
+                        )
                     with pytest.raises(InvalidInputError) as error:
                         (
                             pricing.implied_phoenix_coupon
@@ -571,7 +545,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                             else pricing.implied_snowball_coupon
                         )(
                             engine,
-                            dated_history(note, context),
+                            note,
                             context,
                             quote,
                             lower_bound=0.2,
@@ -650,7 +624,6 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
             **common,
             **terms,
             barrier_state="no_event",
-            history_time=base.valuation_time,
         )
         missing_history = option_type(**common, **terms)
         engines = (
@@ -664,31 +637,31 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
                 shifts = {"volatility_shift": 0.01, "rate_shift": 0.01}
                 result = numerical_greeks(
                     engine,
-                    dated_history(note, base),
+                    note,
                     base,
                     ["vega", "rho"],
                     **shifts,
                 )
-                assert result.price == engine.price(dated_history(note, base), base)
+                assert result.price == engine.price(note, base)
                 vol_shift = (0.2 + 0.01) - 0.2
                 assert result.vega == (
                     engine.price(
-                        dated_history(note, context(volatility=0.2 + vol_shift)),
+                        note,
                         context(volatility=0.2 + vol_shift),
                     )
                     - engine.price(
-                        dated_history(note, context(volatility=0.2 - vol_shift)),
+                        note,
                         context(volatility=0.2 - vol_shift),
                     )
                 ) / (2 * vol_shift)
                 rate_shift = (0.04 + 0.01) - 0.04
                 assert result.rho == (
                     engine.price(
-                        dated_history(note, context(rate=0.04 + rate_shift)),
+                        note,
                         context(rate=0.04 + rate_shift),
                     )
                     - engine.price(
-                        dated_history(note, context(rate=0.04 - rate_shift)),
+                        note,
                         context(rate=0.04 - rate_shift),
                     )
                 ) / (2 * rate_shift)
@@ -699,7 +672,7 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
                 ):
                     with pytest.raises(expected_error) as error:
                         engine.price_with_greeks(
-                            dated_history(option, shifted),
+                            option,
                             shifted,
                             [
                                 "vega",
@@ -713,7 +686,7 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
                             lambda _, *, engine=engine, note=note, shifts=shifts: (
                                 numerical_greeks(
                                     engine,
-                                    dated_history(note, base),
+                                    note,
                                     base,
                                     [
                                         "vega",
@@ -760,7 +733,6 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
         observations=autocallable_observations(
             [end], [110], knock_out_coupon_rates=[0]
         ),
-        history_time=start,
     )
     for engine in (pricing.FiniteDifferenceAutocallableEngine(),):
         for time in (
@@ -776,7 +748,7 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
                     valuation_time=time,
                 )
                 result = engine.price_with_greeks(
-                    dated_history(note, context),
+                    note,
                     context,
                     ["delta", "gamma", "theta", "charm", "color"],
                 )
@@ -820,10 +792,9 @@ def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(sub
                     observations=autocallable_observations(
                         [end], [110], knock_out_coupon_rates=[0.08]
                     ),
-                    history_time=context.valuation_time if state is not None else None,
                 )
                 result = engine.price_with_greeks(
-                    dated_history(note, context),
+                    note,
                     context,
                     ["theta", "charm", "color"],
                 )
@@ -855,54 +826,45 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
     }
     snowball = SnowballOption(
         calendar=weekdays_calendar(),
-        **history_fields(
-            observation_clock_time=None,
-            **common,
-            maturity_coupon_rate=0.06,
-            initial_spot=100,
-            upper_strike=100,
-            lower_strike=60,
-            observations=autocallable_observations(
-                observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
-            ),
+        observation_clock_time=None,
+        **common,
+        maturity_coupon_rate=0.06,
+        initial_spot=100,
+        upper_strike=100,
+        lower_strike=60,
+        observations=autocallable_observations(
+            observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
         ),
     )
     phoenix = PhoenixOption(
         calendar=weekdays_calendar(),
-        **history_fields(
-            observation_clock_time=None,
-            **common,
-            coupon_per_period=0.08,
-            initial_spot=100,
-            upper_strike=100,
-            lower_strike=60,
-            observations=autocallable_observations(
-                observation_times, knock_out_levels, coupon_barrier_levels=[0]
-            ),
+        observation_clock_time=None,
+        **common,
+        coupon_per_period=0.08,
+        initial_spot=100,
+        upper_strike=100,
+        lower_strike=60,
+        observations=autocallable_observations(
+            observation_times, knock_out_levels, coupon_barrier_levels=[0]
         ),
     )
     ternary = TernarySnowballOption(
         calendar=weekdays_calendar(),
-        **history_fields(
-            observation_clock_time=None,
-            **common,
-            maturity_coupon_rate=0.06,
-            minimum_coupon_rate=0.02,
-            observations=autocallable_observations(
-                observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
-            ),
+        observation_clock_time=None,
+        **common,
+        maturity_coupon_rate=0.06,
+        minimum_coupon_rate=0.02,
+        observations=autocallable_observations(
+            observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
         ),
     )
     put_prices = [
         pricing.AnalyticEuropeanEngine().price(
-            dated_history(
-                EuropeanOption(
-                    option_type="put",
-                    strike=strike,
-                    effective_time=start,
-                    expiry_time=end,
-                ),
-                context,
+            EuropeanOption(
+                option_type="put",
+                strike=strike,
+                effective_time=start,
+                expiry_time=end,
             ),
             context,
         )
@@ -911,15 +873,12 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
     discount = math.exp(-0.04)
     downside = discount - (put_prices[0] - put_prices[1]) / 100
     digital = pricing.AnalyticDigitalEngine().price(
-        dated_history(
-            CashOrNothingOption(
-                option_type="call",
-                strike=100,
-                payout=1,
-                effective_time=start,
-                expiry_time=end,
-            ),
-            context,
+        CashOrNothingOption(
+            option_type="call",
+            strike=100,
+            payout=1,
+            effective_time=start,
+            expiry_time=end,
         ),
         context,
     )
@@ -947,7 +906,7 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
                 time_step_count=2000,
                 scheme=scheme,
                 asset_upper_boundary=400,
-            ).price(dated_history(note, context), context)
+            ).price(note, context)
             assert actual == pytest.approx(expected, rel=0, abs=0.002)
 
 
@@ -983,27 +942,17 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
     ):
         with subtests.test(engine=type(engine).__name__):
             assert engine.price(
-                dated_history(
-                    SnowballOption(
-                        **history_fields(
-                            observation_clock_time=clock_time(),
-                            **terms,
-                            knock_in_observation_mode="every_trading_day",
-                        ),
-                    ),
-                    context,
+                SnowballOption(
+                    observation_clock_time=clock_time(),
+                    **terms,
+                    knock_in_observation_mode="every_trading_day",
                 ),
                 context,
             ) == engine.price(
-                dated_history(
-                    SnowballOption(
-                        **history_fields(
-                            observation_clock_time=None,
-                            **terms,
-                            knock_in_observation_mode="at_expiry",
-                        ),
-                    ),
-                    context,
+                SnowballOption(
+                    observation_clock_time=None,
+                    **terms,
+                    knock_in_observation_mode="at_expiry",
                 ),
                 context,
             )
@@ -1014,15 +963,10 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
         asset_upper_boundary=400,
     )
     actual = explicit.price(
-        dated_history(
-            SnowballOption(
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **terms,
-                    knock_in_observation_mode="every_trading_day",
-                ),
-            ),
-            context,
+        SnowballOption(
+            observation_clock_time=clock_time(),
+            **terms,
+            knock_in_observation_mode="every_trading_day",
         ),
         context,
     )
@@ -1032,30 +976,20 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
         scheme="explicit_euler",
         asset_upper_boundary=400,
     ).price(
-        dated_history(
-            SnowballOption(
-                **history_fields(
-                    observation_clock_time=None,
-                    **terms,
-                    knock_in_observation_mode="at_expiry",
-                ),
-            ),
-            context,
+        SnowballOption(
+            observation_clock_time=None,
+            **terms,
+            knock_in_observation_mode="at_expiry",
         ),
         context,
     )
     assert actual == pytest.approx(reference, rel=0, abs=0.0002)
     with pytest.raises(InvalidInputError) as error:
         explicit.price(
-            dated_history(
-                SnowballOption(
-                    **history_fields(
-                        observation_clock_time=None,
-                        **terms,
-                        knock_in_observation_mode="at_expiry",
-                    ),
-                ),
-                context,
+            SnowballOption(
+                observation_clock_time=None,
+                **terms,
+                knock_in_observation_mode="at_expiry",
             ),
             context,
         )
@@ -1083,7 +1017,7 @@ def test_fixed_finite_difference_autocallables_retain_rate_sensitivity():
         valuation_time=start,
     )
     result = pricing.FiniteDifferenceAutocallableEngine().price_with_greeks(
-        dated_history(note, context),
+        note,
         context,
         ["delta", "gamma", "vega", "rho"],
     )

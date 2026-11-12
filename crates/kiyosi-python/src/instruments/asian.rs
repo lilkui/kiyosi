@@ -1,4 +1,4 @@
-use crate::conversions::{direction, optional_real, python_timestamp, real, supplied, timestamp};
+use crate::conversions::{direction, optional_real, python_timestamp, real, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
 
@@ -21,12 +21,8 @@ macro_rules! average_option {
         /// realized_average : float or None, optional
         ///     Positive finite prior average; defaults to None (unknown). Must be None
         ///     at or before averaging starts, and supplied strictly after it; time
-        ///     consistency is checked at pricing.
-        /// history_time : datetime.datetime or None, optional
-        ///     Timestamp of supplied history, covering events strictly before it.
-        ///     Required with history; payloads must be possible strictly before this
-        ///     instant. Refresh payload and timestamp together.
-        ///     A supplied average requires a timestamp strictly after averaging starts.
+        ///     consistency is checked at pricing. History covers averaging strictly
+        ///     before valuation; callers supply the applicable average.
         ///
         /// Raises
         /// ------
@@ -40,12 +36,6 @@ macro_rules! average_option {
 
         #[pymethods]
         impl $name {
-            /// Return the timestamp through which supplied history is known, or None.
-            #[getter]
-            fn history_time<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::PyAny>>> {
-                kiyosi::OptionContract::history_time(&self.0).map(|time| crate::conversions::python_timestamp(py, time)).transpose()
-            }
-
     /// Return a validated replacement.
     ///
     /// Parameters
@@ -59,11 +49,7 @@ macro_rules! average_option {
     /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// realized_average : float or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// history_time : datetime.datetime or None, optional
-    ///     Timestamp of supplied history, covering events strictly before it.
-    ///     Required with history; payloads must be possible strictly before this
-    ///     instant. Refresh payload and timestamp together.
+    ///     Omission or Ellipsis retains the average; None clears it to unknown.
     ///
     /// Returns
     /// -------
@@ -78,8 +64,7 @@ macro_rules! average_option {
     /// TypeError
     ///     If a representation or field name is invalid.
     ///
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, averaging_start_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
-    #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, averaging_start_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
@@ -89,14 +74,9 @@ macro_rules! average_option {
         #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] realized_average: Option<&Bound<'_, PyAny>>,
 
-        #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<Self> {
-        let history_time = history_time
-            .map(crate::conversions::optional_timestamp)
-            .transpose()?;
 
         let changes = kiyosi::AveragePriceOptionChanges {
-            history_time,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
             effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
@@ -107,55 +87,13 @@ macro_rules! average_option {
         Ok(Self(domain(self.0.replace(changes))?))
     }
             #[new]
-            #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE, history_time=None))]
+            #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 effective_time: &Bound<'_, PyAny>, averaging_start_time: &Bound<'_, PyAny>,
                 expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = optional_real)] realized_average: Option<f64>,
-                #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
             ) -> PyResult<Self> {
                 Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
-                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average, history_time))?))
-            }
-            /// Return a validated replacement.
-            ///
-            /// Clearing the final history payload clears an omitted history_time. An
-            /// explicitly supplied history_time is validated and retained.
-            ///
-            /// Parameters
-            /// ----------
-            /// realized_average : float or None, optional
-            ///     Prior average; None restores unknown history. Pricing checks time
-            ///     consistency.
-            /// history_time : datetime.datetime or None, optional
-            ///     Timestamp of supplied history, covering events strictly before it.
-            ///     Required with history; payloads must be possible strictly before this
-            ///     instant. Refresh payload and timestamp together.
-            ///
-            /// Returns
-            /// -------
-            /// object
-            ///     Validated copy; omitted fields or Ellipsis retain their values.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If replacement terms fail domain validation.
-            ///
-            #[pyo3(signature = (*, realized_average=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
-            fn replace_history(&self,
-                #[pyo3(from_py_with = supplied)] realized_average: Option<&Bound<'_, PyAny>>,
-
-                #[pyo3(from_py_with = crate::conversions::supplied)] history_time: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
-            ) -> PyResult<Self> {
-                let history_time = history_time
-                    .map(crate::conversions::optional_timestamp)
-                    .transpose()?;
-
-                Ok(Self(domain(self.0.replace(kiyosi::AveragePriceOptionChanges {
-                    history_time,
-                    realized_average: realized_average.map(optional_real).transpose()?,
-                    ..Default::default()
-                }))?))
+                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?))
             }
             /// Return call or put payoff direction.
             #[getter]

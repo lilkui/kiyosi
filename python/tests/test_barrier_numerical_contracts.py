@@ -14,7 +14,6 @@ from kiyosi import (
 from kiyosi.instruments import EuropeanOption
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_barrier_binomial import END, KINDS, START, market, option
 
@@ -31,14 +30,14 @@ def test_history_is_required_and_failure_does_not_change_engine(subtests):
     for engine in engines():
         with subtests.test(engine=type(engine).__name__):
             contract = option()
-            expected = engine.price(dated_history(contract, market()), market())
+            expected = engine.price(contract, market())
             assert_rejection(
                 MissingHistoryError,
                 engine.price,
                 contract,
                 market(valuation=START + timedelta(days=1)),
             )
-            assert engine.price(dated_history(contract, market()), market()) == expected
+            assert engine.price(contract, market()) == expected
             assert_rejection(
                 InvalidInputError,
                 engine.price,
@@ -69,22 +68,18 @@ def test_scheduled_touch_occurs_only_at_original_midnight(subtests, kind):
             current = (
                 5
                 if kind.endswith("out")
-                else pricing.AnalyticEuropeanEngine().price(
-                    dated_history(vanilla, at_observation), at_observation
-                )
+                else pricing.AnalyticEuropeanEngine().price(vanilla, at_observation)
             )
             later = (
-                pricing.AnalyticEuropeanEngine().price(
-                    dated_history(vanilla, after_observation), after_observation
-                )
+                pricing.AnalyticEuropeanEngine().price(vanilla, after_observation)
                 if kind.endswith("out")
                 else 5 * math.exp(-0.03 * 269.5 / 365)
             )
+            assert engine.price(contract, at_observation) == pytest.approx(
+                current, rel=0, abs=1e-12
+            )
             assert engine.price(
-                dated_history(contract, at_observation), at_observation
-            ) == pytest.approx(current, rel=0, abs=1e-12)
-            assert engine.price(
-                dated_history(prior_untouched, after_observation),
+                prior_untouched,
                 after_observation,
             ) == pytest.approx(later, rel=0, abs=1e-12)
 
@@ -96,9 +91,7 @@ def test_completed_monitoring_returns_vanilla_or_expiry_rebate(subtests):
     vanilla = EuropeanOption(
         option_type="call", strike=100, effective_time=START, expiry_time=END
     )
-    value = pricing.AnalyticEuropeanEngine().price(
-        dated_history(vanilla, context), context
-    )
+    value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
     for engine in engines():
         with subtests.test(engine=type(engine).__name__):
             for kind in KINDS:
@@ -111,9 +104,9 @@ def test_completed_monitoring_returns_vanilla_or_expiry_rebate(subtests):
                 expected = (
                     3 * math.exp(-0.03 * 180 / 365) if kind.endswith("in") else value
                 )
-                assert engine.price(
-                    dated_history(contract, context), context
-                ) == pytest.approx(expected, rel=0, abs=1e-12)
+                assert engine.price(contract, context) == pytest.approx(
+                    expected, rel=0, abs=1e-12
+                )
 
 
 def test_valuation_and_greek_validation_preserve_core_errors(subtests):
@@ -142,7 +135,7 @@ def test_expiry_settlement_has_terminal_spot_greeks(subtests):
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")
                 result = engine.price_with_greeks(
-                    dated_history(contract, market(spot=110, valuation=END)),
+                    contract,
                     market(spot=110, valuation=END),
                     greeks="all",
                 )
@@ -155,10 +148,10 @@ def test_implied_volatility_reprices_and_rejects_fixed_cashflows(subtests):
     contract = option(barrier_level=60)
     for engine in engines():
         with subtests.test(engine=type(engine).__name__):
-            quote = engine.price(dated_history(contract, context), context)
+            quote = engine.price(contract, context)
             volatility = pricing.implied_volatility(
                 engine,
-                dated_history(contract, context),
+                contract,
                 context,
                 quote,
                 lower_bound=0.15,
@@ -172,9 +165,9 @@ def test_implied_volatility_reprices_and_rejects_fixed_cashflows(subtests):
                 UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
-                dated_history(fixed, later),
+                fixed,
                 later,
-                engine.price(dated_history(fixed, later), later),
+                engine.price(fixed, later),
                 lower_bound=0.0,
                 upper_bound=4.0,
             )

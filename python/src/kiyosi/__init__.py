@@ -20,8 +20,8 @@ the caller's context and flags; finite decimal overflow raises ``OverflowError``
 Domain failures raise `KiyosiError` subclasses. `InvalidInputError` also inherits
 ``ValueError``; representation and signature failures use native Python
 exceptions, and operational failures use ``OSError``. Catch exception types;
-messages are diagnostic text. `MissingHistoryError` and `StaleHistoryError`
-identify absent and outdated history and inherit `InvalidInputError`.
+messages are diagnostic text. `MissingHistoryError` identifies absent required
+history and inherits `InvalidInputError`.
 Rust panics are not domain errors, and allocation
 exhaustion may terminate the process.
 
@@ -30,6 +30,15 @@ return owned tuples, with nested tuples for surfaces. Replacement returns a new
 validated value; copying returns the same immutable value. Equality is exact;
 use tolerances for numerical comparisons. Engines are unhashable. Pickle uses
 validated constructors; use the same Kiyosi version in each process.
+
+Supplied history applies to the requested valuation and describes events strictly
+before it; observations exactly at valuation use the current spot once.
+Bookkeeping owns event records, lifecycle and settlement progression, and
+consistency with valuation time and contract terms. Callers must prevent stale
+or future state from being supplied; Kiyosi does not check state age or replay
+history. Missing history is unknown; explicit zero, false, untouched, and no-event
+states are known history where supported. Numerical time sensitivities hold
+supplied history fixed. See `kiyosi.instruments` for product conventions.
 
 Shared and distinct instances support concurrent reads and pricing. Long calls
 release the GIL; short analytic calls may retain it. Parallel Monte Carlo calls
@@ -58,7 +67,6 @@ from ._native import (
     NonConvergenceError,
     PricingResult,
     RootNotBracketedError,
-    StaleHistoryError,
     UnsupportedOperationError,
     __version__,
 )
@@ -78,7 +86,6 @@ __all__ = [
     "NonConvergenceError",
     "PricingResult",
     "RootNotBracketedError",
-    "StaleHistoryError",
     "UnsupportedOperationError",
     "__version__",
 ]

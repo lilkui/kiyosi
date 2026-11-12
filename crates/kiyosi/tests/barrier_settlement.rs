@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 #[test]
@@ -22,57 +19,44 @@ fn settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage() -> Re
         BarrierType::UpAndOut,
     );
     binary.touch_state = Some(BarrierTouchState::Touched);
-    binary.history_time = Some(binary.expiry_time);
     let binary = BinaryBarrierOption::cash(binary, 10.0)?;
     let mut touch = TouchOptionTerms::new(start, expiry, 120.0, BarrierType::UpAndIn);
     touch.touch_state = Some(BarrierTouchState::Touched);
-    touch.history_time = Some(touch.expiry_time);
     touch.settlement_timing = SettlementTiming::AtHit;
     let touch = TouchOption::cash(touch, 10.0)?;
     let mut double =
         DoubleTouchOptionTerms::new(start, expiry, 80.0, 120.0, DoubleBarrierType::KnockIn);
     double.touch_state = Some(BarrierTouchState::Touched);
-    double.history_time = Some(double.expiry_time);
     double.settlement_timing = SettlementTiming::AtHit;
     let double = DoubleTouchOption::cash(double, 10.0)?;
-    assert_eq!(
-        AnalyticBinaryBarrierEngine.price(&dated(&binary, &context), &context)?,
-        0.0
-    );
-    assert_eq!(
-        AnalyticBinaryBarrierEngine.price(&dated(&touch, &context), &context)?,
-        0.0
-    );
-    assert_eq!(
-        AnalyticDoubleTouchEngine.price(&dated(&double, &context), &context)?,
-        0.0
-    );
+    assert_eq!(AnalyticBinaryBarrierEngine.price(&binary, &context)?, 0.0);
+    assert_eq!(AnalyticBinaryBarrierEngine.price(&touch, &context)?, 0.0);
+    assert_eq!(AnalyticDoubleTouchEngine.price(&double, &context)?, 0.0);
     assert!(matches!(
         AnalyticBinaryBarrierEngine.price(
-            &dated(&binary.replace_history(None, None).unwrap(), &context),
+            &binary
+                .replace(BinaryBarrierOptionChanges {
+                    touch_state: Some(None),
+                    ..Default::default()
+                })
+                .unwrap(),
             &context,
         ),
         Err(Error::MissingHistory(_))
     ));
     for value in [
         AnalyticBinaryBarrierEngine.price(
-            &dated(
-                &touch.replace(TouchOptionChanges {
-                    settlement_timing: Some(SettlementTiming::AtExpiry),
-                    ..Default::default()
-                })?,
-                &context,
-            ),
+            &touch.replace(TouchOptionChanges {
+                settlement_timing: Some(SettlementTiming::AtExpiry),
+                ..Default::default()
+            })?,
             &context,
         ),
         AnalyticDoubleTouchEngine.price(
-            &dated(
-                &double.replace(DoubleTouchOptionChanges {
-                    settlement_timing: Some(SettlementTiming::AtExpiry),
-                    ..Default::default()
-                })?,
-                &context,
-            ),
+            &double.replace(DoubleTouchOptionChanges {
+                settlement_timing: Some(SettlementTiming::AtExpiry),
+                ..Default::default()
+            })?,
             &context,
         ),
     ] {

@@ -2,7 +2,6 @@ from datetime import datetime
 
 import pytest
 from kiyosi import pricing
-from support.history import dated as dated_history
 from test_accumulator import contract, exposure, market, terminal_reference
 
 
@@ -12,9 +11,7 @@ def test_market_greeks_and_implied_volatility_preserve_independent_results(subte
     engine = pricing.FiniteDifferenceAccumulatorEngine(
         asset_step_count=80, time_step_count=80
     )
-    joint = engine.price_with_greeks(
-        dated_history(option, context), context, greeks="all"
-    )
+    joint = engine.price_with_greeks(option, context, greeks="all")
     assert joint.theta is not None
     for greek in (
         "delta",
@@ -29,15 +26,13 @@ def test_market_greeks_and_implied_volatility_preserve_independent_results(subte
         "color",
     ):
         with subtests.test(greek=greek):
-            single = engine.price_with_greeks(
-                dated_history(option, context), context, greek
-            )
+            single = engine.price_with_greeks(option, context, greek)
             assert single.price == joint.price
             assert getattr(single, greek) == getattr(joint, greek)
-    quote = engine.price(dated_history(option, context), context)
+    quote = engine.price(option, context)
     recovered = pricing.implied_volatility(
         engine,
-        dated_history(option, context),
+        option,
         context,
         quote,
         lower_bound=0.15,
@@ -65,7 +60,7 @@ def test_terminal_averaging_converges_against_analytic_prices_and_greeks(
             time_step_count=2000,
             scheme=scheme,
             asset_upper_boundary=440,
-        ).price_with_greeks(dated_history(option, context), context, ["delta", "gamma"])
+        ).price_with_greeks(option, context, ["delta", "gamma"])
         for nodes in (400, 1600)
     ]
     coarse, fine = results
@@ -83,23 +78,21 @@ def test_daily_event_averaging_and_damping_stabilize_prices_and_greeks(knock_out
     context = market()
     reference_engine = pricing.QuadratureAccumulatorEngine(asset_step_count=1024)
     option = contract(datetime(2025, 4, 1), knock_out)
-    reference = reference_engine.price_with_greeks(
-        dated_history(option, context), context, ["delta", "gamma"]
-    )
+    reference = reference_engine.price_with_greeks(option, context, ["delta", "gamma"])
     for scheme in ("explicit_euler", "implicit_euler"):
         actual = pricing.FiniteDifferenceAccumulatorEngine(
             asset_step_count=400,
             time_step_count=2000,
             scheme=scheme,
             asset_upper_boundary=440,
-        ).price(dated_history(option, context), context)
+        ).price(option, context)
         assert abs(actual - reference.price) / exposure(option, context) < 1e-4
     coarse, fine = [
         pricing.FiniteDifferenceAccumulatorEngine(
             asset_step_count=nodes,
             time_step_count=2000,
             asset_upper_boundary=440,
-        ).price_with_greeks(dated_history(option, context), context, ["delta", "gamma"])
+        ).price_with_greeks(option, context, ["delta", "gamma"])
         for nodes in (800, 3200)
     ]
     scale = exposure(option, context)
@@ -114,5 +107,5 @@ def test_daily_event_averaging_and_damping_stabilize_prices_and_greeks(knock_out
         asset_step_count=1600,
         time_step_count=200,
         asset_upper_boundary=440,
-    ).price_with_greeks(dated_history(option, context), context, ["gamma"])
+    ).price_with_greeks(option, context, ["gamma"])
     assert short_grid.gamma == pytest.approx(reference.gamma, rel=0, abs=0.15)

@@ -28,7 +28,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 GREEKS = (
@@ -90,7 +89,7 @@ def make_options(base_terms):
 def test_prices_greeks_and_volatility_recovery(
     base_context, base_engine, base_terms, cls, expected, extra
 ):
-    option = cls(**history_fields(**base_terms, **extra))
+    option = cls(**base_terms, **extra)
     result = base_engine.price_with_greeks(option, base_context, greeks="all")
     assert result.price == pytest.approx(expected, rel=0, abs=1e-12)
     assert implied_volatility(
@@ -110,7 +109,7 @@ def test_prices_greeks_and_volatility_recovery(
     assert option.strike == 100
     assert option.effective_time == base_terms["effective_time"]
     assert option.expiry_time == base_terms["expiry_time"]
-    assert option == cls(**history_fields(**base_terms, **extra))
+    assert option == cls(**base_terms, **extra)
     with pytest.raises(AttributeError):
         option.strike = 105
 
@@ -127,13 +126,11 @@ def test_live_quantlib_prices_greeks_and_scalar_differences(base_engine, subtest
             CashOrNothingOption if inputs["payoff"] == "cash" else AssetOrNothingOption
         )
         option = cls(
-            **history_fields(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
-            )
+            option_type=inputs["option"],
+            strike=inputs["strike"],
+            effective_time=datetime.fromisoformat(inputs["effective_time"]),
+            expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+            **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -259,18 +256,18 @@ def test_constructor_domains_and_native_representation_errors(base_terms, subtes
                     subtests.test(field=field, value=value),
                     pytest.raises(TypeError),
                 ):
-                    cls(**history_fields(**(base_terms | extra | {field: value})))
+                    cls(**(base_terms | extra | {field: value}))
             with pytest.raises(OverflowError):
-                cls(**history_fields(**(base_terms | extra | {field: 10**1000})))
+                cls(**(base_terms | extra | {field: 10**1000}))
         for value in (True, 1, None):
             with pytest.raises(TypeError):
-                cls(**history_fields(**dict(base_terms, option_type=value), **extra))
+                cls(**dict(base_terms, option_type=value), **extra)
         with pytest.raises(ValueError):
-            cls(**history_fields(**dict(base_terms, option_type="Call"), **extra))
+            cls(**dict(base_terms, option_type="Call"), **extra)
         for field in ("effective_time", "expiry_time"):
             for value in ("2025-01-01", None, datetime(2025, 1, 1).date()):
                 with pytest.raises(TypeError):
-                    cls(**history_fields(**dict(base_terms, **{field: value}), **extra))
+                    cls(**dict(base_terms, **{field: value}), **extra)
         with pytest.raises(TypeError):
             cls("call", 100, datetime(2025, 1, 1), datetime(2026, 1, 1))
     for payout in (0, -1, math.nan, math.inf):

@@ -20,7 +20,6 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     PricingContext,
 )
-from support.history import history_fields
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
@@ -62,12 +61,10 @@ def instrument(kind, direction):
         else BarrierOption
     )
     return factory(
-        **history_fields(
-            **terms,
-            barrier_level=120 if direction == "call" else 80,
-            barrier_type="up_and_out" if direction == "call" else "down_and_out",
-            **({"payout": 10} if kind == "binary" else {}),
-        )
+        **terms,
+        barrier_level=120 if direction == "call" else 80,
+        barrier_type="up_and_out" if direction == "call" else "down_and_out",
+        **({"payout": 10} if kind == "binary" else {}),
     )
 
 

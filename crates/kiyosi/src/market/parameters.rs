@@ -261,7 +261,6 @@ pub struct PricingContextChanges {
 /// Contract-life validation occurs at pricing time; see [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct PricingContext {
-    pub(crate) history_anchor: Option<Timestamp>,
     model_parameters: ModelParameters,
     spot_price: f64,
     valuation_time: Timestamp,
@@ -302,7 +301,6 @@ impl PricingContext {
             model.surface().validate_time(valuation_time)?;
         }
         Ok(Self {
-            history_anchor: None,
             model_parameters,
             spot_price,
             valuation_time,

@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -28,16 +25,14 @@ fn settings() -> MonteCarloSettings {
     }
 }
 
-fn sample<I: support::DatedHistory>(
+fn sample<I: OptionContract>(
     engine: &impl PricingEngine<I>,
     option: &I,
 ) -> (f64, MonteCarloEstimate) {
     let context = market();
     (
-        engine.price(&dated(option, &context), &context).unwrap(),
-        engine
-            .price_with_statistics(&dated(option, &context), &context)
-            .unwrap(),
+        engine.price(option, &context).unwrap(),
+        engine.price_with_statistics(option, &context).unwrap(),
     )
 }
 
@@ -52,10 +47,9 @@ fn samples(settings: MonteCarloSettings) -> Vec<(&'static str, f64, MonteCarloEs
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let asset = DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end).unwrap();
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
-            .unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
             .unwrap();
     let barrier = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
@@ -133,7 +127,7 @@ fn digital_uncertainty_matches_independent_bernoulli_and_pair_formulas() {
         };
         let estimate = MonteCarloDigitalEngine::new(settings)
             .unwrap()
-            .price_with_statistics(&dated(&option, &market()), &market())
+            .price_with_statistics(&option, &market())
             .unwrap();
         let (probability, scale, observations) = if antithetic {
             (
@@ -164,8 +158,7 @@ fn reported_uncertainty_agrees_with_analytic_prices() {
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let asset = DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end).unwrap();
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
-            .unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let barrier = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
         100.0,
@@ -186,34 +179,19 @@ fn reported_uncertainty_agrees_with_analytic_prices() {
     ))
     .unwrap();
     for (index, reference) in [
-        (
-            0,
-            AnalyticDigitalEngine
-                .price(&dated(&cash, &context), &context)
-                .unwrap(),
-        ),
-        (
-            1,
-            AnalyticDigitalEngine
-                .price(&dated(&asset, &context), &context)
-                .unwrap(),
-        ),
+        (0, AnalyticDigitalEngine.price(&cash, &context).unwrap()),
+        (1, AnalyticDigitalEngine.price(&asset, &context).unwrap()),
         (
             2,
             AnalyticGeometricAveragePriceEngine
-                .price(&dated(&geometric, &context), &context)
+                .price(&geometric, &context)
                 .unwrap(),
         ),
-        (
-            4,
-            AnalyticBarrierEngine
-                .price(&dated(&barrier, &context), &context)
-                .unwrap(),
-        ),
+        (4, AnalyticBarrierEngine.price(&barrier, &context).unwrap()),
         (
             5,
             AnalyticDoubleBarrierEngine
-                .price(&dated(&double, &context), &context)
+                .price(&double, &context)
                 .unwrap(),
         ),
     ] {
@@ -267,26 +245,12 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         })
         .unwrap();
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
-    let geometric = GeometricAveragePriceOption::new(
-        OptionType::Call,
-        100.0,
-        start,
-        start,
-        end,
-        Some(110.0),
-        Some(end),
-    )
-    .unwrap();
-    let arithmetic = ArithmeticAveragePriceOption::new(
-        OptionType::Call,
-        100.0,
-        start,
-        start,
-        end,
-        Some(110.0),
-        Some(end),
-    )
-    .unwrap();
+    let geometric =
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, Some(110.0))
+            .unwrap();
+    let arithmetic =
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, Some(110.0))
+            .unwrap();
     let mut barrier = BarrierOptionTerms::new(
         OptionType::Call,
         100.0,
@@ -296,7 +260,6 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         BarrierType::UpAndOut,
     );
     barrier.touch_state = Some(BarrierTouchState::Untouched);
-    barrier.history_time = Some(barrier.expiry_time);
     let barrier = BarrierOption::new(barrier).unwrap();
     let mut double = DoubleBarrierOptionTerms::new(
         OptionType::Call,
@@ -308,7 +271,6 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         DoubleBarrierType::KnockOut,
     );
     double.touch_state = Some(BarrierTouchState::Untouched);
-    double.history_time = Some(double.expiry_time);
     let double = DoubleBarrierOption::new(double).unwrap();
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         let settings = MonteCarloSettings {
@@ -320,21 +282,17 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
         let estimates = [
             MonteCarloDigitalEngine::new(settings)
                 .unwrap()
-                .price_with_statistics(&dated(&cash, &context), &context)
+                .price_with_statistics(&cash, &context)
                 .unwrap(),
-            asian
-                .price_with_statistics(&dated(&geometric, &context), &context)
-                .unwrap(),
-            asian
-                .price_with_statistics(&dated(&arithmetic, &context), &context)
-                .unwrap(),
+            asian.price_with_statistics(&geometric, &context).unwrap(),
+            asian.price_with_statistics(&arithmetic, &context).unwrap(),
             MonteCarloBarrierEngine::new(settings)
                 .unwrap()
-                .price_with_statistics(&dated(&barrier, &context), &context)
+                .price_with_statistics(&barrier, &context)
                 .unwrap(),
             MonteCarloDoubleBarrierEngine::new(settings)
                 .unwrap()
-                .price_with_statistics(&dated(&double, &context), &context)
+                .price_with_statistics(&double, &context)
                 .unwrap(),
         ];
         for estimate in estimates {
@@ -366,18 +324,10 @@ fn analytic_at_hit_rebates_shift_prices_without_adding_sampling_variance() {
     single.rebate = 7.0;
     let rebate = BarrierOption::new(single).unwrap();
     let engine = MonteCarloBarrierEngine::new(settings()).unwrap();
-    let base = engine
-        .price_with_statistics(&dated(&zero, &context), &context)
-        .unwrap();
-    let actual = engine
-        .price_with_statistics(&dated(&rebate, &context), &context)
-        .unwrap();
-    let shift = AnalyticBarrierEngine
-        .price(&dated(&rebate, &context), &context)
-        .unwrap()
-        - AnalyticBarrierEngine
-            .price(&dated(&zero, &context), &context)
-            .unwrap();
+    let base = engine.price_with_statistics(&zero, &context).unwrap();
+    let actual = engine.price_with_statistics(&rebate, &context).unwrap();
+    let shift = AnalyticBarrierEngine.price(&rebate, &context).unwrap()
+        - AnalyticBarrierEngine.price(&zero, &context).unwrap();
     assert_eq!(actual.standard_error(), base.standard_error());
     assert!((actual.price() - base.price() - shift).abs() < 1e-12);
     let mut double = DoubleBarrierOptionTerms::new(
@@ -394,18 +344,12 @@ fn analytic_at_hit_rebates_shift_prices_without_adding_sampling_variance() {
     double.rebate = 7.0;
     let rebate = DoubleBarrierOption::new(double).unwrap();
     let engine = MonteCarloDoubleBarrierEngine::new(settings()).unwrap();
-    let base = engine
-        .price_with_statistics(&dated(&zero, &context), &context)
-        .unwrap();
-    let actual = engine
-        .price_with_statistics(&dated(&rebate, &context), &context)
-        .unwrap();
+    let base = engine.price_with_statistics(&zero, &context).unwrap();
+    let actual = engine.price_with_statistics(&rebate, &context).unwrap();
     let shift = AnalyticDoubleBarrierEngine
-        .price(&dated(&rebate, &context), &context)
+        .price(&rebate, &context)
         .unwrap()
-        - AnalyticDoubleBarrierEngine
-            .price(&dated(&zero, &context), &context)
-            .unwrap();
+        - AnalyticDoubleBarrierEngine.price(&zero, &context).unwrap();
     assert_eq!(actual.standard_error(), base.standard_error());
     assert!((actual.price() - base.price() - shift).abs() < 1e-12);
 }
@@ -415,7 +359,7 @@ fn generic_statistics_reject_engines_without_sampling_estimators() {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     assert!(matches!(
-        AnalyticEuropeanEngine.price_with_statistics(&dated(&option, &market()), &market()),
+        AnalyticEuropeanEngine.price_with_statistics(&option, &market()),
         Err(Error::UnsupportedOperation(_))
     ));
     let american = AmericanOption::new(OptionType::Call, 100.0, start, end).unwrap();
@@ -473,7 +417,7 @@ fn statistics_preserve_scheduled_barrier_prices() {
 fn arithmetic_statistics_support_curves_and_known_history() {
     let (start, end) = dates();
     let option =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
             .unwrap();
     let curve = RateTermStructure::new(start, vec![end], vec![0.95]).unwrap();
     let context = market()
@@ -491,13 +435,8 @@ fn arithmetic_statistics_support_curves_and_known_history() {
         step_count: 8,
     })
     .unwrap();
-    let estimate = engine
-        .price_with_statistics(&dated(&option, &context), &context)
-        .unwrap();
-    assert_eq!(
-        estimate.price(),
-        engine.price(&dated(&option, &context), &context).unwrap()
-    );
+    let estimate = engine.price_with_statistics(&option, &context).unwrap();
+    assert_eq!(estimate.price(), engine.price(&option, &context).unwrap());
     assert!(estimate.standard_error().unwrap() > 0.0);
     let valuation = Timestamp::new(start.date().add_days(182).unwrap(), 12, 0, 0, 0).unwrap();
     let context = market()
@@ -509,15 +448,12 @@ fn arithmetic_statistics_support_curves_and_known_history() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = option
             .replace(AveragePriceOptionChanges {
-                history_time: Some(Some(valuation)),
                 option_type: Some(direction),
                 realized_average: Some(Some(1000.0)),
                 ..Default::default()
             })
             .unwrap();
-        let estimate = engine
-            .price_with_statistics(&dated(&option, &context), &context)
-            .unwrap();
+        let estimate = engine.price_with_statistics(&option, &context).unwrap();
         let expected = if direction == OptionType::Call {
             (400.0 + 50.0 * 0.015_f64.exp_m1() / 0.015) * (-0.025_f64).exp()
         } else {
@@ -569,24 +505,16 @@ fn resolved_barriers_report_zero_error_before_expiry() {
         );
         double_terms.rebate = 7.0;
         let expected = if knock_in {
-            AnalyticEuropeanEngine
-                .price(&dated(&vanilla, &context), &context)
-                .unwrap()
+            AnalyticEuropeanEngine.price(&vanilla, &context).unwrap()
         } else {
             7.0 * (-0.05_f64).exp()
         };
         for estimate in [
             single
-                .price_with_statistics(
-                    &dated(&BarrierOption::new(terms).unwrap(), &context),
-                    &context,
-                )
+                .price_with_statistics(&BarrierOption::new(terms).unwrap(), &context)
                 .unwrap(),
             double
-                .price_with_statistics(
-                    &dated(&DoubleBarrierOption::new(double_terms).unwrap(), &context),
-                    &context,
-                )
+                .price_with_statistics(&DoubleBarrierOption::new(double_terms).unwrap(), &context)
                 .unwrap(),
         ] {
             assert!((estimate.price() - expected).abs() < 1e-12);
@@ -605,10 +533,9 @@ fn statistics_preserve_life_history_and_model_rejections() {
     let digital =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
-            .unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
             .unwrap();
     let single = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
@@ -659,11 +586,11 @@ fn statistics_preserve_life_history_and_model_rejections() {
         .unwrap();
     for context in [&after, &heston] {
         for result in [
-            digital_engine.price_with_statistics(&dated(&digital, context), context),
-            asian_engine.price_with_statistics(&dated(&geometric, context), context),
-            asian_engine.price_with_statistics(&dated(&arithmetic, context), context),
-            single_engine.price_with_statistics(&dated(&single, context), context),
-            double_engine.price_with_statistics(&dated(&double, context), context),
+            digital_engine.price_with_statistics(&digital, context),
+            asian_engine.price_with_statistics(&geometric, context),
+            asian_engine.price_with_statistics(&arithmetic, context),
+            single_engine.price_with_statistics(&single, context),
+            double_engine.price_with_statistics(&double, context),
         ] {
             if context == &after {
                 assert!(matches!(result, Err(Error::InvalidInput(_))));
@@ -679,10 +606,10 @@ fn statistics_preserve_life_history_and_model_rejections() {
         })
         .unwrap();
     for result in [
-        asian_engine.price_with_statistics(&dated(&geometric, &seasoned), &seasoned),
-        asian_engine.price_with_statistics(&dated(&arithmetic, &seasoned), &seasoned),
-        single_engine.price_with_statistics(&dated(&single, &seasoned), &seasoned),
-        double_engine.price_with_statistics(&dated(&double, &seasoned), &seasoned),
+        asian_engine.price_with_statistics(&geometric, &seasoned),
+        asian_engine.price_with_statistics(&arithmetic, &seasoned),
+        single_engine.price_with_statistics(&single, &seasoned),
+        double_engine.price_with_statistics(&double, &seasoned),
     ] {
         assert!(matches!(result, Err(Error::MissingHistory(_))));
     }
@@ -699,16 +626,13 @@ fn uncertainty_failure_does_not_prevent_scalar_pricing() {
         ..settings()
     })
     .unwrap();
-    let price = engine.price(&dated(&option, &market()), &market()).unwrap();
+    let price = engine.price(&option, &market()).unwrap();
     assert!((price / (8e307 * (-0.05_f64).exp()) - 1.0).abs() < 1e-13);
     assert!(matches!(
-        engine.price_with_statistics(&dated(&option, &market()), &market()),
+        engine.price_with_statistics(&option, &market()),
         Err(Error::ComputationFailure(_))
     ));
-    assert_eq!(
-        engine.price(&dated(&option, &market()), &market()).unwrap(),
-        price
-    );
+    assert_eq!(engine.price(&option, &market()).unwrap(), price);
 }
 
 #[test]
@@ -755,7 +679,7 @@ fn generic_statistics_keep_existing_monte_carlo_estimators_available() {
 
 #[test]
 fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
-    fn check<I: support::DatedHistory, E: PricingEngine<I>>(
+    fn check<I: OptionContract, E: PricingEngine<I>>(
         build: impl Fn(MonteCarloSettings) -> Result<E>,
         option: &I,
     ) -> Result<()> {
@@ -774,8 +698,7 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
                     antithetic: true,
                 };
                 let original = build(settings)?;
-                let estimate =
-                    original.price_with_statistics(&dated(option, &context), &context)?;
+                let estimate = original.price_with_statistics(option, &context)?;
                 let actual = estimate
                     .seed()
                     .expect("sampled estimate must identify its draws");
@@ -787,17 +710,11 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
                     max_active_workers: 4,
                     ..settings
                 })?;
-                assert_eq!(
-                    replay.price_with_statistics(&dated(option, &context), &context)?,
-                    estimate
-                );
-                assert_eq!(
-                    replay.price(&dated(option, &context), &context)?,
-                    estimate.price()
-                );
+                assert_eq!(replay.price_with_statistics(option, &context)?, estimate);
+                assert_eq!(replay.price(option, &context)?, estimate.price());
                 assert_eq!(
                     original
-                        .price_with_statistics(&dated(option, &deterministic), &deterministic)?
+                        .price_with_statistics(option, &deterministic)?
                         .seed(),
                     None
                 );
@@ -817,11 +734,11 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
     )?;
     check(
         |sampling| MonteCarloAsianEngine::new(sampling.into()),
-        &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?,
+        &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?,
     )?;
     check(
         |sampling| MonteCarloAsianEngine::new(sampling.into()),
-        &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None, None)?,
+        &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?,
     )?;
     check(
         MonteCarloBarrierEngine::new,

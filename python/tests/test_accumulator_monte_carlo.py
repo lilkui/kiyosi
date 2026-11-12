@@ -25,7 +25,6 @@ from kiyosi.market import (
 from kiyosi.pricing import MonteCarloAccumulatorEngine as MC
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
@@ -38,39 +37,28 @@ def test_scalar_price_survives_confidence_interval_overflow():
         effective_time=START - timedelta(days=1),
         accumulated_quantity=note.accumulated_quantity,
         knock_out_settled=note.knock_out_settled,
-        history_time=(note.history_time or note.effective_time)
-        if note.accumulated_quantity is not None or note.knock_out_settled is not None
-        else None,
     )
     context = market(spot=100, valuation=START, volatility=1, rate=0.01, dividend=0)
     engine = MC(path_count=2, seed=0, max_active_workers=1)
     quantity = 6e307
-    expected = (
-        engine.price_with_statistics(dated_history(note, context), context).price
-        * quantity
-    )
-    scaled = note.replace_history(
+    expected = engine.price_with_statistics(note, context).price * quantity
+    scaled = note.replace(
         accumulated_quantity=quantity,
-        history_time=(note.history_time or note.effective_time)
-        if quantity is not None
-        else None,
     )
     assert math.isfinite(expected)
     assert expected > 0
-    assert engine.price(
-        dated_history(scaled, context), context
-    ) / expected == pytest.approx(1, rel=0, abs=1e-12)
+    assert engine.price(scaled, context) / expected == pytest.approx(
+        1, rel=0, abs=1e-12
+    )
     with pytest.raises(ComputationFailureError):
-        engine.price_with_statistics(dated_history(scaled, context), context)
+        engine.price_with_statistics(scaled, context)
 
 
 @pytest.mark.parametrize("spot,expected", ((90, -50), (100, 0), (105, 20), (110, 30)))
 def test_current_events_settle_before_sampling(spot, expected):
     end = datetime(2025, 1, 6)
     engine = MC()
-    result = engine.price_with_statistics(
-        dated_history(contract(end), market(spot, end)), market(spot, end)
-    )
+    result = engine.price_with_statistics(contract(end), market(spot, end))
     assert result.price == expected
     assert result.standard_error == 0
     assert result.confidence_interval == ((expected, expected))
@@ -91,11 +79,11 @@ def test_terminal_and_multidate_prices_match_independent_references():
         ),
         (contract(), market(111), pricing.QuadratureAccumulatorEngine().price),
     ):
-        result = engine.price_with_statistics(dated_history(option, context), context)
-        assert result.price == engine.price(dated_history(option, context), context)
+        result = engine.price_with_statistics(option, context)
+        assert result.price == engine.price(option, context)
         assert result.standard_error > 0
         assert result.price == pytest.approx(
-            reference(dated_history(option, context), context),
+            reference(option, context),
             rel=0,
             abs=4 * result.standard_error + 0.02,
         )
@@ -143,14 +131,12 @@ def test_strict_settings_protocols_defaults_and_ownership(subtests):
         engine.seed = 42
     note, context = contract(), market()
     for operation in (
-        lambda: engine.price(dated_history(object(), context), context),
-        lambda: engine.price_with_statistics(dated_history(object(), context), context),
-        lambda: numerical_greeks(
-            engine, dated_history(note, context), context, "delta", spot_shift=True
-        ),
+        lambda: engine.price(object(), context),
+        lambda: engine.price_with_statistics(object(), context),
+        lambda: numerical_greeks(engine, note, context, "delta", spot_shift=True),
         lambda: pricing.implied_volatility(
             engine,
-            dated_history(object(), context),
+            object(),
             context,
             1,
             lower_bound=0.0,
@@ -158,7 +144,7 @@ def test_strict_settings_protocols_defaults_and_ownership(subtests):
         ),
         lambda: pricing.implied_volatility(
             engine,
-            dated_history(note, context),
+            note,
             context,
             True,
             lower_bound=0.0,
@@ -166,7 +152,7 @@ def test_strict_settings_protocols_defaults_and_ownership(subtests):
         ),
         lambda: pricing.implied_volatility(
             engine,
-            dated_history(note, context),
+            note,
             context,
             1,
             max_iterations=2.5,
@@ -190,14 +176,14 @@ def test_counts_sobol_antithetic_and_shared_engine_threads():
                     "antithetic": antithetic,
                 }
                 serial = MC(**fields, max_active_workers=1).price_with_statistics(
-                    dated_history(note, context), context
+                    note, context
                 )
                 engine = MC(**fields, max_active_workers=3)
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     results = list(
                         pool.map(
                             lambda _, engine=engine: engine.price_with_statistics(
-                                dated_history(note, context), context
+                                note, context
                             ),
                             range(2),
                         )
@@ -220,17 +206,15 @@ def test_counts_sobol_antithetic_and_shared_engine_threads():
                     sampling == "pseudo_random" and paths > (2 if antithetic else 1)
                 )
     odd = MC(path_count=31, seed=42, antithetic=True).price_with_statistics(
-        dated_history(note, context), context
+        note, context
     )
     assert odd.standard_error is None
     assert odd.confidence_interval is None
-    reference = pricing.QuadratureAccumulatorEngine().price(
-        dated_history(note, context), context
-    )
+    reference = pricing.QuadratureAccumulatorEngine().price(note, context)
     for antithetic in (False, True):
         result = MC(
             path_count=16384, seed=42, sampling="sobol", antithetic=antithetic
-        ).price_with_statistics(dated_history(note, context), context)
+        ).price_with_statistics(note, context)
         assert result.price == pytest.approx(reference, rel=0, abs=1)
         assert result.standard_error is None
 
@@ -258,17 +242,10 @@ def test_midnight_intraday_calendar_and_omitted_history():
     ):
         assert (
             engine.price(
-                dated_history(
-                    note.replace(
-                        calendar=calendar,
-                        accumulated_quantity=note.accumulated_quantity,
-                        knock_out_settled=note.knock_out_settled,
-                        history_time=(note.history_time or note.effective_time)
-                        if note.accumulated_quantity is not None
-                        or note.knock_out_settled is not None
-                        else None,
-                    ),
-                    context,
+                note.replace(
+                    calendar=calendar,
+                    accumulated_quantity=note.accumulated_quantity,
+                    knock_out_settled=note.knock_out_settled,
                 ),
                 context,
             )
@@ -286,18 +263,14 @@ def test_midnight_intraday_calendar_and_omitted_history():
     assert_rejection(
         MissingHistoryError,
         lambda: engine.price(
-            dated_history(omitted, market(90, omitted.expiry_time)),
+            omitted,
             market(90, omitted.expiry_time),
         ),
     )
     assert engine.price(
-        dated_history(
-            omitted.replace_history(
-                accumulated_quantity=0,
-                knock_out_settled=False,
-                history_time=omitted.history_time or omitted.expiry_time,
-            ),
-            market(90, omitted.expiry_time),
+        omitted.replace(
+            accumulated_quantity=0,
+            knock_out_settled=False,
         ),
         market(90, omitted.expiry_time),
     ) == (-20)
@@ -308,16 +281,14 @@ def test_shared_greeks_scalar_bumps_and_implied_volatility():
     note = contract(datetime(2025, 1, 6))
     context = market(valuation=datetime(2025, 1, 3, 12))
     engine = MC(path_count=4096, seed=42)
-    result = numerical_greeks(
-        engine, dated_history(note, context), context, greeks="all", spot_shift=0.25
-    )
-    assert result.price == engine.price(dated_history(note, context), context)
+    result = numerical_greeks(engine, note, context, greeks="all", spot_shift=0.25)
+    assert result.price == engine.price(note, context)
     up = engine.price(
-        dated_history(note, context.replace(spot_price=100.5)),
+        note,
         context.replace(spot_price=100.5),
     )
     down = engine.price(
-        dated_history(note, context.replace(spot_price=100)),
+        note,
         context.replace(spot_price=100),
     )
     assert result.delta == (up - down) / 0.5
@@ -343,7 +314,7 @@ def test_shared_greeks_scalar_bumps_and_implied_volatility():
         assert math.isfinite(result.require(greek))
     sigma = pricing.implied_volatility(
         engine,
-        dated_history(note, context),
+        note,
         context,
         result.price,
         lower_bound=0.1,
@@ -352,7 +323,7 @@ def test_shared_greeks_scalar_bumps_and_implied_volatility():
     assert sigma == pytest.approx(0.2, rel=0, abs=1e-6)
     for spot in (100, 110):
         boundary = engine.price_with_greeks(
-            dated_history(note, market(spot, START + timedelta(days=1))),
+            note,
             market(spot, START + timedelta(days=1)),
             greeks="all",
         )
@@ -370,7 +341,7 @@ def test_shared_greeks_scalar_bumps_and_implied_volatility():
         assert boundary.vega is not None
         assert boundary.rho is not None
     expired = engine.price_with_greeks(
-        dated_history(note, market(90, note.expiry_time)),
+        note,
         market(90, note.expiry_time),
         greeks="all",
     )
@@ -382,7 +353,7 @@ def test_shared_greeks_scalar_bumps_and_implied_volatility():
     smooth = contract(datetime(2025, 1, 6), knock_out=1e300, acceleration=1, quantity=0)
     shared = numerical_greeks(
         unseeded,
-        dated_history(smooth, context),
+        smooth,
         context,
         ["delta", "gamma"],
         spot_shift=0.25,
@@ -410,14 +381,12 @@ def test_validation_fixed_payoffs_and_failure_reuse():
         assert_rejection(
             expected_error,
             lambda instrument=instrument, invalid=invalid: engine.price(
-                dated_history(instrument, invalid), invalid
+                instrument, invalid
             ),
         )
     assert_rejection(
         InvalidInputError,
-        lambda: numerical_greeks(
-            engine, dated_history(note, context), context, "delta", spot_shift=0
-        ),
+        lambda: numerical_greeks(engine, note, context, "delta", spot_shift=0),
     )
     curve = RateTermStructure(
         reference_time=START,
@@ -430,19 +399,17 @@ def test_validation_fixed_payoffs_and_failure_reuse():
         )
         assert_rejection(
             UnsupportedOperationError,
-            lambda curved=curved: engine.price(dated_history(note, curved), curved),
+            lambda curved=curved: engine.price(note, curved),
         )
         assert_rejection(
             UnsupportedOperationError,
-            lambda curved=curved: engine.price_with_greeks(
-                dated_history(note, curved), curved, []
-            ),
+            lambda curved=curved: engine.price_with_greeks(note, curved, []),
         )
         assert_rejection(
             UnsupportedOperationError,
             lambda curved=curved: pricing.implied_volatility(
                 engine,
-                dated_history(note, curved),
+                note,
                 curved,
                 math.nan,
                 lower_bound=0.0,
@@ -460,7 +427,7 @@ def test_validation_fixed_payoffs_and_failure_reuse():
         (contract(daily=0, quantity=0), context, 0),
         (contract(knock_out=100, acceleration=0, quantity=0), context, 0),
     ):
-        result = engine.price_with_statistics(dated_history(instrument, fixed), fixed)
+        result = engine.price_with_statistics(instrument, fixed)
         assert result.price == expected
         assert result.standard_error == 0
         assert_rejection(
@@ -468,7 +435,7 @@ def test_validation_fixed_payoffs_and_failure_reuse():
             lambda instrument=instrument, fixed=fixed, expected=expected: (
                 pricing.implied_volatility(
                     engine,
-                    dated_history(instrument, fixed),
+                    instrument,
                     fixed,
                     expected,
                     lower_bound=0.0,
@@ -484,7 +451,7 @@ def test_validation_fixed_payoffs_and_failure_reuse():
             expected_error,
             lambda quote=quote: pricing.implied_volatility(
                 engine,
-                dated_history(note, context),
+                note,
                 context,
                 quote,
                 lower_bound=0.0,
@@ -493,7 +460,7 @@ def test_validation_fixed_payoffs_and_failure_reuse():
         )
     assert (
         engine.price(
-            dated_history(note, market(110, START + timedelta(days=1))),
+            note,
             market(110, START + timedelta(days=1)),
         )
         == 30
@@ -509,23 +476,20 @@ def test_sobol_dimension_limit_preserves_known_settlements():
         calendar=all_days_calendar(),
         accumulated_quantity=note.accumulated_quantity,
         knock_out_settled=note.knock_out_settled,
-        history_time=(note.history_time or note.effective_time)
-        if note.accumulated_quantity is not None or note.knock_out_settled is not None
-        else None,
     )
     assert_rejection(
         InvalidInputError,
-        lambda: engine.price(dated_history(note, context), context),
+        lambda: engine.price(note, context),
     )
     result = engine.price_with_statistics(
-        dated_history(note, context.replace(spot_price=110)),
+        note,
         context.replace(spot_price=110),
     )
     assert result.price == 30
     assert result.standard_error is None
     assert result.confidence_interval is None
     zero = contract(datetime(2090, 1, 2), daily=0, quantity=0)
-    assert engine.price(dated_history(zero, context), context) == 0
+    assert engine.price(zero, context) == 0
 
 
 def test_rate_volatility_and_mixed_greeks_match_seeded_scalar_repricing(subtests):
@@ -538,15 +502,7 @@ def test_rate_volatility_and_mixed_greeks_match_seeded_scalar_repricing(subtests
 
     def price(spot=100.25, volatility=0.2, rate=0.04):
         return engine.price(
-            dated_history(
-                note,
-                context.replace(
-                    spot_price=spot,
-                    model_parameters=context.model_parameters.replace(
-                        volatility=volatility, risk_free_rate=rate
-                    ),
-                ),
-            ),
+            note,
             context.replace(
                 spot_price=spot,
                 model_parameters=context.model_parameters.replace(
@@ -557,7 +513,7 @@ def test_rate_volatility_and_mixed_greeks_match_seeded_scalar_repricing(subtests
 
     result = numerical_greeks(
         engine,
-        dated_history(note, context),
+        note,
         context,
         greeks="all",
         spot_shift=h,

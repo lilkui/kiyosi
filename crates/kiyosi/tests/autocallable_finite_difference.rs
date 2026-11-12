@@ -1,7 +1,5 @@
 #[path = "support/autocallable.rs"]
 mod autocallable_support;
-mod support;
-use support::dated;
 
 use kiyosi::*;
 
@@ -31,12 +29,9 @@ fn terminal_binary_matches_independent_cash_and_digital_portfolio() {
     let digital =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 0.1, date(1, 1), end).unwrap();
     let context = market(100.0, date(1, 1));
-    let expected = (-0.04_f64).exp()
-        + AnalyticDigitalEngine
-            .price(&dated(&digital, &context), &context)
-            .unwrap();
+    let expected = (-0.04_f64).exp() + AnalyticDigitalEngine.price(&digital, &context).unwrap();
     let engine = FiniteDifferenceAutocallableEngine::default();
-    let actual = engine.price(&dated(&note, &context), &context).unwrap();
+    let actual = engine.price(&note, &context).unwrap();
     assert!((actual - expected).abs() < 1e-5, "{actual} != {expected}");
 }
 
@@ -48,7 +43,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
             ..Default::default()
         })
         .unwrap()
-        .price(&dated(note, context), context)
+        .price(note, context)
         .unwrap();
         for n in [800, 1600] {
             let fd = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
@@ -58,7 +53,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
                 ..Default::default()
             })
             .unwrap();
-            let actual = fd.price(&dated(note, context), context).unwrap();
+            let actual = fd.price(note, context).unwrap();
             assert!(
                 (actual - reference).abs() < 1e-4,
                 "n={n} {actual} != {reference}"
@@ -118,14 +113,14 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    terms.history_time = Some(terms.effective_time);
+
     let note = PhoenixOption::new(terms).unwrap();
     let original = note.clone();
     let context = market(103.0, date(1, 1));
     let engine = FiniteDifferenceAutocallableEngine::default();
     let result = kiyosi::numerical_greeks(
         &engine,
-        &dated(&note, &context),
+        &note,
         &context,
         GreeksRequest::all(),
         NumericalShiftSettings {
@@ -139,7 +134,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     }
     let sigma = implied_volatility(
         &engine,
-        &dated(&note, &context),
+        &note,
         &context,
         result.price(),
         ImpliedVolatilitySettings::new(0.1, 0.3),
@@ -153,10 +148,10 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
                 ..Default::default()
             })
             .unwrap();
-        let quote = engine.price(&dated(&target, &context), &context).unwrap();
+        let quote = engine.price(&target, &context).unwrap();
         let solved = implied_phoenix_coupon(
             &engine,
-            &dated(&note, &context),
+            &note,
             &context,
             quote,
             ImpliedCouponSettings {
@@ -172,15 +167,12 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         assert!(
             (engine
                 .price(
-                    &dated(
-                        &note
-                            .replace(PhoenixOptionChanges {
-                                coupon_per_period: Some(solved),
-                                ..Default::default()
-                            })
-                            .unwrap(),
-                        &context
-                    ),
+                    &note
+                        .replace(PhoenixOptionChanges {
+                            coupon_per_period: Some(solved),
+                            ..Default::default()
+                        })
+                        .unwrap(),
                     &context
                 )
                 .unwrap()
@@ -190,17 +182,17 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         );
     }
     let settled = note
-        .replace_history(
-            Some(AutocallableBarrierState::KnockedOut),
-            Some(note.expiry_time()),
-        )
+        .replace(PhoenixOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),
+            ..Default::default()
+        })
         .unwrap();
     let later = market(100.0, date(3, 3));
-    assert_eq!(engine.price(&dated(&settled, &later), &later).unwrap(), 0.0);
+    assert_eq!(engine.price(&settled, &later).unwrap(), 0.0);
     assert!(matches!(
         implied_volatility(
             &engine,
-            &dated(&settled, &later),
+            &settled,
             &later,
             0.0,
             kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
@@ -209,14 +201,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         Error::UnsupportedOperation(_)
     ));
     assert!(matches!(
-        implied_phoenix_coupon(
-            &engine,
-            &dated(&settled, &later),
-            &later,
-            0.0,
-            Default::default()
-        )
-        .unwrap_err(),
+        implied_phoenix_coupon(&engine, &settled, &later, 0.0, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     assert_eq!(note, original);
@@ -264,32 +249,24 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
     .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::default();
     assert!(matches!(
-        engine
-            .price(
-                &dated(&note, &market(100.0, date(1, 2))),
-                &market(100.0, date(1, 2))
-            )
-            .unwrap_err(),
+        engine.price(&note, &market(100.0, date(1, 2))).unwrap_err(),
         Error::MissingHistory(_)
     ));
     let known = note
-        .replace_history(
-            Some(AutocallableBarrierState::NoEvent),
-            Some(note.history_time().unwrap_or(note.effective_time())),
-        )
+        .replace(SnowballOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
+            ..Default::default()
+        })
         .unwrap();
     let impossible = note
-        .replace_history(
-            Some(AutocallableBarrierState::KnockedOut),
-            Some(note.expiry_time()),
-        )
+        .replace(SnowballOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),
+            ..Default::default()
+        })
         .unwrap();
     assert!(matches!(
         engine
-            .price(
-                &dated(&impossible, &market(100.0, start)),
-                &market(100.0, start)
-            )
+            .price(&impossible, &market(100.0, start))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -299,9 +276,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
     })
     .unwrap();
     assert!(matches!(
-        clipped
-            .price(&dated(&known, &market(100.0, start)), &market(100.0, start))
-            .unwrap_err(),
+        clipped.price(&known, &market(100.0, start)).unwrap_err(),
         Error::InvalidInput(_)
     ));
     let unstable = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
@@ -311,9 +286,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
     })
     .unwrap();
     assert!(matches!(
-        unstable
-            .price(&dated(&known, &market(100.0, start)), &market(100.0, start))
-            .unwrap_err(),
+        unstable.price(&known, &market(100.0, start)).unwrap_err(),
         Error::InvalidInput(_)
     ));
     let ctx = market(100.0, start);
@@ -343,9 +316,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         })
         .unwrap();
     assert!(
-        (engine.price(&dated(&known, &curved), &curved).unwrap()
-            - engine.price(&dated(&known, &ctx), &ctx).unwrap())
-        .abs()
+        (engine.price(&known, &curved).unwrap() - engine.price(&known, &ctx).unwrap()).abs()
             < 1e-12
     );
     let short = RateTermStructure::new(start, vec![date(2, 3)], vec![0.99]).unwrap();
@@ -366,9 +337,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         })
         .unwrap();
     assert!(matches!(
-        engine
-            .price(&dated(&known, &short_ctx), &short_ctx)
-            .unwrap_err(),
+        engine.price(&known, &short_ctx).unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert_eq!(note.barrier_state(), None);
@@ -393,15 +362,11 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    terms.history_time = Some(terms.effective_time);
+
     let engine = FiniteDifferenceAutocallableEngine::default();
     let note = PhoenixOption::new(terms).unwrap();
     let result = engine
-        .price_with_greeks(
-            &dated(&note, &market(90.0, date(2, 3))),
-            &market(90.0, date(2, 3)),
-            GreeksRequest::all(),
-        )
+        .price_with_greeks(&note, &market(90.0, date(2, 3)), GreeksRequest::all())
         .unwrap();
     for greek in [Greek::Delta, Greek::Gamma, Greek::Speed, Greek::Theta] {
         assert!(!result.has(greek), "{greek:?}");
@@ -420,14 +385,14 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     ))
     .unwrap();
     let result = engine
-        .price_with_greeks(&dated(&fixed, &ctx), &ctx, GreeksRequest::all())
+        .price_with_greeks(&fixed, &ctx, GreeksRequest::all())
         .unwrap();
     assert!((result.price() - 0.99).abs() < 1e-14);
     assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
     assert!(matches!(
         implied_volatility(
             &engine,
-            &dated(&fixed, &ctx),
+            &fixed,
             &ctx,
             result.price(),
             kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
@@ -453,10 +418,10 @@ fn binary_domains_use_actual_levels_in_small_price_units() {
         .unwrap();
         let ctx = market(level, start);
         let price = FiniteDifferenceAutocallableEngine::default()
-            .price(&dated(&note, &ctx), &ctx)
+            .price(&note, &ctx)
             .unwrap();
         let expected = QuadratureAutocallableEngine::default()
-            .price(&dated(&note, &ctx), &ctx)
+            .price(&note, &ctx)
             .unwrap();
         assert!(
             (price - expected).abs() < 1e-5,
@@ -472,7 +437,7 @@ fn binary_domains_use_actual_levels_in_small_price_units() {
             ..Default::default()
         })
         .unwrap();
-        assert!((engine.price(&dated(&note, &ctx), &ctx).unwrap() - expected).abs() < 1e-5);
+        assert!((engine.price(&note, &ctx).unwrap() - expected).abs() < 1e-5);
     }
 }
 
@@ -492,13 +457,11 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
         ))
         .unwrap();
         let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]);
-        let reference = engine
-            .price_with_greeks(&dated(&note, &ctx), &ctx, request)
-            .unwrap();
+        let reference = engine.price_with_greeks(&note, &ctx, request).unwrap();
         for shift in [200.0, 1e-300] {
             let actual = kiyosi::numerical_greeks(
                 &engine,
-                &dated(&note, &ctx),
+                &note,
                 &ctx,
                 request,
                 NumericalShiftSettings {
@@ -544,7 +507,7 @@ fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
     })
     .unwrap();
     assert!(matches!(
-        engine.price(&dated(&note, &ctx), &ctx).unwrap_err(),
+        engine.price(&note, &ctx).unwrap_err(),
         Error::InvalidInput(_)
     ));
 }

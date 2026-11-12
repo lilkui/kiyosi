@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 #[test]
@@ -198,11 +195,11 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                 TradingCalendar::weekdays(),
             ))?;
             let original = note.clone();
-            let quote = engine.price(&dated(&note, &context), &context)?;
+            let quote = engine.price(&note, &context)?;
             for lower in [0.0, -0.1] {
                 let solved = implied_snowball_coupon(
                     engine,
-                    &dated(&note, &context),
+                    &note,
                     &context,
                     quote,
                     CouponQuoteConvention::ShiftMaturityCoupon,
@@ -217,7 +214,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
             assert!(matches!(
                 implied_snowball_coupon(
                     engine,
-                    &dated(&note, &context),
+                    &note,
                     &context,
                     quote,
                     CouponQuoteConvention::ShiftMaturityCoupon,
@@ -232,7 +229,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
             assert!(matches!(
                 implied_snowball_coupon(
                     engine,
-                    &dated(&note, &context),
+                    &note,
                     &context,
                     quote,
                     CouponQuoteConvention::ShiftMaturityCoupon,
@@ -247,9 +244,9 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                 note.with_quoted_coupon(0.0, CouponQuoteConvention::PreserveMaturityCoupon)?;
             let solved = implied_snowball_coupon(
                 engine,
-                &dated(&note, &context),
+                &note,
                 &context,
-                engine.price(&dated(&fixed, &context), &context)?,
+                engine.price(&fixed, &context)?,
                 CouponQuoteConvention::PreserveMaturityCoupon,
                 Default::default(),
             )?
@@ -269,9 +266,9 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
         ))?;
         let solved = implied_snowball_coupon(
             engine,
-            &dated(&boundary, &context),
+            &boundary,
             &context,
-            engine.price(&dated(&boundary, &context), &context)?,
+            engine.price(&boundary, &context)?,
             CouponQuoteConvention::ShiftMaturityCoupon,
             Default::default(),
         )?
@@ -338,10 +335,10 @@ fn binary_quote_recovers_schedule_shift_and_maturity_conventions() {
             terms.maturity_coupon_rate = 0.16;
         }
         let target = BinarySnowballOption::new(terms).unwrap();
-        let quote = engine.price(&dated(&target, &context), &context).unwrap();
+        let quote = engine.price(&target, &context).unwrap();
         let solved = implied_snowball_coupon(
             &engine,
-            &dated(&note, &context),
+            &note,
             &context,
             quote,
             convention,
@@ -356,9 +353,7 @@ fn binary_quote_recovers_schedule_shift_and_maturity_conventions() {
         let replaced = note
             .with_quoted_coupon(solved.first_observation_coupon, solved.quote_convention)
             .unwrap();
-        assert!(
-            (engine.price(&dated(&replaced, &context), &context).unwrap() - quote).abs() < 1e-8
-        );
+        assert!((engine.price(&replaced, &context).unwrap() - quote).abs() < 1e-8);
     }
     assert_eq!(note, original);
 }
@@ -377,31 +372,22 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         ] {
             for coupon in [-0.05, 0.18] {
                 let target = note.with_quoted_coupon(coupon, convention).unwrap();
-                let quote = engine.price(&dated(&target, context), context).unwrap();
+                let quote = engine.price(&target, context).unwrap();
                 let settings = ImpliedCouponSettings {
                     lower_bound: -0.1,
                     upper_bound: 0.3,
                     price_tolerance: 1e-11,
                     ..Default::default()
                 };
-                let solved = implied_snowball_coupon(
-                    engine,
-                    &dated(note, context),
-                    context,
-                    quote,
-                    convention,
-                    settings,
-                )
-                .unwrap()
-                .first_observation_coupon;
+                let solved =
+                    implied_snowball_coupon(engine, note, context, quote, convention, settings)
+                        .unwrap()
+                        .first_observation_coupon;
                 assert!((solved - coupon).abs() < 1e-8, "{solved}");
                 assert!(
                     (engine
                         .price(
-                            &dated(
-                                &note.with_quoted_coupon(solved, convention).unwrap(),
-                                context
-                            ),
+                            &note.with_quoted_coupon(solved, convention).unwrap(),
                             context
                         )
                         .unwrap()
@@ -487,21 +473,18 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
     for coupon in [-0.05, 0.18] {
         let quote = engine
             .price(
-                &dated(
-                    &note
-                        .replace(PhoenixOptionChanges {
-                            coupon_per_period: Some(coupon),
-                            ..Default::default()
-                        })
-                        .unwrap(),
-                    &context,
-                ),
+                &note
+                    .replace(PhoenixOptionChanges {
+                        coupon_per_period: Some(coupon),
+                        ..Default::default()
+                    })
+                    .unwrap(),
                 &context,
             )
             .unwrap();
         let solved = implied_phoenix_coupon(
             &engine,
-            &dated(&note, &context),
+            &note,
             &context,
             quote,
             ImpliedCouponSettings {
@@ -515,15 +498,12 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         assert!(
             (engine
                 .price(
-                    &dated(
-                        &note
-                            .replace(PhoenixOptionChanges {
-                                coupon_per_period: Some(solved),
-                                ..Default::default()
-                            })
-                            .unwrap(),
-                        &context
-                    ),
+                    &note
+                        .replace(PhoenixOptionChanges {
+                            coupon_per_period: Some(solved),
+                            ..Default::default()
+                        })
+                        .unwrap(),
                     &context
                 )
                 .unwrap()
@@ -544,7 +524,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     let solve = |quote, settings| {
         implied_snowball_coupon(
             &engine,
-            &dated(&note, &context),
+            &note,
             &context,
             quote,
             PreserveMaturityCoupon,
@@ -567,12 +547,9 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     for bound in [defaults.lower_bound, defaults.upper_bound] {
         let quote = engine
             .price(
-                &dated(
-                    &note
-                        .with_quoted_coupon(bound, PreserveMaturityCoupon)
-                        .unwrap(),
-                    &context,
-                ),
+                &note
+                    .with_quoted_coupon(bound, PreserveMaturityCoupon)
+                    .unwrap(),
                 &context,
             )
             .unwrap();
@@ -635,17 +612,17 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
         Error::RootNotBracketed(_)
     ));
     let known = note
-        .replace_history(
-            Some(AutocallableBarrierState::NoEvent),
-            Some(note.history_time().unwrap_or(note.effective_time())),
-        )
+        .replace(BinarySnowballOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
+            ..Default::default()
+        })
         .unwrap();
     let terminal = market(100.0, date(4, 1));
-    let quote = engine.price(&dated(&known, &terminal), &terminal).unwrap();
+    let quote = engine.price(&known, &terminal).unwrap();
     assert!(matches!(
         implied_snowball_coupon(
             &engine,
-            &dated(&known, &terminal),
+            &known,
             &terminal,
             quote,
             PreserveMaturityCoupon,
@@ -656,7 +633,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     ));
     let shifted = implied_snowball_coupon(
         &engine,
-        &dated(&known, &terminal),
+        &known,
         &terminal,
         quote,
         ShiftMaturityCoupon,
@@ -666,15 +643,15 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     .first_observation_coupon;
     assert!((shifted - 0.08).abs() < 1e-8);
     let knocked_out = note
-        .replace_history(
-            Some(AutocallableBarrierState::KnockedOut),
-            Some(note.expiry_time()),
-        )
+        .replace(BinarySnowballOptionChanges {
+            barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),
+            ..Default::default()
+        })
         .unwrap();
     assert!(matches!(
         implied_snowball_coupon(
             &engine,
-            &dated(&knocked_out, &market(100.0, date(3, 3))),
+            &knocked_out,
             &market(100.0, date(3, 3)),
             0.0,
             ShiftMaturityCoupon,
@@ -686,7 +663,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     assert!(matches!(
         implied_snowball_coupon(
             &engine,
-            &dated(&note, &terminal),
+            &note,
             &terminal,
             f64::NAN,
             PreserveMaturityCoupon,
@@ -698,7 +675,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     assert!(matches!(
         implied_snowball_coupon(
             &engine,
-            &dated(&note, &terminal),
+            &note,
             &terminal,
             quote,
             PreserveMaturityCoupon,
@@ -724,7 +701,7 @@ fn custom_engine_failures_and_bisection_use_stable_categories() {
     let solve = |engine: &Curve, quote, settings| {
         implied_snowball_coupon(
             engine,
-            &dated(&note, &context),
+            &note,
             &context,
             quote,
             CouponQuoteConvention::PreserveMaturityCoupon,
@@ -819,10 +796,10 @@ fn named_presets_reuse_the_same_coupon_contract() {
             CouponQuoteConvention::PreserveMaturityCoupon,
         ] {
             let target = note.with_quoted_coupon(0.18, convention).unwrap();
-            let quote = engine.price(&dated(&target, &context), &context).unwrap();
+            let quote = engine.price(&target, &context).unwrap();
             let solved = implied_snowball_coupon(
                 &engine,
-                &dated(&note, &context),
+                &note,
                 &context,
                 quote,
                 convention,
@@ -834,10 +811,7 @@ fn named_presets_reuse_the_same_coupon_contract() {
             assert!(
                 (engine
                     .price(
-                        &dated(
-                            &note.with_quoted_coupon(solved, convention).unwrap(),
-                            &context
-                        ),
+                        &note.with_quoted_coupon(solved, convention).unwrap(),
                         &context
                     )
                     .unwrap()
@@ -867,14 +841,10 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
             .unwrap();
     let term = 90.0 / 365.0;
     let quote = (-0.04_f64 * term).exp() * (1.0 + 0.06 * term)
-        + (0.18 - 0.06)
-            * term
-            * AnalyticDigitalEngine
-                .price(&dated(&digital, &context), &context)
-                .unwrap();
+        + (0.18 - 0.06) * term * AnalyticDigitalEngine.price(&digital, &context).unwrap();
     let solved = implied_snowball_coupon(
         &engine,
-        &dated(&note, &context),
+        &note,
         &context,
         quote,
         PreserveMaturityCoupon,
@@ -889,7 +859,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
     assert!(matches!(
         implied_snowball_coupon(
             &engine,
-            &dated(&extreme, &market(100.0, date(4, 2))),
+            &extreme,
             &market(100.0, date(4, 2)),
             1.0,
             ShiftMaturityCoupon,
@@ -912,10 +882,10 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         TradingCalendar::weekdays(),
     ))
     .unwrap();
-    let quote = engine.price(&dated(&ternary, &context), &context).unwrap();
+    let quote = engine.price(&ternary, &context).unwrap();
     let coupon = implied_snowball_coupon(
         &engine,
-        &dated(&ternary, &context),
+        &ternary,
         &context,
         quote,
         ShiftMaturityCoupon,
@@ -959,7 +929,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         assert!(expected(
             implied_snowball_coupon(
                 &engine,
-                &dated(&note, &curved),
+                &note,
                 &curved,
                 observed,
                 PreserveMaturityCoupon,
@@ -988,43 +958,26 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    terms.history_time = Some(terms.effective_time);
     let phoenix = PhoenixOption::new(terms).unwrap();
-    let quote = engine.price(&dated(&phoenix, &context), &context).unwrap();
+    let quote = engine.price(&phoenix, &context).unwrap();
     assert!(matches!(
-        implied_phoenix_coupon(
-            &engine,
-            &dated(&phoenix, &context),
-            &context,
-            quote,
-            Default::default()
-        )
-        .unwrap_err(),
+        implied_phoenix_coupon(&engine, &phoenix, &context, quote, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     let current = market(110.0, date(4, 1));
     let quote = engine
         .price(
-            &dated(
-                &phoenix
-                    .replace(PhoenixOptionChanges {
-                        coupon_per_period: Some(0.18),
-                        ..Default::default()
-                    })
-                    .unwrap(),
-                &current,
-            ),
+            &phoenix
+                .replace(PhoenixOptionChanges {
+                    coupon_per_period: Some(0.18),
+                    ..Default::default()
+                })
+                .unwrap(),
             &current,
         )
         .unwrap();
-    let solved = implied_phoenix_coupon(
-        &engine,
-        &dated(&phoenix, &current),
-        &current,
-        quote,
-        Default::default(),
-    )
-    .unwrap();
+    let solved =
+        implied_phoenix_coupon(&engine, &phoenix, &current, quote, Default::default()).unwrap();
     let rate = solved;
     assert!((rate - 0.18).abs() < 1e-8);
     let records = autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None).unwrap();
@@ -1041,13 +994,12 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms).unwrap();
-    let quote = engine.price(&dated(&note, &context), &context).unwrap();
+    let quote = engine.price(&note, &context).unwrap();
     assert!(matches!(
         implied_snowball_coupon(
             &engine,
-            &dated(&note, &context),
+            &note,
             &context,
             quote,
             CouponQuoteConvention::ShiftMaturityCoupon,
@@ -1084,7 +1036,6 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    terms.history_time = Some(terms.effective_time);
     let note = SnowballOption::new(terms).unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.03, 0.0, 0.3).unwrap(),
@@ -1092,14 +1043,14 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
         Timestamp::new(date(1, 1).date(), 12, 0, 0, 0).unwrap(),
     )
     .unwrap();
-    let quote = engine.price(&dated(&note, &context), &context).unwrap();
+    let quote = engine.price(&note, &context).unwrap();
     for convention in [
         CouponQuoteConvention::ShiftMaturityCoupon,
         CouponQuoteConvention::PreserveMaturityCoupon,
     ] {
         let solved = implied_snowball_coupon(
             &engine,
-            &dated(&note, &context),
+            &note,
             &context,
             quote,
             convention,
@@ -1117,10 +1068,7 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
         assert!(
             (engine
                 .price(
-                    &dated(
-                        &note.with_quoted_coupon(solved, convention).unwrap(),
-                        &context
-                    ),
+                    &note.with_quoted_coupon(solved, convention).unwrap(),
                     &context
                 )
                 .unwrap()

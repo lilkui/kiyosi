@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -168,11 +165,9 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                             Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end]);
                     }
                     let option = BarrierOption::new(terms).unwrap();
-                    let expected = single
-                        .price_with_greeks(&dated(&option, &bsm), &bsm, request())
-                        .unwrap();
+                    let expected = single.price_with_greeks(&option, &bsm, request()).unwrap();
                     let actual = single
-                        .price_with_greeks(&dated(&option, &local), &local, request())
+                        .price_with_greeks(&option, &local, request())
                         .unwrap();
                     assert_close(&actual, &expected);
                 }
@@ -193,11 +188,9 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                             Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end]);
                     }
                     let option = DoubleBarrierOption::new(terms).unwrap();
-                    let expected = double
-                        .price_with_greeks(&dated(&option, &bsm), &bsm, request())
-                        .unwrap();
+                    let expected = double.price_with_greeks(&option, &bsm, request()).unwrap();
                     let actual = double
-                        .price_with_greeks(&dated(&option, &local), &local, request())
+                        .price_with_greeks(&option, &local, request())
                         .unwrap();
                     assert_close(&actual, &expected);
                 }
@@ -216,7 +209,7 @@ fn skewed_continuous_knock_in_out_parity_includes_native_greeks() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
         let expected = vanilla
-            .price_with_greeks(&dated(&option, &context), &context, request())
+            .price_with_greeks(&option, &context, request())
             .unwrap();
         let check = |inside: PricingResult, outside: PricingResult| {
             assert!(
@@ -241,11 +234,7 @@ fn skewed_continuous_knock_in_out_parity_includes_native_greeks() {
                 let mut terms = BarrierOptionTerms::new(direction, 100.0, start, end, level, kind);
                 terms.rebate = 2.0;
                 single
-                    .price_with_greeks(
-                        &dated(&BarrierOption::new(terms).unwrap(), &context),
-                        &context,
-                        request(),
-                    )
+                    .price_with_greeks(&BarrierOption::new(terms).unwrap(), &context, request())
                     .unwrap()
             };
             check(evaluate(ki), evaluate(ko));
@@ -256,7 +245,7 @@ fn skewed_continuous_knock_in_out_parity_includes_native_greeks() {
             terms.rebate = 2.0;
             double
                 .price_with_greeks(
-                    &dated(&DoubleBarrierOption::new(terms).unwrap(), &context),
+                    &DoubleBarrierOption::new(terms).unwrap(),
                     &context,
                     request(),
                 )
@@ -291,7 +280,7 @@ fn remote_low_volatility_knock_in_does_not_subtract_nearly_equal_prices() {
     .unwrap();
     let price = FiniteDifferenceBarrierEngine::new(settings())
         .unwrap()
-        .price(&dated(&option, &context), &context)
+        .price(&option, &context)
         .unwrap();
     // The barrier is more than eight diffusion standard deviations away.
     assert!((0.0..1e-8).contains(&price), "rare knock-in value: {price}");
@@ -335,7 +324,7 @@ fn skewed_single_barriers_match_independent_quantlib_reference() {
         ))
         .unwrap();
         let result = engine
-            .price_with_greeks(&dated(&option, &context), &context, request())
+            .price_with_greeks(&option, &context, request())
             .unwrap();
         for ((actual, expected), tolerance) in [
             result.price(),
@@ -371,14 +360,14 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
     terms.rebate = 3.0;
     let option = BarrierOption::new(terms.clone()).unwrap();
     let result = engine
-        .price_with_greeks(&dated(&option, &short), &short, request())
+        .price_with_greeks(&option, &short, request())
         .unwrap();
     assert!((result.price() - 3.0 * (-0.05_f64).exp()).abs() < 1e-14);
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
     assert_eq!(
         engine
-            .price_with_greeks(&dated(&option, &short), &short, GreeksRequest::all())
+            .price_with_greeks(&option, &short, GreeksRequest::all())
             .unwrap()
             .get(Greek::Vega),
         None
@@ -386,10 +375,10 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
     terms.rebate_timing = RebateTiming::AtHit;
     let paid = BarrierOption::new(terms)
         .unwrap()
-        .replace_history(
-            Some(BarrierTouchState::Touched),
-            Some(start.add_micros(1).unwrap()),
-        )
+        .replace(BarrierOptionChanges {
+            touch_state: Some(Some(BarrierTouchState::Touched)),
+            ..Default::default()
+        })
         .unwrap();
     let later = short
         .replace(PricingContextChanges {
@@ -397,9 +386,7 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
             ..Default::default()
         })
         .unwrap();
-    let result = engine
-        .price_with_greeks(&dated(&paid, &later), &later, request())
-        .unwrap();
+    let result = engine.price_with_greeks(&paid, &later, request()).unwrap();
     assert_eq!(result.price(), 0.0);
     assert_eq!(result.require(Greek::Delta).unwrap(), 0.0);
     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
@@ -413,16 +400,16 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
     ))
     .unwrap();
     assert!(matches!(
-        engine.price(&dated(&active, &short), &short),
+        engine.price(&active, &short),
         Err(Error::InvalidInput(_))
     ));
     let full = local(120.0, end, true);
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     assert_eq!(
-        engine.price(&dated(&active, &full), &full).unwrap(),
+        engine.price(&active, &full).unwrap(),
         FiniteDifferenceVanillaEngine::new(settings())
             .unwrap()
-            .price(&dated(&vanilla, &full), &full)
+            .price(&vanilla, &full)
             .unwrap()
     );
 }

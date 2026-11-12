@@ -9,8 +9,6 @@ from kiyosi import ComputationFailureError, InvalidInputError, UnsupportedOperat
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
-from support.history import dated as dated_history
-from support.history import history_fields
 
 START, END = datetime(2025, 1, 2), datetime(2026, 1, 2)
 LIFE = {"effective_time": START, "expiry_time": END}
@@ -28,36 +26,23 @@ def contracts():
         (
             "geometric",
             p.MonteCarloAsianEngine,
-            i.GeometricAveragePriceOption(
-                **history_fields(averaging_start_time=START, **vanilla)
-            ),
+            i.GeometricAveragePriceOption(averaging_start_time=START, **vanilla),
         ),
         (
             "arithmetic",
             p.MonteCarloAsianEngine,
-            i.ArithmeticAveragePriceOption(
-                **history_fields(averaging_start_time=START, **vanilla)
-            ),
+            i.ArithmeticAveragePriceOption(averaging_start_time=START, **vanilla),
         ),
         (
             "barrier",
             p.MonteCarloBarrierEngine,
-            i.BarrierOption(
-                **history_fields(
-                    barrier_type="up_and_out", barrier_level=120, **vanilla
-                )
-            ),
+            i.BarrierOption(barrier_type="up_and_out", barrier_level=120, **vanilla),
         ),
         (
             "double",
             p.MonteCarloDoubleBarrierEngine,
             i.DoubleBarrierOption(
-                **history_fields(
-                    barrier_type="knock_out",
-                    lower_barrier=80,
-                    upper_barrier=120,
-                    **vanilla,
-                )
+                barrier_type="knock_out", lower_barrier=80, upper_barrier=120, **vanilla
             ),
         ),
     )
@@ -92,29 +77,25 @@ def seed_cases():
             "snowball",
             p.MonteCarloAutocallableEngine,
             i.standard_snowball(
-                **history_fields(
-                    coupon_rate=0.1,
-                    initial_spot=100,
-                    knock_in_level=80,
-                    knock_out_level=110,
-                    observation_times=[END],
-                    observation_clock_time=time(),
-                    **LIFE,
-                )
+                coupon_rate=0.1,
+                initial_spot=100,
+                knock_in_level=80,
+                knock_out_level=110,
+                observation_times=[END],
+                observation_clock_time=time(),
+                **LIFE,
             ),
         ),
         (
             "accumulator",
             p.MonteCarloAccumulatorEngine,
             i.Accumulator(
-                **history_fields(
-                    strike=100,
-                    knock_out_level=120,
-                    daily_quantity=1,
-                    acceleration_factor=2,
-                    observation_clock_time=time(),
-                    **LIFE,
-                )
+                strike=100,
+                knock_out_level=120,
+                daily_quantity=1,
+                acceleration_factor=2,
+                observation_clock_time=time(),
+                **LIFE,
             ),
         ),
     )
@@ -169,7 +150,6 @@ def test_greek_seeds_replay_native_numerical_and_pickled_results(subtests):
         ),
     )
     for name, factory, option in cases:
-        option = dated_history(option, snapshot)
         sampler = engine(factory, path_count=32, seed=None)
         for numerical in (False, True):
             with subtests.test(product=name, numerical=numerical):
@@ -218,9 +198,7 @@ def test_reported_seeds_replay_unseeded_and_configured_estimates(subtests):
                         sampling=sampling,
                         antithetic=True,
                     )
-                    estimate = sampler.price_with_statistics(
-                        dated_history(option, snapshot), snapshot
-                    )
+                    estimate = sampler.price_with_statistics(option, snapshot)
                     assert estimate.seed is not None
                     assert estimate.seed >= 0
                     assert estimate.seed <= 2**64 - 1
@@ -235,23 +213,13 @@ def test_reported_seeds_replay_unseeded_and_configured_estimates(subtests):
                         antithetic=True,
                         max_active_workers=4,
                     )
-                    assert (
-                        replay.price_with_statistics(
-                            dated_history(option, snapshot), snapshot
-                        )
-                        == estimate
-                    )
-                    assert (
-                        replay.price(dated_history(option, snapshot), snapshot)
-                        == estimate.price
-                    )
+                    assert replay.price_with_statistics(option, snapshot) == estimate
+                    assert replay.price(option, snapshot) == estimate.price
                     restored = pickle.loads(pickle.dumps(estimate))
                     assert restored == estimate
                     assert restored.seed == estimate.seed
                     assert (
-                        sampler.price_with_statistics(
-                            dated_history(option, deterministic), deterministic
-                        ).seed
+                        sampler.price_with_statistics(option, deterministic).seed
                         is None
                     )
 
@@ -264,12 +232,8 @@ def test_statistics_preserve_prices_and_uncertainty_across_products_and_threads(
         for antithetic in (False, True):
             with subtests.test(product=name, antithetic=antithetic):
                 serial = engine(factory, antithetic=antithetic)
-                estimate = serial.price_with_statistics(
-                    dated_history(option, snapshot), snapshot
-                )
-                assert estimate.price == serial.price(
-                    dated_history(option, snapshot), snapshot
-                )
+                estimate = serial.price_with_statistics(option, snapshot)
+                assert estimate.price == serial.price(option, snapshot)
                 assert estimate.standard_error > 0
                 assert estimate.uncertainty_status == "available"
                 lower, upper = estimate.confidence_interval
@@ -277,9 +241,7 @@ def test_statistics_preserve_prices_and_uncertainty_across_products_and_threads(
                 assert estimate.price < upper
                 parallel = engine(factory, max_active_workers=4, antithetic=antithetic)
                 for other in (
-                    parallel.price_with_statistics(
-                        dated_history(option, snapshot), snapshot
-                    ),
+                    parallel.price_with_statistics(option, snapshot),
                     pickle.loads(pickle.dumps(estimate)),
                 ):
                     assert other.price == estimate.price
@@ -293,7 +255,7 @@ def test_digital_uncertainty_matches_bernoulli_and_pair_formulas(antithetic):
     amount = 10 * math.exp(-0.05)
     estimate = engine(
         p.MonteCarloDigitalEngine, antithetic=antithetic
-    ).price_with_statistics(dated_history(option, context()), context())
+    ).price_with_statistics(option, context())
     probability = estimate.price / amount
     scale, count = amount, 4096
     if antithetic:
@@ -323,10 +285,8 @@ def test_reported_uncertainty_agrees_with_analytic_prices(subtests):
             continue
         with subtests.test(product=name):
             snapshot = context()
-            estimate = engine(factory).price_with_statistics(
-                dated_history(option, snapshot), snapshot
-            )
-            expected = references[name].price(dated_history(option, snapshot), snapshot)
+            estimate = engine(factory).price_with_statistics(option, snapshot)
+            expected = references[name].price(option, snapshot)
             assert abs(estimate.price - expected) < 6 * estimate.standard_error
 
 
@@ -349,12 +309,8 @@ def test_uncertainty_omission_follows_sampling_and_independent_counts(subtests):
         for name, factory, option in contracts():
             with subtests.test(case=case, product=name):
                 sampler = engine(factory, **settings)
-                estimate = sampler.price_with_statistics(
-                    dated_history(option, context()), context()
-                )
-                assert estimate.price == sampler.price(
-                    dated_history(option, context()), context()
-                )
+                estimate = sampler.price_with_statistics(option, context())
+                assert estimate.price == sampler.price(option, context())
                 assert estimate.standard_error is None
                 assert estimate.confidence_interval is None
                 assert estimate.uncertainty_status == status
@@ -365,14 +321,12 @@ def test_terminal_statistics_report_known_values(subtests):
     snapshot = context().replace(spot_price=110, valuation_time=END)
     for name, factory, original in contracts():
         if name in ("barrier", "double"):
-            option = original.replace_history(
+            option = original.replace(
                 touch_state="untouched",
-                history_time=snapshot.valuation_time,
             )
         elif name in ("geometric", "arithmetic"):
-            option = original.replace_history(
+            option = original.replace(
                 realized_average=110,
-                history_time=snapshot.valuation_time,
             )
         else:
             option = original
@@ -381,7 +335,7 @@ def test_terminal_statistics_report_known_values(subtests):
             with subtests.test(product=name, sampling=sampling):
                 estimate = engine(
                     factory, path_count=1, sampling=sampling
-                ).price_with_statistics(dated_history(option, snapshot), snapshot)
+                ).price_with_statistics(option, snapshot)
                 assert estimate.price == expected_price
                 if sampling == "sobol":
                     assert estimate.standard_error is None
@@ -405,15 +359,9 @@ def test_analytic_rebate_shifts_do_not_add_sampling_variance(subtests):
             else p.AnalyticDoubleBarrierEngine()
         )
         with subtests.test(product=name):
-            base = sampler.price_with_statistics(
-                dated_history(zero, snapshot), snapshot
-            )
-            actual = sampler.price_with_statistics(
-                dated_history(rebate, snapshot), snapshot
-            )
-            shift = reference.price(
-                dated_history(rebate, snapshot), snapshot
-            ) - reference.price(dated_history(zero, snapshot), snapshot)
+            base = sampler.price_with_statistics(zero, snapshot)
+            actual = sampler.price_with_statistics(rebate, snapshot)
+            shift = reference.price(rebate, snapshot) - reference.price(zero, snapshot)
             assert actual.standard_error == base.standard_error
             assert actual.price - base.price == pytest.approx(shift, rel=0, abs=1e-12)
 
@@ -423,18 +371,11 @@ def test_statistics_preserve_scheduled_barrier_prices(subtests):
         option = original.replace(
             touch_state=original.touch_state,
             observation_times=[START + timedelta(days=182), END],
-            history_time=(original.history_time or original.effective_time)
-            if original.touch_state is not None
-            else None,
         )
         with subtests.test(product=name):
             sampler = engine(factory)
-            estimate = sampler.price_with_statistics(
-                dated_history(option, context()), context()
-            )
-            assert estimate.price == sampler.price(
-                dated_history(option, context()), context()
-            )
+            estimate = sampler.price_with_statistics(option, context())
+            assert estimate.price == sampler.price(option, context())
             assert estimate.standard_error > 0
 
 
@@ -450,16 +391,12 @@ def test_resolved_barriers_report_zero_error_before_expiry(subtests):
             )
             option = original.replace(barrier_type=kind, rebate=7)
             expected = (
-                p.AnalyticEuropeanEngine().price(
-                    dated_history(vanilla, snapshot), snapshot
-                )
+                p.AnalyticEuropeanEngine().price(vanilla, snapshot)
                 if knock_in
                 else 7 * math.exp(-0.05)
             )
             with subtests.test(product=name, knock_in=knock_in):
-                estimate = engine(factory).price_with_statistics(
-                    dated_history(option, snapshot), snapshot
-                )
+                estimate = engine(factory).price_with_statistics(option, snapshot)
                 assert estimate.price == pytest.approx(expected, rel=0, abs=1e-12)
                 assert estimate.standard_error == 0
                 assert estimate.confidence_interval == (
@@ -470,11 +407,11 @@ def test_resolved_barriers_report_zero_error_before_expiry(subtests):
 def test_uncertainty_failure_does_not_prevent_scalar_pricing():
     option = contracts()[0][2].replace(payout=1.6e308)
     sampler = engine(p.MonteCarloDigitalEngine, path_count=2, seed=0)
-    price = sampler.price(dated_history(option, context()), context())
+    price = sampler.price(option, context())
     assert price / (8e307 * math.exp(-0.05)) == pytest.approx(1, rel=0, abs=1e-13)
     with pytest.raises(ComputationFailureError):
-        sampler.price_with_statistics(dated_history(option, context()), context())
-    assert sampler.price(dated_history(option, context()), context()) == price
+        sampler.price_with_statistics(option, context())
+    assert sampler.price(option, context()) == price
     assert sampler.price_with_seed(option, context()) == ((price, 0))
 
 
@@ -487,8 +424,8 @@ def test_arithmetic_statistics_support_curves_and_known_history(subtests):
         )
     )
     sampler = engine(p.MonteCarloAsianEngine)
-    estimate = sampler.price_with_statistics(dated_history(option, snapshot), snapshot)
-    assert estimate.price == sampler.price(dated_history(option, snapshot), snapshot)
+    estimate = sampler.price_with_statistics(option, snapshot)
+    assert estimate.price == sampler.price(option, snapshot)
     assert estimate.standard_error > 0
     snapshot = context().replace(valuation_time=START + timedelta(days=182, hours=12))
     for direction in ("call", "put"):
@@ -496,11 +433,8 @@ def test_arithmetic_statistics_support_curves_and_known_history(subtests):
             seasoned = option.replace(
                 option_type=direction,
                 realized_average=1000,
-                history_time=snapshot.valuation_time,
             )
-            estimate = sampler.price_with_statistics(
-                dated_history(seasoned, snapshot), snapshot
-            )
+            estimate = sampler.price_with_statistics(seasoned, snapshot)
             expected = (
                 (400 + 50 * math.expm1(0.015) / 0.015) * math.exp(-0.025)
                 if direction == "call"
@@ -526,28 +460,20 @@ def test_statistics_preserve_life_history_and_model_rejections(subtests):
         with subtests.test(product=name):
             with pytest.raises(InvalidInputError):
                 sampler.price_with_statistics(
-                    dated_history(
-                        option,
-                        snapshot.replace(valuation_time=END + timedelta(days=1)),
-                    ),
+                    option,
                     snapshot.replace(valuation_time=END + timedelta(days=1)),
                 )
             with pytest.raises(UnsupportedOperationError):
                 sampler.price_with_statistics(
-                    dated_history(option, snapshot.replace(model_parameters=heston)),
+                    option,
                     snapshot.replace(model_parameters=heston),
                 )
             if name not in ("cash", "asset"):
                 with pytest.raises(InvalidInputError):
                     sampler.price_with_statistics(
-                        dated_history(
-                            option,
-                            snapshot.replace(valuation_time=START + timedelta(days=1)),
-                        ),
+                        option,
                         snapshot.replace(valuation_time=START + timedelta(days=1)),
                     )
     american = i.AmericanOption(option_type="put", strike=100, **LIFE)
     with pytest.raises(UnsupportedOperationError):
-        engine(p.MonteCarloVanillaEngine).price_with_statistics(
-            dated_history(american, snapshot), snapshot
-        )
+        engine(p.MonteCarloVanillaEngine).price_with_statistics(american, snapshot)

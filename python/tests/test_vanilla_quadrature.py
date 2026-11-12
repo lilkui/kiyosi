@@ -17,7 +17,6 @@ from kiyosi.instruments import AmericanOption, EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import numerical_greeks
 from quantlib_reference import american, oracle
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, contract, market
 
@@ -47,7 +46,7 @@ def test_settings_signatures_and_conversion_boundaries(subtests):
             (2**31, OverflowError),
         ):
             with subtests.test(field=field, value=value), pytest.raises(error):
-                factory(**history_fields(**{field: value}))
+                factory(**{field: value})
     for fields in (
         {"asset_step_count": 3},
         {"time_step_count": 0},
@@ -56,7 +55,7 @@ def test_settings_signatures_and_conversion_boundaries(subtests):
         {"integration_standard_deviations": math.inf},
     ):
         with subtests.test(fields=fields), pytest.raises(InvalidInputError):
-            factory(**history_fields(**fields))
+            factory(**fields)
     for value in (True, "8", None):
         with pytest.raises(TypeError):
             factory(integration_standard_deviations=value)

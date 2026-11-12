@@ -20,7 +20,6 @@ from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
@@ -45,9 +44,9 @@ def test_early_observation_rebate_discount(rate, timing):
         * 0.5
         * math.erfc(z / math.sqrt(2))
     )
-    assert engine.price(
-        dated_history(contract, market(rate=rate)), market(rate=rate)
-    ) == pytest.approx(expected, rel=0, abs=2e-11)
+    assert engine.price(contract, market(rate=rate)) == pytest.approx(
+        expected, rel=0, abs=2e-11
+    )
 
 
 @pytest.mark.parametrize("steps,extent", ((256, 8), (512, 8), (512, 10)))
@@ -60,12 +59,12 @@ def test_quadrature_refinement_and_requested_higher_greeks(steps, extent):
         "rho",
     )
     expected = pricing.AnalyticBarrierEngine().price_with_greeks(
-        dated_history(contract, context), context, names
+        contract, context, names
     )
     engine = pricing.QuadratureBarrierEngine(
         asset_step_count=steps, integration_standard_deviations=extent
     )
-    result = engine.price_with_greeks(dated_history(contract, context), context, names)
+    result = engine.price_with_greeks(contract, context, names)
     for name in ("price", *names):
         assert getattr(result, name) == pytest.approx(
             getattr(expected, name), rel=0, abs=(0.001 if steps == 256 else 0.0002)
@@ -117,7 +116,7 @@ def test_continuous_prices_and_greeks_against_live_quantlib(subtests):
                         "gamma": (high - 2 * center + low) / 0.01**2,
                     }
                     result = engine.price_with_greeks(
-                        dated_history(contract, market(rate=rate, dividend=dividend)),
+                        contract,
                         market(rate=rate, dividend=dividend),
                         ("delta", "gamma"),
                     )
@@ -197,9 +196,9 @@ def test_early_ending_schedules_match_independent_bivariate_normal_payoffs(
             observation_times=[observation],
         )
         with subtests.test(kind=kind, direction=direction, timing=timing):
-            assert engine.price(
-                dated_history(contract, market()), market()
-            ) == pytest.approx(expected, rel=0, abs=2e-6)
+            assert engine.price(contract, market()) == pytest.approx(
+                expected, rel=0, abs=2e-6
+            )
 
 
 @pytest.mark.parametrize("kind", ("up_and_out", "down_and_out"))
@@ -226,9 +225,7 @@ def test_two_observations_match_independent_joint_survival_probability(kind):
         ],
     )
     expected = 7 * math.exp(-0.03 * 360 / 365) * (1 - survival)
-    assert engine.price(dated_history(contract, market()), market()) == pytest.approx(
-        expected, rel=0, abs=2e-6
-    )
+    assert engine.price(contract, market()) == pytest.approx(expected, rel=0, abs=2e-6)
 
 
 def test_settings_and_representation_errors_keep_native_exceptions():
@@ -276,7 +273,7 @@ def test_settings_and_representation_errors_keep_native_exceptions():
         with pytest.raises(TypeError):
             numerical_greeks(
                 engine,
-                dated_history(option(), market()),
+                option(),
                 market(),
                 "delta",
                 **changes,
@@ -284,7 +281,7 @@ def test_settings_and_representation_errors_keep_native_exceptions():
     with pytest.raises(TypeError):
         numerical_greeks(
             engine,
-            dated_history(option(), market()),
+            option(),
             market(),
             "delta",
             time_shift=2**31,
@@ -350,10 +347,8 @@ def test_scheduled_greeks_solver_and_concurrency():
         observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
     )
     context = market()
-    quote = engine.price(dated_history(contract, context), context)
-    result = engine.price_with_greeks(
-        dated_history(contract, context), context, greeks="all"
-    )
+    quote = engine.price(contract, context)
+    result = engine.price_with_greeks(contract, context, greeks="all")
     assert result.price == quote
     for name in ("delta", "gamma", *OTHER_GREEKS):
         assert math.isfinite(getattr(result, name)), name
@@ -366,13 +361,13 @@ def test_scheduled_greeks_solver_and_concurrency():
         )
         sigma = pricing.implied_volatility(
             selected,
-            dated_history(contract, context),
+            contract,
             context,
             quote,
             lower_bound=0.15,
             upper_bound=0.25,
         )
-        return selected.price(dated_history(contract, context), context), sigma
+        return selected.price(contract, context), sigma
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         for price, sigma in pool.map(evaluate, range(4)):
@@ -387,7 +382,7 @@ def test_scheduled_greeks_solver_and_concurrency():
             expected_error,
             pricing.implied_volatility,
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             observed,
             lower_bound=0.15,
@@ -397,7 +392,7 @@ def test_scheduled_greeks_solver_and_concurrency():
     with pytest.raises(TypeError):
         pricing.implied_volatility(
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             True,
             lower_bound=0.0,
@@ -406,12 +401,12 @@ def test_scheduled_greeks_solver_and_concurrency():
     with pytest.raises(TypeError):
         pricing.implied_volatility(
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             quote,
             max_iterations=1.5,
             lower_bound=0.0,
             upper_bound=4.0,
         )
-    assert engine.price(dated_history(contract, context), context) == quote
+    assert engine.price(contract, context) == quote
     assert context.model_parameters.volatility == 0.2

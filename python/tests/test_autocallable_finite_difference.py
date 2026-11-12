@@ -19,7 +19,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, market
 from test_snowball import contract as snowball
@@ -52,19 +51,19 @@ def test_engine_defaults_and_representation_errors(subtests):
     with pytest.raises(AttributeError):
         engine.time_step_count = 1
     with pytest.raises(TypeError):
-        engine.price(dated_history(object(), market()), market())
+        engine.price(object(), market())
     note = phoenix()
     for operation in (
         lambda: numerical_greeks(
             engine,
-            dated_history(note, market()),
+            note,
             market(),
             "delta",
             spot_shift=True,
         ),
         lambda: implied_volatility(
             engine,
-            dated_history(note, market()),
+            note,
             market(),
             True,
             lower_bound=0.0,
@@ -72,22 +71,18 @@ def test_engine_defaults_and_representation_errors(subtests):
         ),
         lambda: implied_volatility(
             engine,
-            dated_history(note, market()),
+            note,
             market(),
             1,
             max_iterations=2.5,
             lower_bound=0.0,
             upper_bound=4.0,
         ),
-        lambda: implied_phoenix_coupon(
-            engine, dated_history(note, market()), market(), True
-        ),
-        lambda: implied_phoenix_coupon(
-            engine, dated_history(note, market()), market(), 1, max_iterations=True
-        ),
+        lambda: implied_phoenix_coupon(engine, note, market(), True),
+        lambda: implied_phoenix_coupon(engine, note, market(), 1, max_iterations=True),
         lambda: implied_phoenix_coupon(
             engine,
-            dated_history(note, market()),
+            note,
             market(),
             1,
             quote_convention="shift_maturity_coupon",
@@ -96,9 +91,7 @@ def test_engine_defaults_and_representation_errors(subtests):
         with pytest.raises(TypeError):
             operation()
     with pytest.raises(OverflowError):
-        implied_phoenix_coupon(
-            engine, dated_history(note, market()), market(), 1, max_iterations=2**40
-        )
+        implied_phoenix_coupon(engine, note, market(), 1, max_iterations=2**40)
 
 
 @pytest.mark.parametrize("coupon", (0, 0.1))
@@ -114,12 +107,10 @@ def test_native_spot_greeks_survive_infeasible_scalar_bumps(coupon, shift):
         ),
     )
     engine, context = FD(), market()
-    reference = engine.price_with_greeks(
-        dated_history(note, context), context, ["delta", "gamma"]
-    )
+    reference = engine.price_with_greeks(note, context, ["delta", "gamma"])
     result = numerical_greeks(
         engine,
-        dated_history(note, context),
+        note,
         context,
         ["delta", "gamma", "speed"],
         spot_shift=shift,
@@ -152,7 +143,7 @@ def test_explicit_uniform_stability_uses_the_top_node_bound():
     )
     assert_rejection(
         InvalidInputError,
-        lambda: engine.price(dated_history(note, market()), market()),
+        lambda: engine.price(note, market()),
     )
 
 
@@ -160,9 +151,7 @@ def test_event_greeks_node_curves_and_failed_replacement():
     engine = FD()
     note = phoenix()
     context = market(90, datetime(2025, 2, 3))
-    result = engine.price_with_greeks(
-        dated_history(note, context), context, greeks="all"
-    )
+    result = engine.price_with_greeks(note, context, greeks="all")
     assert result.delta is None
     assert result.gamma is None
     assert result.speed is None
@@ -171,9 +160,8 @@ def test_event_greeks_node_curves_and_failed_replacement():
     assert result.rho is not None
     snapshot = note.observations
     with pytest.raises(ValueError):
-        note.replace_history(
+        note.replace(
             barrier_state="invalid",
-            history_time=note.history_time or note.expiry_time,
         )
     assert note.observations == tuple(snapshot)
     context = market()
@@ -183,21 +171,21 @@ def test_event_greeks_node_curves_and_failed_replacement():
     curved = context.replace(
         model_parameters=context.model_parameters.replace(risk_free_rate=curve)
     )
-    assert engine.price(dated_history(note, curved), curved) == pytest.approx(
-        engine.price(dated_history(note, context), context), rel=0, abs=1e-12
+    assert engine.price(note, curved) == pytest.approx(
+        engine.price(note, context), rel=0, abs=1e-12
     )
     short = RateTermStructure(
         reference_time=START, times=[datetime(2025, 2, 3)], factors=[0.99]
     )
-    original_price = engine.price(dated_history(note, context), context)
+    original_price = engine.price(note, context)
     invalid = context.replace(
         model_parameters=context.model_parameters.replace(risk_free_rate=short)
     )
     assert_rejection(
         InvalidInputError,
-        lambda: engine.price(dated_history(note, invalid), invalid),
+        lambda: engine.price(note, invalid),
     )
-    assert engine.price(dated_history(note, context), context) == original_price
+    assert engine.price(note, context) == original_price
 
 
 def test_fixed_prices_and_unidentifiable_parameters_validate_first():
@@ -212,9 +200,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
     )
     context = market(rate=0)
     engine = FD(asset_upper_boundary=1)
-    result = engine.price_with_greeks(
-        dated_history(note, context), context, ["delta", "gamma", "vega"]
-    )
+    result = engine.price_with_greeks(note, context, ["delta", "gamma", "vega"])
     assert (
         (
             result.price,
@@ -227,7 +213,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
         UnsupportedOperationError,
         lambda: implied_volatility(
             engine,
-            dated_history(note, context),
+            note,
             context,
             1,
             lower_bound=0.0,
@@ -238,7 +224,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
         UnsupportedOperationError,
         lambda: implied_snowball_coupon(
             engine,
-            dated_history(note, market(100, END)),
+            note,
             market(100, END),
             1,
             quote_convention="preserve_maturity_coupon",
@@ -248,7 +234,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
         InvalidInputError,
         lambda: implied_snowball_coupon(
             engine,
-            dated_history(note, context),
+            note,
             context,
             math.nan,
             quote_convention="preserve_maturity_coupon",
@@ -260,7 +246,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
     later = market(100, datetime(2025, 2, 3))
     assert_rejection(
         MissingHistoryError,
-        lambda: engine.price(dated_history(missing, later), later),
+        lambda: engine.price(missing, later),
     )
     assert missing.barrier_state is None
 
@@ -285,7 +271,7 @@ def test_terminal_portfolios_and_separate_grid_convergence(subtests):
             row["inputs"]["uncertainty_price"]
         )
         with subtests.test(case=row["case_id"]):
-            refined = FD(**fine).price(dated_history(note, context), context)
+            refined = FD(**fine).price(note, context)
             assert refined == pytest.approx(
                 float(row["outputs"]["price"]), rel=0, abs=budget
             )
@@ -301,5 +287,5 @@ def test_terminal_portfolios_and_separate_grid_convergence(subtests):
                 ):
                     with subtests.test(settings=configuration):
                         assert FD(**configuration).price(
-                            dated_history(note, context), context
+                            note, context
                         ) == pytest.approx(refined, rel=0, abs=budget)

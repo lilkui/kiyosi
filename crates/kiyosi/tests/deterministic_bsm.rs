@@ -1,15 +1,11 @@
 use kiyosi::*;
 
-mod support;
-
-fn verify<I: support::DatedHistory>(
+fn verify<I: OptionContract>(
     option: &I,
     context: &PricingContext,
     expected: f64,
     engines: &[&dyn PricingEngine<I>],
 ) -> Result<()> {
-    let dated = support::dated(option, context);
-    let option = &dated;
     for engine in engines {
         assert!((engine.price(option, context)? - expected).abs() < 1e-10);
         let result = engine.price_with_greeks_with_settings(
@@ -88,7 +84,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         )?;
     }
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 90.0, start, start, end, None, None)?;
+        GeometricAveragePriceOption::new(OptionType::Call, 90.0, start, start, end, None)?;
     verify(
         &geometric,
         &context,
@@ -99,7 +95,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         ],
     )?;
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 90.0, start, start, end, None, None)?;
+        ArithmeticAveragePriceOption::new(OptionType::Call, 90.0, start, start, end, None)?;
     verify(
         &arithmetic,
         &context,
@@ -455,15 +451,8 @@ fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Res
     let geometric_average = (80.0_f64.ln() * 180.0 / 365.0
         + remaining * (100.0_f64.ln() + 0.06 * remaining / 2.0))
         .exp();
-    let arithmetic = ArithmeticAveragePriceOption::new(
-        OptionType::Call,
-        85.0,
-        start,
-        start,
-        end,
-        Some(80.0),
-        Some(middle),
-    )?;
+    let arithmetic =
+        ArithmeticAveragePriceOption::new(OptionType::Call, 85.0, start, start, end, Some(80.0))?;
     verify(
         &arithmetic,
         &seasoned,
@@ -473,15 +462,8 @@ fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Res
             &MonteCarloAsianEngine::default(),
         ],
     )?;
-    let geometric = GeometricAveragePriceOption::new(
-        OptionType::Call,
-        85.0,
-        start,
-        start,
-        end,
-        Some(80.0),
-        Some(middle),
-    )?;
+    let geometric =
+        GeometricAveragePriceOption::new(OptionType::Call, 85.0, start, start, end, Some(80.0))?;
     verify(
         &geometric,
         &seasoned,
@@ -634,9 +616,9 @@ fn deterministic_puts_forward_start_averages_and_sobol_statistics_are_consistent
         100.0 * (0.06_f64 * lead).exp() * (0.06_f64 * future).exp_m1() / (0.06 * future);
     let geometric_average = 100.0 * (0.06_f64 * (lead + future / 2.0)).exp();
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 90.0, start, middle, end, None, None)?;
+        ArithmeticAveragePriceOption::new(OptionType::Call, 90.0, start, middle, end, None)?;
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 90.0, start, middle, end, None, None)?;
+        GeometricAveragePriceOption::new(OptionType::Call, 90.0, start, middle, end, None)?;
     let expected_arithmetic = (arithmetic_average - 90.0) * (-0.08_f64).exp();
     let expected_geometric = (geometric_average - 90.0) * (-0.08_f64).exp();
     verify(

@@ -9,7 +9,6 @@ from tempfile import TemporaryDirectory
 import pytest
 from kiyosi import pricing
 from quantlib_reference import oracle, structured
-from support.history import history_fields
 
 
 def test_structured_portfolios_match_direct_payoffs():
@@ -65,9 +64,7 @@ def test_reference_profiles_cover_expected_engines(subtests):
         with subtests.test(fixture=name):
             assert sorted([p["engine"] for p in profiles]) == sorted(expected)
             for profile in profiles:
-                engine = getattr(pricing, profile["engine"])(
-                    **history_fields(**profile["settings"])
-                )
+                engine = getattr(pricing, profile["engine"])(**profile["settings"])
                 for field, value in profile["settings"].items():
                     assert getattr(engine, field) == value
 

@@ -17,7 +17,6 @@ from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
@@ -65,7 +64,7 @@ def test_continuous_prices_and_greeks_against_live_quantlib(subtests):
                         "gamma": (high - 2 * center + low) / 0.01**2,
                     }
                     result = engine.price_with_greeks(
-                        dated_history(contract, market(rate=rate, dividend=dividend)),
+                        contract,
                         market(rate=rate, dividend=dividend),
                         ("delta", "gamma"),
                     )
@@ -145,9 +144,9 @@ def test_early_ending_schedules_match_independent_bivariate_normal_payoffs(
             observation_times=[observation],
         )
         with subtests.test(kind=kind, direction=direction, timing=timing):
-            assert engine.price(
-                dated_history(contract, market()), market()
-            ) == pytest.approx(expected, rel=0, abs=0.003)
+            assert engine.price(contract, market()) == pytest.approx(
+                expected, rel=0, abs=0.003
+            )
 
 
 def test_scheduled_greeks_solver_and_concurrency():
@@ -156,10 +155,8 @@ def test_scheduled_greeks_solver_and_concurrency():
         observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
     )
     context = market()
-    quote = engine.price(dated_history(contract, context), context)
-    result = engine.price_with_greeks(
-        dated_history(contract, context), context, greeks="all"
-    )
+    quote = engine.price(contract, context)
+    result = engine.price_with_greeks(contract, context, greeks="all")
     assert result.price == quote
     for name in ("delta", "gamma", *OTHER_GREEKS):
         assert math.isfinite(getattr(result, name)), name
@@ -172,13 +169,13 @@ def test_scheduled_greeks_solver_and_concurrency():
         )
         sigma = pricing.implied_volatility(
             selected,
-            dated_history(contract, context),
+            contract,
             context,
             quote,
             lower_bound=0.15,
             upper_bound=0.25,
         )
-        return selected.price(dated_history(contract, context), context), sigma
+        return selected.price(contract, context), sigma
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         for price, sigma in pool.map(evaluate, range(4)):
@@ -193,7 +190,7 @@ def test_scheduled_greeks_solver_and_concurrency():
             expected_error,
             pricing.implied_volatility,
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             observed,
             lower_bound=0.15,
@@ -203,7 +200,7 @@ def test_scheduled_greeks_solver_and_concurrency():
     with pytest.raises(TypeError):
         pricing.implied_volatility(
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             True,
             lower_bound=0.0,
@@ -212,14 +209,14 @@ def test_scheduled_greeks_solver_and_concurrency():
     with pytest.raises(TypeError):
         pricing.implied_volatility(
             engine,
-            dated_history(contract, context),
+            contract,
             context,
             quote,
             max_iterations=1.5,
             lower_bound=0.0,
             upper_bound=4.0,
         )
-    assert engine.price(dated_history(contract, context), context) == quote
+    assert engine.price(contract, context) == quote
     assert context.model_parameters.volatility == 0.2
 
 
@@ -249,7 +246,7 @@ def test_node_curves_preserve_events_discounts_and_coverage_order():
         expected = 7 * math.exp(
             -0.08 * 91 / 365 if timing == "at_hit" else -0.01 * 360 / 365
         )
-        assert engine.price(dated_history(contract, context), context) == pytest.approx(
+        assert engine.price(contract, context) == pytest.approx(
             expected, rel=0, abs=1e-5
         )
     short = RateTermStructure(
@@ -260,16 +257,14 @@ def test_node_curves_preserve_events_discounts_and_coverage_order():
     )
     assert_rejection(InvalidInputError, engine.price, contract, uncovered)
     current = option("up_and_out", rebate=7, rebate_timing="at_hit")
-    assert engine.price(dated_history(current, uncovered), uncovered) == 7
+    assert engine.price(current, uncovered) == 7
 
 
 def test_selective_mixed_requests_stencils_and_failure_state():
     engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
     contract = option(touch_state="untouched")
     context = market()
-    all_values = engine.price_with_greeks(
-        dated_history(contract, context), context, greeks="all"
-    )
+    all_values = engine.price_with_greeks(contract, context, greeks="all")
     for greek in (
         "speed",
         "vanna",
@@ -277,23 +272,19 @@ def test_selective_mixed_requests_stencils_and_failure_state():
         "charm",
         "color",
     ):
-        selected = engine.price_with_greeks(
-            dated_history(contract, context), context, greek
-        )
+        selected = engine.price_with_greeks(contract, context, greek)
         assert getattr(selected, greek) == getattr(all_values, greek)
         assert selected.delta is None
         assert selected.gamma is None
     for h in (0.01,):
-        actual = engine.price_with_greeks(
-            dated_history(contract, context), context, "speed"
-        )
+        actual = engine.price_with_greeks(contract, context, "speed")
         high = engine.price_with_greeks(
-            dated_history(contract, context.replace(spot_price=100 + h)),
+            contract,
             context.replace(spot_price=100 + h),
             "gamma",
         )
         low = engine.price_with_greeks(
-            dated_history(contract, context.replace(spot_price=100 - h)),
+            contract,
             context.replace(spot_price=100 - h),
             "gamma",
         )
@@ -302,7 +293,7 @@ def test_selective_mixed_requests_stencils_and_failure_state():
         )
     collapsed = numerical_greeks(
         engine,
-        dated_history(contract, context),
+        contract,
         context,
         ["delta", "gamma", "speed"],
         spot_shift=1e-300,
@@ -319,13 +310,13 @@ def test_selective_mixed_requests_stencils_and_failure_state():
         with pytest.raises(TypeError):
             numerical_greeks(
                 engine,
-                dated_history(contract, context),
+                contract,
                 context,
                 "delta",
                 **{name: value},
             )
     clipped = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=110)
-    quote = clipped.price(dated_history(contract, context), context)
+    quote = clipped.price(contract, context)
     assert_rejection(
         InvalidInputError,
         partial(numerical_greeks, clipped),
@@ -334,8 +325,8 @@ def test_selective_mixed_requests_stencils_and_failure_state():
         "speed",
         spot_shift=6,
     )
-    assert clipped.price(dated_history(contract, context), context) == quote
-    assert engine.price(dated_history(contract, context), context) == all_values.price
+    assert clipped.price(contract, context) == quote
+    assert engine.price(contract, context) == all_values.price
 
 
 @pytest.mark.parametrize("spot", (111.94, 111.97, 112.01))
@@ -349,27 +340,25 @@ def test_scheduled_payoff_peak_retains_spline_price_and_greeks(spot):
     upper = EuropeanOption(strike=120, **common)
     cash = CashOrNothingOption(strike=120, payout=20, **common)
     context = market(spot=spot, rate=0.04)
-    actual = engine.price_with_greeks(
-        dated_history(contract, context), context, ["delta", "gamma"]
-    )
+    actual = engine.price_with_greeks(contract, context, ["delta", "gamma"])
     first = pricing.AnalyticEuropeanEngine().price_with_greeks(
-        dated_history(lower, context), context, ["delta", "gamma"]
+        lower, context, ["delta", "gamma"]
     )
     second = pricing.AnalyticEuropeanEngine().price_with_greeks(
-        dated_history(upper, context), context, ["delta", "gamma"]
+        upper, context, ["delta", "gamma"]
     )
     digital = pricing.AnalyticDigitalEngine().price_with_greeks(
-        dated_history(cash, context), context, ["delta", "gamma"]
+        cash, context, ["delta", "gamma"]
     )
     for name, tolerance in (("price", 0.001), ("delta", 5e-5), ("gamma", 1e-5)):
         expected = getattr(first, name) - getattr(second, name) - getattr(digital, name)
         assert getattr(actual, name) == pytest.approx(expected, rel=0, abs=tolerance)
     high = engine.price(
-        dated_history(contract, context.replace(spot_price=spot + 0.01)),
+        contract,
         context.replace(spot_price=spot + 0.01),
     )
     low = engine.price(
-        dated_history(contract, context.replace(spot_price=spot - 0.01)),
+        contract,
         context.replace(spot_price=spot - 0.01),
     )
     assert actual.delta == pytest.approx((high - low) / 0.02, rel=0, abs=1e-7)

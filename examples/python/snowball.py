@@ -74,5 +74,5 @@ assert abs(repriced - target) < 1e-7
 # 假设此前既未敲入也未敲出；历史来自实际观察记录，不由当前现货推断。
 # 存续价格只计尚未结算的现金流。
 later = context.replace(valuation_time=datetime(2025, 7, 1, 15), spot_price=95)
-live = note.replace_history(barrier_state="no_event", history_time=later.valuation_time)
+live = note.replace(barrier_state="no_event")
 print(f"存续期单位本金价格：{engine.price(live, later):.6f}")

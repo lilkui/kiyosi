@@ -13,8 +13,6 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
-from support.history import dated as dated_history
-from support.history import history_fields
 
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
 
@@ -50,7 +48,7 @@ def cases():
         (ins.AssetOrNothingOption, 100, {}),
     ):
         yield (
-            cls(**history_fields(**vanilla, **fields)),
+            cls(**vanilla, **fields),
             (
                 "AnalyticDigitalEngine",
                 "CoxRossRubinsteinDigitalEngine",
@@ -68,14 +66,12 @@ def cases():
         ),
     ):
         yield (
-            cls(**history_fields(**vanilla, averaging_start_time=START)),
+            cls(**vanilla, averaging_start_time=START),
             (analytic, "MonteCarloAsianEngine"),
             10,
         )
     yield (
-        ins.BarrierOption(
-            **history_fields(**vanilla, barrier_level=80, barrier_type="down_and_out")
-        ),
+        ins.BarrierOption(**vanilla, barrier_level=80, barrier_type="down_and_out"),
         (
             "AnalyticBarrierEngine",
             "CoxRossRubinsteinBarrierEngine",
@@ -87,9 +83,7 @@ def cases():
     )
     yield (
         ins.DoubleBarrierOption(
-            **history_fields(
-                **vanilla, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
-            )
+            **vanilla, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
         ),
         (
             "AnalyticDoubleBarrierEngine",
@@ -101,39 +95,33 @@ def cases():
     for payout, expected in ((None, 100), (10, 10)):
         yield (
             ins.BinaryBarrierOption(
-                **history_fields(
-                    payoff_type="cash" if payout is not None else "asset",
-                    **vanilla,
-                    barrier_level=80,
-                    barrier_type="down_and_out",
-                    payout=payout,
-                )
+                payoff_type="cash" if payout is not None else "asset",
+                **vanilla,
+                barrier_level=80,
+                barrier_type="down_and_out",
+                payout=payout,
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             expected,
         )
         yield (
             ins.TouchOption(
-                **history_fields(
-                    payoff_type="cash" if payout is not None else "asset",
-                    **life,
-                    barrier_level=80,
-                    barrier_type="down_and_out",
-                    payout=payout,
-                )
+                payoff_type="cash" if payout is not None else "asset",
+                **life,
+                barrier_level=80,
+                barrier_type="down_and_out",
+                payout=payout,
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             expected,
         )
     yield (
         ins.DoubleTouchOption(
-            **history_fields(
-                **life,
-                lower_barrier=80,
-                upper_barrier=120,
-                barrier_type="knock_out",
-                payout=10,
-            )
+            **life,
+            lower_barrier=80,
+            upper_barrier=120,
+            barrier_type="knock_out",
+            payout=10,
         ),
         ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
         10,
@@ -149,40 +137,35 @@ def cases():
     for contract in (
         ins.SnowballOption(
             calendar=weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time(),
-                **note,
-                **downside,
-                maturity_coupon_rate=0.1,
-            ),
+            observation_clock_time=clock_time(),
+            **note,
+            **downside,
+            maturity_coupon_rate=0.1,
         ),
         ins.PhoenixOption(
             calendar=weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time(),
-                **dict(
-                    note,
-                    observations=ins.autocallable_observations(
-                        [END], [120], coupon_barrier_levels=[0]
-                    ),
+            observation_clock_time=clock_time(),
+            **dict(
+                note,
+                observations=ins.autocallable_observations(
+                    [END], [120], coupon_barrier_levels=[0]
                 ),
-                **downside,
-                coupon_per_period=0.1,
             ),
+            **downside,
+            coupon_per_period=0.1,
         ),
         ins.BinarySnowballOption(
             calendar=weekdays_calendar(),
-            **history_fields(**note, maturity_coupon_rate=0.1),
+            **note,
+            maturity_coupon_rate=0.1,
         ),
         ins.TernarySnowballOption(
             calendar=weekdays_calendar(),
-            **history_fields(
-                observation_clock_time=clock_time(),
-                **note,
-                knock_in_level=80,
-                maturity_coupon_rate=0.1,
-                minimum_coupon_rate=0,
-            ),
+            observation_clock_time=clock_time(),
+            **note,
+            knock_in_level=80,
+            maturity_coupon_rate=0.1,
+            minimum_coupon_rate=0,
         ),
     ):
         yield (
@@ -196,14 +179,12 @@ def cases():
         )
     yield (
         ins.Accumulator(
-            **history_fields(
-                observation_clock_time=clock_time(),
-                **life,
-                strike=90,
-                knock_out_level=120,
-                daily_quantity=1,
-                acceleration_factor=2,
-            )
+            observation_clock_time=clock_time(),
+            **life,
+            strike=90,
+            knock_out_level=120,
+            daily_quantity=1,
+            acceleration_factor=2,
         ),
         (
             "QuadratureAccumulatorEngine",
@@ -214,15 +195,13 @@ def cases():
     )
     yield (
         ins.RangeAccrualOption(
-            **history_fields(
-                observation_clock_time=clock_time(),
-                **life,
-                notional=1000,
-                annual_coupon_rate=0.1,
-                lower_bound=100,
-                upper_bound=110,
-                calendar=all_days_calendar(),
-            )
+            observation_clock_time=clock_time(),
+            **life,
+            notional=1000,
+            annual_coupon_rate=0.1,
+            lower_bound=100,
+            upper_bound=110,
+            calendar=all_days_calendar(),
         ),
         ("AnalyticRangeAccrualEngine",),
         100 * 4 / 365,
@@ -261,20 +240,16 @@ def test_zero_volatility_prices_and_statistics_agree_across_supported_engines(su
         for name in engines:
             with subtests.test(contract=type(option).__name__, engine=name):
                 engine = getattr(pricing, name)(
-                    **history_fields(
-                        **(
-                            {"path_count": 16, "seed": 42, "max_active_workers": 1}
-                            if name.startswith("MonteCarlo")
-                            else {}
-                        )
+                    **(
+                        {"path_count": 16, "seed": 42, "max_active_workers": 1}
+                        if name.startswith("MonteCarlo")
+                        else {}
                     )
                 )
-                assert engine.price(
-                    dated_history(option, context), context
-                ) == pytest.approx(expected, rel=0, abs=1e-10)
-                result = engine.price_with_greeks(
-                    dated_history(option, context), context, "all"
+                assert engine.price(option, context) == pytest.approx(
+                    expected, rel=0, abs=1e-10
                 )
+                result = engine.price_with_greeks(option, context, "all")
                 assert result.price == pytest.approx(expected, rel=0, abs=1e-10)
                 if isinstance(option, ins.RangeAccrualOption):
                     assert result.status("delta") == "undefined"
@@ -319,9 +294,7 @@ def test_zero_volatility_prices_and_statistics_agree_across_supported_engines(su
                 if name.startswith("MonteCarlo") and not isinstance(
                     option, ins.AmericanOption
                 ):
-                    estimate = engine.price_with_statistics(
-                        dated_history(option, context), context
-                    )
+                    estimate = engine.price_with_statistics(option, context)
                     assert estimate.price == pytest.approx(expected, rel=0, abs=1e-10)
                     assert estimate.standard_error == 0
 
@@ -341,15 +314,13 @@ def test_continuous_and_scheduled_hits_use_exact_deterministic_payment_times(sub
     checks = [
         (
             ins.BarrierOption(
-                **history_fields(
-                    **life,
-                    option_type="call",
-                    strike=90,
-                    barrier_level=105,
-                    barrier_type="up_and_out",
-                    rebate=7,
-                    rebate_timing="at_hit",
-                )
+                **life,
+                option_type="call",
+                strike=90,
+                barrier_level=105,
+                barrier_type="up_and_out",
+                rebate=7,
+                rebate_timing="at_hit",
             ),
             (
                 "AnalyticBarrierEngine",
@@ -362,13 +333,11 @@ def test_continuous_and_scheduled_hits_use_exact_deterministic_payment_times(sub
         ),
         (
             ins.BarrierOption(
-                **history_fields(
-                    **life,
-                    option_type="call",
-                    strike=90,
-                    barrier_level=105,
-                    barrier_type="up_and_in",
-                )
+                **life,
+                option_type="call",
+                strike=90,
+                barrier_level=105,
+                barrier_type="up_and_in",
             ),
             (
                 "AnalyticBarrierEngine",
@@ -379,57 +348,49 @@ def test_continuous_and_scheduled_hits_use_exact_deterministic_payment_times(sub
         ),
         (
             ins.TouchOption(
-                **history_fields(
-                    payoff_type="cash",
-                    **life,
-                    barrier_level=105,
-                    barrier_type="up_and_in",
-                    payout=7,
-                    settlement_timing="at_hit",
-                )
+                payoff_type="cash",
+                **life,
+                barrier_level=105,
+                barrier_type="up_and_in",
+                payout=7,
+                settlement_timing="at_hit",
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             7 * math.exp(-0.1 * hit),
         ),
         (
             ins.TouchOption(
-                **history_fields(
-                    payoff_type="asset",
-                    **life,
-                    barrier_level=105,
-                    barrier_type="up_and_in",
-                    payout=None,
-                    settlement_timing="at_hit",
-                )
+                payoff_type="asset",
+                **life,
+                barrier_level=105,
+                barrier_type="up_and_in",
+                payout=None,
+                settlement_timing="at_hit",
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             105 * math.exp(-0.1 * hit),
         ),
         (
             ins.DoubleTouchOption(
-                **history_fields(
-                    **life,
-                    lower_barrier=80,
-                    upper_barrier=105,
-                    barrier_type="knock_in",
-                    payout=7,
-                    settlement_timing="at_hit",
-                )
+                **life,
+                lower_barrier=80,
+                upper_barrier=105,
+                barrier_type="knock_in",
+                payout=7,
+                settlement_timing="at_hit",
             ),
             ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
             7 * math.exp(-0.1 * hit),
         ),
         (
             ins.TouchOption(
-                **history_fields(
-                    payoff_type="cash",
-                    **life,
-                    barrier_level=105,
-                    barrier_type="up_and_in",
-                    payout=7,
-                    settlement_timing="at_hit",
-                    observation_times=[end],
-                )
+                payoff_type="cash",
+                **life,
+                barrier_level=105,
+                barrier_type="up_and_in",
+                payout=7,
+                settlement_timing="at_hit",
+                observation_times=[end],
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             7 * math.exp(-0.1),
@@ -438,9 +399,9 @@ def test_continuous_and_scheduled_hits_use_exact_deterministic_payment_times(sub
     for option, engines, expected in checks:
         for name in engines:
             with subtests.test(contract=type(option).__name__, engine=name):
-                assert getattr(pricing, name)().price(
-                    dated_history(option, context), context
-                ) == pytest.approx(expected, rel=0, abs=1e-10)
+                assert getattr(pricing, name)().price(option, context) == pytest.approx(
+                    expected, rel=0, abs=1e-10
+                )
 
 
 def test_piecewise_rate_paths_detect_hits_before_reversing():
@@ -469,17 +430,14 @@ def test_piecewise_rate_paths_detect_hits_before_reversing():
         settlement_timing="at_hit",
     )
     engine = pricing.FiniteDifferenceBinaryBarrierEngine()
-    assert engine.price(dated_history(continuous, context), context) == pytest.approx(
+    assert engine.price(continuous, context) == pytest.approx(
         7 / 1.05, rel=0, abs=1e-10
     )
     scheduled = continuous.replace(
         observation_times=[end],
         touch_state=continuous.touch_state,
-        history_time=(continuous.history_time or continuous.effective_time)
-        if continuous.touch_state is not None
-        else None,
     )
-    assert engine.price(dated_history(scheduled, context), context) == 0
+    assert engine.price(scheduled, context) == 0
 
 
 def test_american_exercise_and_seasoned_asian_averages_are_exact(subtests):
@@ -504,9 +462,9 @@ def test_american_exercise_and_seasoned_asian_averages_are_exact(subtests):
         "MonteCarloVanillaEngine",
     ):
         with subtests.test(engine=name):
-            assert getattr(pricing, name)().price(
-                dated_history(american, context), context
-            ) == pytest.approx(expected, rel=0, abs=1e-10)
+            assert getattr(pricing, name)().price(american, context) == pytest.approx(
+                expected, rel=0, abs=1e-10
+            )
     context = context.replace(
         valuation_time=START + timedelta(days=180),
         model_parameters=BlackScholesMertonParameters(
@@ -531,20 +489,16 @@ def test_american_exercise_and_seasoned_asian_averages_are_exact(subtests):
         ),
     ):
         option = cls(
-            **history_fields(
-                option_type="call",
-                strike=85,
-                effective_time=START,
-                averaging_start_time=START,
-                expiry_time=end,
-                realized_average=80,
-            )
+            option_type="call",
+            strike=85,
+            effective_time=START,
+            averaging_start_time=START,
+            expiry_time=end,
+            realized_average=80,
         )
         for name in (analytic, "MonteCarloAsianEngine"):
             with subtests.test(engine=name, contract=cls.__name__):
-                assert getattr(pricing, name)().price(
-                    dated_history(option, context), context
-                ) == pytest.approx(
+                assert getattr(pricing, name)().price(option, context) == pytest.approx(
                     (average - 85) * math.exp(-0.08 * remaining), rel=0, abs=1e-10
                 )
 
@@ -587,12 +541,12 @@ def test_forward_start_averages_and_sobol_uncertainty_use_the_deterministic_path
         expected = (average - 90) * math.exp(-0.08)
         for name in (analytic, "MonteCarloAsianEngine"):
             with subtests.test(engine=name, contract=cls.__name__):
-                assert getattr(pricing, name)().price(
-                    dated_history(option, context), context
-                ) == pytest.approx(expected, rel=0, abs=1e-10)
+                assert getattr(pricing, name)().price(option, context) == pytest.approx(
+                    expected, rel=0, abs=1e-10
+                )
         estimate = pricing.MonteCarloAsianEngine(
             path_count=1, sampling="sobol", antithetic=True
-        ).price_with_statistics(dated_history(option, context), context)
+        ).price_with_statistics(option, context)
         assert estimate.price == pytest.approx(expected, rel=0, abs=1e-10)
         assert estimate.standard_error is None
         assert estimate.confidence_interval is None
@@ -622,7 +576,7 @@ def test_future_structured_events_discount_coupons_and_settle_accumulated_units(
     for family in ("Quadrature", "FiniteDifference", "MonteCarlo"):
         with subtests.test(product="snowball", engine=family):
             assert getattr(pricing, family + "AutocallableEngine")().price(
-                dated_history(note, context), context
+                note, context
             ) == pytest.approx(
                 (1 + 0.1 * 180 / 365) * math.exp(-0.1 * 180 / 365), rel=0, abs=1e-10
             )
@@ -641,7 +595,7 @@ def test_future_structured_events_discount_coupons_and_settle_accumulated_units(
     for family in ("Quadrature", "FiniteDifference", "MonteCarlo"):
         with subtests.test(product="accumulator", engine=family):
             assert getattr(pricing, family + "AccumulatorEngine")().price(
-                dated_history(accumulator, context), context
+                accumulator, context
             ) == pytest.approx(expected, rel=0, abs=1e-8)
 
 
@@ -673,7 +627,7 @@ def test_expiry_only_knock_in_ignores_earlier_recovered_breaches(family):
         calendar=all_days_calendar(),
     )
     assert getattr(pricing, family + "AutocallableEngine")().price(
-        dated_history(note, context), context
+        note, context
     ) == pytest.approx(1.1 * math.exp(-0.6), rel=0, abs=1e-10)
 
 
@@ -695,15 +649,13 @@ def test_deterministic_boundaries_and_zero_implied_volatility_are_explicit(subte
     ):
         engine = getattr(pricing, name)()
         with subtests.test(engine=name):
-            result = engine.price_with_greeks(
-                dated_history(option, context), context, "all"
-            )
+            result = engine.price_with_greeks(option, context, "all")
             assert result.status("delta") == "undefined"
             assert result.status("vega") == "undefined"
             assert (
                 pricing.implied_volatility(
                     engine,
-                    dated_history(option, context),
+                    option,
                     context,
                     0,
                     lower_bound=0.0,
@@ -718,16 +670,9 @@ def test_deterministic_boundaries_and_zero_implied_volatility_are_explicit(subte
                 effective_time=START,
                 expiry_time=END,
             )
-            assert (
-                pricing.AnalyticDigitalEngine().price(
-                    dated_history(digital, context), context
-                )
-                == 0
-            )
+            assert pricing.AnalyticDigitalEngine().price(digital, context) == 0
     regular = option.replace(strike=90)
-    result = pricing.AnalyticEuropeanEngine().price_with_greeks(
-        dated_history(regular, context), context, "all"
-    )
+    result = pricing.AnalyticEuropeanEngine().price_with_greeks(regular, context, "all")
     assert result.delta == pytest.approx(1, rel=0, abs=1e-10)
     assert result.gamma == pytest.approx(0, rel=0, abs=1e-10)
     assert result.vega is None

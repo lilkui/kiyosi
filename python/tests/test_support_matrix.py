@@ -16,8 +16,6 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from support.assertions import assert_decimal_equal
-from support.history import dated as dated_history
-from support.history import history_fields
 
 HESTON_ENGINES = (
     "AnalyticHestonEuropeanEngine",
@@ -76,7 +74,7 @@ def terminal_cases():
         (ins.CashOrNothingOption(**vanilla, payout=10), cash_digital, 10),
         (ins.AssetOrNothingOption(**vanilla), cash_digital, 105),
         (
-            ins.BarrierOption(**history_fields(**barrier)),
+            ins.BarrierOption(**barrier),
             (
                 "AnalyticBarrierEngine",
                 "CoxRossRubinsteinBarrierEngine",
@@ -87,20 +85,18 @@ def terminal_cases():
             5,
         ),
         (
-            ins.cash_binary_barrier_option(**history_fields(**barrier, payout=10)),
+            ins.cash_binary_barrier_option(**barrier, payout=10),
             binary,
             10,
         ),
-        (ins.asset_binary_barrier_option(**history_fields(**barrier)), binary, 105),
+        (ins.asset_binary_barrier_option(**barrier), binary, 105),
         (
             ins.DoubleBarrierOption(
-                **history_fields(
-                    **vanilla,
-                    barrier_type="knock_out",
-                    lower_barrier=80,
-                    upper_barrier=120,
-                    touch_state="untouched",
-                )
+                **vanilla,
+                barrier_type="knock_out",
+                lower_barrier=80,
+                upper_barrier=120,
+                touch_state="untouched",
             ),
             (
                 "AnalyticDoubleBarrierEngine",
@@ -111,22 +107,18 @@ def terminal_cases():
         ),
         (
             ins.GeometricAveragePriceOption(
-                **history_fields(
-                    **vanilla,
-                    averaging_start_time=dates["effective_time"],
-                    realized_average=110,
-                )
+                **vanilla,
+                averaging_start_time=dates["effective_time"],
+                realized_average=110,
             ),
             ("AnalyticGeometricAveragePriceEngine", "MonteCarloAsianEngine"),
             10,
         ),
         (
             ins.ArithmeticAveragePriceOption(
-                **history_fields(
-                    **vanilla,
-                    averaging_start_time=dates["effective_time"],
-                    realized_average=110,
-                )
+                **vanilla,
+                averaging_start_time=dates["effective_time"],
+                realized_average=110,
             ),
             ("TurnbullWakemanArithmeticAveragePriceEngine", "MonteCarloAsianEngine"),
             10,
@@ -142,7 +134,6 @@ def terminal_cases():
                 daily_quantity=1,
                 acceleration_factor=2,
                 accumulated_quantity=3,
-                history_time=dates["effective_time"],
             ),
             (
                 "QuadratureAccumulatorEngine",
@@ -153,16 +144,14 @@ def terminal_cases():
         ),
         (
             ins.RangeAccrualOption(
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **dates,
-                    calendar=all_days_calendar(),
-                    notional=1000,
-                    annual_coupon_rate=0.12,
-                    lower_bound=95,
-                    upper_bound=110,
-                    realized_hit_count=0,
-                )
+                observation_clock_time=clock_time(),
+                **dates,
+                calendar=all_days_calendar(),
+                notional=1000,
+                annual_coupon_rate=0.12,
+                lower_bound=95,
+                upper_bound=110,
+                realized_hit_count=0,
             ),
             ("AnalyticRangeAccrualEngine",),
             120 / 365,
@@ -182,13 +171,11 @@ def terminal_cases():
         cases.append(
             (
                 factory(
-                    **history_fields(
-                        **dates,
-                        barrier_level=120,
-                        barrier_type=kind,
-                        touch_state="untouched",
-                        **payout,
-                    )
+                    **dates,
+                    barrier_level=120,
+                    barrier_type=kind,
+                    touch_state="untouched",
+                    **payout,
                 ),
                 binary,
                 amount,
@@ -198,13 +185,11 @@ def terminal_cases():
         cases.append(
             (
                 factory(
-                    **history_fields(
-                        **dates,
-                        lower_barrier=80,
-                        upper_barrier=120,
-                        payout=10,
-                        touch_state="untouched",
-                    )
+                    **dates,
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    payout=10,
+                    touch_state="untouched",
                 ),
                 ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
                 amount,
@@ -229,12 +214,10 @@ def terminal_cases():
             (
                 ins.SnowballOption(
                     calendar=weekdays_calendar(),
-                    **history_fields(
-                        observation_clock_time=None,
-                        **common,
-                        **loss,
-                        maturity_coupon_rate=0.06,
-                    ),
+                    observation_clock_time=None,
+                    **common,
+                    **loss,
+                    maturity_coupon_rate=0.06,
                 ),
                 notes,
                 1.06,
@@ -242,7 +225,8 @@ def terminal_cases():
             (
                 ins.BinarySnowballOption(
                     calendar=weekdays_calendar(),
-                    **history_fields(**common, maturity_coupon_rate=0.06),
+                    **common,
+                    maturity_coupon_rate=0.06,
                 ),
                 notes,
                 1.06,
@@ -250,15 +234,13 @@ def terminal_cases():
             (
                 ins.TernarySnowballOption(
                     calendar=weekdays_calendar(),
-                    **history_fields(
-                        observation_clock_time=None,
-                        **common,
-                        maturity_coupon_rate=0.06,
-                        minimum_coupon_rate=-0.02,
-                        knock_in_level=80,
-                        knock_in_observation_mode="at_expiry",
-                        barrier_state="no_event",
-                    ),
+                    observation_clock_time=None,
+                    **common,
+                    maturity_coupon_rate=0.06,
+                    minimum_coupon_rate=-0.02,
+                    knock_in_level=80,
+                    knock_in_observation_mode="at_expiry",
+                    barrier_state="no_event",
                 ),
                 notes,
                 1.06,
@@ -266,14 +248,12 @@ def terminal_cases():
             (
                 ins.PhoenixOption(
                     calendar=weekdays_calendar(),
-                    **history_fields(
-                        observation_clock_time=None,
-                        **dates,
-                        **loss,
-                        coupon_per_period=0.08,
-                        observations=ins.autocallable_observations(
-                            [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
-                        ),
+                    observation_clock_time=None,
+                    **dates,
+                    **loss,
+                    coupon_per_period=0.08,
+                    observations=ins.autocallable_observations(
+                        [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
                     ),
                 ),
                 notes,
@@ -338,7 +318,7 @@ def test_monte_carlo_terminal_statistics_and_seeds_match_settlement(
             if not name.startswith("MonteCarlo"):
                 continue
             context = context_for(name)
-            option = dated_history(instrument, context)
+            option = instrument
             for sampling in ("pseudo_random", "sobol"):
                 engine = base_engines[name].replace(sampling=sampling)
                 with subtests.test(
@@ -368,7 +348,7 @@ def test_empty_greek_requests_return_price_only_for_every_engine(
     for instrument, names, expected in base_cases:
         for name in names:
             context = context_for(name)
-            option = dated_history(instrument, context)
+            option = instrument
             with subtests.test(instrument=type(instrument).__name__, engine=name):
                 result = base_engines[name].price_with_greeks(option, context, [])
                 assert result.price == pytest.approx(expected, rel=0, abs=1e-12)
@@ -420,17 +400,13 @@ def test_heston_model_is_rejected_by_other_engines_even_at_expiry(
                 continue
             with subtests.test(instrument=type(instrument).__name__, engine=name):
                 with pytest.raises(UnsupportedOperationError):
-                    base_engines[name].price(
-                        dated_history(instrument, context), context
-                    )
+                    base_engines[name].price(instrument, context)
                 with pytest.raises(UnsupportedOperationError):
-                    base_engines[name].price_with_greeks(
-                        dated_history(instrument, context), context, "delta"
-                    )
+                    base_engines[name].price_with_greeks(instrument, context, "delta")
                 with pytest.raises(UnsupportedOperationError):
                     pricing.implied_volatility(
                         base_engines[name],
-                        dated_history(instrument, context),
+                        instrument,
                         context,
                         1,
                         lower_bound=0.0,
@@ -467,7 +443,7 @@ def test_scalar_operations_preserve_expired_contract_errors(
             engine = base_engines[name]
             with subtests.test(instrument=type(instrument).__name__, engine=name):
                 with pytest.raises(InvalidInputError):
-                    engine.price(dated_history(instrument, expired), expired)
+                    engine.price(instrument, expired)
                 with pytest.raises(
                     UnsupportedOperationError
                     if name in HESTON_ENGINES
@@ -475,7 +451,7 @@ def test_scalar_operations_preserve_expired_contract_errors(
                 ):
                     pricing.implied_volatility(
                         engine,
-                        dated_history(instrument, expired),
+                        instrument,
                         expired,
                         1,
                         lower_bound=0.0,
@@ -501,7 +477,7 @@ def test_solver_rejects_unregistered_engine_representations(
         with subtests.test(engine=engine), pytest.raises(TypeError):
             pricing.implied_volatility(
                 engine,
-                dated_history(instrument, base_context),
+                instrument,
                 base_context,
                 1,
                 lower_bound=0.0,
@@ -519,13 +495,9 @@ def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(
                 engine = engine.with_resolved_seed()
             context = context_for(name)
             with subtests.test(instrument=type(instrument).__name__, engine=name):
-                assert_decimal_equal(
-                    engine.price(dated_history(instrument, context), context), expected
-                )
+                assert_decimal_equal(engine.price(instrument, context), expected)
                 request = ["delta"]
-                result = engine.price_with_greeks(
-                    dated_history(instrument, context), context, request
-                )
+                result = engine.price_with_greeks(instrument, context, request)
                 assert_decimal_equal(result.price, expected)
                 if name in HESTON_ENGINES:
                     assert result.delta is None
@@ -541,7 +513,7 @@ def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(
                 with pytest.raises(UnsupportedOperationError) as error:
                     pricing.implied_volatility(
                         engine,
-                        dated_history(instrument, base_context),
+                        instrument,
                         base_context,
                         expected,
                         lower_bound=0.0,
@@ -570,7 +542,7 @@ def test_local_volatility_status_preserves_requests_across_fd_products(
                 continue
             with subtests.test(instrument=type(instrument).__name__, engine=name):
                 result = base_engines[name].price_with_greeks(
-                    dated_history(instrument, local), local, ["delta", "vega"]
+                    instrument, local, ["delta", "vega"]
                 )
                 assert result.requested == (("delta", "vega"))
                 assert result.supported == (("delta", "gamma"))
@@ -591,17 +563,17 @@ def test_other_product_engine_pairs_raise_domain_errors(
                 continue
             with subtests.test(instrument=type(instrument).__name__, engine=name):
                 with pytest.raises(UnsupportedOperationError):
-                    engine.price(dated_history(instrument, base_context), base_context)
+                    engine.price(instrument, base_context)
                 with pytest.raises(UnsupportedOperationError):
                     engine.price_with_greeks(
-                        dated_history(instrument, base_context),
+                        instrument,
                         base_context,
                         ["delta"],
                     )
                 with pytest.raises(UnsupportedOperationError):
                     pricing.implied_volatility(
                         engine,
-                        dated_history(instrument, base_context),
+                        instrument,
                         base_context,
                         1,
                         lower_bound=0.0,
@@ -624,17 +596,17 @@ def test_invalid_instrument_representations_keep_native_errors(
         ):
             with subtests.test(engine=name, instrument=instrument):
                 with pytest.raises(TypeError):
-                    engine.price(dated_history(instrument, base_context), base_context)
+                    engine.price(instrument, base_context)
                 with pytest.raises(TypeError):
                     engine.price_with_greeks(
-                        dated_history(instrument, base_context),
+                        instrument,
                         base_context,
                         ["delta"],
                     )
                 with pytest.raises(TypeError):
                     pricing.implied_volatility(
                         engine,
-                        dated_history(instrument, base_context),
+                        instrument,
                         base_context,
                         1,
                         lower_bound=0.0,
@@ -655,7 +627,7 @@ def test_autocallable_instrument_conversion_precedes_greek_name_validation(
             with subtests.test(engine=name, instrument=type(instrument).__name__):
                 with pytest.raises(expected_error) as error:
                     engine.price_with_greeks(
-                        dated_history(instrument, base_context),
+                        instrument,
                         base_context,
                         ["invalid"],
                     )
@@ -684,13 +656,9 @@ def test_statistics_reject_unsupported_products_as_domain_errors(
                 subtests.test(engine=name, instrument=type(instrument).__name__),
                 pytest.raises(UnsupportedOperationError),
             ):
-                engine.price_with_statistics(
-                    dated_history(instrument, base_context), base_context
-                )
+                engine.price_with_statistics(instrument, base_context)
         with pytest.raises(TypeError):
-            engine.price_with_statistics(
-                dated_history(object(), base_context), base_context
-            )
+            engine.price_with_statistics(object(), base_context)
 
 
 def test_coupon_solver_rejects_unsupported_products_and_engines(

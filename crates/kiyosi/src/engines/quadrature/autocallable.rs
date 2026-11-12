@@ -74,8 +74,8 @@ impl QuadratureAutocallableEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), then inclusive life,
     /// impossible prior history, and required curve coverage

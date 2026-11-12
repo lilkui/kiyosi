@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
-from support.history import dated as dated_history
 
 
 def price_differences(
@@ -67,7 +66,7 @@ def price_differences(
             spot_price=spot + ds,
             valuation_time=time + dt,
         )
-        return engine.price(dated_history(option, shifted), shifted)
+        return engine.price(option, shifted)
 
     def spread(dv=0, dt=timedelta()):
         return price(h, dv, dt=dt) - price(-h, dv, dt=dt)
@@ -97,6 +96,6 @@ def price_differences(
         "color": lambda: (curvature(dt=after) - curvature(dt=before)) / h / h / years,
     }
     return SimpleNamespace(
-        price=engine.price(dated_history(option, context), context),
+        price=engine.price(option, context),
         **{name: measures[name]() for name in greeks},
     )

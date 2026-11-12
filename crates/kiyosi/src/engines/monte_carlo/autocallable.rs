@@ -116,8 +116,8 @@ impl MonteCarloAutocallableEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), then inclusive
     /// life and prior history. Invalid life or impossible history returns

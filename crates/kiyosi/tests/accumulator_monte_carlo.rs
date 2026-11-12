@@ -1,6 +1,3 @@
-mod support;
-use support::dated;
-
 use kiyosi::*;
 
 fn day(month: u32, day: u32) -> Timestamp {
@@ -9,7 +6,6 @@ fn day(month: u32, day: u32) -> Timestamp {
 
 fn option(end: Timestamp) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
-        history_time: Some(day(1, 2)),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
@@ -33,19 +29,14 @@ fn current_events_settle_before_sampling_with_strict_acceleration() {
     let engine = MonteCarloAccumulatorEngine::default();
     for (spot, expected) in [(90.0, -50.0), (100.0, 0.0), (105.0, 20.0), (110.0, 30.0)] {
         let estimate = engine
-            .price_with_statistics(&dated(&option, &market(spot, end)), &market(spot, end))
+            .price_with_statistics(&option, &market(spot, end))
             .unwrap();
         assert_eq!(estimate.price(), expected);
         assert_eq!(estimate.standard_error(), Some(0.0));
         assert_eq!(estimate.confidence_interval(), Some((expected, expected)));
     }
     assert_eq!(
-        engine
-            .price(
-                &dated(&option, &market(110.0, day(1, 2))),
-                &market(110.0, day(1, 2))
-            )
-            .unwrap(),
+        engine.price(&option, &market(110.0, day(1, 2))).unwrap(),
         30.0
     );
 }
@@ -55,7 +46,6 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let start = Date::new(2024, 12, 31).unwrap().start_of_day();
     let end = day(1, 2);
     let option = Accumulator::new(AccumulatorTerms {
-        history_time: Some(start.add_days(1).unwrap()),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(1.0),
         ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end, (end).time_of_day())
@@ -76,25 +66,20 @@ fn scalar_price_survives_confidence_interval_overflow() {
     .unwrap();
     let quantity = 6e307;
     let expected = engine
-        .price_with_statistics(&dated(&option, &context), &context)
+        .price_with_statistics(&option, &context)
         .unwrap()
         .price()
         * quantity;
     let scaled = option
-        .replace_history(
-            AccumulatorHistoryChanges {
-                accumulated_quantity: Some(Some(quantity)),
-                ..Default::default()
-            },
-            Some(option.history_time().unwrap_or(option.effective_time())),
-        )
+        .replace(AccumulatorChanges {
+            accumulated_quantity: Some(Some(quantity)),
+            ..Default::default()
+        })
         .unwrap();
     assert!(expected.is_finite() && expected > 0.0);
-    assert!(
-        (engine.price(&dated(&scaled, &context), &context).unwrap() / expected - 1.0).abs() < 1e-12
-    );
+    assert!((engine.price(&scaled, &context).unwrap() / expected - 1.0).abs() < 1e-12);
     assert!(matches!(
-        engine.price_with_statistics(&dated(&scaled, &context), &context),
+        engine.price_with_statistics(&scaled, &context),
         Err(Error::ComputationFailure(_))
     ));
 }
@@ -124,15 +109,10 @@ fn simulated_cashflows_match_quadrature_with_sampling_error() {
         let option = option(end);
         let context = market(spot, at);
         let expected = QuadratureAccumulatorEngine::default()
-            .price(&dated(&option, &context), &context)
+            .price(&option, &context)
             .unwrap();
-        let estimate = engine
-            .price_with_statistics(&dated(&option, &context), &context)
-            .unwrap();
-        assert_eq!(
-            engine.price(&dated(&option, &context), &context).unwrap(),
-            estimate.price()
-        );
+        let estimate = engine.price_with_statistics(&option, &context).unwrap();
+        assert_eq!(engine.price(&option, &context).unwrap(), estimate.price());
         let error = estimate.standard_error().unwrap();
         assert!(error > 0.0);
         assert!(
@@ -161,7 +141,7 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
                 };
                 let serial = MonteCarloAccumulatorEngine::new(settings)
                     .unwrap()
-                    .price_with_statistics(&dated(&option, &context), &context)
+                    .price_with_statistics(&option, &context)
                     .unwrap();
                 for threads in [0, 3] {
                     let parallel = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
@@ -169,7 +149,7 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
                         ..settings
                     })
                     .unwrap()
-                    .price_with_statistics(&dated(&option, &context), &context)
+                    .price_with_statistics(&option, &context)
                     .unwrap();
                     assert_eq!(serial, parallel);
                 }
@@ -188,7 +168,7 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
         ..Default::default()
     })
     .unwrap()
-    .price_with_statistics(&dated(&option, &context), &context)
+    .price_with_statistics(&option, &context)
     .unwrap();
     assert!(odd.standard_error().is_none());
     assert!(odd.confidence_interval().is_none());
@@ -201,10 +181,10 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
             ..Default::default()
         })
         .unwrap()
-        .price_with_statistics(&dated(&option, &context), &context)
+        .price_with_statistics(&option, &context)
         .unwrap();
         let reference = QuadratureAccumulatorEngine::default()
-            .price(&dated(&option, &context), &context)
+            .price(&option, &context)
             .unwrap();
         assert!((estimate.price() - reference).abs() < 1.0);
         assert!(estimate.standard_error().is_none());
@@ -229,35 +209,15 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
         spot_shift: Some(0.25),
         ..Default::default()
     };
-    let result = kiyosi::numerical_greeks(
-        &engine,
-        &dated(&option, &context),
-        &context,
-        GreeksRequest::all(),
-        shifts,
-    )
-    .unwrap();
-    let scalar = numerical_greeks(
-        &engine,
-        &dated(&option, &context),
-        &context,
-        GreeksRequest::all(),
-        shifts,
-    )
-    .unwrap();
+    let result =
+        kiyosi::numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts).unwrap();
+    let scalar =
+        numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts).unwrap();
     assert_eq!(result, scalar);
     let bump = |spot| {
         engine
             .price(
-                &dated(
-                    &option,
-                    &context
-                        .replace(PricingContextChanges {
-                            spot_price: Some(spot),
-                            ..Default::default()
-                        })
-                        .unwrap(),
-                ),
+                &option,
                 &context
                     .replace(PricingContextChanges {
                         spot_price: Some(spot),
@@ -290,7 +250,7 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
     }
     let sigma = implied_volatility(
         &engine,
-        &dated(&option, &context),
+        &option,
         &context,
         result.price(),
         ImpliedVolatilitySettings::new(0.1, 0.3),
@@ -306,8 +266,8 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
     let prepared = unseeded.prepare_request().unwrap().unwrap();
     assert!(prepared.prepare_request().unwrap().is_none());
     assert_eq!(
-        prepared.price(&dated(&option, &context), &context).unwrap(),
-        prepared.price(&dated(&option, &context), &context).unwrap()
+        prepared.price(&option, &context).unwrap(),
+        prepared.price(&option, &context).unwrap()
     );
     assert_eq!(unseeded.sampling_settings(), original_settings);
     assert_eq!(option, original);
@@ -348,27 +308,18 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
             })
             .unwrap();
         let context = PricingContext::new(model.clone(), 90.0, at).unwrap();
-        assert_eq!(
-            engine.price(&dated(&option, &context), &context).unwrap(),
-            expected
-        );
+        assert_eq!(engine.price(&option, &context).unwrap(), expected);
     }
     let empty = option
-        .replace_history(
-            AccumulatorHistoryChanges {
-                accumulated_quantity: Some(Some(0.0)),
-                ..Default::default()
-            },
-            Some(option.history_time().unwrap_or(option.effective_time())),
-        )
+        .replace(AccumulatorChanges {
+            accumulated_quantity: Some(Some(0.0)),
+            ..Default::default()
+        })
         .unwrap();
     assert_eq!(
         engine
             .price(
-                &dated(
-                    &empty,
-                    &PricingContext::new(model.clone(), 90.0, day(1, 6)).unwrap()
-                ),
+                &empty,
                 &PricingContext::new(model, 90.0, day(1, 6)).unwrap()
             )
             .unwrap(),
@@ -381,7 +332,6 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
     let start = day(1, 3);
     let end = day(1, 6);
     let option = Accumulator::new(AccumulatorTerms {
-        history_time: Some(start.add_days(1).unwrap()),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 1e300, 0.0, 2.0, start, end, (end).time_of_day())
@@ -395,7 +345,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
     };
     let one = MonteCarloAccumulatorEngine::new(settings)
         .unwrap()
-        .price(&dated(&option, &context), &context)
+        .price(&option, &context)
         .unwrap();
     let time = 2.5_f64 / 365.0;
     let discount = (-0.04 * time).exp();
@@ -410,7 +360,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
         ..settings
     })
     .unwrap()
-    .price_with_statistics(&dated(&option, &context), &context)
+    .price_with_statistics(&option, &context)
     .unwrap();
     assert!((paired.price() - expected).abs() < 1e-12);
     assert!(paired.standard_error().is_none());
@@ -419,7 +369,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
         ..settings
     })
     .unwrap()
-    .price(&dated(&option, &context), &context)
+    .price(&option, &context)
     .unwrap();
     assert_eq!(unpaired, one);
 }
@@ -446,23 +396,16 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
         ),
         (
             option
-                .replace_history(
-                    AccumulatorHistoryChanges {
-                        accumulated_quantity: Some(Some(f64::MAX)),
-                        ..Default::default()
-                    },
-                    Some(option.history_time().unwrap_or(option.effective_time())),
-                )
+                .replace(AccumulatorChanges {
+                    accumulated_quantity: Some(Some(f64::MAX)),
+                    ..Default::default()
+                })
                 .unwrap(),
             market(111.0, day(1, 2)),
             (|error| matches!(error, Error::ComputationFailure(_))) as fn(Error) -> bool,
         ),
     ] {
-        assert!(category(
-            engine
-                .price(&dated(&contract, &context), &context)
-                .unwrap_err()
-        ));
+        assert!(category(engine.price(&contract, &context).unwrap_err()));
     }
     let context = market(110.0, day(1, 2));
     for settings in [
@@ -493,7 +436,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,
-            &dated(&option, &context),
+            &option,
             &context,
             GreeksRequest::all(),
             NumericalShiftSettings {
@@ -528,19 +471,16 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
         })
         .unwrap();
     assert!(matches!(
-        engine.price(&dated(&option, &curved), &curved).unwrap_err(),
+        engine.price(&option, &curved).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&dated(&option, &curved), &curved, GreeksRequest::new([]))
+            .price_with_greeks(&option, &curved, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    assert_eq!(
-        engine.price(&dated(&option, &context), &context).unwrap(),
-        30.0
-    );
+    assert_eq!(engine.price(&option, &context).unwrap(), 30.0);
     assert_eq!(option.accumulated_quantity().unwrap(), 3.0);
 }
 
@@ -556,7 +496,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     for spot in [100.0, 110.0] {
         let context = market(spot, day(1, 2));
         let result = engine
-            .price_with_greeks(&dated(&option, &context), &context, GreeksRequest::all())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         for greek in [
             Greek::Delta,
@@ -575,7 +515,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     }
     let expired = market(90.0, day(1, 6));
     let result = engine
-        .price_with_greeks(&dated(&option, &expired), &expired, GreeksRequest::all())
+        .price_with_greeks(&option, &expired, GreeksRequest::all())
         .unwrap();
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
@@ -586,7 +526,6 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         }
     }
     let fixed = Accumulator::new(AccumulatorTerms {
-        history_time: Some(day(1, 2)),
         knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
@@ -612,13 +551,10 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         (fixed.clone(), zero_rates, -30.0),
         (
             fixed
-                .replace_history(
-                    AccumulatorHistoryChanges {
-                        accumulated_quantity: Some(Some(0.0)),
-                        ..Default::default()
-                    },
-                    Some(fixed.history_time().unwrap_or(fixed.effective_time())),
-                )
+                .replace(AccumulatorChanges {
+                    accumulated_quantity: Some(Some(0.0)),
+                    ..Default::default()
+                })
                 .unwrap(),
             market(100.25, day(1, 2)),
             0.0,
@@ -626,19 +562,16 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     ] {
         assert_eq!(
             engine
-                .price_with_statistics(&dated(&contract, &context), &context)
+                .price_with_statistics(&contract, &context)
                 .unwrap()
                 .standard_error(),
             Some(0.0)
         );
-        assert_eq!(
-            engine.price(&dated(&contract, &context), &context).unwrap(),
-            expected
-        );
+        assert_eq!(engine.price(&contract, &context).unwrap(), expected);
         assert!(matches!(
             implied_volatility(
                 &engine,
-                &dated(&contract, &context),
+                &contract,
                 &context,
                 expected,
                 kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
@@ -654,7 +587,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     assert!(matches!(
         implied_volatility(
             &engine,
-            &dated(&option, &context),
+            &option,
             &context,
             f64::NAN,
             kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
@@ -665,7 +598,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     assert!(matches!(
         implied_volatility(
             &engine,
-            &dated(&option, &context),
+            &option,
             &context,
             1e100,
             kiyosi::ImpliedVolatilitySettings::new(0.0, 4.0)
@@ -696,9 +629,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
     })
     .unwrap();
     assert!(matches!(
-        engine
-            .price(&dated(&option, &context), &context)
-            .unwrap_err(),
+        engine.price(&option, &context).unwrap_err(),
         Error::InvalidInput(_)
     ));
     let knocked_out = context
@@ -707,9 +638,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
             ..Default::default()
         })
         .unwrap();
-    let result = engine
-        .price_with_statistics(&dated(&option, &knocked_out), &knocked_out)
-        .unwrap();
+    let result = engine.price_with_statistics(&option, &knocked_out).unwrap();
     assert_eq!(result.price(), 30.0);
     assert!(result.standard_error().is_none());
     let zero = Accumulator::new(AccumulatorTerms::new(
@@ -722,16 +651,11 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
         (end).time_of_day(),
     ))
     .unwrap()
-    .replace_history(
-        AccumulatorHistoryChanges {
-            accumulated_quantity: Some(Some(0.0)),
-            knock_out_settled: Some(Some(false)),
-        },
-        Some(day(1, 1)),
-    )
+    .replace(AccumulatorChanges {
+        accumulated_quantity: Some(Some(0.0)),
+        knock_out_settled: Some(Some(false)),
+        ..Default::default()
+    })
     .unwrap();
-    assert_eq!(
-        engine.price(&dated(&zero, &context), &context).unwrap(),
-        0.0
-    );
+    assert_eq!(engine.price(&zero, &context).unwrap(), 0.0);
 }

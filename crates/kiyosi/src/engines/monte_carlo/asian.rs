@@ -103,8 +103,8 @@ impl MonteCarloAsianEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Checks inclusive life then history consistency. Invalid bounds or impossible
     /// history return [`Error::InvalidInput`].
@@ -130,7 +130,7 @@ impl MonteCarloAsianEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None, None)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloAsianEngine::new(kiyosi::MonteCarloGridSettings {
@@ -196,8 +196,8 @@ impl MonteCarloAsianEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Propagates [`Self::price`] errors.
     /// Non-finite requested Greeks return [`Error::ComputationFailure`].

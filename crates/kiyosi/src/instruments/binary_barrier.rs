@@ -38,10 +38,6 @@ pub enum SettlementTiming {
 /// [`BinaryBarrierOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryBarrierTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
@@ -74,7 +70,6 @@ impl BinaryBarrierTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
-            history_time: None,
             calendar: TradingCalendar::default(),
             option_type,
             strike,
@@ -95,7 +90,6 @@ impl BinaryBarrierTerms {
             self.observation_times,
             self.touch_state,
             &self.calendar,
-            self.history_time,
         )
     }
 }
@@ -116,9 +110,6 @@ impl BinaryBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
-    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
     /// barrier, fixing times or calendar compatibility, checked in that order.
@@ -189,38 +180,11 @@ impl BinaryBarrierOption {
     pub fn payout(&self) -> Option<f64> {
         self.digital.payout()
     }
-    /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
-    ///
-    /// See [`crate::BarrierOption::replace_history`] for an example and time consistency rules.
-    ///
-    /// Preserves the validated monitoring and payoff terms.
-    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
-    ///
-    /// The supplied timestamp is validated and retained, including with unknown history.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a timestamp outside the contract life.
-    pub fn replace_history(
-        &self,
-        touch_state: Option<BarrierTouchState>,
-        history_time: Option<Timestamp>,
-    ) -> Result<Self> {
-        self.replace(BinaryBarrierOptionChanges {
-            touch_state: Some(touch_state),
-            history_time: Some(history_time),
-            ..Default::default()
-        })
-    }
 }
 
 /// Strike-free touch inputs; validated by [`TouchOption::cash`] or [`TouchOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TouchOptionTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Inclusive effective time.
@@ -249,7 +213,6 @@ impl TouchOptionTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
-            history_time: None,
             calendar: TradingCalendar::default(),
             effective_time,
             expiry_time,
@@ -274,7 +237,6 @@ impl TouchOptionTerms {
             self.observation_times,
             self.touch_state,
             &self.calendar,
-            self.history_time,
         )
     }
 
@@ -360,9 +322,6 @@ impl TouchOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
-    /// or history impossible strictly before that timestamp.
     ///
     /// Returns [`Error::InvalidInput`] for invalid positive payout or barrier,
     /// reversed life, invalid fixings, or at-hit no-touch settlement.
@@ -434,29 +393,6 @@ impl TouchOption {
     pub fn is_up(&self) -> bool {
         self.barrier_type().is_up()
     }
-    /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
-    ///
-    /// See [`crate::BarrierOption::replace_history`] for examples and time consistency rules.
-    ///
-    /// Preserves the validated monitoring and payoff terms.
-    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
-    ///
-    /// The supplied timestamp is validated and retained, including with unknown history.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a timestamp outside the contract life.
-    pub fn replace_history(
-        &self,
-        touch_state: Option<BarrierTouchState>,
-        history_time: Option<Timestamp>,
-    ) -> Result<Self> {
-        self.replace(TouchOptionChanges {
-            touch_state: Some(touch_state),
-            history_time: Some(history_time),
-            ..Default::default()
-        })
-    }
 }
 
 macro_rules! monitoring_accessors {
@@ -526,14 +462,6 @@ macro_rules! monitoring_accessors {
             }
         }
         impl OptionContract for $contract {
-            fn history_time(&self) -> Option<Timestamp> {
-                self.monitoring.history_time()
-            }
-            fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-                self.monitoring = self.monitoring.with_history_time(time)?;
-                Ok(self)
-            }
-
             fn effective_time(&self) -> Timestamp {
                 self.effective_time()
             }
@@ -628,8 +556,6 @@ impl TouchOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BinaryBarrierOptionChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`BinaryBarrierOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](BinaryBarrierTerms::option_type).
@@ -662,22 +588,11 @@ impl BinaryBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged. [`BinaryPayoff`] selects settlement explicitly.
     /// See [`Self::cash`] for a construction example.
     pub fn replace(&self, changes: BinaryBarrierOptionChanges) -> Result<Self> {
-        let history_supplied = changes.touch_state.is_some();
         let terms = BinaryBarrierTerms {
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                changes.touch_state.is_some()
-                    && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
-            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -697,11 +612,7 @@ impl BinaryBarrierOption {
             BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
             BinaryPayoff::Asset => Self::asset(terms),
         }?;
-        self.monitoring.validate_replacement_history(
-            &updated.monitoring,
-            history_supplied,
-            false,
-        )?;
+
         Ok(updated)
     }
 }
@@ -711,8 +622,6 @@ impl BinaryBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct TouchOptionChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`TouchOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`effective_time`](TouchOptionTerms::effective_time).
@@ -743,22 +652,11 @@ impl TouchOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged. [`BinaryPayoff`] selects settlement explicitly.
     /// See [`Self::cash`] for a construction example.
     pub fn replace(&self, changes: TouchOptionChanges) -> Result<Self> {
-        let history_supplied = changes.touch_state.is_some();
         let terms = TouchOptionTerms {
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                changes.touch_state.is_some()
-                    && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
-            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
@@ -779,11 +677,7 @@ impl TouchOption {
             BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
             BinaryPayoff::Asset => Self::asset(terms),
         }?;
-        self.monitoring.validate_replacement_history(
-            &updated.monitoring,
-            history_supplied,
-            false,
-        )?;
+
         Ok(updated)
     }
 }

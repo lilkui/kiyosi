@@ -10,7 +10,6 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     RateTermStructure,
 )
-from support.history import dated as dated_history
 from test_local_volatility import END, START, context, surface
 from test_support_matrix import HESTON_ENGINES, terminal_cases
 
@@ -102,8 +101,8 @@ def test_every_fd_scheme_preserves_constant_surface_bsm_results(subtests):
                     scheme=scheme,
                 )
                 actual, expected = (
-                    engine.price(dated_history(contract, local), local),
-                    engine.price(dated_history(contract, bsm), bsm),
+                    engine.price(contract, local),
+                    engine.price(contract, bsm),
                 )
                 assert actual == pytest.approx(expected, rel=0, abs=1e-6)
 
@@ -119,13 +118,13 @@ def test_active_products_reject_missing_surface_coverage_and_unstable_steps(subt
     for contract, name in representatives():
         with subtests.test(engine=name):
             with pytest.raises(InvalidInputError):
-                getattr(pricing, name)().price(dated_history(contract, short), short)
+                getattr(pricing, name)().price(contract, short)
             with pytest.raises(InvalidInputError):
                 getattr(pricing, name)(
                     asset_step_count=800,
                     time_step_count=1,
                     scheme="explicit_euler",
-                ).price(dated_history(contract, context()), context())
+                ).price(contract, context())
 
 
 def test_digital_rejects_node_rates_even_at_expiry(subtests):
@@ -147,6 +146,4 @@ def test_digital_rejects_node_rates_even_at_expiry(subtests):
                     subtests.test(field=field, time=time),
                     pytest.raises(UnsupportedOperationError),
                 ):
-                    getattr(pricing, name)().price(
-                        dated_history(contract, local), local
-                    )
+                    getattr(pricing, name)().price(contract, local)

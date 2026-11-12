@@ -6,10 +6,6 @@ use crate::{
 /// Supplies accumulator terms; see [`Accumulator::new`] for validation and usage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AccumulatorTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Accumulation direction: call purchases, put sells; defaults to call.
@@ -25,7 +21,7 @@ pub struct AccumulatorTerms {
     /// Caller-asserted quantity strictly before valuation; `None` means unknown.
     pub accumulated_quantity: Option<f64>,
     /// Records prior knock-out history: `None` is unknown, `Some(false)` is active,
-    /// and `Some(true)` is settled with no remaining cash flows. See [`Accumulator::replace_history`].
+    /// and `Some(true)` is settled with no remaining cash flows. See [`Accumulator::replace`].
     pub knock_out_settled: Option<bool>,
     /// Inclusive effective time for daily observations at the specified observation clock time.
     pub effective_time: Timestamp,
@@ -57,7 +53,6 @@ impl AccumulatorTerms {
         observation_clock_time: TimeOfDay,
     ) -> Self {
         Self {
-            history_time: None,
             calendar: TradingCalendar::default(),
             option_type: Self::DEFAULT_OPTION_TYPE,
             strike,
@@ -72,17 +67,6 @@ impl AccumulatorTerms {
             knock_out_observation_times: None,
         }
     }
-}
-
-/// Selects accumulator history replacements; absent fields retain their values.
-///
-/// See [`Accumulator::replace_history`] for an example.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct AccumulatorHistoryChanges {
-    /// Replaces outstanding quantity; `Some(None)` restores unknown history.
-    pub accumulated_quantity: Option<Option<f64>>,
-    /// Replaces prior knock-out history; `Some(None)` restores unknown history.
-    pub knock_out_settled: Option<Option<bool>>,
 }
 
 /// Owns daily accumulations settled together at knock-out or expiry.
@@ -121,29 +105,27 @@ impl Accumulator {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
-    /// or history impossible strictly before that timestamp.
-    ///
     /// Returns [`Error::InvalidInput`] for invalid strike, invalid level or
     /// quantities, reversed life times, or unordered/out-of-life knock-out times,
-    /// checked in that order. Inputs are unchanged.
+    /// checked in that order. Inputs are unchanged. Valuation-relative history
+    /// consistency is checked during pricing.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date, OptionType, OptionContract};
+    /// use kiyosi::{Accumulator, AccumulatorChanges, AccumulatorTerms, Date, OptionType, OptionContract};
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 2, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
-    /// let seasoned = option.replace_history(AccumulatorHistoryChanges {
+    /// let seasoned = option.replace(AccumulatorChanges {
     ///     accumulated_quantity: Some(Some(3.0)), knock_out_settled: Some(Some(false)),
-    /// }, Some(option.effective_time().add_days(1)?))?;
+    ///     ..Default::default()
+    /// })?;
     /// assert_eq!(seasoned.accumulated_quantity(), Some(3.0));
     /// assert_eq!(option.accumulated_quantity(), None);
     /// let settled = option.replace(kiyosi::AccumulatorChanges {
     ///     knock_out_settled: Some(Some(true)),
-    ///     history_time: Some(Some(option.effective_time().add_days(1)?)), ..Default::default()
+    ///     ..Default::default()
     /// })?;
     /// assert_eq!(settled.knock_out_settled(), Some(true));
     /// let end = Date::new(2025, 2, 3)?.start_of_day();
@@ -185,9 +167,7 @@ impl Accumulator {
                 &terms.calendar,
             )?;
         }
-        let option = Self { terms };
-        let history_time = option.history_time();
-        option.with_history_time(history_time)
+        Ok(Self { terms })
     }
 
     /// Replaces the owned accumulation calendar; see [`Self::new`] for construction.
@@ -203,10 +183,6 @@ impl Accumulator {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Returns [`crate::Error::InvalidInput`] if explicit observations fall on closed dates.
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         self.replace(AccumulatorChanges {
@@ -218,61 +194,6 @@ impl Accumulator {
     /// Borrows the contract's accumulation calendar; see [`Self::replace_calendar`].
     pub fn calendar(&self) -> &TradingCalendar {
         &self.terms.calendar
-    }
-    /// Returns a validated replacement of quantity, knock-out settlement or both history fields.
-    ///
-    /// Omitted fields retain their values; `Some(None)` clears the named history
-    /// field. Time consistency is checked at pricing. The original is unchanged
-    /// on success and failure.
-    /// Replaces the snapshot timestamp together with every known history field.
-    /// Unknown fields may remain omitted when the timestamp changes.
-    /// Pass the current timestamp explicitly to retain it.
-    ///
-    /// # Errors
-    ///
-    /// Reuses [`Self::new`] numeric and contract validation and rejects timestamps
-    /// outside the contract life. Returns [`Error::MissingHistory`] if known history
-    /// has no timestamp, or [`Error::StaleHistory`] when a timestamp change omits a
-    /// known history field.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date, OptionContract,
-    ///     BlackScholesMertonParameters, PricingContext, QuadratureAccumulatorEngine};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = Accumulator::new(AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, start.add_days(9)?, kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
-    /// let settled = option.replace_history(AccumulatorHistoryChanges {
-    ///     knock_out_settled: Some(Some(true)), ..Default::default()
-    /// }, Some(start.add_days(1)?))?;
-    /// assert_eq!(settled.knock_out_settled(), Some(true));
-    /// assert_eq!(option.knock_out_settled(), None);
-    /// let updated = settled.replace_history(AccumulatorHistoryChanges {
-    ///     accumulated_quantity: Some(Some(3.0)), ..Default::default()
-    /// }, Some(start.add_days(1)?))?;
-    /// assert_eq!(updated.knock_out_settled(), Some(true));
-    /// let cleared = updated.replace_history(AccumulatorHistoryChanges {
-    ///     accumulated_quantity: Some(None), knock_out_settled: Some(None),
-    /// }, None)?;
-    /// assert_eq!(cleared, option);
-    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
-    ///     100.0, start.add_days(1)?)?;
-    /// assert_eq!(QuadratureAccumulatorEngine::default().price(&settled, &context)?, 0.0);
-    /// # Ok(()) }
-    /// ```
-    ///
-    pub fn replace_history(
-        &self,
-        changes: AccumulatorHistoryChanges,
-        history_time: Option<Timestamp>,
-    ) -> Result<Self> {
-        self.replace(AccumulatorChanges {
-            accumulated_quantity: changes.accumulated_quantity,
-            knock_out_settled: changes.knock_out_settled,
-            history_time: Some(history_time),
-            ..Default::default()
-        })
     }
     /// Returns the purchase or sale direction; see [`Self::new`].
     pub fn option_type(&self) -> OptionType {
@@ -305,7 +226,7 @@ impl Accumulator {
     pub fn accumulated_quantity(&self) -> Option<f64> {
         self.terms.accumulated_quantity
     }
-    /// Returns prior knock-out settlement history, or `None` if unknown; see [`Self::replace_history`].
+    /// Returns prior knock-out settlement history, or `None` if unknown; see [`Self::replace`].
     pub fn knock_out_settled(&self) -> Option<bool> {
         self.terms.knock_out_settled
     }
@@ -410,12 +331,21 @@ impl Accumulator {
                 "prior accumulated quantity is required".into(),
             ));
         }
-        super::validate_history_time(
-            self,
-            self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
-            context,
-            false,
-        )?;
+        if self.knock_out_settled() == Some(true) {
+            if !had_knock_out {
+                return Err(Error::InvalidInput(
+                    "knock-out settlement predates knock-out observations".into(),
+                ));
+            }
+        } else if self
+            .accumulated_quantity()
+            .is_some_and(|quantity| quantity > 0.0)
+            && !had_accumulation
+        {
+            return Err(Error::InvalidInput(
+                "accumulated_quantity predates accumulation observations".into(),
+            ));
+        }
         Ok(())
     }
 
@@ -573,44 +503,6 @@ impl Accumulator {
     }
 }
 impl OptionContract for Accumulator {
-    fn history_time(&self) -> Option<Timestamp> {
-        self.terms.history_time
-    }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-        super::validate_history_redating(
-            &self,
-            time,
-            self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
-        )?;
-        self.terms.history_time = time;
-        super::validate_history_snapshot(
-            &self,
-            self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
-        )?;
-        if let Some(time) = time {
-            if self.knock_out_settled() == Some(true) {
-                let had_knock_out = match self.knock_out_observation_times() {
-                    Some(times) => times.iter().any(|&at| at < time),
-                    None => self.any_accumulation(self.effective_time(), time, |at| at < time)?,
-                };
-                if !had_knock_out {
-                    return Err(Error::InvalidInput(
-                        "knock-out settlement predates knock-out observations".into(),
-                    ));
-                }
-            } else if self
-                .accumulated_quantity()
-                .is_some_and(|quantity| quantity > 0.0)
-                && !self.any_accumulation(self.effective_time(), time, |at| at < time)?
-            {
-                return Err(Error::InvalidInput(
-                    "accumulated_quantity predates accumulation observations".into(),
-                ));
-            }
-        }
-        Ok(self)
-    }
-
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -676,8 +568,6 @@ impl OptionContract for Accumulator {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct AccumulatorChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned accumulation calendar; see [`Accumulator::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](AccumulatorTerms::option_type).
@@ -713,30 +603,10 @@ impl Accumulator {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: AccumulatorChanges) -> Result<Self> {
-        let history_supplied = (self.accumulated_quantity().is_none()
-            || changes.accumulated_quantity.is_some())
-            && (self.knock_out_settled().is_none() || changes.knock_out_settled.is_some());
-        let updated = Self::new(AccumulatorTerms {
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                (changes.accumulated_quantity.is_some() || changes.knock_out_settled.is_some())
-                    && changes
-                        .accumulated_quantity
-                        .unwrap_or(self.accumulated_quantity())
-                        .is_none()
-                    && changes
-                        .knock_out_settled
-                        .unwrap_or(self.knock_out_settled())
-                        .is_none(),
-            ),
+        Self::new(AccumulatorTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -760,59 +630,6 @@ impl Accumulator {
                 self.knock_out_observation_times()
                     .map(<[Timestamp]>::to_vec)
             }),
-        })?;
-
-        super::validate_history_replacement(
-            self.accumulated_quantity().is_some() || self.knock_out_settled().is_some(),
-            history_supplied,
-            || {
-                Ok((updated.history_time().is_some()
-                    && self.history_time() != updated.history_time())
-                    || self.terms.history_time.is_none()
-                        && self.expiry_time() != updated.expiry_time()
-                    || (
-                        self.option_type(),
-                        self.knock_out_level(),
-                        self.effective_time(),
-                        self.observation_clock_time(),
-                    ) != (
-                        updated.option_type(),
-                        updated.knock_out_level(),
-                        updated.effective_time(),
-                        updated.observation_clock_time(),
-                    )
-                    || !(self.knock_out_settled() == Some(true)
-                        && updated.knock_out_settled() == Some(true))
-                        && (
-                            self.strike(),
-                            self.daily_quantity(),
-                            self.acceleration_factor(),
-                        ) != (
-                            updated.strike(),
-                            updated.daily_quantity(),
-                            updated.acceleration_factor(),
-                        )
-                    || self.calendar() != updated.calendar()
-                        && super::historical_times(
-                            self.accumulation_schedule()?.times(),
-                            self.terms.history_time,
-                        ) != super::historical_times(
-                            updated.accumulation_schedule()?.times(),
-                            self.terms.history_time,
-                        )
-                    || (self.knock_out_observation_times()
-                        != updated.knock_out_observation_times()
-                        || self.calendar() != updated.calendar())
-                        && super::historical_times(
-                            self.knock_out_observation_schedule()?.times(),
-                            self.terms.history_time,
-                        ) != super::historical_times(
-                            updated.knock_out_observation_schedule()?.times(),
-                            self.terms.history_time,
-                        ))
-            },
-            "accumulated_quantity and knock_out_settled",
-        )?;
-        Ok(updated)
+        })
     }
 }

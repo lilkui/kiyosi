@@ -196,14 +196,6 @@ pub(crate) fn timestamps(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Times
     value.try_iter()?.map(|item| timestamp(&item?)).collect()
 }
 
-pub(crate) fn optional_timestamp(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Timestamp>> {
-    if value.is_none() {
-        Ok(None)
-    } else {
-        timestamp(value).map(Some)
-    }
-}
-
 pub(crate) fn clock_time(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::TimeOfDay> {
     let time = value.cast::<PyTime>()?;
     if !value

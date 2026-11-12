@@ -72,10 +72,6 @@ pub enum SnowballPreset {
 /// See [`Self::expand`] for conventions, validation and an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnowballPresetTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Sets the annual coupon rate, or the first rate for a ladder or staged preset.
@@ -118,7 +114,6 @@ impl SnowballPresetTerms {
         observation_clock_time: Option<TimeOfDay>,
     ) -> Self {
         Self {
-            history_time: None,
             calendar: TradingCalendar::default(),
             coupon_rate,
             initial_spot,
@@ -206,7 +201,6 @@ impl SnowballPresetTerms {
             self.calendar,
         );
         terms.barrier_state = self.barrier_state;
-        terms.history_time = self.history_time;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
         match preset {
             SnowballPreset::Standard => {}
@@ -327,10 +321,6 @@ pub struct PhoenixPresetTerms {
     pub lockout_periods: usize,
     /// Supplies the daily clock for standard and step-down presets; absent for FCN/DCN.
     pub observation_clock_time: Option<TimeOfDay>,
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Sets the finite signed proportion paid per qualifying observation, without day accrual.
@@ -368,7 +358,6 @@ impl PhoenixPresetTerms {
         Self {
             lockout_periods: DEFAULT_PHOENIX_LOCKOUT_PERIODS,
             observation_clock_time: None,
-            history_time: None,
             calendar: TradingCalendar::default(),
             coupon_per_period,
             initial_spot,
@@ -491,7 +480,6 @@ impl PhoenixPresetTerms {
             KnockInObservationMode::AtExpiry
         };
         terms.barrier_state = self.barrier_state;
-        terms.history_time = self.history_time;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
         PhoenixOption::new(terms)
     }

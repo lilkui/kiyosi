@@ -11,7 +11,6 @@ from kiyosi import (
     InvalidInputError,
     MissingHistoryError,
     RootNotBracketedError,
-    StaleHistoryError,
     UnsupportedOperationError,
 )
 from kiyosi import instruments as ins
@@ -28,8 +27,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -58,7 +55,7 @@ def touch(factory=ins.cash_touch_option, **changes):
             if factory is ins.cash_touch_option
             else ins.asset_no_touch_option
         )
-    return factory(**history_fields(**terms))
+    return factory(**terms)
 
 
 def test_continuous_touch_settlements_match_analytics():
@@ -74,12 +71,8 @@ def test_continuous_touch_settlements_match_analytics():
                     barrier_level=79.87 if kind.startswith("down") else 120.13,
                     settlement_timing=timing,
                 )
-                assert engine.price(
-                    dated_history(option, market()), market()
-                ) == pytest.approx(
-                    AnalyticBinaryBarrierEngine().price(
-                        dated_history(option, market()), market()
-                    ),
+                assert engine.price(option, market()) == pytest.approx(
+                    AnalyticBinaryBarrierEngine().price(option, market()),
                     rel=0,
                     abs=(0.02 if option.payoff_type == "asset" else 0.002),
                 )
@@ -91,15 +84,11 @@ def test_continuous_touch_settlements_match_analytics():
 def test_current_and_prior_at_hit_payment(factory, amount):
     engine = FiniteDifferenceBinaryBarrierEngine()
     option = touch(factory, settlement_timing="at_hit")
-    assert engine.price(dated_history(option, market(130)), market(130)) == amount
+    assert engine.price(option, market(130)) == amount
     assert (
         engine.price(
-            dated_history(
-                option.replace_history(
-                    touch_state="touched",
-                    history_time=option.expiry_time,
-                ),
-                market(time=datetime(2025, 1, 2)),
+            option.replace(
+                touch_state="touched",
             ),
             market(time=datetime(2025, 1, 2)),
         )
@@ -135,11 +124,9 @@ def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(
         expected = two_fixing_price(
             up=up, knock_in=kind == "one_touch", asset=asset, at_hit=at_hit
         )
-        value = fine.price(dated_history(option, market()), market())
+        value = fine.price(option, market())
         assert value == pytest.approx(expected, rel=0, abs=(0.001 if asset else 0.0001))
-        assert abs(value - expected) < abs(
-            coarse.price(dated_history(option, market()), market()) - expected
-        )
+        assert abs(value - expected) < abs(coarse.price(option, market()) - expected)
     for knock_in in (False, True):
         for direction in ("call", "put"):
             factory = (
@@ -158,13 +145,13 @@ def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(
             }
             if not asset:
                 fields["payout"] = 10
-            option = factory(**history_fields(**fields))
+            option = factory(**fields)
             expected = two_fixing_price(
                 up=up, knock_in=knock_in, asset=asset, direction=direction
             )
-            assert fine.price(
-                dated_history(option, market()), market()
-            ) == pytest.approx(expected, rel=0, abs=(0.002 if asset else 0.0002))
+            assert fine.price(option, market()) == pytest.approx(
+                expected, rel=0, abs=(0.002 if asset else 0.0002)
+            )
 
 
 def test_node_curves_and_early_at_hit_horizon():
@@ -209,7 +196,7 @@ def test_node_curves_and_early_at_hit_horizon():
                 dividend1=dividend1,
                 dividend2=dividend2,
             )
-            assert engine.price(dated_history(option, ctx), ctx) == pytest.approx(
+            assert engine.price(option, ctx) == pytest.approx(
                 expected, rel=0, abs=(0.002 if asset else 0.0002)
             )
     short = RateTermStructure(reference_time=START, times=[fixing], factors=[0.97])
@@ -225,30 +212,26 @@ def test_node_curves_and_early_at_hit_horizon():
         effective_time=START,
         expiry_time=fixing,
     )
-    assert engine.price(dated_history(option, ctx), ctx) == pytest.approx(
-        AnalyticDigitalEngine().price(dated_history(digital, ctx), ctx),
+    assert engine.price(option, ctx) == pytest.approx(
+        AnalyticDigitalEngine().price(digital, ctx),
         rel=0,
         abs=0.0004,
     )
     later_payment = touch(observation_times=[fixing])
     assert_rejection(InvalidInputError, engine.price, later_payment, ctx)
-    known = option.replace_history(
+    known = option.replace(
         touch_state="untouched",
-        history_time=option.history_time or option.expiry_time,
     )
     after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1))
     assert_rejection(MissingHistoryError, engine.price, option, after)
-    assert engine.price(dated_history(known, after), after) == 0
-    assert (
-        engine.price(dated_history(option, market(130, fixing)), market(130, fixing))
-        == 10
-    )
+    assert engine.price(known, after) == 0
+    assert engine.price(option, market(130, fixing)) == 10
     no_touch = touch(
         barrier_type="up_and_out",
         observation_times=[fixing],
         touch_state="untouched",
     )
-    assert engine.price(dated_history(no_touch, after), after) == pytest.approx(
+    assert engine.price(no_touch, after) == pytest.approx(
         10 * math.exp(-0.04 * (END - fixing).days / 365), rel=0, abs=1e-8
     )
 
@@ -257,7 +240,7 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
     engine = FiniteDifferenceBinaryBarrierEngine(asset_upper_boundary=400)
     option = touch(touch_state="untouched")
     ctx = market(time=datetime(2025, 1, 2))
-    result = engine.price_with_greeks(dated_history(option, ctx), ctx, greeks="all")
+    result = engine.price_with_greeks(option, ctx, greeks="all")
     greeks = (
         "delta",
         "gamma",
@@ -273,11 +256,11 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
     assert all(math.isfinite(getattr(result, g)) for g in greeks)
     h = 0.01
     up = engine.price(
-        dated_history(option, market(100 + h, datetime(2025, 1, 2))),
+        option,
         market(100 + h, datetime(2025, 1, 2)),
     )
     down = engine.price(
-        dated_history(option, market(100 - h, datetime(2025, 1, 2))),
+        option,
         market(100 - h, datetime(2025, 1, 2)),
     )
     assert result.delta == pytest.approx((up - down) / (2 * h), rel=0, abs=1e-6)
@@ -286,7 +269,7 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
     )
     assert implied_volatility(
         engine,
-        dated_history(option, ctx),
+        option,
         ctx,
         result.price,
         lower_bound=0.1,
@@ -296,7 +279,7 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
         RootNotBracketedError,
         implied_volatility,
         engine,
-        dated_history(option, ctx),
+        option,
         ctx,
         -1,
         lower_bound=0.0,
@@ -306,13 +289,11 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
     assert_rejection(
         InvalidInputError,
         engine.price,
-        option.replace_history(
+        option.replace(
             touch_state="touched",
-            history_time=option.expiry_time,
         ),
         market(),
     )
-    assert_rejection(StaleHistoryError, engine.price_with_greeks, option, ctx, [])
     assert_rejection(
         InvalidInputError,
         partial(numerical_greeks, engine),
@@ -325,7 +306,7 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
         for kind in ("up_and_in", "up_and_out"):
             contract = touch(factory, barrier_type=kind, touch_state="untouched")
             expiry = engine.price_with_greeks(
-                dated_history(contract, market(130, END)),
+                contract,
                 market(130, END),
                 greeks="all",
             )
@@ -333,9 +314,7 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
                 expiry,
                 int(factory is ins.asset_touch_option and kind == "up_and_in"),
             )
-    equality = engine.price_with_greeks(
-        dated_history(touch(), market(120.13)), market(120.13), greeks="all"
-    )
+    equality = engine.price_with_greeks(touch(), market(120.13), greeks="all")
     assert equality.delta is None
     assert equality.gamma is None
     paid = touch(settlement_timing="at_hit", touch_state="touched")
@@ -343,20 +322,20 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
         UnsupportedOperationError,
         implied_volatility,
         engine,
-        dated_history(paid, ctx),
+        paid,
         ctx,
         0,
         lower_bound=0.0,
         upper_bound=4.0,
     )
-    assert engine.price(dated_history(option, ctx), ctx) == result.price
+    assert engine.price(option, ctx) == result.price
     assert option.touch_state == "untouched"
     assert ctx.spot_price == 100
     with ThreadPoolExecutor(4) as pool:
         assert (
             list(
                 pool.map(
-                    lambda _: engine.price(dated_history(option, ctx), ctx),
+                    lambda _: engine.price(option, ctx),
                     range(16),
                 )
             )
@@ -375,11 +354,9 @@ def test_continuous_domain_retains_configured_nodes_and_stability():
             asset_upper_boundary=upper,
         )
 
-    expected = engine(400).price(dated_history(option, market()), market())
+    expected = engine(400).price(option, market())
     for upper in (10_000, 1e9):
-        assert (
-            engine(upper).price(dated_history(option, market()), market()) == expected
-        )
+        assert engine(upper).price(option, market()) == expected
     assert_rejection(
         InvalidInputError, engine(480, "explicit_euler").price, option, market()
     )
@@ -428,11 +405,11 @@ def test_settings_protocols_defaults_and_errors():
     with pytest.raises(InvalidInputError):
         touch(observation_times=[datetime(2025, 1, 4)])
     with pytest.raises(TypeError):
-        engine.price(dated_history(object(), market()), market())
+        engine.price(object(), market())
     with pytest.raises(TypeError):
         numerical_greeks(
             engine,
-            dated_history(touch(), market()),
+            touch(),
             market(),
             ["delta"],
             spot_shift=True,
@@ -440,7 +417,7 @@ def test_settings_protocols_defaults_and_errors():
     with pytest.raises(TypeError):
         implied_volatility(
             engine,
-            dated_history(touch(), market()),
+            touch(),
             market(),
             True,
             lower_bound=0.0,
@@ -474,11 +451,7 @@ def test_existing_independent_quantlib_price_scenarios(subtests, quantlib_settin
                     else (ins.asset_touch_option if asset else ins.cash_touch_option)
                 )
                 option = factory(
-                    **history_fields(
-                        **fields,
-                        barrier_type=kind,
-                        settlement_timing=inputs["settlement"],
-                    )
+                    **fields, barrier_type=kind, settlement_timing=inputs["settlement"]
                 )
             else:
                 option = (
@@ -486,12 +459,10 @@ def test_existing_independent_quantlib_price_scenarios(subtests, quantlib_settin
                     if asset
                     else ins.cash_binary_barrier_option
                 )(
-                    **history_fields(
-                        **fields,
-                        option_type=inputs["option"],
-                        strike=inputs["strike"],
-                        barrier_type=kind,
-                    )
+                    **fields,
+                    option_type=inputs["option"],
+                    strike=inputs["strike"],
+                    barrier_type=kind,
                 )
             ctx = market(
                 inputs["spot"],
@@ -500,7 +471,7 @@ def test_existing_independent_quantlib_price_scenarios(subtests, quantlib_settin
                 dividend=inputs["dividend"],
                 sigma=inputs["volatility"],
             )
-            assert engine.price(dated_history(option, ctx), ctx) == pytest.approx(
+            assert engine.price(option, ctx) == pytest.approx(
                 reference.measure(inputs, "price"),
                 rel=0,
                 abs=reference.barrier.FD["price"],
@@ -511,9 +482,7 @@ def test_existing_independent_quantlib_price_scenarios(subtests, quantlib_settin
                 inputs["strike"],
                 (option.expiry_time - ctx.valuation_time).days,
             ) == (100, 100, 365):
-                result = engine.price_with_greeks(
-                    dated_history(option, ctx), ctx, greeks="all"
-                )
+                result = engine.price_with_greeks(option, ctx, greeks="all")
                 for greek in (
                     "delta",
                     "gamma",

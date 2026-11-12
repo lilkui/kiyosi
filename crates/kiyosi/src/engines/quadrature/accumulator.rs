@@ -22,8 +22,8 @@ impl QuadratureAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required prior history returns [`crate::Error::MissingHistory`].
+    /// Supplied history covers events strictly before valuation.
     ///
     /// Propagates [`QuadratureSettings::validate`] errors.
     ///
@@ -36,9 +36,10 @@ impl QuadratureAccumulatorEngine {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
     ///     start, Date::new(2025, 1, 6)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?
-    ///     .replace_history(AccumulatorHistoryChanges {
+    ///     .replace(AccumulatorChanges {
     ///         accumulated_quantity: Some(Some(3.0)), knock_out_settled: Some(Some(false)),
-    ///     }, Some(Date::new(2025, 1, 6)?.start_of_day()))?;
+    ///         ..Default::default()
+    ///     })?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     90.0, option.expiry_time().into())?;
     /// let engine = QuadratureAccumulatorEngine::new(QuadratureSettings::default())?;
@@ -61,8 +62,8 @@ impl QuadratureAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required prior history returns [`crate::Error::MissingHistory`].
+    /// Supplied history covers events strictly before valuation.
     ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
     /// and impossible history ([`Error::InvalidInput`]), then required

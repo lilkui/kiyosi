@@ -29,7 +29,7 @@ pub fn multi_event_terms(
     snow.observation_clock_time =
         (mode == KnockInObservationMode::EveryTradingDay).then_some(snow.expiry_time.time_of_day());
     snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    snow.history_time = Some(snow.effective_time);
+
     let mut ternary = TernarySnowballTerms::new(
         0.06,
         0.01,
@@ -44,7 +44,7 @@ pub fn multi_event_terms(
     ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
         .then_some(ternary.expiry_time.time_of_day());
     ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    ternary.history_time = Some(ternary.effective_time);
+
     let mut phoenix = PhoenixTerms::new(
         0.08,
         100.0,
@@ -67,6 +67,6 @@ pub fn multi_event_terms(
     phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
         .then_some(phoenix.expiry_time.time_of_day());
     phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    phoenix.history_time = Some(phoenix.effective_time);
+
     (snow, ternary, phoenix)
 }

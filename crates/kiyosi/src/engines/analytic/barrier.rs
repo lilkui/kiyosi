@@ -29,8 +29,8 @@ impl AnalyticBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
     /// schedules. Returns [`Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.

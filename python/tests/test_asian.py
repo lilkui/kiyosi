@@ -33,8 +33,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -78,22 +76,16 @@ def market(at=START, rate=0.04, dividend=0.01, volatility=0.2, spot=100):
 
 def test_owned_history_replacement_and_native_representation_errors(subtests):
     for kind, engine_type in PAIRS:
-        option = kind(**history_fields(**terms()))
+        option = kind(**terms())
         assert option.realized_average is None
-        assert option.replace_history() == option
-        updated = option.replace_history(
+        assert option.replace() == option
+        updated = option.replace(
             realized_average=Fraction(211, 2),
-            history_time=(
-                option.history_time
-                or (option.averaging_start_time + timedelta(microseconds=1))
-            )
-            if Fraction(211, 2) is not None
-            else None,
         )
         assert updated.realized_average == 105.5
         for name in terms():
             assert getattr(option, name) == getattr(updated, name)
-        assert_rejection(InvalidInputError, option.replace_history, realized_average=-1)
+        assert_rejection(InvalidInputError, option.replace, realized_average=-1)
         assert option.realized_average is None
         for name in (*terms(), "realized_average"):
             with pytest.raises(AttributeError):
@@ -101,41 +93,35 @@ def test_owned_history_replacement_and_native_representation_errors(subtests):
         for name in ("strike", "realized_average"):
             for invalid in (True, False, "100", None, 1 + 0j, object()):
                 if name == "realized_average" and invalid is None:
-                    assert (
-                        kind(
-                            **history_fields(**terms(realized_average=None))
-                        ).realized_average
-                        is None
-                    )
+                    assert kind(**terms(realized_average=None)).realized_average is None
                     continue
                 with (
                     subtests.test(kind=kind, name=name, value=invalid),
                     pytest.raises(TypeError),
                 ):
-                    kind(**history_fields(**terms(**{name: invalid})))
+                    kind(**terms(**{name: invalid}))
             with pytest.raises(OverflowError):
-                kind(**history_fields(**terms(**{name: 10**400})))
+                kind(**terms(**{name: 10**400}))
         for name in ("effective_time", "averaging_start_time", "expiry_time"):
             for invalid in (True, "2025-01-01", datetime(2025, 1, 1).date()):
                 with pytest.raises(TypeError):
-                    kind(**history_fields(**terms(**{name: invalid})))
+                    kind(**terms(**{name: invalid}))
         with pytest.raises(ValueError):
-            kind(**history_fields(**terms(option_type="CALL")))
+            kind(**terms(option_type="CALL"))
         with pytest.raises(TypeError):
             kind("call", 100, START, START, END)
         for invalid in (True, "100"):
             with pytest.raises(TypeError):
-                option.replace_history(
+                option.replace(
                     realized_average=invalid,
-                    history_time=(
-                        option.history_time
-                        or (option.averaging_start_time + timedelta(microseconds=1))
-                    )
-                    if invalid is not None
-                    else None,
                 )
+        assert option.replace(strike=101).strike == 101
         with pytest.raises(TypeError):
-            option.replace_history(strike=101)
+            option.replace(history_time=START)
+        with pytest.raises(TypeError):
+            kind(**terms(), history_time=START)
+        assert not hasattr(option, "replace_history")
+        assert not hasattr(option, "history_time")
         other = PAIRS[1 if kind is GeometricAveragePriceOption else 0][0](**terms())
         engine = engine_type()
         for wrong in (
@@ -148,11 +134,11 @@ def test_owned_history_replacement_and_native_representation_errors(subtests):
             ),
         ):
             with pytest.raises(UnsupportedOperationError):
-                engine.price(dated_history(wrong, market()), market())
+                engine.price(wrong, market())
             with pytest.raises(UnsupportedOperationError):
                 implied_volatility(
                     engine,
-                    dated_history(wrong, market()),
+                    wrong,
                     market(),
                     5,
                     lower_bound=0.0,
@@ -192,27 +178,25 @@ def test_validation_schedule_history_life_and_single_fixing(kind, engine_type):
             kind,
             **terms(averaging_start_time=invalid),
         )
-    original = kind(**history_fields(**terms(averaging_start_time=averaging)))
-    seasoned = original.replace_history(
+    original = kind(**terms(averaging_start_time=averaging))
+    seasoned = original.replace(
         realized_average=110,
-        history_time=original.history_time
-        or (original.averaging_start_time + timedelta(microseconds=1)),
     )
     engine = engine_type()
     for at in (START, averaging):
-        assert engine.price(dated_history(original, market(at)), market(at)) > 0
+        assert engine.price(original, market(at)) > 0
         assert_rejection(
             InvalidInputError,
             engine.price,
-            dated_history(seasoned, market(at)),
+            seasoned,
             market(at),
         )
     for at in (averaging + timedelta(days=1), END):
-        assert engine.price(dated_history(seasoned, market(at)), market(at)) > 0
+        assert engine.price(seasoned, market(at)) > 0
         assert_rejection(
             MissingHistoryError,
             engine.price,
-            dated_history(original, market(at)),
+            original,
             market(at),
         )
     for at in (
@@ -222,28 +206,24 @@ def test_validation_schedule_history_life_and_single_fixing(kind, engine_type):
         assert_rejection(
             InvalidInputError,
             engine.price,
-            dated_history(seasoned, market(at)),
+            seasoned,
             market(at),
         )
-    assert engine.price(dated_history(seasoned, market(END)), market(END)) == 10
-    result = engine.price_with_greeks(
-        dated_history(seasoned, market(END)), market(END), greeks="all"
-    )
+    assert engine.price(seasoned, market(END)) == 10
+    result = engine.price_with_greeks(seasoned, market(END), greeks="all")
     assert_terminal_greeks(result, 0)
     assert_rejection(
         UnsupportedOperationError,
         implied_volatility,
         engine,
-        dated_history(seasoned, market(END)),
+        seasoned,
         market(END),
         10,
         lower_bound=0.0,
         upper_bound=4.0,
     )
     for direction in ("call", "put"):
-        single = kind(
-            **history_fields(**terms(option_type=direction, averaging_start_time=END))
-        )
+        single = kind(**terms(option_type=direction, averaging_start_time=END))
         vanilla = EuropeanOption(
             option_type=direction,
             strike=100,
@@ -251,25 +231,21 @@ def test_validation_schedule_history_life_and_single_fixing(kind, engine_type):
             expiry_time=END,
         )
         for at in (START, END - timedelta(days=1), END):
-            assert engine.price(
-                dated_history(single, market(at)), market(at)
-            ) == AnalyticEuropeanEngine().price(
-                dated_history(vanilla, market(at)), market(at)
+            assert engine.price(single, market(at)) == AnalyticEuropeanEngine().price(
+                vanilla, market(at)
             )
         with pytest.raises(InvalidInputError):
-            single.replace_history(realized_average=110, history_time=END)
+            engine.price(single.replace(realized_average=110), market(END))
 
 
 @pytest.mark.parametrize("kind,engine_type", PAIRS)
 def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
     engine, option, context = (
         engine_type(),
-        kind(**history_fields(**terms())),
+        kind(**terms()),
         market(),
     )
-    full = engine.price_with_greeks(
-        dated_history(option, context), context, greeks="all"
-    )
+    full = engine.price_with_greeks(option, context, greeks="all")
     for g in ("theta", "charm", "color"):
         assert getattr(full, g) is None
     for request in (
@@ -277,9 +253,7 @@ def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
         ["delta", "delta"],
         (g for g in ("delta", "vega")),
     ):
-        selected = engine.price_with_greeks(
-            dated_history(option, context), context, request
-        )
+        selected = engine.price_with_greeks(option, context, request)
         assert selected.delta == full.delta
         assert selected.gamma is None
     for settings, exception in (
@@ -291,9 +265,7 @@ def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
         ({"greeks": "delta", "time_shift": 2**40}, TypeError),
     ):
         with pytest.raises(exception):
-            numerical_greeks(
-                engine, dated_history(option, context), context, **settings
-            )
+            numerical_greeks(engine, option, context, **settings)
     assert_rejection(
         InvalidInputError,
         partial(numerical_greeks, engine),
@@ -304,25 +276,21 @@ def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
     )
     collapsed = numerical_greeks(
         engine,
-        dated_history(option, context),
+        option,
         context,
         "delta",
         spot_shift=math.ulp(0.0),
     )
     assert collapsed.delta is None
-    seasoned = option.replace_history(
+    seasoned = option.replace(
         realized_average=100,
-        history_time=option.history_time
-        or (option.averaging_start_time + timedelta(microseconds=1)),
     )
     active = market(datetime(2025, 7, 1))
-    result = engine.price_with_greeks(
-        dated_history(seasoned, active), active, greeks="all"
-    )
+    result = engine.price_with_greeks(seasoned, active, greeks="all")
     assert all(getattr(result, g) is not None for g in GREEKS)
     assert implied_volatility(
         engine,
-        dated_history(seasoned, active),
+        seasoned,
         active,
         result.price,
         lower_bound=0.0,
@@ -332,7 +300,7 @@ def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
         RootNotBracketedError,
         implied_volatility,
         engine,
-        dated_history(option, context),
+        option,
         context,
         -1,
         lower_bound=0.0,
@@ -342,7 +310,7 @@ def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
         InvalidInputError,
         implied_volatility,
         engine,
-        dated_history(option, context),
+        option,
         context,
         math.nan,
         lower_bound=0.0,
@@ -357,7 +325,7 @@ def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
         with pytest.raises(exception):
             implied_volatility(
                 engine,
-                dated_history(option, context),
+                option,
                 context,
                 full.price,
                 **{"lower_bound": 0.0, "upper_bound": 4.0, field: value},
@@ -367,12 +335,12 @@ def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
 
 
 def test_arithmetic_solver_prices_only_the_requested_bracket():
-    option = ArithmeticAveragePriceOption(**history_fields(**terms()))
+    option = ArithmeticAveragePriceOption(**terms())
     engine = TurnbullWakemanArithmeticAveragePriceEngine()
-    quote = engine.price(dated_history(option, market()), market())
+    quote = engine.price(option, market())
     assert implied_volatility(
         engine,
-        dated_history(option, market(volatility=100)),
+        option,
         market(volatility=100),
         quote,
         lower_bound=0.05,
@@ -386,23 +354,23 @@ def test_single_fixing_preserves_independent_asset_discount_at_extreme_rates():
     vanilla = EuropeanOption(
         option_type="call", strike=100, effective_time=START, expiry_time=END
     )
-    assert AnalyticEuropeanEngine().price(
-        dated_history(vanilla, context), context
-    ) == pytest.approx(expected, rel=0, abs=1e-12)
+    assert AnalyticEuropeanEngine().price(vanilla, context) == pytest.approx(
+        expected, rel=0, abs=1e-12
+    )
     for kind, engine_type in PAIRS:
-        option = kind(**history_fields(**terms(averaging_start_time=END)))
-        assert engine_type().price(
-            dated_history(option, context), context
-        ) == pytest.approx(expected, rel=0, abs=1e-12)
+        option = kind(**terms(averaging_start_time=END))
+        assert engine_type().price(option, context) == pytest.approx(
+            expected, rel=0, abs=1e-12
+        )
 
 
 @pytest.mark.parametrize("sigma", (1e-06, 0.001))
 def test_non_finite_small_volatility_moments_preserve_invalid_result(sigma):
-    option = ArithmeticAveragePriceOption(**history_fields(**terms()))
+    option = ArithmeticAveragePriceOption(**terms())
     assert_rejection(
         ComputationFailureError,
         TurnbullWakemanArithmeticAveragePriceEngine().price,
-        dated_history(option, market(rate=400, dividend=0, volatility=sigma)),
+        option,
         market(rate=400, dividend=0, volatility=sigma),
     )
 
@@ -415,7 +383,7 @@ def test_curve_applicability_coverage_and_expiry_order():
         factors=[math.exp(-0.02 * 182 / 365), math.exp(-0.05)],
     )
     context = market(rate=curve, dividend=0)
-    option = GeometricAveragePriceOption(**history_fields(**terms()))
+    option = GeometricAveragePriceOption(**terms())
     h = 182 / 365
     second = (0.05 - 0.02 * h) / (1 - h)
     drift = 0.02 * (h - h * h / 2) + second * (1 - h) ** 2 / 2 - 0.04 / 4
@@ -433,45 +401,35 @@ def test_curve_applicability_coverage_and_expiry_order():
         )
     )
     assert AnalyticGeometricAveragePriceEngine().price(
-        dated_history(option, context), context
+        option, context
     ) == pytest.approx(expected, rel=0, abs=1e-11)
     engine = TurnbullWakemanArithmeticAveragePriceEngine()
-    arithmetic = ArithmeticAveragePriceOption(**history_fields(**terms()))
+    arithmetic = ArithmeticAveragePriceOption(**terms())
     assert_rejection(
         UnsupportedOperationError,
         engine.price,
-        dated_history(arithmetic, context),
+        arithmetic,
         context,
     )
     assert_rejection(
         UnsupportedOperationError,
         engine.price_with_greeks,
-        dated_history(arithmetic, context),
+        arithmetic,
         context,
         [],
     )
     assert_rejection(
         InvalidInputError,
         engine.price,
-        dated_history(
-            arithmetic.replace_history(
-                realized_average=110,
-                history_time=arithmetic.history_time
-                or (arithmetic.averaging_start_time + timedelta(microseconds=1)),
-            ),
-            context,
+        arithmetic.replace(
+            realized_average=110,
         ),
         context,
     )
     assert (
         engine.price(
-            dated_history(
-                arithmetic.replace_history(
-                    realized_average=110,
-                    history_time=arithmetic.history_time
-                    or (arithmetic.averaging_start_time + timedelta(microseconds=1)),
-                ),
-                context.replace(valuation_time=END),
+            arithmetic.replace(
+                realized_average=110,
             ),
             context.replace(valuation_time=END),
         )
@@ -482,14 +440,14 @@ def test_curve_applicability_coverage_and_expiry_order():
         assert_rejection(
             InvalidInputError,
             engine_type().price,
-            dated_history(kind(**history_fields(**terms())), market(rate=short)),
+            kind(**terms()),
             market(rate=short),
         )
     dated_flat = RateTermStructure.flat(rate=0.04, reference_time=START)
     assert engine.price(
-        dated_history(arithmetic, market(rate=dated_flat)),
+        arithmetic,
         market(rate=dated_flat),
-    ) == engine.price(dated_history(arithmetic, market()), market())
+    ) == engine.price(arithmetic, market())
 
 
 def test_live_quantlib_geometric_and_same_levy_approximation(subtests):
@@ -506,17 +464,15 @@ def test_live_quantlib_geometric_and_same_levy_approximation(subtests):
         inputs = row["inputs"]
         kind, engine_type = PAIRS[0 if inputs["averaging"] == "geometric" else 1]
         option = kind(
-            **history_fields(
-                **terms(
-                    option_type=inputs["option"],
-                    strike=inputs["strike"],
-                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                    averaging_start_time=datetime.fromisoformat(
-                        inputs["averaging_start_time"]
-                    ),
-                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                    realized_average=inputs["realized_average"] or None,
-                )
+            **terms(
+                option_type=inputs["option"],
+                strike=inputs["strike"],
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                averaging_start_time=datetime.fromisoformat(
+                    inputs["averaging_start_time"]
+                ),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+                realized_average=inputs["realized_average"] or None,
             )
         )
         context = market(
@@ -528,16 +484,14 @@ def test_live_quantlib_geometric_and_same_levy_approximation(subtests):
         )
         engine = engine_type()
         with subtests.test(case=row["case_id"]):
-            assert engine.price(
-                dated_history(option, context), context
-            ) == pytest.approx(
+            assert engine.price(option, context) == pytest.approx(
                 row["outputs"]["price"], rel=0, abs=row["tolerances"]["price"]
             )
             requested = sorted(set(row["outputs"]) - {"price"})
             if requested:
                 joint = numerical_greeks(
                     engine,
-                    dated_history(option, context),
+                    option,
                     context,
                     requested,
                     spot_shift=inputs["spot_shift"],
@@ -560,3 +514,53 @@ def test_live_quantlib_geometric_and_same_levy_approximation(subtests):
                     assert getattr(numeric, name) == pytest.approx(
                         row["outputs"][name], rel=0, abs=budget
                     )
+
+
+@pytest.mark.parametrize("kind,engine_type", PAIRS)
+def test_undated_average_weight_and_fixed_history_theta(kind, engine_type):
+    end = START + timedelta(days=10)
+    original = kind(**terms(expiry_time=end, realized_average=110))
+    engine = engine_type()
+    for days, arithmetic, geometric in (
+        (2, 2.0, 100 * 1.1**0.2 - 100),
+        (5, 5.0, math.sqrt(110 * 100) - 100),
+        (8, 8.0, 100 * 1.1**0.8 - 100),
+    ):
+        context = market(START + timedelta(days=days), 0, 0, 0)
+        expected = geometric if kind is GeometricAveragePriceOption else arithmetic
+        assert engine.price(original, context) == pytest.approx(expected, abs=1e-12)
+    context = market(START + timedelta(days=5), 0, 0, 0)
+    expected_theta = (
+        365 / 10 * math.sqrt(110 * 100) * math.log(1.1)
+        if kind is GeometricAveragePriceOption
+        else 365
+    )
+    assert numerical_greeks(
+        engine, original, context, "theta", time_shift=timedelta(hours=1)
+    ).require("theta") == pytest.approx(expected_theta, rel=1e-6)
+    assert original.realized_average == 110
+
+
+@pytest.mark.parametrize("kind,engine_type", PAIRS)
+def test_combined_replacement_retains_average_and_roundtrips(kind, engine_type):
+    import copy
+    import pickle
+
+    original = kind(**terms(realized_average=105))
+    assert original.replace() == original
+    assert original.replace(realized_average=...) == original
+    assert original.replace(realized_average=None).realized_average is None
+    moved = original.replace(averaging_start_time=START + timedelta(days=1))
+    assert moved.realized_average == 105
+    combined = original.replace(strike=101, realized_average=110)
+    assert combined == kind(**terms(strike=101, realized_average=110))
+    for operation in (
+        copy.copy,
+        copy.deepcopy,
+        lambda value: pickle.loads(pickle.dumps(value)),
+    ):
+        assert operation(combined) == combined
+    with pytest.raises(InvalidInputError):
+        original.replace(strike=101, realized_average=-1)
+    assert original.strike == 100
+    assert original.realized_average == 105

@@ -25,8 +25,6 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.history import dated as dated_history
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -42,23 +40,20 @@ def test_termination_history_is_required_after_prior_knock_out_observations(subt
         expiry_time=datetime(2025, 1, 10),
         observation_clock_time=clock_time(),
         accumulated_quantity=2,
-        history_time=datetime(2025, 1, 8),
     )
     context = market(
         spot=105, valuation=datetime(2025, 1, 8), volatility=0, rate=0, dividend=0
     )
     assert option.knock_out_settled is None
-    active = option.replace_history(
+    active = option.replace(
         knock_out_settled=False,
-        history_time=option.history_time or option.expiry_time,
     )
-    settled = option.replace_history(
+    settled = option.replace(
         knock_out_settled=True,
-        history_time=option.history_time or option.expiry_time,
     )
     assert active.knock_out_settled is False
     assert settled.knock_out_settled is True
-    assert active.replace_history(knock_out_settled=None) == option
+    assert active.replace(knock_out_settled=None) == option
     for value in (option, active, settled):
         assert pickle.loads(pickle.dumps(value)) == value
     for engine in (
@@ -68,35 +63,29 @@ def test_termination_history_is_required_after_prior_knock_out_observations(subt
     ):
         with subtests.test(engine=type(engine).__name__):
             with pytest.raises(InvalidInputError):
-                engine.price(dated_history(option, context), context)
-            assert engine.price(dated_history(active, context), context) == 25
-            assert engine.price(dated_history(settled, context), context) == 0
+                engine.price(option, context)
+            assert engine.price(active, context) == 25
+            assert engine.price(settled, context) == 0
             initial = context.replace(valuation_time=option.effective_time)
             assert (
                 engine.price(
-                    dated_history(
-                        option.replace_history(accumulated_quantity=None), initial
-                    ),
+                    option.replace(accumulated_quantity=None),
                     initial,
                 )
                 == 25
             )
             with pytest.raises(InvalidInputError):
-                engine.price(dated_history(settled, initial), initial)
+                engine.price(settled, initial)
             no_knock_out = option.replace(
                 knock_out_observation_times=[],
                 accumulated_quantity=2,
                 knock_out_settled=None,
-                history_time=option.history_time or option.expiry_time,
             )
-            assert engine.price(dated_history(no_knock_out, context), context) == 25
+            assert engine.price(no_knock_out, context) == 25
     for invalid in (0, 1, "yes"):
         with subtests.test(invalid=invalid), pytest.raises(TypeError):
-            option.replace_history(
+            option.replace(
                 knock_out_settled=invalid,
-                history_time=(option.history_time or option.effective_time)
-                if invalid is not None
-                else None,
             )
 
 
@@ -119,7 +108,6 @@ def contract(
         effective_time=START,
         expiry_time=end,
         calendar=weekdays_calendar() if calendar is None else calendar,
-        history_time=end,
     )
 
 
@@ -216,7 +204,6 @@ def test_quadrature_tails_exclude_closed_dates_and_purchases_at_knock_out(
         knock_out_settled=False,
         knock_out_observation_times=[knock_out_time] if knocks_out else [],
         calendar=calendar,
-        history_time=context.valuation_time,
     )
     terminates = knocks_out and purchase == 1
     settlement = knock_out_time if terminates else expiry
@@ -246,7 +233,6 @@ def test_unknown_history_requires_an_explicit_quantity_after_prior_observations(
             acceleration_factor=2,
             effective_time=start,
             expiry_time=datetime(2025, 1, 7),
-            history_time=start,
         )
         for engine in (
             pricing.QuadratureAccumulatorEngine(),
@@ -256,15 +242,13 @@ def test_unknown_history_requires_an_explicit_quantity_after_prior_observations(
             with subtests.test(start=start, engine=type(engine).__name__):
                 assert option.accumulated_quantity is None
                 current = market(spot=100, valuation=first, rate=0, dividend=0)
-                assert math.isfinite(
-                    engine.price(dated_history(option, current), current)
-                )
+                assert math.isfinite(engine.price(option, current))
                 for valuation in (start, first):
                     assert_rejection(
                         InvalidInputError,
-                        option.replace_history,
-                        accumulated_quantity=3,
-                        history_time=valuation,
+                        engine.price,
+                        option.replace(accumulated_quantity=3),
+                        current.replace(valuation_time=valuation),
                     )
                 prior = current.replace(
                     valuation_time=datetime.combine(first, time(12))
@@ -272,17 +256,13 @@ def test_unknown_history_requires_an_explicit_quantity_after_prior_observations(
                 assert_rejection(
                     MissingHistoryError,
                     engine.price,
-                    dated_history(option, prior),
+                    option,
                     prior,
                 )
                 assert math.isfinite(
                     engine.price(
-                        dated_history(
-                            option.replace_history(
-                                accumulated_quantity=0,
-                                history_time=option.history_time or option.expiry_time,
-                            ),
-                            prior,
+                        option.replace(
+                            accumulated_quantity=0,
                         ),
                         prior,
                     )
@@ -291,17 +271,13 @@ def test_unknown_history_requires_an_explicit_quantity_after_prior_observations(
                 assert_rejection(
                     MissingHistoryError,
                     engine.price,
-                    dated_history(option, expiry),
+                    option,
                     expiry,
                 )
                 assert (
                     engine.price(
-                        dated_history(
-                            option.replace_history(
-                                accumulated_quantity=0,
-                                history_time=option.history_time or option.expiry_time,
-                            ),
-                            expiry,
+                        option.replace(
+                            accumulated_quantity=0,
                         ),
                         expiry,
                     )
@@ -309,13 +285,9 @@ def test_unknown_history_requires_an_explicit_quantity_after_prior_observations(
                 )
                 assert (
                     engine.price(
-                        dated_history(
-                            option.replace_history(
-                                accumulated_quantity=10,
-                                knock_out_settled=option.knock_out_settled,
-                                history_time=option.expiry_time,
-                            ),
-                            expiry,
+                        option.replace(
+                            accumulated_quantity=10,
+                            knock_out_settled=option.knock_out_settled,
                         ),
                         expiry,
                     )
@@ -332,9 +304,7 @@ def test_contract_history_protocols_validation_and_ownership(subtests):
         "effective_time": START,
         "expiry_time": datetime(2025, 2, 3),
     }
-    option = Accumulator(
-        **history_fields(observation_clock_time=clock_time(), **fields)
-    )
+    option = Accumulator(observation_clock_time=clock_time(), **fields)
     assert option.accumulated_quantity is None
     assert option.strike == 100
     assert option.knock_out_level == 110
@@ -342,27 +312,22 @@ def test_contract_history_protocols_validation_and_ownership(subtests):
     assert option.acceleration_factor == 2
     assert option.effective_time == START
     assert option.expiry_time == fields["expiry_time"]
-    updated = option.replace_history(
+    updated = option.replace(
         accumulated_quantity=3,
-        history_time=option.history_time or option.expiry_time,
     )
     assert updated.accumulated_quantity == 3
-    assert updated.replace_history(accumulated_quantity=None) == option
+    assert updated.replace(accumulated_quantity=None) == option
     for replacement in (
-        updated.replace_history(),
-        updated.replace_history(
+        updated.replace(),
+        updated.replace(
             accumulated_quantity=Ellipsis,
         ),
     ):
         assert replacement == updated
         assert replacement is not updated
-    assert (
-        updated.replace_history(
-            knock_out_settled=False,
-            history_time=updated.history_time or updated.expiry_time,
-        )
-        == contract()
-    )
+    settled_update = updated.replace(knock_out_settled=False)
+    assert settled_update.accumulated_quantity == 3
+    assert settled_update.knock_out_settled is False
     assert "accumulated_quantity=3" in repr(updated)
     with pytest.raises(AttributeError):
         updated.accumulated_quantity = 9
@@ -381,62 +346,41 @@ def test_contract_history_protocols_validation_and_ownership(subtests):
                 pytest.raises(TypeError),
             ):
                 Accumulator(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        **fields | {field: value},
-                    )
+                    observation_clock_time=clock_time(), **fields | {field: value}
                 )
         with subtests.test(field=field), pytest.raises(OverflowError):
             Accumulator(
-                **history_fields(
-                    observation_clock_time=clock_time(),
-                    **fields | {field: 10**400},
-                )
+                observation_clock_time=clock_time(), **fields | {field: 10**400}
             )
         for value in (-1, math.nan, math.inf):
             with pytest.raises(InvalidInputError, match=field):
                 Accumulator(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        **fields | {field: value},
-                    )
+                    observation_clock_time=clock_time(), **fields | {field: value}
                 )
     for value in (True, "3", object()):
         with pytest.raises(TypeError):
-            updated.replace_history(
+            updated.replace(
                 accumulated_quantity=value,
-                history_time=(updated.history_time or updated.effective_time)
-                if value is not None
-                else None,
             )
     for value in (-1, math.nan, math.inf):
         with pytest.raises(InvalidInputError, match="accumulated_quantity"):
-            updated.replace_history(
+            updated.replace(
                 accumulated_quantity=value,
-                history_time=(updated.history_time or updated.effective_time)
-                if value is not None
-                else None,
             )
     with pytest.raises(OverflowError):
-        updated.replace_history(
+        updated.replace(
             accumulated_quantity=10**400,
-            history_time=(updated.history_time or updated.effective_time)
-            if 10**400 is not None
-            else None,
         )
-    for changes in ({"strike": 90}, {"accumulated_quantity": 3, "extra": 0}):
+    for changes in ({"extra": 0}, {"accumulated_quantity": 3, "extra": 0}):
         with pytest.raises(TypeError):
-            updated.replace_history(**changes)
+            updated.replace(**changes)
     with pytest.raises(TypeError):
-        updated.replace_history(3)
+        updated.replace(3)
     for field in ("effective_time", "expiry_time"):
         for value in (datetime(2025, 1, 1, tzinfo=UTC), "2025-01-01", None):
             with pytest.raises(TypeError):
                 Accumulator(
-                    **history_fields(
-                        observation_clock_time=clock_time(),
-                        **fields | {field: value},
-                    )
+                    observation_clock_time=clock_time(), **fields | {field: value}
                 )
     assert_rejection(
         InvalidInputError,
@@ -452,33 +396,27 @@ def test_contract_history_protocols_validation_and_ownership(subtests):
     )
     assert (
         Accumulator(
-            **history_fields(
-                observation_clock_time=clock_time(),
-                **fields
-                | {
-                    "expiry_time": START,
-                    "daily_quantity": 0,
-                    "acceleration_factor": 0,
-                },
-            )
+            observation_clock_time=clock_time(),
+            **fields
+            | {
+                "expiry_time": START,
+                "daily_quantity": 0,
+                "acceleration_factor": 0,
+            },
         ).daily_quantity
         == 0
     )
     assert updated.accumulated_quantity == 3
     # Historical corrections are caller assertions, including zero and fractional quantities.
     assert (
-        updated.replace_history(
+        updated.replace(
             accumulated_quantity=0.25,
-            history_time=updated.history_time or updated.expiry_time,
         ).accumulated_quantity
         == 0.25
     )
     assert (
         pricing.QuadratureAccumulatorEngine().price(
-            dated_history(
-                contract(datetime(2025, 1, 6), quantity=0),
-                market(110, START + timedelta(days=1)),
-            ),
+            contract(datetime(2025, 1, 6), quantity=0),
             market(110, START + timedelta(days=1)),
         )
         == 0
@@ -504,13 +442,13 @@ def test_applicability_order_and_unidentifiable_volatility():
         assert_rejection(
             UnsupportedOperationError,
             engine.price,
-            dated_history(option, curved),
+            option,
             curved,
         )
         assert_rejection(
             UnsupportedOperationError,
             engine.price_with_greeks,
-            dated_history(option, curved),
+            option,
             curved,
             [],
         )
@@ -518,7 +456,7 @@ def test_applicability_order_and_unidentifiable_volatility():
             UnsupportedOperationError,
             pricing.implied_volatility,
             engine,
-            dated_history(option, curved),
+            option,
             curved,
             math.nan,
             lower_bound=0.0,
@@ -530,12 +468,12 @@ def test_applicability_order_and_unidentifiable_volatility():
         (contract(daily=0), market(90, rate=0, dividend=0)),
         (contract(daily=0, quantity=0), market()),
     ):
-        quote = engine.price(dated_history(instrument, scenario), scenario)
+        quote = engine.price(instrument, scenario)
         assert_rejection(
             UnsupportedOperationError,
             pricing.implied_volatility,
             engine,
-            dated_history(instrument, scenario),
+            instrument,
             scenario,
             quote,
             lower_bound=0.0,
@@ -553,7 +491,7 @@ def test_applicability_order_and_unidentifiable_volatility():
         with pytest.raises(TypeError):
             pricing.implied_volatility(
                 engine,
-                dated_history(option, market()),
+                option,
                 market(),
                 value,
                 lower_bound=0.0,
@@ -561,7 +499,7 @@ def test_applicability_order_and_unidentifiable_volatility():
             )
     assert (
         engine.price(
-            dated_history(option, market(110, START + timedelta(days=1))),
+            option,
             market(110, START + timedelta(days=1)),
         )
         == 30
@@ -597,11 +535,8 @@ def test_two_events_match_independent_conditional_terminal_integral(ko):
             else:
                 quantity = 3 + (2 if side < 100 else 1)
                 value = terminal_reference(
-                    option.replace_history(
+                    option.replace(
                         accumulated_quantity=quantity,
-                        history_time=(option.history_time or option.effective_time)
-                        if quantity is not None
-                        else None,
                     ),
                     market(spot, datetime(2025, 1, 2), 0.6, -0.02, 0.03),
                 )
@@ -614,9 +549,7 @@ def test_two_events_match_independent_conditional_terminal_integral(ko):
         )
         reference += total * step / 3
     reference *= math.exp(0.02 * t)
-    assert engine.price(dated_history(option, context), context) == pytest.approx(
-        reference, rel=0, abs=2e-5
-    )
+    assert engine.price(option, context) == pytest.approx(reference, rel=0, abs=2e-5)
 
 
 def test_configuration_protocols_and_ownership(subtests):
@@ -652,7 +585,7 @@ def test_configuration_protocols_and_ownership(subtests):
         expiry_time=datetime(2025, 2, 3),
     )
     with pytest.raises(UnsupportedOperationError):
-        engine.price(dated_history(vanilla, market()), market())
+        engine.price(vanilla, market())
 
 
 def test_single_observation_matches_independent_cash_asset_decomposition(subtests):
@@ -669,16 +602,14 @@ def test_single_observation_matches_independent_cash_asset_decomposition(subtest
                 ):
                     option = contract(datetime(2025, 1, 6), knock_out, acceleration)
                     context = market(spot, valuation, 0.6, -0.02, 0.03)
-                    actual = default.price(dated_history(option, context), context)
+                    actual = default.price(option, context)
                     assert actual == pytest.approx(
                         terminal_reference(option, context), rel=0, abs=1e-9
                     )
-                    assert actual == minimal.price(
-                        dated_history(option, context), context
-                    )
+                    assert actual == minimal.price(option, context)
     option = contract(datetime(2025, 1, 6))
     context = market(100, datetime(2025, 1, 5, 23, 59, 59))
-    assert default.price(dated_history(option, context), context) == pytest.approx(
+    assert default.price(option, context) == pytest.approx(
         terminal_reference(option, context), rel=0, abs=1e-9
     )
 
@@ -690,10 +621,8 @@ def test_settlement_boundaries_validation_and_failure_reuse(subtests):
     for spot, expected in ((90, -50), (100, 0), (109, 36), (110, 30), (111, 33)):
         with subtests.test(spot=spot):
             context = market(spot, end)
-            assert engine.price(dated_history(option, context), context) == expected
-            result = engine.price_with_greeks(
-                dated_history(option, context), context, greeks="all"
-            )
+            assert engine.price(option, context) == expected
+            result = engine.price_with_greeks(option, context, greeks="all")
             assert result.price == expected
             assert_terminal_greeks(
                 result,
@@ -701,7 +630,7 @@ def test_settlement_boundaries_validation_and_failure_reuse(subtests):
             )
     assert (
         engine.price(
-            dated_history(option, market(110, START + timedelta(days=1))),
+            option,
             market(110, START + timedelta(days=1)),
         )
         == 30
@@ -722,53 +651,46 @@ def test_settlement_boundaries_validation_and_failure_reuse(subtests):
             subtests.test(expected_error=expected_error),
             pytest.raises(expected_error) as error,
         ):
-            engine.price(dated_history(instrument, context), context)
+            engine.price(instrument, context)
         assert type(error.value) is expected_error
-    assert engine.price(dated_history(option, market(110, end)), market(110, end)) == 30
+    assert engine.price(option, market(110, end)) == 30
 
 
 def test_quantity_affinity_exact_limits_and_shared_instance_threads():
     engine = pricing.QuadratureAccumulatorEngine()
     context = market(90)
     values = [
-        engine.price(dated_history(contract(quantity=quantity), context), context)
-        for quantity in (0, 3, 6)
+        engine.price(contract(quantity=quantity), context) for quantity in (0, 3, 6)
     ]
     assert values[2] - values[1] == pytest.approx(
         values[1] - values[0], rel=0, abs=1e-10
     )
-    assert (
-        engine.price(dated_history(contract(daily=0, quantity=0), context), context)
-        == 0
-    )
+    assert engine.price(contract(daily=0, quantity=0), context) == 0
     assert engine.price(
-        dated_history(contract(daily=0), market(90, rate=0, dividend=0)),
+        contract(daily=0),
         market(90, rate=0, dividend=0),
     ) == (-30)
     assert engine.price(
-        dated_history(
-            contract(datetime(2025, 1, 2)),
-            market(90, volatility=1e-8, rate=0, dividend=0),
-        ),
+        contract(datetime(2025, 1, 2)),
         market(90, volatility=1e-8, rate=0, dividend=0),
     ) == pytest.approx((-50), rel=0, abs=1e-9)
     assert engine.price(
-        dated_history(contract(), market(90, volatility=1e-8, rate=0, dividend=0)),
+        contract(),
         market(90, volatility=1e-8, rate=0, dividend=0),
     ) == pytest.approx((-490), rel=0, abs=1e-9)
     assert engine.price(
-        dated_history(contract(), market(120, volatility=1e-8, rate=0, dividend=0)),
+        contract(),
         market(120, volatility=1e-8, rate=0, dividend=0),
     ) == pytest.approx(60, rel=0, abs=1e-9)
     option = contract()
     with ThreadPoolExecutor(max_workers=2) as pool:
         values = list(
             pool.map(
-                lambda _: engine.price(dated_history(option, context), context),
+                lambda _: engine.price(option, context),
                 range(2),
             )
         )
-    assert values == [engine.price(dated_history(option, context), context)] * 2
+    assert values == [engine.price(option, context)] * 2
 
 
 def test_current_observation_adjacent_thresholds_and_extreme_result():
@@ -777,7 +699,7 @@ def test_current_observation_adjacent_thresholds_and_extreme_result():
     engine = pricing.QuadratureAccumulatorEngine()
     for spot, quantity in ((90, 5), (100, 4), (109, 4)):
         context = market(spot, datetime(2025, 1, 3))
-        assert engine.price(dated_history(option, context), context) == pytest.approx(
+        assert engine.price(option, context) == pytest.approx(
             terminal_reference(contract(end, quantity=quantity), context),
             rel=0,
             abs=1e-9,
@@ -788,18 +710,12 @@ def test_current_observation_adjacent_thresholds_and_extreme_result():
         (math.nextafter(110, 0), 4),
         (math.nextafter(110, 120), 3),
     ):
-        assert engine.price(
-            dated_history(option, market(spot, end)), market(spot, end)
-        ) == quantity * (spot - 100)
-    assert engine.price(
-        dated_history(contract(end, 90), market(90, end)), market(90, end)
-    ) == (-30)
-    assert engine.price(
-        dated_history(contract(end, 90), market(89, end)), market(89, end)
-    ) == (-55)
+        assert engine.price(option, market(spot, end)) == quantity * (spot - 100)
+    assert engine.price(contract(end, 90), market(90, end)) == (-30)
+    assert engine.price(contract(end, 90), market(89, end)) == (-55)
     with pytest.raises(ComputationFailureError) as error:
         engine.price(
-            dated_history(option, market(volatility=1e308)),
+            option,
             market(volatility=1e308),
         )
     assert type(error.value) is ComputationFailureError
@@ -809,14 +725,14 @@ def test_greek_availability_at_boundaries():
     option = contract()
     engine = pricing.QuadratureAccumulatorEngine()
     boundary = engine.price_with_greeks(
-        dated_history(option, market(100, START + timedelta(days=1))),
+        option,
         market(100, START + timedelta(days=1)),
         greeks="all",
     )
     for greek in ("delta", "gamma", "speed", "theta"):
         assert getattr(boundary, greek) is None
     small = engine.price_with_greeks(
-        dated_history(option, market(90, volatility=1e-4)),
+        option,
         market(90, volatility=1e-4),
         greeks=[
             "vega",
@@ -843,7 +759,7 @@ def test_reused_spot_and_volatility_curves_match_scalar_prices(subtests):
     def values(vol):
         return [
             engine.price(
-                dated_history(option, market(spot + offset * h, valuation, vol, -0.02)),
+                option,
                 market(spot + offset * h, valuation, vol, -0.02),
             )
             for offset in (0, 1, -1, 2, -2)
@@ -874,7 +790,7 @@ def test_reused_spot_and_volatility_curves_match_scalar_prices(subtests):
     def evaluate(volatility):
         return numerical_greeks(
             engine,
-            dated_history(option, market(spot, valuation, volatility, -0.02)),
+            option,
             market(spot, valuation, volatility, -0.02),
             [
                 "delta",
@@ -902,10 +818,10 @@ def test_implied_volatility_uses_shared_solver():
     option = contract(datetime(2025, 1, 6))
     context = market(100, datetime(2025, 1, 3, 12), volatility=0.4)
     engine = pricing.QuadratureAccumulatorEngine()
-    quote = engine.price(dated_history(option, context), context)
+    quote = engine.price(option, context)
     volatility = pricing.implied_volatility(
         engine,
-        dated_history(option, context),
+        option,
         context,
         quote,
         lower_bound=0.2,

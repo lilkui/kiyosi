@@ -9,7 +9,6 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from quantlib_reference import structured
-from support.history import history_fields
 
 
 @cache
@@ -26,21 +25,19 @@ def contract(row):
     }
     if row["instrument"] == "Accumulator":
         return instruments.Accumulator(
-            **history_fields(
-                knock_out_settled=False,
-                observation_clock_time=clock_time(),
-                **common,
-                **{
-                    key: number(key)
-                    for key in (
-                        "strike",
-                        "knock_out_level",
-                        "daily_quantity",
-                        "acceleration_factor",
-                        "accumulated_quantity",
-                    )
-                },
-            )
+            knock_out_settled=False,
+            observation_clock_time=clock_time(),
+            **common,
+            **{
+                key: number(key)
+                for key in (
+                    "strike",
+                    "knock_out_level",
+                    "daily_quantity",
+                    "acceleration_factor",
+                    "accumulated_quantity",
+                )
+            },
         )
     phoenix = row["instrument"] == "PhoenixOption"
     common.update(
@@ -78,7 +75,7 @@ def contract(row):
         common["maturity_coupon_rate"] = number("maturity_coupon_rate")
     if row["instrument"] == "TernarySnowballOption":
         common["minimum_coupon_rate"] = number("minimum_coupon_rate")
-    return getattr(instruments, row["instrument"])(**history_fields(**common))
+    return getattr(instruments, row["instrument"])(**common)
 
 
 def market(row):

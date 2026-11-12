@@ -24,8 +24,8 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
     /// for impossible history, invalid grids,
@@ -167,8 +167,8 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
     /// for unknown or impossible history, invalid grids,
@@ -187,8 +187,8 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// # Errors
     ///
-    /// Missing or stale history returns [`crate::Error::MissingHistory`] or
-    /// [`crate::Error::StaleHistory`], respectively; see the [history contract](crate).
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
     ///
     /// Validates shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors.
@@ -203,11 +203,9 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// let mut terms = DoubleTouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
     ///     80.0, 120.0, DoubleBarrierType::KnockOut);
     /// terms.touch_state = Some(BarrierTouchState::Untouched);
-    /// terms.history_time = Some(start);
     /// let option = DoubleTouchOption::cash(terms, 1.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
     ///     100.0, start.into())?;
-    /// let option = option.with_history_time(Some(context.valuation_time()))?;
     /// let result = FiniteDifferenceDoubleTouchEngine::default().price_with_greeks(
     ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
     /// assert!((result.price() - 0.36726156351907174).abs() < 0.00001);

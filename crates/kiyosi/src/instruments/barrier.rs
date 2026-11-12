@@ -35,7 +35,10 @@ pub enum ObservationMode {
     Scheduled,
 }
 
-/// Caller-supplied observations strictly before valuation; see [`BarrierOption::replace_history`].
+/// Caller-supplied observations strictly before valuation; see [`BarrierOption::replace`].
+///
+/// Bookkeeping supplies the state applicable to each requested valuation. The engine
+/// handles an observation exactly at valuation using current spot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BarrierTouchState {
     /// No earlier observation touched the barrier.
@@ -57,10 +60,6 @@ pub enum RebateTiming {
 /// Input terms, validated by [`BarrierOption::new`]. See its example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOptionTerms {
-    /// Dates supplied history; required when any history payload is known.
-    ///
-    /// See the [crate-level history example](crate).
-    pub history_time: Option<Timestamp>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
@@ -100,7 +99,6 @@ impl BarrierOptionTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
-            history_time: None,
             calendar: TradingCalendar::default(),
             option_type,
             strike,
@@ -119,7 +117,7 @@ impl BarrierOptionTerms {
 /// Owns validated single-barrier vanilla terms and strictly prior history.
 ///
 /// Shared reads and pricing are safe; replacement never mutates the original.
-/// See [`Self::new`] and [`Self::replace_history`] for examples.
+/// See [`Self::new`] and [`Self::replace`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOption {
     vanilla: EuropeanOption,
@@ -160,10 +158,6 @@ impl BarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::MissingHistory`] for supplied history without a timestamp,
-    /// and [`crate::Error::InvalidInput`] for a timestamp outside the contract life
-    /// or history impossible strictly before that timestamp.
-    ///
     /// Returns [`Error::InvalidInput`] for invalid level or rebate, reversed
     /// life, incompatible or invalid fixing times, invalid strike, or an at-hit
     /// knock-in rebate. Diagnostic order is unspecified when several inputs are invalid.
@@ -191,7 +185,6 @@ impl BarrierOption {
             terms.observation_times,
             terms.touch_state,
             &terms.calendar,
-            terms.history_time,
         )?;
         let vanilla = EuropeanOption::new(
             terms.option_type,
@@ -214,46 +207,6 @@ impl BarrierOption {
             monitoring,
             rebate: terms.rebate,
             rebate_timing: terms.rebate_timing,
-        })
-    }
-    /// Returns an owning copy with replaced history, leaving the original unchanged.
-    ///
-    /// Time consistency is checked during pricing. `None` restores unknown history.
-    /// Replaces the payload and snapshot timestamp together; `None` clears the timestamp.
-    ///
-    /// Preserves the validated contract terms.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, BarrierTouchState, Date, OptionType,
-    ///     OptionContract, AnalyticBarrierEngine, BlackScholesMertonParameters, PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
-    /// let at = option.effective_time().add_days(1)?;
-    /// let known = option.replace_history(Some(BarrierTouchState::Untouched), Some(at))?;
-    /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
-    /// assert_eq!(option.touch_state(), None);
-    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 120.0, at)?;
-    /// assert_eq!(AnalyticBarrierEngine.price(&known, &context)?, 0.0);
-    /// # Ok(()) }
-    /// ```
-    ///
-    /// The supplied timestamp is validated and retained, including with unknown history.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a timestamp outside the contract life.
-    pub fn replace_history(
-        &self,
-        touch_state: Option<BarrierTouchState>,
-        history_time: Option<Timestamp>,
-    ) -> Result<Self> {
-        self.replace(BarrierOptionChanges {
-            touch_state: Some(touch_state),
-            history_time: Some(history_time),
-            ..Default::default()
         })
     }
     /// Returns the call-or-put direction; see [`Self::new`].
@@ -305,7 +258,7 @@ impl BarrierOption {
     pub fn observation_times(&self) -> Option<&[Timestamp]> {
         (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
     }
-    /// Returns prior history; see [`Self::replace_history`].
+    /// Returns prior history; see [`Self::replace`].
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
         self.monitoring.touch_state()
     }
@@ -336,14 +289,6 @@ impl BarrierOption {
     }
 }
 impl OptionContract for BarrierOption {
-    fn history_time(&self) -> Option<Timestamp> {
-        self.monitoring.history_time()
-    }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
-        self.monitoring = self.monitoring.with_history_time(time)?;
-        Ok(self)
-    }
-
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }
@@ -376,8 +321,6 @@ impl OptionContract for BarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BarrierOptionChanges {
-    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
-    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`BarrierOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](BarrierOptionTerms::option_type).
@@ -411,10 +354,6 @@ impl BarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StaleHistory`] when historical observation terms change
-    /// with known history unless the history is explicitly replaced or cleared.
-    /// See the [crate-level history contract](crate).
-    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     ///
@@ -426,7 +365,7 @@ impl BarrierOption {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let original = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call,
     ///     100.0, start, Date::new(2026, 1, 1)?.start_of_day(),
-    ///     120.0, BarrierType::UpAndOut))?.replace_history(Some(BarrierTouchState::Untouched), Some(start))?;
+    ///     120.0, BarrierType::UpAndOut))?.replace(BarrierOptionChanges { touch_state: Some(Some(BarrierTouchState::Untouched)), ..Default::default() })?;
     /// let changed = original.replace(BarrierOptionChanges {
     ///     strike: Some(105.0), ..Default::default()
     /// })?;
@@ -436,14 +375,7 @@ impl BarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: BarrierOptionChanges) -> Result<Self> {
-        let history_supplied = changes.touch_state.is_some();
         let updated = Self::new(BarrierOptionTerms {
-            history_time: super::replacement_history_time(
-                self.history_time(),
-                changes.history_time,
-                changes.touch_state.is_some()
-                    && changes.touch_state.unwrap_or(self.touch_state()).is_none(),
-            ),
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -458,11 +390,7 @@ impl BarrierOption {
                 .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         })?;
-        self.monitoring.validate_replacement_history(
-            &updated.monitoring,
-            history_supplied,
-            false,
-        )?;
+
         Ok(updated)
     }
 }

@@ -36,7 +36,6 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.history import history_fields
 from support.terminal import assert_terminal_greeks
 from test_binomial import DIGITAL, END, START, VANILLA, contract, market
 
@@ -162,10 +161,10 @@ def test_settings_defaults_representation_validation_and_immutability():
                 assert_rejection(InvalidInputError, factory, **{name: bad})
             for bad in (True, False, 1.0, 1.5, "3", None):
                 with pytest.raises(TypeError):
-                    factory(**history_fields(**{name: bad}))
+                    factory(**{name: bad})
             for bad in (2**31, -(2**31) - 1):
                 with pytest.raises(OverflowError):
-                    factory(**history_fields(**{name: bad}))
+                    factory(**{name: bad})
         for bad in (0, -1, math.nan, math.inf):
             assert_rejection(InvalidInputError, factory, asset_upper_boundary=bad)
         for bad in (True, "400", object()):
@@ -585,13 +584,11 @@ def test_existing_quantlib_digital_profiles(subtests):
             CashOrNothingOption if inputs["payoff"] == "cash" else AssetOrNothingOption
         )
         option = kind(
-            **history_fields(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                **({"payout": inputs["payout"]} if kind is CashOrNothingOption else {}),
-            )
+            option_type=inputs["option"],
+            strike=inputs["strike"],
+            effective_time=datetime.fromisoformat(inputs["effective_time"]),
+            expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+            **({"payout": inputs["payout"]} if kind is CashOrNothingOption else {}),
         )
         context = market(
             inputs["spot"],
