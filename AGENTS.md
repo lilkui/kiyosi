@@ -43,8 +43,8 @@ Kiyosi is a Rust derivatives pricing library with Python as its primary user-fac
 
 ## Documentation
 
-- Write Python docstrings in NumPy style.
-- Before writing or editing Rust doc comments, read [RFC 1574](https://raw.githubusercontent.com/rust-lang/rfcs/refs/heads/main/text/1574-more-api-documentation-conventions.md) and the [Rust API Guidelines documentation chapter](https://rust-lang.github.io/api-guidelines/documentation.html). Follow every applicable rule and verify compliance before completion.
+- Rust doc comments must follow all applicable rules in [RFC 1574](https://raw.githubusercontent.com/rust-lang/rfcs/refs/heads/main/text/1574-more-api-documentation-conventions.md) and the [Rust API Guidelines documentation chapter](https://rust-lang.github.io/api-guidelines/documentation.html).
+- Python docstrings must follow NumPy style.
 - Describe current behavior directly, without transitional language about changes.
 
 ## Completion checklist
