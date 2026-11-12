@@ -606,7 +606,7 @@ macro_rules! snowball_coupon {
     ($($terms:ty),+) => {$(
         impl SnowballCouponTerms for $terms {}
         impl sealed::SnowballCoupon for $terms {
-            fn with_quoted_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
+            fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
                 let mut terms = self.clone();
                 let shift = coupon - terms.autocall_observations.first().map_or(0.0, |record| record.coupon_rate);
                 for record in &mut terms.autocall_observations {
@@ -636,7 +636,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         };
         let anchor = terms.autocall_observations[0].coupon_rate;
         let maturity = terms.maturity_coupon_rate();
-        // Round both inverse operations into the domain used by with_quoted_coupon.
+        // Round both inverse operations into the domain used by with_coupon.
         let shift = minimum - maturity;
         let shift = if maturity + shift < minimum {
             libm::nextafter(shift, f64::INFINITY)
@@ -662,15 +662,12 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
     ///
     /// Propagates term validation errors, including a shifted maturity coupon below
     /// the ternary minimum. This note remains unchanged on success and failure.
-    pub fn with_quoted_coupon(
+    pub fn with_coupon(
         &self,
         first_observation_coupon: f64,
         convention: crate::CouponQuoteConvention,
     ) -> Result<Self> {
-        Self::new(
-            self.0
-                .with_quoted_coupon(first_observation_coupon, convention),
-        )
+        Self::new(self.0.with_coupon(first_observation_coupon, convention))
     }
 }
 
@@ -681,8 +678,7 @@ mod sealed {
         fn view(&self) -> View<'_>;
     }
     pub trait SnowballCoupon: Sized {
-        fn with_quoted_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention)
-        -> Self;
+        fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self;
     }
     #[derive(Clone, Copy)]
     pub struct Downside {
@@ -1553,7 +1549,7 @@ impl PhoenixOption {
     /// # Examples
     ///
     /// See [`crate::implied_phoenix_coupon`] for solving and applying a quote.
-    pub fn with_quoted_coupon(&self, coupon_per_period: f64) -> Result<Self> {
+    pub fn with_coupon(&self, coupon_per_period: f64) -> Result<Self> {
         self.replace(PhoenixOptionChanges {
             coupon_per_period: Some(coupon_per_period),
             ..Default::default()

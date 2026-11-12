@@ -73,7 +73,7 @@ Edit a preset's observation and maturity coupons together:
 ...     effective_time=datetime(2025, 1, 2), expiry_time=datetime(2026, 1, 2),
 ...     autocall_times=[datetime(2026, 1, 2)], knock_in_observation_clock_time=time(15),
 ... )
->>> edited = note.with_quoted_coupon(
+>>> edited = note.with_coupon(
 ...     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon",
 ... )
 >>> round(edited.knock_out_coupon_rates[0], 6), round(edited.maturity_coupon_rate, 6)

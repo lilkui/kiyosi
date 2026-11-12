@@ -31,7 +31,7 @@ note = standard_snowball(
 )
 
 # Edit observation and maturity coupons together; the original note retains 12%.
-edited = note.with_quoted_coupon(
+edited = note.with_coupon(
     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon"
 )
 assert all(abs(coupon - 0.15) < 1e-14 for coupon in edited.knock_out_coupon_rates)
@@ -65,7 +65,7 @@ quote = implied_snowball_coupon(
     lower_bound=0,
     upper_bound=0.5,
 )
-quoted = note.with_quoted_coupon(**quote)
+quoted = note.with_coupon(**quote)
 repriced = engine.price(quoted, context)
 coupon = quote["first_observation_coupon"]
 print(f"平价年化票息：{coupon:.4%}，回代价格：{repriced:.8f}")

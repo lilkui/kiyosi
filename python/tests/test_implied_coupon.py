@@ -70,7 +70,7 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
     note = binary()
     for convention in get_args(CouponQuoteConvention):
         target = engine.price(
-            note.with_quoted_coupon(0.12, quote_convention=convention), context
+            note.with_coupon(0.12, quote_convention=convention), context
         )
         solved = implied_snowball_coupon(
             engine, note, context, target, quote_convention=convention
@@ -79,9 +79,9 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
             0.12, rel=0, abs=1e-7
         )
         assert solved["quote_convention"] == convention
-        assert engine.price(
-            note.with_quoted_coupon(**solved), context
-        ) == pytest.approx(target, rel=0, abs=1e-8)
+        assert engine.price(note.with_coupon(**solved), context) == pytest.approx(
+            target, rel=0, abs=1e-8
+        )
         with pytest.raises(UnsupportedOperationError):
             implied_snowball_coupon(
                 QuadratureAutocallableEngine(),
@@ -111,9 +111,9 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
         solved = implied_phoenix_coupon(engine, note, context, target)
         assert set(solved) == {field}
         assert solved[field] == pytest.approx(coupon, rel=0, abs=1e-7)
-        assert engine.price(
-            note.with_quoted_coupon(**solved), context
-        ) == pytest.approx(target, rel=0, abs=1e-8)
+        assert engine.price(note.with_coupon(**solved), context) == pytest.approx(
+            target, rel=0, abs=1e-8
+        )
 
 
 def test_monte_carlo_coupon_solvers_require_a_replayable_seed():
@@ -122,9 +122,7 @@ def test_monte_carlo_coupon_solvers_require_a_replayable_seed():
     context = market()
     convention = "shift_maturity_coupon"
     note = binary()
-    target = engine.price(
-        note.with_quoted_coupon(0.12, quote_convention=convention), context
-    )
+    target = engine.price(note.with_coupon(0.12, quote_convention=convention), context)
     with pytest.raises(InvalidInputError, match="with_resolved_seed"):
         implied_snowball_coupon(
             unseeded, note, context, target, quote_convention=convention
@@ -133,7 +131,7 @@ def test_monte_carlo_coupon_solvers_require_a_replayable_seed():
         engine, note, context, target, quote_convention=convention
     )
     assert solved["first_observation_coupon"] == pytest.approx(0.12, rel=0, abs=1e-8)
-    assert engine.price(note.with_quoted_coupon(**solved), context) == pytest.approx(
+    assert engine.price(note.with_coupon(**solved), context) == pytest.approx(
         target, rel=0, abs=1e-8
     )
     for note in (phoenix(), phoenix().replace(coupon_per_period=0.02)):
@@ -208,9 +206,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
                     quote_convention="shift_maturity_coupon",
                     lower_bound=math.nan,
                 )
-            fixed = note.with_quoted_coupon(
-                0, quote_convention="preserve_maturity_coupon"
-            )
+            fixed = note.with_coupon(0, quote_convention="preserve_maturity_coupon")
             assert (
                 implied_snowball_coupon(
                     engine,
@@ -274,7 +270,7 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
         )
         for convention in get_args(CouponQuoteConvention):
             with subtests.test(note=type(note).__name__, convention=convention):
-                replacement = note.with_quoted_coupon(0.18, quote_convention=convention)
+                replacement = note.with_coupon(0.18, quote_convention=convention)
                 assert type(replacement) is type(note)
                 assert replacement is not note
                 for actual, expected in zip(
@@ -294,15 +290,15 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
                     quote_convention=convention,
                 )
                 assert engine.price(
-                    note.with_quoted_coupon(**solved),
+                    note.with_coupon(**solved),
                     context,
                 ) == pytest.approx(target, rel=0, abs=1e-8)
                 with pytest.raises(InvalidInputError):
-                    note.with_quoted_coupon(math.nan, quote_convention=convention)
+                    note.with_coupon(math.nan, quote_convention=convention)
                 with pytest.raises(TypeError):
-                    note.with_quoted_coupon(True, quote_convention=convention)
+                    note.with_coupon(True, quote_convention=convention)
         with pytest.raises(ValueError):
-            note.with_quoted_coupon(0.1, quote_convention="unknown")
+            note.with_coupon(0.1, quote_convention="unknown")
         assert note.knock_out_coupon_rates == ((0.08, 0.12))
         assert note.maturity_coupon_rate == 0.06
 
@@ -344,7 +340,7 @@ def test_quoted_phoenix_coupons_preserve_units_and_validate_inputs(subtests):
     for field, note in (("coupon_per_period", phoenix(coupon_per_period=0.01)),):
         for coupon in (-0.02, 0, 0.02):
             with subtests.test(field=field, coupon=coupon):
-                changed = note.with_quoted_coupon(**{field: coupon})
+                changed = note.with_coupon(**{field: coupon})
                 assert changed == note.replace(**{field: coupon})
                 quote = engine.price(changed, context)
                 solved = implied_phoenix_coupon(
@@ -370,16 +366,16 @@ def test_quoted_phoenix_coupons_preserve_units_and_validate_inputs(subtests):
             (None, TypeError),
         ):
             with subtests.test(field=field, value=value), pytest.raises(error):
-                note.with_quoted_coupon(**{field: value})
+                note.with_coupon(**{field: value})
         for keyword in ("coupon_per_period",):
-            quoted = note.with_quoted_coupon(**{keyword: 0.12})
+            quoted = note.with_coupon(**{keyword: 0.12})
             assert getattr(quoted, keyword) == 0.12
             assert quoted.barrier_state == note.barrier_state
         for choices in ({}, {"coupon_rate": 0.12, "coupon_per_period": 0.01}):
             with pytest.raises(TypeError):
-                note.with_quoted_coupon(**choices)
+                note.with_coupon(**choices)
         with pytest.raises(TypeError):
-            note.with_quoted_coupon(0.12)
+            note.with_coupon(0.12)
         assert getattr(note, field) == 0.01
 
 
@@ -476,9 +472,9 @@ def test_binary_recovers_both_quote_conventions():
         assert solved["first_observation_coupon"] == pytest.approx(
             0.18, rel=0, abs=1e-7
         )
-        assert engine.price(
-            note.with_quoted_coupon(**solved), context
-        ) == pytest.approx(quote, rel=0, abs=1e-8)
+        assert engine.price(note.with_coupon(**solved), context) == pytest.approx(
+            quote, rel=0, abs=1e-8
+        )
     assert note.knock_out_coupon_rates == ((0.08,))
     assert note.maturity_coupon_rate == 0.06
 
@@ -632,7 +628,7 @@ def check_all_products(subtests, engine):
                         actual_coupon = solved["first_observation_coupon"]
                     assert actual_coupon == pytest.approx(coupon, rel=0, abs=1e-8)
                     assert engine.price(
-                        original.with_quoted_coupon(**solved),
+                        original.with_coupon(**solved),
                         context,
                     ) == pytest.approx(quote, rel=0, abs=1e-11)
                     assert ((repr(original), repr(context), repr(engine))) == snapshot

@@ -28,7 +28,7 @@ returns the actual seed; ``price_with_statistics`` adds sampling uncertainty.
 Sobol estimates omit uncertainty. Implied-parameter solvers require an explicit
 seed: retain the engine returned by ``with_resolved_seed`` for solving and repricing.
 
-Coupon solvers return dictionaries for ``note.with_quoted_coupon(**quote)``,
+Coupon solvers return dictionaries for ``note.with_coupon(**quote)``,
 preserving the snowball maturity convention and quoting Phoenix rates per observation.
 
 Examples

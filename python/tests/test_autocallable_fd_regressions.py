@@ -541,7 +541,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                     for result, target in zip(
                         results, (quote, alternate_quote), strict=True
                     ):
-                        repriced = note.with_quoted_coupon(**result)
+                        repriced = note.with_coupon(**result)
                         assert engine.price(repriced, context) == pytest.approx(
                             target, rel=0, abs=1e-12
                         )

@@ -16,7 +16,7 @@ pub enum CouponQuoteConvention {
 
 /// Owns an annual snowball coupon quote and its maturity convention.
 ///
-/// Apply both fields with [`AutocallableNote::with_quoted_coupon`] to preserve
+/// Apply both fields with [`AutocallableNote::with_coupon`] to preserve
 /// the solved cash flows. See [`implied_snowball_coupon`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SnowballCouponQuote {
@@ -93,12 +93,12 @@ impl Default for ImpliedCouponSettings {
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();
 /// let convention = CouponQuoteConvention::PreserveMaturityCoupon;
-/// let target = note.with_quoted_coupon(0.12, convention)?;
+/// let target = note.with_coupon(0.12, convention)?;
 /// let price = engine.price(&target, &market)?;
 /// let quote = implied_snowball_coupon(&engine, &note, &market, price,
 ///     convention, ImpliedCouponSettings::default())?;
 /// assert!((quote.first_observation_coupon - 0.12).abs() < 1e-7);
-/// let repriced = note.with_quoted_coupon(quote.first_observation_coupon, quote.quote_convention)?;
+/// let repriced = note.with_coupon(quote.first_observation_coupon, quote.quote_convention)?;
 /// assert!((engine.price(&repriced, &market)? - price).abs() <= 1e-8);
 /// # Ok(()) }
 /// ```
@@ -120,7 +120,7 @@ pub fn implied_snowball_coupon<
         observed_price,
         settings,
         option.minimum_quoted_coupon(convention),
-        &|note, coupon| note.with_quoted_coupon(coupon, convention),
+        &|note, coupon| note.with_coupon(coupon, convention),
     )?;
     Ok(SnowballCouponQuote {
         first_observation_coupon,
@@ -137,7 +137,7 @@ pub fn implied_snowball_coupon<
 /// Uses the validation, endpoint, convergence and failure-state contract of
 /// [`implied_snowball_coupon`], without a quote convention.
 /// Bounds, parameter tolerance and the result use decimal periodic coupon rates.
-/// Apply the result with [`PhoenixOption::with_quoted_coupon`].
+/// Apply the result with [`PhoenixOption::with_coupon`].
 ///
 /// Monte Carlo engines require an explicit seed; retain the engine returned by
 /// `with_resolved_seed` for solving and repricing the quote.
@@ -161,7 +161,7 @@ pub fn implied_snowball_coupon<
 /// let market = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();
-/// let quoted = note.with_quoted_coupon(0.03)?;
+/// let quoted = note.with_coupon(0.03)?;
 /// let quote = engine.price(&quoted, &market)?;
 /// let coupon = implied_phoenix_coupon(&engine, &note, &market, quote, ImpliedCouponSettings::default())?;
 /// assert!((coupon - 0.03).abs() < 1e-7);
@@ -183,7 +183,7 @@ pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
         observed_price,
         settings,
         None,
-        &PhoenixOption::with_quoted_coupon,
+        &PhoenixOption::with_coupon,
     )
 }
 

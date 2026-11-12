@@ -99,7 +99,7 @@ def snowball_quote_application(note: SnowballOption, context: PricingContext) ->
     assert_type(quote, SnowballCouponQuote)
     assert_type(quote["first_observation_coupon"], float)
     assert_type(quote["quote_convention"], CouponQuoteConvention)
-    assert_type(note.with_quoted_coupon(**quote), SnowballOption)
+    assert_type(note.with_coupon(**quote), SnowballOption)
 
 
 def observation_choices(at: datetime) -> None:
@@ -195,10 +195,10 @@ def phoenix_replacements(note: PhoenixOption) -> None:
     assert_type(note.replace(lockout_periods=1), PhoenixOption)
     note.replace(lockout_periods=1.5)  # ty: ignore[invalid-argument-type]
     assert_type(note.coupon_per_period, float)
-    assert_type(note.with_quoted_coupon(coupon_per_period=0.01), PhoenixOption)
-    note.with_quoted_coupon(0.1)  # ty: ignore[too-many-positional-arguments, missing-argument]
-    note.with_quoted_coupon()  # ty: ignore[missing-argument]
-    note.with_quoted_coupon(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[unknown-argument]
+    assert_type(note.with_coupon(coupon_per_period=0.01), PhoenixOption)
+    note.with_coupon(0.1)  # ty: ignore[too-many-positional-arguments, missing-argument]
+    note.with_coupon()  # ty: ignore[missing-argument]
+    note.with_coupon(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[unknown-argument]
     assert_type(note.replace(), PhoenixOption)
     assert_type(note.replace(coupon_per_period=0.01), PhoenixOption)
     assert_type(note.replace(coupon_per_period=Ellipsis), PhoenixOption)

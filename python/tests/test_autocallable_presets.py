@@ -254,7 +254,7 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
                 **fields,
                 **phoenix_fields(),
             )
-    for operation in (note.replace, note.with_quoted_coupon):
+    for operation in (note.replace, note.with_coupon):
         with pytest.raises(TypeError):
             operation(coupon_rate=0.1)
     for value in (True, "0.01", None, Ellipsis):

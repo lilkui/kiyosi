@@ -134,7 +134,7 @@ impl SnowballPresetTerms {
     /// Signed coupons and decrements are accepted when every expanded term is valid.
     /// The returned note owns its terms and uses the usual history and replacement rules.
     /// Observation and maturity coupons are separate terms. Edit the first observation
-    /// coupon with [`SnowballOption::with_quoted_coupon`] to preserve observation spreads
+    /// coupon with [`SnowballOption::with_coupon`] to preserve observation spreads
     /// and explicitly choose whether the maturity coupon shifts with them.
     /// Early-profit and butterfly presets select the coupon by observation time,
     /// with each stage end included in that stage. Cutoffs need not be observation
@@ -161,7 +161,7 @@ impl SnowballPresetTerms {
     ///     start, end, vec![end], Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = terms.expand(SnowballPreset::LossCapped { lower_strike: 60.0 })?;
     /// assert_eq!(note.terms().lower_strike, 60.0);
-    /// let edited = note.with_quoted_coupon(0.15, kiyosi::CouponQuoteConvention::ShiftMaturityCoupon)?;
+    /// let edited = note.with_coupon(0.15, kiyosi::CouponQuoteConvention::ShiftMaturityCoupon)?;
     /// assert!((edited.terms().maturity_coupon_rate - 0.15).abs() < 1e-14);
     /// assert!(edited.autocall_observations()[0].coupon_rate().is_some_and(|coupon| (coupon - 0.15).abs() < 1e-14));
     /// assert_eq!(note.terms().maturity_coupon_rate, 0.08);

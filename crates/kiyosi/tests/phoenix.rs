@@ -293,7 +293,7 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
         autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[0.0])).unwrap();
     let note = PhoenixOption::new(input.clone()).unwrap();
     for coupon in [-0.02, 0.0, 0.02] {
-        let quoted = note.with_quoted_coupon(coupon).unwrap();
+        let quoted = note.with_coupon(coupon).unwrap();
         let mut expected = input.clone();
         expected.coupon_per_period = coupon;
         assert_eq!(quoted.terms(), &expected);
@@ -319,12 +319,12 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
             .unwrap();
         assert!((engine.price(&repriced, &context).unwrap() - quote).abs() < 1e-12);
     }
-    let quoted = note.with_quoted_coupon(0.12).unwrap();
+    let quoted = note.with_coupon(0.12).unwrap();
     assert_eq!(quoted.terms().coupon_per_period, 0.12);
     assert_eq!(quoted.barrier_state(), note.barrier_state());
     for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert!(matches!(
-            note.with_quoted_coupon(invalid),
+            note.with_coupon(invalid),
             Err(Error::InvalidInput(_))
         ));
     }

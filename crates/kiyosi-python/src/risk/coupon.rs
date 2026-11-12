@@ -46,7 +46,7 @@ use pyo3::types::PyDict;
 /// -------
 /// SnowballCouponQuote
 ///     Dictionary containing first_observation_coupon, an annual decimal rate,
-///     and quote_convention. Apply with instrument.with_quoted_coupon(**quote)
+///     and quote_convention. Apply with instrument.with_coupon(**quote)
 ///     to preserve observation spreads and the maturity convention.
 ///
 /// Raises
@@ -138,7 +138,7 @@ pub(crate) fn implied_snowball_coupon(
 /// -------
 /// PhoenixCouponQuote
 ///     Dictionary with one key, coupon_per_period: the signed coupon rate per
-///     qualifying observation. Apply with instrument.with_quoted_coupon(**quote).
+///     qualifying observation. Apply with instrument.with_coupon(**quote).
 ///
 /// Raises
 /// ------

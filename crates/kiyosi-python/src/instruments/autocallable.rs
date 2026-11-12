@@ -102,12 +102,12 @@ macro_rules! snowball_properties {
             ///     If shifted coupons are non-finite or violate contractual constraints.
             ///
             #[pyo3(signature = (first_observation_coupon, *, quote_convention))]
-            fn with_quoted_coupon(
+            fn with_coupon(
                 &self,
                 first_observation_coupon: &Bound<'_, PyAny>,
                 quote_convention: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
-                Ok(Self(domain(self.0.with_quoted_coupon(real(first_observation_coupon)?, coupon_convention(quote_convention)?))?))
+                Ok(Self(domain(self.0.with_coupon(real(first_observation_coupon)?, coupon_convention(quote_convention)?))?))
             }
         }
     };
@@ -576,7 +576,7 @@ macro_rules! snowball_preset {
         ///
         /// .. code-block:: python
         ///
-        ///     edited = note.with_quoted_coupon(
+        ///     edited = note.with_coupon(
         ///         first_observation_coupon=0.15,
         ///         quote_convention="shift_maturity_coupon",
         ///     )
@@ -1465,11 +1465,11 @@ autocallable_properties! {
     ///     If the supplied representation is invalid.
     ///
     #[pyo3(signature = (*, coupon_per_period))]
-    fn with_quoted_coupon(
+    fn with_coupon(
         &self,
         #[pyo3(from_py_with = real)] coupon_per_period: f64,
     ) -> PyResult<Self> {
-        Ok(Self(domain(self.0.with_quoted_coupon(coupon_per_period))?))
+        Ok(Self(domain(self.0.with_coupon(coupon_per_period))?))
     },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]

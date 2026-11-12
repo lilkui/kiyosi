@@ -121,7 +121,7 @@ def implied_snowball_coupon(
     -------
     SnowballCouponQuote
         Dictionary containing first_observation_coupon, an annual decimal rate,
-        and quote_convention. Apply with instrument.with_quoted_coupon(**quote)
+        and quote_convention. Apply with instrument.with_coupon(**quote)
         to preserve observation spreads and the maturity convention.
 
     Raises
@@ -194,7 +194,7 @@ def implied_phoenix_coupon(
     -------
     PhoenixCouponQuote
         Dictionary with one key, coupon_per_period: the signed coupon rate per
-        qualifying observation. Apply with instrument.with_quoted_coupon(**quote).
+        qualifying observation. Apply with instrument.with_coupon(**quote).
 
     Raises
     ------
@@ -12219,7 +12219,7 @@ class SnowballOption:
             If a representation or field name is invalid.
         """
 
-    def with_quoted_coupon(
+    def with_coupon(
         self,
         first_observation_coupon: _Real,
         *,
@@ -12391,7 +12391,7 @@ class PhoenixOption:
     def lockout_periods(self) -> int:
         """Return the number of initial observations excluded from knock-out."""
 
-    def with_quoted_coupon(self, *, coupon_per_period: _Real) -> Self:
+    def with_coupon(self, *, coupon_per_period: _Real) -> Self:
         """Return a note with the supplied periodic coupon rate.
 
         History and other terms are preserved.
@@ -12649,7 +12649,7 @@ class BinarySnowballOption:
             If a representation or field name is invalid.
         """
 
-    def with_quoted_coupon(
+    def with_coupon(
         self,
         first_observation_coupon: _Real,
         *,
@@ -12831,7 +12831,7 @@ class TernarySnowballOption:
             If a representation or field name is invalid.
         """
 
-    def with_quoted_coupon(
+    def with_coupon(
         self,
         first_observation_coupon: _Real,
         *,
@@ -13000,7 +13000,7 @@ def standard_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -13075,7 +13075,7 @@ def european_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -13158,7 +13158,7 @@ def step_down_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -13244,7 +13244,7 @@ def both_down_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -13325,7 +13325,7 @@ def dual_coupon_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -13406,7 +13406,7 @@ def parachute_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -13487,7 +13487,7 @@ def otm_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -13568,7 +13568,7 @@ def loss_capped_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -14357,7 +14357,7 @@ def early_profit_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )
@@ -14449,7 +14449,7 @@ def butterfly_snowball(
 
     .. code-block:: python
 
-        edited = note.with_quoted_coupon(
+        edited = note.with_coupon(
             first_observation_coupon=0.15,
             quote_convention="shift_maturity_coupon",
         )

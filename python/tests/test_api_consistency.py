@@ -1001,7 +1001,7 @@ def test_structured_contract_calendars_control_observations_and_survive_reconstr
         assert value.replace().calendar == value.calendar
         assert pickle.loads(pickle.dumps(value)).calendar == value.calendar
     assert (
-        note.with_quoted_coupon(0.2, quote_convention="shift_maturity_coupon").calendar
+        note.with_coupon(0.2, quote_convention="shift_maturity_coupon").calendar
         == note.calendar
     )
 
