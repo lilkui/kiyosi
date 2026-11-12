@@ -42,7 +42,11 @@ Numerical time sensitivities hold supplied history fixed.
 together, and each omitted history field retains its value independently.
 
 Use `AutocallableObservation.snowball` or `AutocallableObservation.phoenix` to
-construct product-specific observations. `PhoenixOption` accepts a finite signed
+construct product-specific observations. ``autocall_observations`` contains the
+contractual knock-out and applicable coupon records; ``autocall_times`` returns
+their timestamps. Knock-in monitoring is defined independently by
+``knock_in_observation`` and ``knock_in_observation_schedule``.
+`PhoenixOption` accepts a finite signed
 ``coupon_per_period`` rate applied at each qualifying observation without time accrual. Principal redemption is
 per unit of original notional; scale the complete price and Greeks for position
 size.
@@ -67,7 +71,7 @@ Edit a preset's observation and maturity coupons together:
 >>> note = standard_snowball(
 ...     coupon_rate=0.12, initial_spot=100, knock_in_level=80, knock_out_level=110,
 ...     effective_time=datetime(2025, 1, 2), expiry_time=datetime(2026, 1, 2),
-...     observation_times=[datetime(2026, 1, 2)], knock_in_observation_clock_time=time(15),
+...     autocall_times=[datetime(2026, 1, 2)], knock_in_observation_clock_time=time(15),
 ... )
 >>> edited = note.with_quoted_coupon(
 ...     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon",

@@ -166,7 +166,7 @@ def test_autocallable_constructors_require_an_explicit_observation_clock(subtest
                 "initial_spot": 100,
                 "upper_strike": 100,
                 "lower_strike": 0,
-                "observations": [snowball],
+                "autocall_observations": [snowball],
             },
         ),
         (
@@ -174,7 +174,7 @@ def test_autocallable_constructors_require_an_explicit_observation_clock(subtest
             {
                 "maturity_coupon_rate": 0.1,
                 "minimum_coupon_rate": 0,
-                "observations": [snowball],
+                "autocall_observations": [snowball],
             },
         ),
         (
@@ -184,7 +184,7 @@ def test_autocallable_constructors_require_an_explicit_observation_clock(subtest
                 "initial_spot": 100,
                 "upper_strike": 100,
                 "lower_strike": 0,
-                "observations": [phoenix],
+                "autocall_observations": [phoenix],
             },
         ),
     ):
@@ -247,7 +247,7 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
         times=[end], start_time=start, end_time=end, calendar=calendar
     )
     records = ins.autocallable_observations(
-        schedule, [110], knock_out_coupon_rates=[0.1]
+        autocall_times=schedule, knock_out_levels=[110], knock_out_coupon_rates=[0.1]
     )
     context = market.PricingContext(
         model_parameters=market.BlackScholesMertonParameters(
@@ -265,7 +265,7 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
         "effective_time": start,
         "expiry_time": end,
         "knock_in_observation": KnockInObservation.every_trading_day(clock_time(15)),
-        "observations": records,
+        "autocall_observations": records,
         "barrier_state": "no_event",
     }
     note = ins.SnowballOption(**fields, calendar=schedule.calendar)
@@ -289,7 +289,7 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
         effective_time=start,
         expiry_time=end,
         knock_in_observation_clock_time=clock_time(15),
-        observation_times=schedule,
+        autocall_times=schedule,
         barrier_state="no_event",
     )
     assert preset == note
@@ -321,7 +321,7 @@ def test_observation_coupon_choices_are_explicit_and_control_cashflows():
             maturity_coupon_rate=0.12,
             effective_time=start,
             expiry_time=end,
-            observations=[
+            autocall_observations=[
                 ins.AutocallableObservation.snowball(end, 110, coupon_rate=coupon)
             ],
             barrier_state="no_event",
@@ -338,7 +338,7 @@ def test_observation_coupon_choices_are_explicit_and_control_cashflows():
             effective_time=start,
             expiry_time=end,
             knock_in_observation=KnockInObservation.at_expiry(),
-            observations=[
+            autocall_observations=[
                 ins.AutocallableObservation.phoenix(
                     end, 200, coupon_barrier_level=barrier
                 )
@@ -574,7 +574,7 @@ def test_snowball_coupon_diagnostics_identify_the_supplied_field(subtests, inval
         "calendar": market.weekdays_calendar(),
         "effective_time": start,
         "expiry_time": end,
-        "observations": ins.autocallable_observations(
+        "autocall_observations": ins.autocallable_observations(
             [end], [110], knock_out_coupon_rates=[0]
         ),
     }
@@ -650,7 +650,7 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
         effective_time=start,
         expiry_time=end,
         barrier_state="no_event",
-        observations=ins.autocallable_observations(
+        autocall_observations=ins.autocallable_observations(
             [datetime(2025, 1, 2), valuation, end],
             [120, 120, 120],
             knock_out_coupon_rates=[0] * 3,
@@ -678,7 +678,7 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
             ),
             note.replace(
                 barrier_state=note.barrier_state,
-                observations=ins.autocallable_observations(
+                autocall_observations=ins.autocallable_observations(
                     [datetime(2025, 1, 2), valuation, end],
                     [150, 150, 150],
                     knock_out_coupon_rates=[0] * 3,
@@ -823,7 +823,7 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
             dict(
                 life,
                 maturity_coupon_rate=0.1,
-                observations=[
+                autocall_observations=[
                     ins.AutocallableObservation.snowball(closed, 110, coupon_rate=0)
                 ],
             ),
@@ -836,7 +836,7 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
                 knock_in_level=80,
                 knock_out_level=110,
                 coupon_rate=0.1,
-                observation_times=[closed],
+                autocall_times=[closed],
                 knock_in_observation_clock_time=clock_time(),
             ),
         ),
@@ -992,7 +992,7 @@ def test_structured_contract_calendars_control_observations_and_survive_reconstr
         initial_spot=100,
         knock_in_level=80,
         knock_out_level=110,
-        observation_times=[end],
+        autocall_times=[end],
         effective_time=start,
         expiry_time=end,
         calendar=market.all_days_calendar(),
@@ -2225,7 +2225,7 @@ def test_zero_coupon_observations_preserve_product_identity(subtests):
         ins.BinarySnowballOption(
             calendar=market.weekdays_calendar(),
             maturity_coupon_rate=0.1,
-            observations=[phoenix],
+            autocall_observations=[phoenix],
             **life,
         )
     with pytest.raises(InvalidInputError):
@@ -2236,7 +2236,7 @@ def test_zero_coupon_observations_preserve_product_identity(subtests):
             knock_in_level=80,
             upper_strike=100,
             lower_strike=0,
-            observations=[snowball],
+            autocall_observations=[snowball],
             knock_in_observation=KnockInObservation.every_trading_day(end.time()),
             **life,
         )

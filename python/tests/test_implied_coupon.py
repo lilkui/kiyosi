@@ -44,7 +44,7 @@ def binary(coupon=0.08, maturity=0.06, **changes):
         "maturity_coupon_rate": maturity,
         "effective_time": START,
         "expiry_time": END,
-        "observations": autocallable_observations(
+        "autocall_observations": autocallable_observations(
             [END], [110], knock_out_coupon_rates=[coupon]
         ),
     }
@@ -101,7 +101,7 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
             effective_time=START,
             expiry_time=END,
             knock_in_observation=KnockInObservation.at_expiry(),
-            observations=[
+            autocall_observations=[
                 instruments.AutocallableObservation.phoenix(
                     END, 110, coupon_barrier_level=90
                 )
@@ -169,7 +169,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
                 knock_in_level=80,
                 effective_time=START,
                 expiry_time=END,
-                observations=autocallable_observations(
+                autocall_observations=autocallable_observations(
                     [END], [110], knock_out_coupon_rates=[anchor]
                 ),
             )
@@ -231,7 +231,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
             knock_in_level=80,
             effective_time=START,
             expiry_time=END,
-            observations=autocallable_observations(
+            autocall_observations=autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0.05]
             ),
         )
@@ -251,8 +251,8 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
         [datetime(2025, 2, 3), END], [110, 105], knock_out_coupon_rates=[0.08, 0.12]
     )
     notes = [
-        snowball(observations=observations, maturity_coupon_rate=0.06),
-        binary(observations=observations),
+        snowball(autocall_observations=observations, maturity_coupon_rate=0.06),
+        binary(autocall_observations=observations),
         instruments.TernarySnowballOption(
             calendar=weekdays_calendar(),
             maturity_coupon_rate=0.06,
@@ -261,7 +261,7 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
             knock_in_observation=KnockInObservation.at_expiry(),
             effective_time=START,
             expiry_time=END,
-            observations=observations,
+            autocall_observations=observations,
         ),
     ]
     for note in notes:
@@ -322,7 +322,7 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
         replacement = note.replace(**{field: 0.18})
         assert getattr(replacement, field) == 0.18
         assert replacement.barrier_state == note.barrier_state
-        assert replacement.observations == note.observations
+        assert replacement.autocall_observations == note.autocall_observations
         target = engine.price(replacement, context)
         solved = implied_phoenix_coupon(engine, note, context, target)
         assert engine.price(note.replace(**solved), context) == pytest.approx(
@@ -429,7 +429,7 @@ def test_coupon_endpoints_can_change_daily_knock_in_layers():
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         barrier_state="no_event",
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 1, 7), end],
             [110, 110],
             knock_out_coupon_rates=[0.073, 0.083],
@@ -510,7 +510,7 @@ def check_all_products(subtests, engine):
                 + (coupon - 0.08 if convention == "shift_maturity_coupon" else 0),
                 "effective_time": START,
                 "expiry_time": END,
-                "observations": autocallable_observations(
+                "autocall_observations": autocallable_observations(
                     dates,
                     [110, 105],
                     knock_out_coupon_rates=[coupon, coupon + 0.04],
@@ -547,7 +547,7 @@ def check_all_products(subtests, engine):
             "knock_out_level": 110,
             "effective_time": START,
             "expiry_time": END,
-            "observation_times": dates,
+            "autocall_times": dates,
         }
         if kind == "step_down_snowball":
             fields.update(
@@ -749,7 +749,7 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
     engine = QuadratureAutocallableEngine()
     known = binary(
         barrier_state="no_event",
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 2, 3), END],
             [110, 110],
             knock_out_coupon_rates=[0.08, 0.08],
@@ -788,7 +788,7 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
         ),
         (
             phoenix(
-                observations=autocallable_observations(
+                autocall_observations=autocallable_observations(
                     [END], [110], coupon_barrier_levels=[90]
                 )
             ),
@@ -817,7 +817,7 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
         knock_in_observation=KnockInObservation.at_expiry(),
         effective_time=START,
         expiry_time=END,
-        observations=known.observations,
+        autocall_observations=known.autocall_observations,
         barrier_state="no_event",
     )
     coupon = implied_snowball_coupon(
@@ -828,11 +828,13 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
         quote_convention="shift_maturity_coupon",
     )
     assert coupon["first_observation_coupon"] == pytest.approx(
-        ternary.observations[0].coupon_rate, rel=0, abs=1e-7
+        ternary.autocall_observations[0].coupon_rate, rel=0, abs=1e-7
     )
     for note in (
         known,
-        snowball(barrier_state="no_event", observations=known.observations),
+        snowball(
+            barrier_state="no_event", autocall_observations=known.autocall_observations
+        ),
         ternary,
         phoenix(),
     ):
@@ -959,7 +961,7 @@ def test_nonfinite_residual_and_exhausted_bisection_errors():
     )
     note = snowball(
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 2, 3), END],
             [110, 105],
             knock_out_coupon_rates=[0.08, 0.12],

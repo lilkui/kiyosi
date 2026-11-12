@@ -329,7 +329,7 @@ pub(super) fn autocallable<T: AutocallableTerms>(
     let mut knocked_in = state.knocked_in;
     let mut coupons = state.coupon;
     let mut next = note
-        .observations()
+        .autocall_observations()
         .partition_point(|record| record.time() <= context.valuation_time());
     for time in future_event_times(note, context, note.view().daily_knock_in())? {
         let spot = spot(context, time)?;
@@ -337,7 +337,7 @@ pub(super) fn autocallable<T: AutocallableTerms>(
             knocked_in |= note.view().below_knock_in(spot);
         }
         if let Some(record) = note
-            .observations()
+            .autocall_observations()
             .get(next)
             .filter(|record| record.time() == time)
         {

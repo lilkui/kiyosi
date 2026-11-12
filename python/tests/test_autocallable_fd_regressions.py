@@ -61,7 +61,7 @@ def test_finite_difference_greek_workspaces_preserve_independent_prices(subtests
         barrier_state="no_event",
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 1, 3), end],
             [110, 105],
             knock_out_coupon_rates=[0.08, 0.08],
@@ -104,7 +104,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [100], knock_out_coupon_rates=[0.1]
         ),
     )
@@ -148,7 +148,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
                 **common,
                 **downside,
                 maturity_coupon_rate=0,
-                observations=binary.observations,
+                autocall_observations=binary.autocall_observations,
             ),
             expected_downside,
         ),
@@ -158,7 +158,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
                 **common,
                 **downside,
                 coupon_per_period=0.1,
-                observations=autocallable_observations(
+                autocall_observations=autocallable_observations(
                     [end], [100], coupon_barrier_levels=[100]
                 ),
             ),
@@ -170,7 +170,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
                 **common,
                 maturity_coupon_rate=0.1,
                 minimum_coupon_rate=0,
-                observations=binary.observations,
+                autocall_observations=binary.autocall_observations,
             ),
             expected,
         ),
@@ -240,7 +240,7 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
     subtests,
 ):
     start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
-    observation_times = [datetime(2025, 1, 3), datetime(2025, 1, 8), end]
+    autocall_times = [datetime(2025, 1, 3), datetime(2025, 1, 8), end]
     knock_out_levels = [101, 100, 99]
     common = {
         "effective_time": start,
@@ -249,8 +249,8 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
     }
     coupons = {
         "maturity_coupon_rate": 0.06,
-        "observations": autocallable_observations(
-            observation_times, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
+        "autocall_observations": autocallable_observations(
+            autocall_times, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
         ),
     }
 
@@ -283,8 +283,8 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
                     upper_strike=100,
                     lower_strike=60,
                     coupon_per_period=0.08,
-                    observations=autocallable_observations(
-                        observation_times,
+                    autocall_observations=autocallable_observations(
+                        autocall_times,
                         knock_out_levels,
                         coupon_barrier_levels=[100, 99, 98],
                     ),
@@ -363,7 +363,7 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
 @pytest.mark.parametrize("mode", ("at_expiry", "every_trading_day"))
 def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, mode):
     start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
-    observation_times = [datetime(2025, 1, 7), end]
+    autocall_times = [datetime(2025, 1, 7), end]
     knock_out_levels = [110, 110]
     common = {
         "effective_time": start,
@@ -372,8 +372,8 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
     }
     coupons = {
         "maturity_coupon_rate": 0.073,
-        "observations": autocallable_observations(
-            observation_times,
+        "autocall_observations": autocallable_observations(
+            autocall_times,
             knock_out_levels,
             knock_out_coupon_rates=[0.073, 0.083],
         ),
@@ -402,8 +402,8 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                 upper_strike=100,
                 lower_strike=60,
                 coupon_per_period=0.073,
-                observations=autocallable_observations(
-                    observation_times,
+                autocall_observations=autocallable_observations(
+                    autocall_times,
                     knock_out_levels,
                     coupon_barrier_levels=[90, 90],
                 ),
@@ -483,10 +483,12 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                 if kind is PhoenixOption:
                     alternate_terms["coupon_per_period"] = 0.12
                 else:
-                    alternate_terms["observations"] = autocallable_observations(
-                        observation_times,
-                        knock_out_levels,
-                        knock_out_coupon_rates=[0.12, 0.13],
+                    alternate_terms["autocall_observations"] = (
+                        autocallable_observations(
+                            autocall_times,
+                            knock_out_levels,
+                            knock_out_coupon_rates=[0.12, 0.13],
+                        )
                     )
                     if convention["quote_convention"] == "shift_maturity_coupon":
                         alternate_terms["maturity_coupon_rate"] = 0.12
@@ -564,7 +566,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
 def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
     start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
     dates = [start + timedelta(days=index) for index in range(1, 13)]
-    observation_times = dates
+    autocall_times = dates
     knock_out_levels = [110] * len(dates)
     common = {
         "effective_time": start,
@@ -573,8 +575,8 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
     }
     coupons = {
         "maturity_coupon_rate": 0.06,
-        "observations": autocallable_observations(
-            observation_times,
+        "autocall_observations": autocallable_observations(
+            autocall_times,
             knock_out_levels,
             knock_out_coupon_rates=[0.08] * len(dates),
         ),
@@ -605,8 +607,8 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
             {
                 **downside,
                 "coupon_per_period": 0.08,
-                "observations": autocallable_observations(
-                    observation_times,
+                "autocall_observations": autocallable_observations(
+                    autocall_times,
                     knock_out_levels,
                     coupon_barrier_levels=[100] * len(dates),
                 ),
@@ -734,7 +736,7 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [110], knock_out_coupon_rates=[0]
         ),
     )
@@ -794,7 +796,7 @@ def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(sub
                     knock_in_observation=KnockInObservation.every_trading_day(
                         clock_time()
                     ),
-                    observations=autocallable_observations(
+                    autocall_observations=autocallable_observations(
                         [end], [110], knock_out_coupon_rates=[0.08]
                     ),
                 )
@@ -821,7 +823,7 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         spot_price=100,
         valuation_time=start,
     )
-    observation_times = [end]
+    autocall_times = [end]
     knock_out_levels = [110]
     common = {
         "knock_in_level": 100,
@@ -836,8 +838,8 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         initial_spot=100,
         upper_strike=100,
         lower_strike=60,
-        observations=autocallable_observations(
-            observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
+        autocall_observations=autocallable_observations(
+            autocall_times, knock_out_levels, knock_out_coupon_rates=[0.06]
         ),
     )
     phoenix = PhoenixOption(
@@ -847,8 +849,8 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         initial_spot=100,
         upper_strike=100,
         lower_strike=60,
-        observations=autocallable_observations(
-            observation_times, knock_out_levels, coupon_barrier_levels=[0]
+        autocall_observations=autocallable_observations(
+            autocall_times, knock_out_levels, coupon_barrier_levels=[0]
         ),
     )
     ternary = TernarySnowballOption(
@@ -856,8 +858,8 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         **common,
         maturity_coupon_rate=0.06,
         minimum_coupon_rate=0.02,
-        observations=autocallable_observations(
-            observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
+        autocall_observations=autocallable_observations(
+            autocall_times, knock_out_levels, knock_out_coupon_rates=[0.06]
         ),
     )
     put_prices = [
@@ -927,7 +929,7 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
         "lower_strike": 100,
         "effective_time": start,
         "expiry_time": end,
-        "observations": autocallable_observations(
+        "autocall_observations": autocallable_observations(
             [middle, end], [110, 104], knock_out_coupon_rates=[0.08, 0.08]
         ),
     }
@@ -1004,7 +1006,7 @@ def test_fixed_finite_difference_autocallables_retain_rate_sensitivity():
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [110], knock_out_coupon_rates=[0]
         ),
     )

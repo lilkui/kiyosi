@@ -91,7 +91,7 @@ pub struct SnowballPresetTerms {
     /// Sets the inclusive expiry timestamp.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly increasing observation times within life.
-    pub observation_times: Vec<Timestamp>,
+    pub autocall_times: Vec<Timestamp>,
     /// Supplies the daily observation clock, absent for European monitoring; see [`TimeOfDay::new`].
     pub knock_in_observation_clock_time: Option<TimeOfDay>,
 }
@@ -110,7 +110,7 @@ impl SnowballPresetTerms {
         knock_out_level: f64,
         effective_time: Timestamp,
         expiry_time: Timestamp,
-        observation_times: Vec<Timestamp>,
+        autocall_times: Vec<Timestamp>,
         knock_in_observation_clock_time: Option<TimeOfDay>,
     ) -> Self {
         Self {
@@ -123,7 +123,7 @@ impl SnowballPresetTerms {
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
             expiry_time,
-            observation_times,
+            autocall_times,
             knock_in_observation_clock_time,
         }
     }
@@ -163,14 +163,14 @@ impl SnowballPresetTerms {
     /// assert_eq!(note.terms().lower_strike, 60.0);
     /// let edited = note.with_quoted_coupon(0.15, kiyosi::CouponQuoteConvention::ShiftMaturityCoupon)?;
     /// assert!((edited.terms().maturity_coupon_rate - 0.15).abs() < 1e-14);
-    /// assert!(edited.observations()[0].coupon_rate().is_some_and(|coupon| (coupon - 0.15).abs() < 1e-14));
+    /// assert!(edited.autocall_observations()[0].coupon_rate().is_some_and(|coupon| (coupon - 0.15).abs() < 1e-14));
     /// assert_eq!(note.terms().maturity_coupon_rate, 0.08);
     /// let terms = SnowballPresetTerms::new(0.20, 100.0, 80.0, 110.0,
     ///     start, end, vec![end], Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = terms.expand(SnowballPreset::EarlyProfit {
     ///     first_stage_end_time: Date::new(2025, 7, 1)?.start_of_day(), second_coupon_rate: 0.05,
     /// })?;
-    /// assert_eq!(note.observations()[0].coupon_rate(), Some(0.05));
+    /// assert_eq!(note.autocall_observations()[0].coupon_rate(), Some(0.05));
     /// # Ok(()) }
     /// ```
     #[expect(
@@ -190,7 +190,7 @@ impl SnowballPresetTerms {
             },
         };
         let observations = self
-            .observation_times
+            .autocall_times
             .into_iter()
             .map(|date| AutocallableObservation {
                 kind: AutocallableObservationKind::Snowball,
@@ -219,7 +219,7 @@ impl SnowballPresetTerms {
             SnowballPreset::StepDown {
                 knock_out_level_decrement,
             } => {
-                for (i, r) in terms.observations.iter_mut().enumerate() {
+                for (i, r) in terms.autocall_observations.iter_mut().enumerate() {
                     r.knock_out_level -= i as f64 * knock_out_level_decrement;
                 }
             }
@@ -227,12 +227,14 @@ impl SnowballPresetTerms {
                 coupon_rate_decrement,
                 knock_out_level_decrement,
             } => {
-                for (i, r) in terms.observations.iter_mut().enumerate() {
+                for (i, r) in terms.autocall_observations.iter_mut().enumerate() {
                     r.knock_out_level -= i as f64 * knock_out_level_decrement;
                     r.coupon_rate -= i as f64 * coupon_rate_decrement;
                 }
-                terms.maturity_coupon_rate =
-                    terms.observations.last().map_or(0.0, |r| r.coupon_rate);
+                terms.maturity_coupon_rate = terms
+                    .autocall_observations
+                    .last()
+                    .map_or(0.0, |r| r.coupon_rate);
             }
             SnowballPreset::DualCoupon {
                 maturity_coupon_rate,
@@ -240,7 +242,7 @@ impl SnowballPresetTerms {
             SnowballPreset::Parachute {
                 final_knock_out_level,
             } => {
-                if let Some(last) = terms.observations.last_mut() {
+                if let Some(last) = terms.autocall_observations.last_mut() {
                     last.knock_out_level = final_knock_out_level;
                 }
             }
@@ -289,7 +291,7 @@ fn staged_coupons(
             ));
         }
     }
-    for record in &mut terms.observations {
+    for record in &mut terms.autocall_observations {
         record.coupon_rate = stages
             .iter()
             .find(|(end, _)| record.time <= *end)
@@ -349,7 +351,7 @@ pub struct PhoenixPresetTerms {
     /// Sets the inclusive expiry timestamp.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly increasing observation times within life.
-    pub observation_times: Vec<Timestamp>,
+    pub autocall_times: Vec<Timestamp>,
 }
 impl PhoenixPresetTerms {
     /// Creates input terms with no lockout, no daily clock, unknown history and unit principal.
@@ -362,7 +364,7 @@ impl PhoenixPresetTerms {
         knock_out_level: f64,
         effective_time: Timestamp,
         expiry_time: Timestamp,
-        observation_times: Vec<Timestamp>,
+        autocall_times: Vec<Timestamp>,
     ) -> Self {
         Self {
             lockout_periods: DEFAULT_PHOENIX_LOCKOUT_PERIODS,
@@ -376,7 +378,7 @@ impl PhoenixPresetTerms {
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
             expiry_time,
-            observation_times,
+            autocall_times,
         }
     }
 
@@ -420,7 +422,7 @@ impl PhoenixPresetTerms {
     ///     coupon_barrier_level: 90.0, knock_out_level_decrement: 2.0,
     /// })?;
     /// assert_eq!(note.lockout_periods(), 1);
-    /// assert_eq!(note.observations()[1].knock_out_level(), 110.0);
+    /// assert_eq!(note.autocall_observations()[1].knock_out_level(), 110.0);
     /// # Ok(()) }
     /// ```
     #[expect(
@@ -464,7 +466,7 @@ impl PhoenixPresetTerms {
             )),
         };
         let observations = self
-            .observation_times
+            .autocall_times
             .into_iter()
             .enumerate()
             .map(|(i, date)| AutocallableObservation {

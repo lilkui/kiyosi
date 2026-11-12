@@ -207,10 +207,10 @@ fn event<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     date: Timestamp,
 ) -> Option<&AutocallableObservation> {
-    note.observations()
+    note.autocall_observations()
         .binary_search_by_key(&date, crate::AutocallableObservation::time)
         .ok()
-        .map(|i| &note.observations()[i])
+        .map(|i| &note.autocall_observations()[i])
 }
 fn terminal<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
@@ -384,7 +384,7 @@ fn price<T: AutocallableTerms>(
         }
     }
     for r in note
-        .observations()
+        .autocall_observations()
         .iter()
         .filter(|r| r.time() > context.valuation_time())
     {

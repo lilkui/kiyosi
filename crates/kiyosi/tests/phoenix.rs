@@ -44,7 +44,7 @@ fn lockout_preserves_conditional_coupons_and_continuation_in_all_engines() {
     let mut input = terms();
     input.lower_strike = 100.0;
     input.lockout_periods = 2;
-    input.observations = autocallable_observations(
+    input.autocall_observations = autocallable_observations(
         &[date(1, 1), date(2, 3), date(4, 1)],
         &[100.0; 3],
         None,
@@ -89,7 +89,7 @@ fn lockout_preserves_daily_knock_in_and_first_eligible_knock_out() {
     input.knock_in_observation = KnockInObservation::EveryTradingDay {
         observation_clock_time: date(1, 1).time_of_day(),
     };
-    input.observations = autocallable_observations(
+    input.autocall_observations = autocallable_observations(
         &[date(1, 1), date(4, 1)],
         &[50.0, 200.0],
         None,
@@ -128,7 +128,7 @@ fn lockout_daily_layers_agree_across_engines_and_constant_local_volatility() {
     input.knock_in_observation = KnockInObservation::EveryTradingDay {
         observation_clock_time: date(1, 1).time_of_day(),
     };
-    input.observations = autocallable_observations(
+    input.autocall_observations = autocallable_observations(
         &[date(1, 2), date(1, 6), end],
         &[100.0; 3],
         None,
@@ -177,7 +177,7 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
     input.lockout_periods = 1;
     input.barrier_state = None;
 
-    input.observations = autocallable_observations(
+    input.autocall_observations = autocallable_observations(
         &[date(2, 3), date(3, 3), date(4, 1)],
         &[110.0; 3],
         None,
@@ -289,7 +289,7 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
     )
     .unwrap();
     let mut input = terms();
-    input.observations =
+    input.autocall_observations =
         autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[0.0])).unwrap();
     let note = PhoenixOption::new(input.clone()).unwrap();
     for coupon in [-0.02, 0.0, 0.02] {
@@ -363,7 +363,7 @@ fn periodic_coupons_ignore_unequal_and_zero_length_periods_in_all_engines() {
     for coupon in [-0.01, 0.0, 0.01] {
         let mut input = terms();
         input.coupon_per_period = coupon;
-        input.observations = autocallable_observations(
+        input.autocall_observations = autocallable_observations(
             &[date(1, 1), date(2, 3), date(4, 1)],
             &[110.0; 3],
             None,
@@ -396,7 +396,7 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             t.lower_strike = lower;
             t.principal_redemption_ratio = 0.25;
             t.coupon_per_period = coupon;
-            t.observations =
+            t.autocall_observations =
                 autocallable_observations(&[end], &[100.0], None, Some(&[100.0])).unwrap();
             let put = |strike| {
                 AnalyticEuropeanEngine
@@ -429,9 +429,9 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
 #[test]
 fn phoenix_validation_defaults_and_history_share_core_categories() {
     let mut t = terms();
-    t.observations[0] = AutocallableObservation::snowball(
-        t.observations[0].time(),
-        t.observations[0].knock_out_level(),
+    t.autocall_observations[0] = AutocallableObservation::snowball(
+        t.autocall_observations[0].time(),
+        t.autocall_observations[0].knock_out_level(),
         0.1,
     )
     .unwrap();
@@ -442,7 +442,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     for value in [-1.0, f64::NAN, f64::INFINITY] {
         let t = terms();
         assert!(matches!(
-            t.observations[0].replace(AutocallableObservationChanges {
+            t.autocall_observations[0].replace(AutocallableObservationChanges {
                 coupon_barrier_level: Some(value),
                 ..Default::default()
             }),
@@ -450,7 +450,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         ));
     }
     let mut t = terms();
-    t.observations.clear();
+    t.autocall_observations.clear();
     assert!(matches!(
         PhoenixOption::new(t).unwrap_err(),
         Error::InvalidInput(_)
@@ -479,7 +479,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(known.observations(), note.observations());
+    assert_eq!(known.autocall_observations(), note.autocall_observations());
     assert_eq!(note.barrier_state(), None);
     assert!(engine.price(&known, &ctx).unwrap().is_finite());
     let impossible = note
@@ -572,7 +572,7 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     t.lower_strike = 100.0;
     t.principal_redemption_ratio = 0.25;
     t.expiry_time = end;
-    t.observations =
+    t.autocall_observations =
         autocallable_observations(&[middle, end], &[100.0; 2], None, Some(&[0.0; 2])).unwrap();
     let note = PhoenixOption::new(t).unwrap();
     let ctx = market(100.0, date(1, 1))
@@ -617,7 +617,7 @@ fn phoenix_daily_layers_converge_with_conditional_coupons() {
         t.knock_in_level = 95.0;
         t.knock_in_observation = mode;
 
-        t.observations = autocallable_observations(
+        t.autocall_observations = autocallable_observations(
             &[date(2, 3), date(3, 3), date(4, 1)],
             &[110.0, 108.0, 105.0],
             None,

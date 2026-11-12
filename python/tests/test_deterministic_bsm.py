@@ -128,7 +128,7 @@ def cases():
         10,
     )
     obs = ins.autocallable_observations([END], [120], knock_out_coupon_rates=[0])
-    note = dict(life, observations=obs)
+    note = dict(life, autocall_observations=obs)
     downside = {
         "initial_spot": 100,
         "knock_in_level": 80,
@@ -148,7 +148,7 @@ def cases():
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             **dict(
                 note,
-                observations=ins.autocallable_observations(
+                autocall_observations=ins.autocallable_observations(
                     [END], [120], coupon_barrier_levels=[0]
                 ),
             ),
@@ -569,7 +569,7 @@ def test_future_structured_events_discount_coupons_and_settle_accumulated_units(
         effective_time=START,
         expiry_time=end,
         maturity_coupon_rate=0.1,
-        observations=ins.autocallable_observations(
+        autocall_observations=ins.autocallable_observations(
             [middle, end], [105, 105], knock_out_coupon_rates=[0.1, 0.1]
         ),
         calendar=calendar,
@@ -619,7 +619,7 @@ def test_expiry_only_knock_in_ignores_earlier_recovered_breaches(family):
         upper_strike=100,
         lower_strike=0,
         knock_in_observation=KnockInObservation.at_expiry(),
-        observations=ins.autocallable_observations(
+        autocall_observations=ins.autocallable_observations(
             [START + timedelta(days=30), end],
             [300, 300],
             knock_out_coupon_rates=[0] * 2,

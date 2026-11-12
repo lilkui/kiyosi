@@ -36,7 +36,7 @@ fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
     t.knock_in_observation = KnockInObservation::AtExpiry;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
-    t.observations[0] = t.observations[0]
+    t.autocall_observations[0] = t.autocall_observations[0]
         .replace(AutocallableObservationChanges {
             coupon_rate: Some(0.08),
             ..Default::default()
@@ -58,7 +58,7 @@ fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
 #[test]
 fn invalid_terms_and_history_fail_without_changing_the_note() {
     let mut t = terms();
-    t.observations.push(t.observations[0]);
+    t.autocall_observations.push(t.autocall_observations[0]);
     assert!(matches!(
         SnowballOption::new(t).unwrap_err(),
         Error::InvalidInput(_)
@@ -128,7 +128,7 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                 t.knock_in_level = 100.0;
                 t.lower_strike = lower;
                 t.principal_redemption_ratio = principal;
-                t.observations =
+                t.autocall_observations =
                     autocallable_observations(&[t.expiry_time], &[100.0], Some(&[coupon]), None)
                         .unwrap();
                 let ctx = market(100.0, date(1, 1));
@@ -198,7 +198,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
 
             t.barrier_state = history;
 
-            t.observations = autocallable_observations(
+            t.autocall_observations = autocallable_observations(
                 &[date(1, 3), date(1, 6), date(1, 7)],
                 &[110.0; 3],
                 Some(&[0.0; 3]),
@@ -243,7 +243,7 @@ fn daily_monitoring_converges_and_prices_recovery_risk() {
         t.knock_in_level = 95.0;
         t.knock_in_observation = mode;
 
-        t.observations = autocallable_observations(
+        t.autocall_observations = autocallable_observations(
             &[date(2, 3), date(3, 3), date(4, 1)],
             &[110.0, 108.0, 105.0],
             Some(&[0.08; 3]),
@@ -305,7 +305,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     t.knock_in_observation = KnockInObservation::AtExpiry;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
-    t.observations[0] = t.observations[0]
+    t.autocall_observations[0] = t.autocall_observations[0]
         .replace(AutocallableObservationChanges {
             time: Some(date(2, 3)),
             ..Default::default()
@@ -337,7 +337,7 @@ fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
     let mut t = terms();
     t.expiry_time = date(1, 20);
     t.knock_in_level = 95.0;
-    t.observations = autocallable_observations(
+    t.autocall_observations = autocallable_observations(
         &[date(1, 8), date(1, 20)],
         &[110.0, 105.0],
         Some(&[0.08, 0.08]),

@@ -202,7 +202,7 @@ pub(crate) fn _repr_previews<'py>(
                 if v.0.calendar() != &kiyosi::TradingCalendar::default() {
                     result.set_item("calendar", calendar(py, v.0.calendar())?)?;
                 }
-                result.set_item("observations", preview(v.0.observations(), |r| Ok(format!(
+                result.set_item("autocall_observations", preview(v.0.autocall_observations(), |r| Ok(format!(
                     "AutocallableObservation.{}({}, {:?}, {}={:?})",
                     if r.kind() == kiyosi::AutocallableObservationKind::Snowball { "snowball" } else { "phoenix" },
                     python_timestamp(py, r.time())?.repr()?, r.knock_out_level(),

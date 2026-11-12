@@ -153,7 +153,7 @@ def contract_inputs():
             "principal_redemption_ratio": 1,
             "effective_time": START,
             "expiry_time": END,
-            "observations": [
+            "autocall_observations": [
                 i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
             ],
         },
@@ -172,7 +172,7 @@ def contract_inputs():
             "principal_redemption_ratio": 1,
             "effective_time": START,
             "expiry_time": END,
-            "observations": [
+            "autocall_observations": [
                 i.AutocallableObservation.phoenix(
                     datetime(2025, 12, 31), 110, coupon_barrier_level=0
                 ),
@@ -189,7 +189,7 @@ def contract_inputs():
             "principal_redemption_ratio": 1,
             "effective_time": START,
             "expiry_time": END,
-            "observations": [
+            "autocall_observations": [
                 i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
             ],
         },
@@ -206,7 +206,7 @@ def contract_inputs():
             "principal_redemption_ratio": 1,
             "effective_time": START,
             "expiry_time": END,
-            "observations": [
+            "autocall_observations": [
                 i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
             ],
         },
@@ -274,7 +274,9 @@ UPDATES = {
     "observation_clock_time": clock_time(1, 2, 3, 456789),
     "barrier_state": None,
     "principal_redemption_ratio": 0.9,
-    "observations": [i.AutocallableObservation.snowball(END, 115, coupon_rate=0)],
+    "autocall_observations": [
+        i.AutocallableObservation.snowball(END, 115, coupon_rate=0)
+    ],
     "maturity_coupon_rate": 0.15,
     "minimum_coupon_rate": 0.03,
     "coupon_rate": 0.15,
@@ -380,16 +382,18 @@ def test_event_changes_preserve_omitted_history(subtests):
             }
         else:
             original = original.replace(
-                observations=[
-                    original.observations[0].replace(time=datetime(2025, 1, 3)),
-                    *original.observations,
+                autocall_observations=[
+                    original.autocall_observations[0].replace(
+                        time=datetime(2025, 1, 3)
+                    ),
+                    *original.autocall_observations,
                 ],
                 barrier_state=original.barrier_state,
             )
             updates = {
-                "observations": [
+                "autocall_observations": [
                     r.replace(knock_out_level=r.knock_out_level + 5)
-                    for r in original.observations
+                    for r in original.autocall_observations
                 ]
             }
         with subtests.test(contract=type(original).__name__):
@@ -427,7 +431,9 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
             if name in ("observation_mode", "observation_times"):
                 continue
             value = UPDATES.get(name)
-            if name == "observations" and isinstance(original, i.PhoenixOption):
+            if name == "autocall_observations" and isinstance(
+                original, i.PhoenixOption
+            ):
                 value = [
                     i.AutocallableObservation.phoenix(END, 115, coupon_barrier_level=0)
                 ]
@@ -610,7 +616,7 @@ def test_replaced_phoenix_observations_are_owned_and_coupon_is_periodic():
     note = next(value for value in contracts() if isinstance(value, i.PhoenixOption))
     records = [i.AutocallableObservation.phoenix(END, 115, coupon_barrier_level=0)]
     changed = note.replace(
-        observations=records,
+        autocall_observations=records,
         coupon_per_period=0.02,
         barrier_state=note.barrier_state,
     )

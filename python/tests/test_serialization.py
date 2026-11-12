@@ -50,7 +50,9 @@ def values():
         "knock_in_level": 80,
         "upper_strike": 100,
         "lower_strike": 0,
-        "observations": [i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
+        "autocall_observations": [
+            i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
+        ],
         **life,
     }
     yield from (
@@ -143,7 +145,7 @@ def values():
             coupon_per_period=0.1,
             **dict(
                 common,
-                observations=[
+                autocall_observations=[
                     i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
                 ],
             ),
@@ -154,7 +156,7 @@ def values():
             coupon_per_period=0.01,
             **dict(
                 common,
-                observations=[
+                autocall_observations=[
                     i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
                 ],
             ),
@@ -162,7 +164,7 @@ def values():
         i.BinarySnowballOption(
             calendar=m.weekdays_calendar(),
             maturity_coupon_rate=0.1,
-            observations=common["observations"],
+            autocall_observations=common["autocall_observations"],
             **life,
         ),
         i.TernarySnowballOption(
@@ -171,7 +173,7 @@ def values():
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,
             knock_in_level=80,
-            observations=common["observations"],
+            autocall_observations=common["autocall_observations"],
             **life,
         ),
     )
@@ -213,16 +215,16 @@ def test_owned_collection_properties_reject_silent_edits():
         maturity_coupon_rate=0.1,
         effective_time=START,
         expiry_time=END,
-        observations=[observation],
+        autocall_observations=[observation],
     )
     updated = observation.replace(coupon_rate=0.2)
     with pytest.raises(TypeError):
-        note.observations[0] = updated
-    editable = list(note.observations)
+        note.autocall_observations[0] = updated
+    editable = list(note.autocall_observations)
     editable[0] = updated
-    replacement = note.replace(observations=editable)
-    assert replacement.observations == ((updated,))
-    assert note.observations == ((observation,))
+    replacement = note.replace(autocall_observations=editable)
+    assert replacement.autocall_observations == ((updated,))
+    assert note.autocall_observations == ((observation,))
     assert surface.values == (((0.2, 0.3), (0.3, 0.4)))
 
 
@@ -446,7 +448,7 @@ def test_repr_bounds_large_contract_schedules(subtests):
         ):
             option = original.replace(
                 expiry_time=times[-1],
-                observations=[
+                autocall_observations=[
                     i.AutocallableObservation.phoenix(time, 110, coupon_barrier_level=0)
                     for time in times
                 ]

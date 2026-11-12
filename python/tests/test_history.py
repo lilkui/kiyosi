@@ -38,7 +38,9 @@ def test_autocallable_history_respects_first_daily_observation_on_sparse_calenda
         lower_strike=0,
         effective_time=start,
         expiry_time=end,
-        observations=[i.AutocallableObservation.snowball(end, 110, coupon_rate=0)],
+        autocall_observations=[
+            i.AutocallableObservation.snowball(end, 110, coupon_rate=0)
+        ],
         knock_in_observation=KnockInObservation.every_trading_day(time(12)),
         calendar=m.custom_calendar(
             base=m.all_days_calendar(),

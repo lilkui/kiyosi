@@ -11908,10 +11908,13 @@ class KnockInObservation:
         """Return the owned daily clock, or None for expiry-only observation."""
 
 class AutocallableObservation:
-    """Observation with validated numeric terms for an autocallable note.
+    """Knock-out and coupon observation with validated numeric terms.
 
     Notes
     -----
+    Knock-in monitoring is defined independently by KnockInObservation. Phoenix
+    coupon observations remain active during knock-out lockout.
+
     Construct with snowball(..., coupon_rate=...) or phoenix(...,
     coupon_barrier_level=...). A zero knock-out coupon or unconditional Phoenix
     coupon requires an explicit zero. Observations retain their snowball or
@@ -12029,7 +12032,7 @@ class AutocallableObservation:
 
 @overload
 def autocallable_observations(
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     knock_out_levels: Iterable[_Real],
     *,
     knock_out_coupon_rates: Iterable[_Real],
@@ -12039,8 +12042,8 @@ def autocallable_observations(
 
     Parameters
     ----------
-    observation_times : iterable of datetime.datetime
-        Observation times; the note constructor checks ordering and life
+    autocall_times : iterable of datetime.datetime
+        Knock-out and coupon observation times; the note checks ordering and life
         bounds.
     knock_out_levels : iterable of float
         Positive inclusive knock-out levels, one per observation timestamp.
@@ -12093,7 +12096,7 @@ def autocallable_observations(
     ...     maturity_coupon_rate=0.1, initial_spot=100, knock_in_level=80,
     ...     upper_strike=100, lower_strike=0,
     ...     knock_in_observation=ins.KnockInObservation.every_trading_day(time(15)),
-    ...     effective_time=start, expiry_time=end, observations=records,
+    ...     effective_time=start, expiry_time=end, autocall_observations=records,
     ...     calendar=schedule.calendar,
     ... )
     >>> note.calendar == schedule.calendar
@@ -12104,7 +12107,7 @@ def autocallable_observations(
 
 @overload
 def autocallable_observations(
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     knock_out_levels: Iterable[_Real],
     *,
     knock_out_coupon_rates: None = None,
@@ -12132,8 +12135,8 @@ class SnowballOption:
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observations : iterable of AutocallableObservation
-        Nonempty, strictly ordered contractual observations within life.
+    autocall_observations : iterable of AutocallableObservation
+        Nonempty, strictly ordered knock-out and coupon observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -12160,7 +12163,7 @@ class SnowballOption:
 
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
-        knock-out and coupons remain available through observations.
+        knock-out and coupons remain available through autocall_observations.
         """
 
     def replace(
@@ -12178,7 +12181,7 @@ class SnowballOption:
         principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        observations: Iterable[AutocallableObservation] | EllipsisType = ...,
+        autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
@@ -12197,7 +12200,7 @@ class SnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         effective_time, expiry_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observations : Iterable[AutocallableObservation], optional
+        autocall_observations : Iterable[AutocallableObservation], optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
@@ -12254,18 +12257,26 @@ class SnowballOption:
         knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
-        observations: Iterable[AutocallableObservation],
+        autocall_observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
-    def observations(self) -> tuple[AutocallableObservation, ...]:
-        """Return owned copies of the contractual observations."""
+    def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
+        """Return owned copies of the contractual knock-out and coupon observations.
+
+        Phoenix records include coupon observations during knock-out lockout.
+        Knock-in monitoring is available through knock_in_observation_schedule.
+        """
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
-        """Return a copy of the contractual observation times."""
+    def autocall_times(self) -> tuple[datetime, ...]:
+        """Return a copy of the contractual knock-out and coupon observation times.
+
+        Includes Phoenix coupon times during knock-out lockout; excludes
+        independently scheduled knock-in monitoring.
+        """
 
     @property
     def knock_out_levels(self) -> tuple[float, ...]:
@@ -12341,8 +12352,8 @@ class PhoenixOption:
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observations : iterable of AutocallableObservation
-        Nonempty, strictly ordered contractual observations within life.
+    autocall_observations : iterable of AutocallableObservation
+        Nonempty, strictly ordered knock-out and coupon observations within life.
     lockout_periods : int, optional
         Initial observations excluded from knock-out; defaults to zero and must
         leave at least one eligible observation. Coupons and knock-in remain active.
@@ -12409,7 +12420,7 @@ class PhoenixOption:
 
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
-        knock-out and coupons remain available through observations.
+        knock-out and coupons remain available through autocall_observations.
         """
 
     def replace(
@@ -12428,7 +12439,7 @@ class PhoenixOption:
         principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        observations: Iterable[AutocallableObservation] | EllipsisType = ...,
+        autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
@@ -12449,7 +12460,7 @@ class PhoenixOption:
             Replacement value; omission or Ellipsis retains the current field.
         effective_time, expiry_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observations : Iterable[AutocallableObservation], optional
+        autocall_observations : Iterable[AutocallableObservation], optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
@@ -12479,19 +12490,27 @@ class PhoenixOption:
         knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
-        observations: Iterable[AutocallableObservation],
+        autocall_observations: Iterable[AutocallableObservation],
         lockout_periods: SupportsIndex = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
-    def observations(self) -> tuple[AutocallableObservation, ...]:
-        """Return owned copies of the contractual observations."""
+    def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
+        """Return owned copies of the contractual knock-out and coupon observations.
+
+        Phoenix records include coupon observations during knock-out lockout.
+        Knock-in monitoring is available through knock_in_observation_schedule.
+        """
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
-        """Return a copy of the contractual observation times."""
+    def autocall_times(self) -> tuple[datetime, ...]:
+        """Return a copy of the contractual knock-out and coupon observation times.
+
+        Includes Phoenix coupon times during knock-out lockout; excludes
+        independently scheduled knock-in monitoring.
+        """
 
     @property
     def knock_out_levels(self) -> tuple[float, ...]:
@@ -12556,8 +12575,8 @@ class BinarySnowballOption:
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observations : iterable of AutocallableObservation
-        Nonempty, strictly ordered contractual observations within life.
+    autocall_observations : iterable of AutocallableObservation
+        Nonempty, strictly ordered knock-out and coupon observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -12583,7 +12602,7 @@ class BinarySnowballOption:
 
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
-        knock-out and coupons remain available through observations.
+        knock-out and coupons remain available through autocall_observations.
         """
 
     def replace(
@@ -12596,7 +12615,7 @@ class BinarySnowballOption:
         principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        observations: Iterable[AutocallableObservation] | EllipsisType = ...,
+        autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
@@ -12611,7 +12630,7 @@ class BinarySnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         effective_time, expiry_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observations : Iterable[AutocallableObservation], optional
+        autocall_observations : Iterable[AutocallableObservation], optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
@@ -12663,18 +12682,26 @@ class BinarySnowballOption:
         maturity_coupon_rate: _Real,
         effective_time: datetime,
         expiry_time: datetime,
-        observations: Iterable[AutocallableObservation],
+        autocall_observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
-    def observations(self) -> tuple[AutocallableObservation, ...]:
-        """Return owned copies of the contractual observations."""
+    def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
+        """Return owned copies of the contractual knock-out and coupon observations.
+
+        Phoenix records include coupon observations during knock-out lockout.
+        Knock-in monitoring is available through knock_in_observation_schedule.
+        """
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
-        """Return a copy of the contractual observation times."""
+    def autocall_times(self) -> tuple[datetime, ...]:
+        """Return a copy of the contractual knock-out and coupon observation times.
+
+        Includes Phoenix coupon times during knock-out lockout; excludes
+        independently scheduled knock-in monitoring.
+        """
 
     @property
     def knock_out_levels(self) -> tuple[float, ...]:
@@ -12725,8 +12752,8 @@ class TernarySnowballOption:
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observations : iterable of AutocallableObservation
-        Nonempty, strictly ordered contractual observations within life.
+    autocall_observations : iterable of AutocallableObservation
+        Nonempty, strictly ordered knock-out and coupon observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -12752,7 +12779,7 @@ class TernarySnowballOption:
 
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
-        knock-out and coupons remain available through observations.
+        knock-out and coupons remain available through autocall_observations.
         """
 
     def replace(
@@ -12768,7 +12795,7 @@ class TernarySnowballOption:
         principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        observations: Iterable[AutocallableObservation] | EllipsisType = ...,
+        autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
@@ -12785,7 +12812,7 @@ class TernarySnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         effective_time, expiry_time : datetime.datetime, optional
             Replacement value; omission or Ellipsis retains the current field.
-        observations : Iterable[AutocallableObservation], optional
+        autocall_observations : Iterable[AutocallableObservation], optional
             Replacement value; omission or Ellipsis retains the current field.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
@@ -12840,18 +12867,26 @@ class TernarySnowballOption:
         knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
-        observations: Iterable[AutocallableObservation],
+        autocall_observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
-    def observations(self) -> tuple[AutocallableObservation, ...]:
-        """Return owned copies of the contractual observations."""
+    def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
+        """Return owned copies of the contractual knock-out and coupon observations.
+
+        Phoenix records include coupon observations during knock-out lockout.
+        Knock-in monitoring is available through knock_in_observation_schedule.
+        """
 
     @property
-    def observation_times(self) -> tuple[datetime, ...]:
-        """Return a copy of the contractual observation times."""
+    def autocall_times(self) -> tuple[datetime, ...]:
+        """Return a copy of the contractual knock-out and coupon observation times.
+
+        Includes Phoenix coupon times during knock-out lockout; excludes
+        independently scheduled knock-in monitoring.
+        """
 
     @property
     def knock_out_levels(self) -> tuple[float, ...]:
@@ -12903,7 +12938,7 @@ def standard_snowball(
     initial_spot: _Real,
     knock_in_level: _Real,
     knock_out_level: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -12925,8 +12960,8 @@ def standard_snowball(
 
     knock_out_level : float
         Positive inclusive knock-out threshold.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -12981,7 +13016,7 @@ def european_snowball(
     initial_spot: _Real,
     knock_in_level: _Real,
     knock_out_level: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
@@ -13002,8 +13037,8 @@ def european_snowball(
 
     knock_out_level : float
         Positive inclusive knock-out threshold.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -13057,7 +13092,7 @@ def step_down_snowball(
     knock_in_level: _Real,
     initial_knock_out_level: _Real,
     knock_out_level_decrement: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -13081,8 +13116,8 @@ def step_down_snowball(
         Positive knock-out threshold at the first observation.
     knock_out_level_decrement : float
         Absolute price decrement after each observation; may be negative.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -13141,7 +13176,7 @@ def both_down_snowball(
     initial_knock_out_level: _Real,
     coupon_rate_decrement: _Real,
     knock_out_level_decrement: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -13167,8 +13202,8 @@ def both_down_snowball(
         Absolute decimal-rate decrement after each observation.
     knock_out_level_decrement : float
         Absolute price decrement after each observation; may be negative.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -13226,7 +13261,7 @@ def dual_coupon_snowball(
     knock_in_level: _Real,
     knock_out_level: _Real,
     maturity_coupon_rate: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -13250,8 +13285,8 @@ def dual_coupon_snowball(
         Positive inclusive knock-out threshold.
     maturity_coupon_rate : float
         Finite annual maturity coupon rate in decimal units.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -13307,7 +13342,7 @@ def parachute_snowball(
     knock_in_level: _Real,
     knock_out_level: _Real,
     final_knock_out_level: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -13331,8 +13366,8 @@ def parachute_snowball(
         Positive inclusive knock-out threshold.
     final_knock_out_level : float
         Positive threshold replacing only the final knock-out level.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -13388,7 +13423,7 @@ def otm_snowball(
     knock_in_level: _Real,
     knock_out_level: _Real,
     upper_strike: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -13412,8 +13447,8 @@ def otm_snowball(
         Positive inclusive knock-out threshold.
     upper_strike : float
         Positive upper terminal settlement strike.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -13469,7 +13504,7 @@ def loss_capped_snowball(
     knock_in_level: _Real,
     knock_out_level: _Real,
     lower_strike: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -13493,8 +13528,8 @@ def loss_capped_snowball(
         Positive inclusive knock-out threshold.
     lower_strike : float
         Nonnegative lower terminal strike, at most the upper strike.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -13944,7 +13979,7 @@ def standard_phoenix(
     knock_out_level: _Real,
     coupon_barrier_level: _Real,
     knock_in_observation_clock_time: time,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     lockout_periods: SupportsIndex = ...,
@@ -13973,7 +14008,7 @@ def standard_phoenix(
 
     coupon_barrier_level : float
         Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
-    observation_times : iterable of datetime.datetime
+    autocall_times : iterable of datetime.datetime
         Strictly increasing observation and payment times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -14024,7 +14059,7 @@ def step_down_phoenix(
     coupon_barrier_level: _Real,
     knock_out_level_decrement: _Real,
     knock_in_observation_clock_time: time,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     lockout_periods: SupportsIndex = ...,
@@ -14055,7 +14090,7 @@ def step_down_phoenix(
         Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
     knock_out_level_decrement : float
         Finite nonnegative absolute decrement after each eligible observation; lockout does not consume ladder steps.
-    observation_times : iterable of datetime.datetime
+    autocall_times : iterable of datetime.datetime
         Strictly increasing observation and payment times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -14103,7 +14138,7 @@ def fixed_coupon_note(
     initial_spot: _Real,
     knock_in_level: _Real,
     knock_out_level: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     lockout_periods: SupportsIndex = ...,
@@ -14128,7 +14163,7 @@ def fixed_coupon_note(
         Initial observations excluded from knock-out; defaults to zero and must
         leave at least one eligible observation. Coupons and knock-in remain active.
 
-    observation_times : iterable of datetime.datetime
+    autocall_times : iterable of datetime.datetime
         Strictly increasing observation and payment times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -14177,7 +14212,7 @@ def digital_coupon_note(
     knock_in_level: _Real,
     knock_out_level: _Real,
     coupon_barrier_level: _Real,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     lockout_periods: SupportsIndex = ...,
@@ -14204,7 +14239,7 @@ def digital_coupon_note(
 
     coupon_barrier_level : float
         Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
-    observation_times : iterable of datetime.datetime
+    autocall_times : iterable of datetime.datetime
         Strictly increasing observation and payment times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -14254,7 +14289,7 @@ def early_profit_snowball(
     knock_out_level: _Real,
     second_coupon_rate: _Real,
     first_stage_end_time: datetime,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -14280,8 +14315,8 @@ def early_profit_snowball(
         Finite signed annual coupon rate after the cutoff and at maturity.
     first_stage_end_time : datetime.datetime
         Inclusive first-stage end within life and strictly before expiry.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -14314,7 +14349,7 @@ def early_profit_snowball(
     -----
     Knock-in is observed on every trading day. Knock-out uses the observation's stage rate over the whole holding period.
     Maturity uses the final stage rate. Cutoffs need not be observation or trading
-    times, stages may have no observations, and rates need not decrease.
+    times, stages may have no autocall_observations, and rates need not decrease.
 
     The returned SnowballOption stores observation and maturity coupons separately.
     To edit its first annual observation coupon while preserving coupon spreads,
@@ -14342,7 +14377,7 @@ def butterfly_snowball(
     third_coupon_rate: _Real,
     first_stage_end_time: datetime,
     second_stage_end_time: datetime,
-    observation_times: Iterable[datetime],
+    autocall_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     knock_in_observation_clock_time: time,
@@ -14372,8 +14407,8 @@ def butterfly_snowball(
         Inclusive first-stage end within life and before second_stage_end_time.
     second_stage_end_time : datetime.datetime
         Inclusive second-stage end strictly before expiry.
-    observation_times : iterable of datetime.datetime
-        Strictly increasing observation times within the contract life.
+    autocall_times : iterable of datetime.datetime
+        Strictly increasing knock-out and coupon observation times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -14406,7 +14441,7 @@ def butterfly_snowball(
     -----
     Knock-in is observed on every trading day. Knock-out uses the observation's stage rate over the whole holding period.
     Maturity uses the final stage rate. Cutoffs need not be observation or trading
-    times, stages may have no observations, and rates need not decrease.
+    times, stages may have no autocall_observations, and rates need not decrease.
 
     The returned SnowballOption stores observation and maturity coupons separately.
     To edit its first annual observation coupon while preserving coupon spreads,

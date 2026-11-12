@@ -42,7 +42,7 @@ def test_european_snowball_signature_defaults_can_be_forwarded():
         "initial_spot": 100,
         "knock_in_level": 80,
         "knock_out_level": 110,
-        "observation_times": [END],
+        "autocall_times": [END],
         "effective_time": START,
         "expiry_time": END,
     }
@@ -61,7 +61,7 @@ def test_quadrature_covers_drift_into_future_knock_out():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 6, 30), end],
             [110, 110],
             knock_out_coupon_rates=[0.2, 0.2],
@@ -92,7 +92,7 @@ def test_quadrature_covers_drift_below_future_knock_out():
         effective_time=START,
         expiry_time=end,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [110], knock_out_coupon_rates=[0.2]
         ),
     )
@@ -135,7 +135,7 @@ def test_fixed_terminal_regions_and_no_binary_monitoring():
         "principal_redemption_ratio": 0.5,
         "effective_time": START,
         "expiry_time": END,
-        "observations": autocallable_observations(
+        "autocall_observations": autocallable_observations(
             [END], [110], knock_out_coupon_rates=[0.08]
         ),
     }
@@ -177,7 +177,7 @@ def make_fixed(kind, **changes):
         "maturity_coupon_rate": 0.06,
         "effective_time": START,
         "expiry_time": END,
-        "observations": autocallable_observations(
+        "autocall_observations": autocallable_observations(
             [END], [110], knock_out_coupon_rates=[0.08]
         ),
     }
@@ -203,7 +203,7 @@ def test_existing_quantlib_terminal_portfolios(subtests):
                 "barrier_state": inputs["history"],
                 "principal_redemption_ratio": inputs["principal_redemption_ratio"],
                 "maturity_coupon_rate": inputs["maturity_coupon_rate"],
-                "observations": autocallable_observations(
+                "autocall_observations": autocallable_observations(
                     [datetime.fromisoformat(inputs["expiry_time"])],
                     [110],
                     knock_out_coupon_rates=[inputs["coupon_rate"]],
@@ -238,7 +238,7 @@ def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
     common = {
         "initial_spot": 100,
         "knock_in_level": 80,
-        "observation_times": dates,
+        "autocall_times": dates,
         "effective_time": START,
         "expiry_time": END,
         "principal_redemption_ratio": 0.5,
@@ -372,7 +372,7 @@ def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
                 principal_redemption_ratio=0.5,
                 effective_time=START,
                 expiry_time=END,
-                observations=autocallable_observations(
+                autocall_observations=autocallable_observations(
                     dates, levels, knock_out_coupon_rates=coupons
                 ),
             )
@@ -421,7 +421,7 @@ def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
         initial_spot=100,
         knock_in_level=80,
         knock_out_level=110,
-        observation_times=[END],
+        autocall_times=[END],
         effective_time=START,
         expiry_time=END,
     )
@@ -446,9 +446,9 @@ def test_native_representations_validation_timing_and_ownership():
             )
             == note
         )
-        records = list(note.observations)
+        records = list(note.autocall_observations)
         records.clear()
-        assert len(note.observations) == 1
+        assert len(note.autocall_observations) == 1
         for field in ("maturity_coupon_rate", "principal_redemption_ratio"):
             for value in (True, "0.1", object()):
                 with pytest.raises(TypeError):
@@ -462,9 +462,11 @@ def test_native_representations_validation_timing_and_ownership():
                 InvalidInputError,
             ),
         ):
-            assert_rejection(expected_error, make_fixed, kind, observations=records)
+            assert_rejection(
+                expected_error, make_fixed, kind, autocall_observations=records
+            )
         with pytest.raises(TypeError):
-            make_fixed(kind, observations=[object()])
+            make_fixed(kind, autocall_observations=[object()])
         with pytest.raises(TypeError):
             make_fixed(kind, effective_time=datetime(2025, 1, 1).date())
         assert_rejection(
@@ -474,7 +476,7 @@ def test_native_representations_validation_timing_and_ownership():
             InvalidInputError,
             make_fixed,
             kind,
-            observations=[],
+            autocall_observations=[],
             maturity_coupon_rate=math.nan,
         )
         with pytest.raises(ValueError):
@@ -520,7 +522,7 @@ def test_native_representations_validation_timing_and_ownership():
         InvalidInputError,
         make_fixed,
         TernarySnowballOption,
-        observations=[],
+        autocall_observations=[],
         knock_in_level=0,
     )
     daily = make_fixed(
@@ -562,7 +564,7 @@ def test_preset_rejections_and_strict_numeric_conversion():
         "initial_spot": 100,
         "knock_in_level": 80,
         "knock_out_level": 110,
-        "observation_times": [END],
+        "autocall_times": [END],
         "effective_time": START,
         "expiry_time": END,
     }
@@ -583,7 +585,7 @@ def test_preset_rejections_and_strict_numeric_conversion():
         InvalidInputError,
         instruments.standard_snowball,
         knock_in_observation_clock_time=clock_time(),
-        **(common | {"observation_times": []}),
+        **(common | {"autocall_times": []}),
     )
     assert_rejection(
         InvalidInputError,
@@ -618,7 +620,7 @@ def test_preset_rejections_and_strict_numeric_conversion():
     # A negative decrement is supported if the expanded levels remain positive.
     note = instruments.step_down_snowball(
         knock_in_observation_clock_time=clock_time(),
-        **(stepped | {"observation_times": [datetime(2025, 2, 3), END]}),
+        **(stepped | {"autocall_times": [datetime(2025, 2, 3), END]}),
         knock_out_level_decrement=-2,
     )
     assert note.knock_out_levels == ((110, 112))
@@ -679,7 +681,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
     note = make_fixed(
         kind,
         barrier_state="no_event",
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [middle, END], [110, 105], knock_out_coupon_rates=[0.08, 0.06]
         ),
     )
@@ -721,7 +723,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
     fixed = make_fixed(
         kind,
         maturity_coupon_rate=0,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [END], [110], knock_out_coupon_rates=[0]
         ),
         **({"minimum_coupon_rate": 0} if kind is TernarySnowballOption else {}),
@@ -756,7 +758,7 @@ def test_multi_event_convergence_for_fixed_variants_and_both_monitoring_modes(
     ctx = market()
     note = make_fixed(
         kind,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             dates, [110, 108, 105], knock_out_coupon_rates=[0.08] * 3
         ),
         **(
@@ -792,7 +794,7 @@ def test_signed_coupon_and_one_second_digital_regressions():
                     kind,
                     expiry_time=end,
                     maturity_coupon_rate=0,
-                    observations=autocallable_observations(
+                    autocall_observations=autocallable_observations(
                         [end], [100], knock_out_coupon_rates=[coupon]
                     ),
                     **(
@@ -823,7 +825,7 @@ def test_signed_coupon_and_one_second_digital_regressions():
         BinarySnowballOption,
         expiry_time=end,
         maturity_coupon_rate=0,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [100], knock_out_coupon_rates=[0.1]
         ),
     )

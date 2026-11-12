@@ -864,7 +864,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         },
         TradingCalendar::weekdays(),
     );
-    terms.observations[0] = terms.observations[0]
+    terms.autocall_observations[0] = terms.autocall_observations[0]
         .replace(AutocallableObservationChanges {
             coupon_rate: Some(0.12),
             ..Default::default()

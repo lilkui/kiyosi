@@ -34,7 +34,7 @@ standard = standard_phoenix(
     coupon_barrier_level=90,
     lockout_periods=2,
     knock_in_observation_clock_time=time(15),
-    observation_times=times,
+    autocall_times=times,
     effective_time=start,
     expiry_time=end,
 )
@@ -48,7 +48,7 @@ step_down = step_down_phoenix(
     coupon_barrier_level=90,
     lockout_periods=2,
     knock_in_observation_clock_time=time(15),
-    observation_times=times,
+    autocall_times=times,
     effective_time=start,
     expiry_time=end,
 )
@@ -60,7 +60,7 @@ fcn = fixed_coupon_note(
     initial_spot=100,
     knock_in_level=80,
     knock_out_level=103,
-    observation_times=times,
+    autocall_times=times,
     effective_time=start,
     expiry_time=end,
 )

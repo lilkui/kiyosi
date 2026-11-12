@@ -186,7 +186,7 @@ def test_current_phoenix_coupon_paid_once_and_weekend_does_not_knock_in():
     engine = MC(path_count=32768, seed=42)
     # Tiny volatility makes every future observation coupon deterministic.
     note = phoenix(
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 2, 3), END], [200, 200], coupon_barrier_levels=[90, 90]
         )
     )
@@ -200,7 +200,7 @@ def test_current_phoenix_coupon_paid_once_and_weekend_does_not_knock_in():
         maturity_coupon_rate=0.12,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         barrier_state="no_event",
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 1, 6)], [120], knock_out_coupon_rates=[0.12]
         ),
     )
@@ -245,7 +245,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
     exposed = phoenix(
         lower_strike=100,
         upper_strike=100,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 2, 3), END], [101, 105], coupon_barrier_levels=[0, 0]
         ),
     )
@@ -274,7 +274,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [END], [110], knock_out_coupon_rates=[0]
         ),
     )
@@ -342,7 +342,7 @@ def test_sobol_dimension_limit_uses_remaining_monitoring_dates():
     end = datetime(2110, 1, 1)
     fields = {
         "expiry_time": end,
-        "observations": autocallable_observations(
+        "autocall_observations": autocallable_observations(
             [end], [110], knock_out_coupon_rates=[0.08]
         ),
     }

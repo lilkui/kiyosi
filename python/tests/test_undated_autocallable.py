@@ -35,7 +35,7 @@ def contract(state):
         effective_time=START,
         expiry_time=END,
         knock_in_observation=KnockInObservation.every_trading_day(time()),
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [EVENT, END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
         ),
         barrier_state=state,

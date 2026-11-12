@@ -28,7 +28,7 @@ fn phoenix_terms() -> PhoenixPresetTerms {
 #[test]
 fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observation() {
     let mut input = phoenix_terms();
-    input.observation_times = vec![date(1, 2), date(2, 3), date(3, 3), date(4, 1)];
+    input.autocall_times = vec![date(1, 2), date(2, 3), date(3, 3), date(4, 1)];
     input.knock_in_observation_clock_time = Some(date(1, 1).time_of_day());
     input.lockout_periods = 2;
     let step = input
@@ -47,7 +47,7 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
         input.effective_time,
         input.expiry_time,
         autocallable_observations(
-            &input.observation_times,
+            &input.autocall_times,
             &[110.0, 110.0, 110.0, 108.0],
             None,
             Some(&[90.0; 4]),
@@ -66,8 +66,8 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(moved.observations(), step.observations());
-    assert_eq!(moved.observations()[3].knock_out_level(), 108.0);
+    assert_eq!(moved.autocall_observations(), step.autocall_observations());
+    assert_eq!(moved.autocall_observations()[3].knock_out_level(), 108.0);
     let standard = input
         .clone()
         .expand(PhoenixPreset::Standard {
@@ -318,7 +318,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
         },
     ] {
         let mut input = phoenix_terms();
-        input.observation_times = vec![end];
+        input.autocall_times = vec![end];
         let note = input.expand(preset).unwrap();
         let coupon_value = match preset {
             PhoenixPreset::FixedCouponNote => 0.01 * discount,
@@ -462,7 +462,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             })
             .unwrap();
         assert_eq!(
-            note.observations()
+            note.autocall_observations()
                 .iter()
                 .map(|r| r.coupon_rate().unwrap())
                 .collect::<Vec<_>>(),
@@ -538,7 +538,7 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
                 second_coupon_rate: -0.02,
             })
             .unwrap();
-        assert_eq!(note.observations()[0].coupon_rate(), Some(-0.02));
+        assert_eq!(note.autocall_observations()[0].coupon_rate(), Some(-0.02));
     }
     let mut increasing = base.clone();
     increasing.coupon_rate = -0.02;
@@ -551,7 +551,7 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
         })
         .unwrap();
     assert_eq!(note.terms().maturity_coupon_rate, 0.2);
-    assert_eq!(note.observations()[0].coupon_rate(), Some(0.2));
+    assert_eq!(note.autocall_observations()[0].coupon_rate(), Some(0.2));
     for cutoff in [
         Date::new(2024, 12, 31).unwrap().start_of_day(),
         date(4, 1),
@@ -630,7 +630,7 @@ fn phoenix_presets_reuse_core_validation_and_history_defaults() {
         vec![date(4, 2)],
     ] {
         let mut input = phoenix_terms();
-        input.observation_times = dates;
+        input.autocall_times = dates;
         assert!(matches!(
             input.expand(PhoenixPreset::FixedCouponNote),
             Err(Error::InvalidInput(_))

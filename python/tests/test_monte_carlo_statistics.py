@@ -81,7 +81,7 @@ def seed_cases():
                 initial_spot=100,
                 knock_in_level=80,
                 knock_out_level=110,
-                observation_times=[END],
+                autocall_times=[END],
                 knock_in_observation_clock_time=time(),
                 **LIFE,
             ),

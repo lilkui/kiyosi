@@ -117,7 +117,7 @@ def test_closed_date_settlement_preserves_open_date_observations():
             upper_strike=100,
             lower_strike=0,
             knock_in_observation=KnockInObservation.every_trading_day(clock_time(15)),
-            observations=autocallable_observations(
+            autocall_observations=autocallable_observations(
                 [observation], [110], knock_out_coupon_rates=[0]
             ),
             barrier_state="no_event",
@@ -126,7 +126,7 @@ def test_closed_date_settlement_preserves_open_date_observations():
         note = SnowballOption(**fields)
         binary = BinarySnowballOption(
             maturity_coupon_rate=0.12,
-            observations=fields["observations"],
+            autocall_observations=fields["autocall_observations"],
             barrier_state="no_event",
             **life,
         )
@@ -222,7 +222,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
         upper_strike=100,
         lower_strike=0,
         knock_in_observation=KnockInObservation.every_trading_day(clock),
-        observations=observations,
+        autocall_observations=observations,
         **life,
     )
     notes = [
@@ -231,7 +231,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
             coupon_per_period=0.1,
             **dict(
                 terms,
-                observations=autocallable_observations(
+                autocall_observations=autocallable_observations(
                     [expiry], [110], coupon_barrier_levels=[0]
                 ),
             ),
@@ -241,7 +241,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
             minimum_coupon_rate=0.02,
             knock_in_level=80,
             knock_in_observation=KnockInObservation.every_trading_day(clock),
-            observations=observations,
+            autocall_observations=observations,
             **life,
         ),
     ]
@@ -256,7 +256,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
             exported.clear()
             assert list(note.knock_in_observation_schedule) == [start, last]
     binary = BinarySnowballOption(
-        maturity_coupon_rate=0.1, observations=observations, **life
+        maturity_coupon_rate=0.1, autocall_observations=observations, **life
     )
     assert binary.knock_in_observation_schedule is None
 
@@ -514,7 +514,7 @@ def test_daily_history_uses_observation_clock_and_inclusive_start(subtests):
         lower_strike=0,
         effective_time=time(6, 9),
         expiry_time=time(7, 15),
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [time(7, 15)], [110], knock_out_coupon_rates=[0]
         ),
     )
@@ -557,7 +557,7 @@ def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(subtests):
         lower_strike=0,
         effective_time=time(6, 9),
         expiry_time=time(6, 15),
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [time(6, 10)], [1000], knock_out_coupon_rates=[0]
         ),
     )
@@ -578,7 +578,7 @@ def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(subtests):
             )
     note = note.replace(
         maturity_coupon_rate=0,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [time(6, 10)], [110], knock_out_coupon_rates=[0.12]
         ),
     )
@@ -628,7 +628,7 @@ def test_finite_difference_rejects_unresolvable_microsecond_events():
         lower_strike=1,
         effective_time=start,
         expiry_time=last,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [first, last], [1000, 1000], coupon_barrier_levels=[0] * 2
         ),
         knock_in_observation=KnockInObservation.at_expiry(),

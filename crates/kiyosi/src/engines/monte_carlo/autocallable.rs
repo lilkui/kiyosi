@@ -185,7 +185,7 @@ impl MonteCarloAutocallableEngine {
         let below_knock_in = |log_return| knock_in.is_some_and(|level| log_return < level);
         let mut steps = Vec::with_capacity(dates.len());
         let mut next = note
-            .observations()
+            .autocall_observations()
             .partition_point(|r| r.time() <= valuation);
         for date in dates {
             let time = previous.years_until(date);
@@ -195,7 +195,10 @@ impl MonteCarloAutocallableEngine {
             if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
                 return Err(unstable());
             }
-            let record = note.observations().get(next).filter(|r| r.time() == date);
+            let record = note
+                .autocall_observations()
+                .get(next)
+                .filter(|r| r.time() == date);
             if record.is_some() {
                 next += 1;
             }

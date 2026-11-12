@@ -11,6 +11,7 @@ def _signature(callable: Any, defaults: dict[str, Any]) -> Signature:
     defaults = defaults.copy()
     if {
         "times",
+        "autocall_times",
         "observation_times",
         "knock_out_observation_times",
     } & original.parameters.keys():

@@ -45,7 +45,7 @@ def test_nearby_barriers_preserve_prices_and_greeks(subtests):
             maturity_coupon_rate=0.02,
             effective_time=start,
             expiry_time=end,
-            observations=autocallable_observations(
+            autocall_observations=autocallable_observations(
                 [middle, end],
                 [100, barrier],
                 knock_out_coupon_rates=[0.08, 0.08],
@@ -73,7 +73,7 @@ def test_near_expiry_greeks_match_an_analytic_digital(subtests, volatility, seco
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [100], knock_out_coupon_rates=[0.1]
         ),
     )
@@ -138,7 +138,7 @@ def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(subtes
         barrier_state="no_event",
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             dates, [103] * len(dates), knock_out_coupon_rates=[0.2] * len(dates)
         ),
     )
@@ -192,7 +192,7 @@ def test_coarse_grids_preserve_positive_payoff_bounds_and_flat_greeks(seconds, c
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [100], knock_out_coupon_rates=[0.1]
         ),
     )
@@ -233,7 +233,7 @@ def test_terminal_digital_separates_space_time_domain_and_barrier_placement_erro
             maturity_coupon_rate=0,
             effective_time=start,
             expiry_time=end,
-            observations=autocallable_observations(
+            autocall_observations=autocallable_observations(
                 [end], [barrier], knock_out_coupon_rates=[0.1]
             ),
         )
@@ -285,7 +285,7 @@ def test_projection_preserves_exact_current_event_barrier_comparisons(subtests):
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [100], coupon_barrier_levels=[100]
         ),
     )
@@ -328,7 +328,7 @@ def test_cash_carry_portfolio_is_preserved_across_event_restarts(subtests):
         barrier_state="no_event",
         effective_time=start,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             dates,
             [110] * 4,
             knock_out_coupon_rates=[carry_rate(day) for day in dates],

@@ -40,7 +40,7 @@ def terms(**changes):
         "initial_spot": 100,
         "knock_in_level": 80,
         "knock_out_level": 110,
-        "observation_times": [MIDDLE, END],
+        "autocall_times": [MIDDLE, END],
         "effective_time": START,
         "expiry_time": END,
     }
@@ -58,7 +58,7 @@ def phoenix_fields(**changes):
         "effective_time": START,
         "expiry_time": END,
         "barrier_state": "no_event",
-        "observations": autocallable_observations(
+        "autocall_observations": autocallable_observations(
             [MIDDLE, END], [110, 110], coupon_barrier_levels=[0] * 2
         ),
     }
@@ -84,7 +84,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         "knock_in_level": 80,
         "knock_in_observation_clock_time": clock_time(),
         "coupon_barrier_level": 90,
-        "observation_times": dates,
+        "autocall_times": dates,
         "effective_time": START,
         "expiry_time": END,
         "lockout_periods": 2,
@@ -103,7 +103,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         effective_time=START,
         expiry_time=END,
         lockout_periods=2,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             dates, [110, 110, 110, 108], coupon_barrier_levels=[90] * 4
         ),
     )
@@ -180,13 +180,13 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
 )
 def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, barrier):
     dates = [MIDDLE, END]
-    note = factory(coupon_per_period=0.01, **terms(observation_times=dates), **extra)
+    note = factory(coupon_per_period=0.01, **terms(autocall_times=dates), **extra)
     expected = PhoenixOption(
         calendar=weekdays_calendar(),
         coupon_per_period=0.01,
         **phoenix_fields(
             barrier_state=None,
-            observations=autocallable_observations(
+            autocall_observations=autocallable_observations(
                 dates, [110, 110], coupon_barrier_levels=[barrier, barrier]
             ),
         ),
@@ -200,7 +200,7 @@ def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, bar
     assert note.barrier_state is None
     assert note.principal_redemption_ratio == 1
     dates.clear()
-    assert note.observation_times == ((MIDDLE, END))
+    assert note.autocall_times == ((MIDDLE, END))
     assert (
         note.replace(
             barrier_state="no_event",
@@ -413,7 +413,7 @@ def test_staged_snowballs_use_inclusive_cutoffs_and_whole_holding_coupons():
             first_coupon_rate=0.2,
             second_coupon_rate=0.05,
             first_stage_end_time=MIDDLE,
-            **terms(observation_times=dates, barrier_state="no_event"),
+            **terms(autocall_times=dates, barrier_state="no_event"),
             **extra,
         )
         assert note.knock_out_coupon_rates == tuple(rates)
@@ -441,7 +441,7 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
     note = early_profit_snowball(
         knock_in_observation_clock_time=clock_time(),
         **fields,
-        **terms(observation_times=[END]),
+        **terms(autocall_times=[END]),
     )
     assert note.knock_out_coupon_rates == ((-0.02,))
     increasing = butterfly_snowball(
@@ -480,7 +480,7 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
                 early_profit_snowball(
                     knock_in_observation_clock_time=clock_time(),
                     **(fields | {key: value}),
-                    **terms(observation_times=[END]),
+                    **terms(autocall_times=[END]),
                 )
     for value in (math.nan, math.inf, -math.inf):
         with pytest.raises(InvalidInputError):
@@ -514,9 +514,7 @@ def test_preset_representation_and_domain_errors_use_native_categories():
             )
     for schedule in ([], [END, MIDDLE], [MIDDLE, MIDDLE], [datetime(2025, 4, 2)]):
         with pytest.raises(InvalidInputError):
-            fixed_coupon_note(
-                coupon_per_period=0.01, **terms(observation_times=schedule)
-            )
+            fixed_coupon_note(coupon_per_period=0.01, **terms(autocall_times=schedule))
     with pytest.raises(TypeError):
         digital_coupon_note(coupon_per_period=0.01, **terms())
     for factory, parameter in (

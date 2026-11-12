@@ -135,7 +135,7 @@ fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
     if let Some(d) = t.downside() {
         level = level.max(d.upper_strike).max(d.lower_strike);
     }
-    note.observations().iter().fold(level, |level, r| {
+    note.autocall_observations().iter().fold(level, |level, r| {
         level
             .max(if note.knock_out_enabled(r) {
                 r.knock_out_level()
@@ -169,7 +169,7 @@ fn event<'a, T: AutocallableTerms>(
     time: f64,
     context: &PricingContext,
 ) -> Option<&'a AutocallableObservation> {
-    note.observations()
+    note.autocall_observations()
         .iter()
         .find(|r| context.valuation_time().years_until(r.time()) == time)
 }
@@ -281,7 +281,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
     let mut observations: Vec<_> = note
-        .observations()
+        .autocall_observations()
         .iter()
         .filter(|r| r.time() > context.valuation_time())
         .map(|r| context.valuation_time().years_until(r.time()))
@@ -361,7 +361,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
             levels.extend([d.lower_strike, d.upper_strike]);
         }
         for r in note
-            .observations()
+            .autocall_observations()
             .iter()
             .filter(|r| r.time() > context.valuation_time())
         {

@@ -45,7 +45,7 @@ def contract(row):
         calendar=weekdays_calendar(),
         principal_redemption_ratio=number("principal_redemption_ratio"),
         barrier_state=inputs["history"],
-        observations=instruments.autocallable_observations(
+        autocall_observations=instruments.autocallable_observations(
             [common["expiry_time"]],
             [number("knock_out_level")],
             **(

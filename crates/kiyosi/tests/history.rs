@@ -156,18 +156,18 @@ fn supplied_history_survives_schedule_edits() -> Result<()> {
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let original = BinarySnowballOption::new(terms)?;
     let updated = original.replace(BinarySnowballOptionChanges {
-        observations: Some(vec![
-            original.observations()[0],
+        autocall_observations: Some(vec![
+            original.autocall_observations()[0],
             AutocallableObservation::snowball(at, 110.0, 0.0)?,
             AutocallableObservation::snowball(future, 110.0, 0.0)?,
-            original.observations()[1],
+            original.autocall_observations()[1],
         ]),
         ..Default::default()
     })?;
-    assert_eq!(updated.observations().len(), 4);
+    assert_eq!(updated.autocall_observations().len(), 4);
     assert_eq!(updated.barrier_state(), original.barrier_state());
     let changed = original.replace(BinarySnowballOptionChanges {
-        observations: Some(vec![original.observations()[1]]),
+        autocall_observations: Some(vec![original.autocall_observations()[1]]),
         ..Default::default()
     })?;
     assert_eq!(changed.barrier_state(), original.barrier_state());

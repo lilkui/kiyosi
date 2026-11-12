@@ -49,7 +49,7 @@ def contract(**changes):
         "effective_time": START,
         "expiry_time": END,
         "knock_in_observation": KnockInObservation.at_expiry(),
-        "observations": autocallable_observations(
+        "autocall_observations": autocallable_observations(
             [END], [110], knock_out_coupon_rates=[0.08]
         ),
     }
@@ -91,11 +91,11 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
     observations = autocallable_observations(
         iter([END]), iter([110]), knock_out_coupon_rates=[0]
     )
-    note = contract(observations=iter(observations))
+    note = contract(autocall_observations=iter(observations))
     observations.clear()
-    copy = list(note.observations)
+    copy = list(note.autocall_observations)
     copy.clear()
-    assert note.observation_times == ((END,))
+    assert note.autocall_times == ((END,))
     assert note.knock_out_levels == ((110,))
     assert note.knock_out_coupon_rates == ((0,))
     known = note.replace(
@@ -110,25 +110,27 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
     ):
         assert replacement == known
         assert replacement is not known
-    assert known.observations == note.observations
+    assert known.autocall_observations == note.autocall_observations
     assert note.barrier_state is None
     assert known.replace(barrier_state=None) == note
     for changes, exception in (
         ({"barrier_state": True}, TypeError),
         ({"barrier_state": "unknown"}, ValueError),
         ({"barrier_state": "none"}, ValueError),
-        ({"observations": []}, InvalidInputError),
+        ({"autocall_observations": []}, InvalidInputError),
     ):
         with subtests.test(changes=changes), pytest.raises(exception):
             note.replace(**changes)
     assert note == contract(
-        observations=[AutocallableObservation.snowball(END, 110, coupon_rate=0)]
+        autocall_observations=[
+            AutocallableObservation.snowball(END, 110, coupon_rate=0)
+        ]
     )
     for fields in (
         {"initial_spot": True},
         {"initial_spot": "100"},
         {"principal_redemption_ratio": None},
-        {"observations": [(END, 110)]},
+        {"autocall_observations": [(END, 110)]},
         {"effective_time": datetime(2025, 1, 1).date()},
         {"knock_in_observation": 1},
     ):
@@ -158,10 +160,10 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
 def test_domain_validation_timing_and_failure_state():
     assert_rejection(InvalidInputError, autocallable_observations, [END], [])
     for fields, expected_error in (
-        ({"observations": []}, InvalidInputError),
+        ({"autocall_observations": []}, InvalidInputError),
         (
             {
-                "observations": [
+                "autocall_observations": [
                     AutocallableObservation.snowball(END, 110, coupon_rate=0)
                 ]
                 * 2
@@ -173,7 +175,7 @@ def test_domain_validation_timing_and_failure_state():
         ({"maturity_coupon_rate": math.inf}, InvalidInputError),
         (
             {
-                "observations": [
+                "autocall_observations": [
                     AutocallableObservation.phoenix(END, 110, coupon_barrier_level=1)
                 ]
             },
@@ -213,7 +215,7 @@ def test_domain_validation_timing_and_failure_state():
     with pytest.raises(InvalidInputError):
         contract(
             expiry_time=datetime(2025, 4, 5),
-            observations=[
+            autocall_observations=[
                 AutocallableObservation.snowball(
                     datetime(2025, 2, 1), 110, coupon_rate=0
                 )
@@ -222,7 +224,7 @@ def test_domain_validation_timing_and_failure_state():
     with pytest.raises(InvalidInputError):
         contract(
             expiry_time=datetime(2025, 4, 5),
-            observations=[
+            autocall_observations=[
                 AutocallableObservation.snowball(
                     datetime(2025, 2, 3), 110, coupon_rate=0
                 )
@@ -280,7 +282,7 @@ def test_independent_quantlib_terminal_portfolios(subtests):
                     if inputs["knock_in_mode"] == "every_trading_day"
                     else KnockInObservation.at_expiry()
                 ),
-                observations=autocallable_observations(
+                autocall_observations=autocallable_observations(
                     [end], [110], knock_out_coupon_rates=[inputs["coupon_rate"]]
                 ),
             )
@@ -311,7 +313,7 @@ def test_zero_lower_strike_affine_tail_and_negative_price():
         lower_strike=0,
         knock_in_level=100,
         maturity_coupon_rate=0,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [100], knock_out_coupon_rates=[0]
         ),
     )
@@ -346,7 +348,7 @@ def test_multi_observation_affine_tails_preserve_cash_asset_and_greeks(
             else KnockInObservation.at_expiry()
         ),
         barrier_state=history,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [
                 datetime(2025, 1, 3),
                 datetime(2025, 1, 6),
@@ -380,7 +382,7 @@ def test_daily_layers_and_domain_convergence():
                 if mode == "every_trading_day"
                 else KnockInObservation.at_expiry()
             ),
-            observations=autocallable_observations(
+            autocall_observations=autocallable_observations(
                 dates, [110, 108, 105], knock_out_coupon_rates=[0.08] * 3
             ),
         )
@@ -400,7 +402,7 @@ def test_current_events_history_and_unavailable_sensitivities():
     middle = datetime(2025, 2, 3)
     note = contract(
         barrier_state="no_event",
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [middle, END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
         ),
     )
@@ -478,7 +480,7 @@ def test_settings_errors_and_fixed_cashflows():
         lower_strike=100,
         maturity_coupon_rate=0,
         barrier_state="no_event",
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [END], [110], knock_out_coupon_rates=[0]
         ),
     )
@@ -507,7 +509,7 @@ def test_all_greeks_and_volatility_recovery_against_digital_formula(subtests):
         expiry_time=end,
         lower_strike=100,
         maturity_coupon_rate=0,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [end], [100], knock_out_coupon_rates=[0.1]
         ),
     )
@@ -684,7 +686,7 @@ def test_two_event_prices_match_independent_conditional_payoff_integral():
                 if mode == "every_trading_day"
                 else KnockInObservation.at_expiry()
             ),
-            observations=autocallable_observations(
+            autocall_observations=autocallable_observations(
                 [middle, END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
             ),
         )
@@ -700,7 +702,7 @@ def test_dense_deterministic_ladders_and_short_terminal_transition():
         expiry_time=dates[-1],
         barrier_state="no_event",
         principal_redemption_ratio=0.5,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             dates,
             [125 - 15 * i / 32 for i in range(1, 33)],
             knock_out_coupon_rates=[0.08 * 365 / i for i in range(1, 33)],
@@ -727,7 +729,7 @@ def test_dense_deterministic_ladders_and_short_terminal_transition():
     note = contract(
         lower_strike=100,
         maturity_coupon_rate=0,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [END], [100], knock_out_coupon_rates=[0.1]
         ),
     )
@@ -748,7 +750,7 @@ def test_multi_event_greeks_stay_stable_across_grid_and_bump_refinement(subtests
     note = contract(
         expiry_time=end,
         barrier_state="no_event",
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 6, 2), end],
             [110, 105],
             knock_out_coupon_rates=[0.08, 0.08],

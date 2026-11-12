@@ -80,7 +80,7 @@ def test_schedules_retain_calendars_for_contract_composition(subtests):
         knock_out_level=110,
         effective_time=start,
         expiry_time=end,
-        observation_times=schedule,
+        autocall_times=schedule,
         knock_in_observation_clock_time=clock_time(15),
     )
     assert note.calendar == calendar
@@ -91,7 +91,7 @@ def test_schedules_retain_calendars_for_contract_composition(subtests):
         knock_out_level=110,
         effective_time=start,
         expiry_time=end,
-        observation_times=schedule,
+        autocall_times=schedule,
     )
     assert phoenix.calendar == calendar
     for generated in (
@@ -473,7 +473,7 @@ def test_sliced_schedule_preserves_snowball_monitoring_dates():
         effective_time=start,
         expiry_time=end,
         knock_in_observation_clock_time=clock_time(15),
-        observation_times=schedule[:],
+        autocall_times=schedule[:],
     )
     assert note.calendar == calendar
     assert closed not in ([at.date() for at in note.knock_in_observation_schedule])

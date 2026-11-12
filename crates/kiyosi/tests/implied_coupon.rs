@@ -325,13 +325,13 @@ fn binary_quote_recovers_schedule_shift_and_maturity_conventions() {
         CouponQuoteConvention::PreserveMaturityCoupon,
     ] {
         let mut terms = note.terms().clone();
-        terms.observations[0] = terms.observations[0]
+        terms.autocall_observations[0] = terms.autocall_observations[0]
             .replace(AutocallableObservationChanges {
                 coupon_rate: Some(0.18),
                 ..Default::default()
             })
             .unwrap();
-        terms.observations[1] = terms.observations[1]
+        terms.autocall_observations[1] = terms.autocall_observations[1]
             .replace(AutocallableObservationChanges {
                 coupon_rate: Some(0.22),
                 ..Default::default()
@@ -402,8 +402,8 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
                         < 1e-11
                 );
                 assert!(
-                    (target.observations()[1].coupon_rate().unwrap()
-                        - target.observations()[0].coupon_rate().unwrap()
+                    (target.autocall_observations()[1].coupon_rate().unwrap()
+                        - target.autocall_observations()[0].coupon_rate().unwrap()
                         - 0.04)
                         .abs()
                         < 1e-14
@@ -419,7 +419,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
     })
     .unwrap();
     let context = market(100.0, date(1, 1));
-    let records = binary().observations().to_vec();
+    let records = binary().autocall_observations().to_vec();
     let snowball = SnowballOption::new(SnowballTerms::new(
         0.06,
         100.0,
@@ -705,7 +705,9 @@ fn custom_engine_failures_and_bisection_use_stable_categories() {
     struct Curve(fn(f64) -> f64);
     impl PricingEngine<BinarySnowballOption> for Curve {
         fn price(&self, note: &BinarySnowballOption, _: &PricingContext) -> Result<f64> {
-            Ok((self.0)(note.observations()[0].coupon_rate().unwrap()))
+            Ok((self.0)(
+                note.autocall_observations()[0].coupon_rate().unwrap(),
+            ))
         }
     }
     let note = binary();
@@ -889,7 +891,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         80.0,
         date(1, 1),
         date(4, 1),
-        note.observations().to_vec(),
+        note.autocall_observations().to_vec(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(4, 1)).time_of_day(),
         },
@@ -907,7 +909,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
     )
     .unwrap()
     .first_observation_coupon;
-    assert!((coupon - ternary.observations()[0].coupon_rate().unwrap()).abs() < 1e-7);
+    assert!((coupon - ternary.autocall_observations()[0].coupon_rate().unwrap()).abs() < 1e-7);
     assert_eq!(ternary.terms().maturity_coupon_rate, 0.06);
     let curve = RateTermStructure::new(
         date(1, 1),

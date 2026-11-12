@@ -638,11 +638,11 @@ def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
         "knock_in_level": 80,
         "effective_time": start,
         "expiry_time": end,
-        "observations": [
+        "autocall_observations": [
             instruments.AutocallableObservation.snowball(end, 110, coupon_rate=0)
         ],
     }
-    common["observations"] = [
+    common["autocall_observations"] = [
         instruments.AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)
         if cls is instruments.PhoenixOption
         else instruments.AutocallableObservation.snowball(end, 110, coupon_rate=0)

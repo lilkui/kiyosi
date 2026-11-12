@@ -198,7 +198,7 @@ def terminal_cases():
         )
     common = dict(
         dates,
-        observations=ins.autocallable_observations(
+        autocall_observations=ins.autocallable_observations(
             [dates["expiry_time"]], [120], knock_out_coupon_rates=[0.08]
         ),
     )
@@ -250,7 +250,7 @@ def terminal_cases():
                     **dates,
                     **loss,
                     coupon_per_period=0.08,
-                    observations=ins.autocallable_observations(
+                    autocall_observations=ins.autocallable_observations(
                         [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
                     ),
                 ),

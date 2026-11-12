@@ -173,7 +173,7 @@ def phoenix_periodic_coupon() -> None:
             lower_strike=0,
             effective_time=start,
             expiry_time=end,
-            observations=observations,
+            autocall_observations=observations,
         ),
         PhoenixOption,
     )
@@ -186,7 +186,7 @@ def phoenix_periodic_coupon() -> None:
         lower_strike=0,
         effective_time=start,
         expiry_time=end,
-        observations=observations,
+        autocall_observations=observations,
     )
 
 
@@ -214,7 +214,7 @@ def phoenix_presets(start: datetime, end: datetime) -> None:
             knock_in_level=80,
             knock_out_level=110,
             coupon_barrier_level=90,
-            observation_times=[start, end],
+            autocall_times=[start, end],
             knock_in_observation_clock_time=time(15),
             effective_time=start,
             expiry_time=end,
@@ -231,7 +231,7 @@ def phoenix_presets(start: datetime, end: datetime) -> None:
             knock_out_level_decrement=2,
             coupon_barrier_level=90,
             knock_in_observation_clock_time=time(15),
-            observation_times=[start, end],
+            autocall_times=[start, end],
             effective_time=start,
             expiry_time=end,
             lockout_periods=1,
@@ -405,7 +405,7 @@ def expiry_only_snowballs() -> None:
             lower_strike=0,
             effective_time=start,
             expiry_time=end,
-            observations=observations,
+            autocall_observations=observations,
             knock_in_observation=KnockInObservation.at_expiry(),
         ),
         SnowballOption,
@@ -418,7 +418,7 @@ def expiry_only_snowballs() -> None:
             knock_in_level=80,
             effective_time=start,
             expiry_time=end,
-            observations=observations,
+            autocall_observations=observations,
             knock_in_observation=KnockInObservation.at_expiry(),
         ),
         TernarySnowballOption,

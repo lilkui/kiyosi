@@ -56,7 +56,7 @@ def contracts():
     observations = ins.autocallable_observations(
         OBSERVATIONS, KNOCK_OUT_LEVELS, knock_out_coupon_rates=[0.08] * 3
     )
-    common = dict(dates, observations=observations)
+    common = dict(dates, autocall_observations=observations)
     loss = {
         "initial_spot": 100,
         "knock_in_level": 95,
@@ -106,7 +106,7 @@ def contracts():
             **loss,
             **state,
             coupon_per_period=0.08,
-            observations=ins.autocallable_observations(
+            autocall_observations=ins.autocallable_observations(
                 OBSERVATIONS, KNOCK_OUT_LEVELS, coupon_barrier_levels=[95] * 3
             ),
         )

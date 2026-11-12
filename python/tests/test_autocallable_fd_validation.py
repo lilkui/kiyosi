@@ -23,7 +23,7 @@ def test_autocallable_engines_share_domain_validation_precedence(subtests, histo
         "maturity_coupon_rate": 0.05,
         "barrier_state": history,
         "effective_time": start,
-        "observations": [
+        "autocall_observations": [
             AutocallableObservation.snowball(
                 datetime(2025, 1, 2), 110, coupon_rate=0.08
             )
@@ -35,7 +35,7 @@ def test_autocallable_engines_share_domain_validation_precedence(subtests, histo
             **(
                 fields
                 | {
-                    "observations": [
+                    "autocall_observations": [
                         AutocallableObservation.snowball(end, 110, coupon_rate=0)
                     ]
                 }

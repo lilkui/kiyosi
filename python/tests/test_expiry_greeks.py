@@ -278,7 +278,7 @@ def test_terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes
         expiry_time=end,
         knock_in_observation=KnockInObservation.at_expiry(),
         barrier_state="no_event",
-        observations=ins.autocallable_observations(
+        autocall_observations=ins.autocallable_observations(
             [end], [120], knock_out_coupon_rates=[0.08]
         ),
     )

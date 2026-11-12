@@ -73,7 +73,7 @@ def test_snowball_thresholds_preserve_price_and_sampling_uncertainty(
         maturity_coupon_rate=0.02,
         effective_time=START,
         expiry_time=END,
-        observations=ins.autocallable_observations(
+        autocall_observations=ins.autocallable_observations(
             [END], [100], knock_out_coupon_rates=[0.12]
         ),
     )
@@ -112,7 +112,7 @@ def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(
                 else KnockInObservation.at_expiry()
             ),
             barrier_state="no_event",
-            observations=ins.autocallable_observations(
+            autocall_observations=ins.autocallable_observations(
                 [end], [120], knock_out_coupon_rates=[0]
             ),
         )
@@ -129,7 +129,7 @@ def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(
         upper_strike=100,
         lower_strike=100,
         knock_in_observation=KnockInObservation.at_expiry(),
-        observations=ins.autocallable_observations(
+        autocall_observations=ins.autocallable_observations(
             [end], [120], coupon_barrier_levels=[100]
         ),
     )

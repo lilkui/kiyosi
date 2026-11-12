@@ -25,7 +25,7 @@ pub(crate) fn initial<T: AutocallableTerms>(
         knocked_in |= note.view().below_knock_in(context.spot_price());
     }
     let current = note
-        .observations()
+        .autocall_observations()
         .iter()
         .find(|r| r.time == context.valuation_time());
     let coupon = current.map_or(0.0, |r| note.observation_coupon(r, context.spot_price()));
@@ -59,7 +59,7 @@ pub(crate) fn future_event_times<T: AutocallableTerms>(
     daily: bool,
 ) -> Result<Vec<Timestamp>> {
     let mut times: Vec<_> = note
-        .observations()
+        .autocall_observations()
         .iter()
         .map(|r| r.time)
         .filter(|&time| time > context.valuation_time())
@@ -145,7 +145,7 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
     }
     let mut coupons = 0.0;
     for record in note
-        .observations()
+        .autocall_observations()
         .iter()
         .rev()
         .filter(|r| r.time > context.valuation_time())

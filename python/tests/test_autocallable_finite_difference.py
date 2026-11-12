@@ -107,7 +107,7 @@ def test_native_spot_greeks_survive_infeasible_scalar_bumps(coupon, shift):
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [END], [100], knock_out_coupon_rates=[coupon]
         ),
     )
@@ -134,7 +134,7 @@ def test_explicit_uniform_stability_uses_the_top_node_bound():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=end,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [datetime(2025, 2, 3), end],
             [100, 100],
             knock_out_coupon_rates=[0.1, 0.1],
@@ -163,12 +163,12 @@ def test_event_greeks_node_curves_and_failed_replacement():
     assert result.theta is None
     assert result.vega is not None
     assert result.rho is not None
-    snapshot = note.observations
+    snapshot = note.autocall_observations
     with pytest.raises(ValueError):
         note.replace(
             barrier_state="invalid",
         )
-    assert note.observations == tuple(snapshot)
+    assert note.autocall_observations == tuple(snapshot)
     context = market()
     curve = RateTermStructure(
         reference_time=START, times=[END], factors=[math.exp(-0.04 * 90 / 365)]
@@ -199,7 +199,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
-        observations=autocallable_observations(
+        autocall_observations=autocallable_observations(
             [END], [110], knock_out_coupon_rates=[0]
         ),
     )

@@ -338,7 +338,11 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         let mut input = base.clone();
         input.knock_in_observation_clock_time = expected.observation_clock_time();
         let actual = input.expand(preset).unwrap();
-        for (a, b) in actual.observations().iter().zip(expected.observations()) {
+        for (a, b) in actual
+            .autocall_observations()
+            .iter()
+            .zip(expected.autocall_observations())
+        {
             assert_eq!(a.time(), b.time());
             assert!((a.knock_out_level() - b.knock_out_level()).abs() < 1e-14);
             assert!((a.coupon_rate().unwrap() - b.coupon_rate().unwrap()).abs() < 1e-14);
@@ -611,7 +615,7 @@ fn preset_validation_uses_expanded_terms_and_preserves_inputs() {
         assert_eq!(base, snapshot);
     }
     let mut unordered = base.clone();
-    unordered.observation_times.reverse();
+    unordered.autocall_times.reverse();
     assert!(matches!(
         unordered.expand(SnowballPreset::Standard).unwrap_err(),
         Error::InvalidInput(_)
@@ -721,7 +725,7 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         TernarySnowballOption::new(ternary.clone()).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    ternary.observations = observations();
+    ternary.autocall_observations = observations();
     assert!(matches!(
         TernarySnowballOption::new(ternary).unwrap_err(),
         Error::InvalidInput(_)
@@ -733,9 +737,9 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         observations(),
         TradingCalendar::weekdays(),
     );
-    binary.observations[0] = AutocallableObservation::phoenix(
-        binary.observations[0].time(),
-        binary.observations[0].knock_out_level(),
+    binary.autocall_observations[0] = AutocallableObservation::phoenix(
+        binary.autocall_observations[0].time(),
+        binary.autocall_observations[0].knock_out_level(),
         1.0,
     )
     .unwrap();

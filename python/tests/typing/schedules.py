@@ -45,11 +45,11 @@ def contractual_schedules(
     assert_type(accumulator.knock_out_observation_schedule, ObservationSchedule)
     assert_type(note.knock_in_observation_schedule, ObservationSchedule)
     assert_type(binary.knock_in_observation_schedule, None)
-    assert_type(note.observation_times, tuple[datetime, ...])
-    assert_type(binary.observation_times, tuple[datetime, ...])
-    for at in note.observation_times:
+    assert_type(note.autocall_times, tuple[datetime, ...])
+    assert_type(binary.autocall_times, tuple[datetime, ...])
+    for at in note.autocall_times:
         assert_type(at, datetime)
-    for at in binary.observation_times:
+    for at in binary.autocall_times:
         assert_type(at, datetime)
 
 
