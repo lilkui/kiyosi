@@ -1,9 +1,6 @@
 from datetime import datetime, time
 
 from kiyosi.instruments import (
-    KnockInObservation,
-    PhoenixOption,
-    autocallable_observations,
     fixed_coupon_note,
     standard_phoenix,
     step_down_phoenix,
@@ -19,34 +16,6 @@ times = monthly_schedule(
     observation_clock_time=time(15),
 )
 
-# Phoenix 的付息障碍与敲出障碍分开设置；这里只在观察现货 >= 90 时付息。
-# coupon_per_period 为每期绝对票息率，各期直接支付该比例。敲入按交易日 15:00 观察。
-phoenix = PhoenixOption(
-    coupon_per_period=0.01,
-    initial_spot=100,
-    knock_in_level=80,
-    upper_strike=100,
-    lower_strike=100,
-    knock_in_observation=KnockInObservation.every_trading_day(time(15)),
-    effective_time=start,
-    expiry_time=end,
-    observations=autocallable_observations(
-        times, [103] * len(times), coupon_barrier_levels=[90] * len(times)
-    ),
-    calendar=times.calendar,
-)
-
-# FCN 工厂返回 Phoenix 合约：无条件固定每期票息，到期才观察敲入。
-# coupon_per_period=0.01 表示每期本金的 1%，不按天数折算。
-fcn = fixed_coupon_note(
-    coupon_per_period=0.01,
-    initial_spot=100,
-    knock_in_level=80,
-    knock_out_level=103,
-    observation_times=times,
-    effective_time=start,
-    expiry_time=end,
-)
 context = PricingContext(
     model_parameters=BlackScholesMertonParameters(
         risk_free_rate=0.02, dividend_yield=0, volatility=0.20
@@ -84,12 +53,23 @@ step_down = step_down_phoenix(
     expiry_time=end,
 )
 
-# 两种结构都返回单位本金价值，求解值均为每期绝对票息率。
+# FCN 工厂返回 Phoenix 合约：无条件固定每期票息，到期才观察敲入。
+# coupon_per_period=0.01 表示每期本金的 1%，不按天数折算。
+fcn = fixed_coupon_note(
+    coupon_per_period=0.01,
+    initial_spot=100,
+    knock_in_level=80,
+    knock_out_level=103,
+    observation_times=times,
+    effective_time=start,
+    expiry_time=end,
+)
+
+# 三种结构都返回单位本金价值，求解值均为每期绝对票息率。
 for name, note in (
-    ("Phoenix", phoenix),
-    ("FCN", fcn),
     ("标准凤凰", standard),
     ("降敲凤凰", step_down),
+    ("FCN", fcn),
 ):
     print(f"{name} 单位本金价格：{engine.price(note, context):.6f}")
     target = 1.0
