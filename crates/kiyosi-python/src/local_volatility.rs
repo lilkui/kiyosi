@@ -208,9 +208,13 @@ impl LocalVolatilityParameters {
     }
     /// Return the scalar rate for dated or undated constant curves.
     ///
-    /// Raises UnsupportedOperationError for nonconstant curves; use
-    /// risk_free_curve to preserve coverage when passing rates to constructors or
-    /// replacements.
+    /// Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
+    /// or replacements.
+    ///
+    /// Raises
+    /// ------
+    /// UnsupportedOperationError
+    ///     If the curve is nonconstant.
     ///
     #[getter]
     fn flat_risk_free_rate(&self) -> PyResult<f64> {
@@ -218,8 +222,13 @@ impl LocalVolatilityParameters {
     }
     /// Return the scalar yield for dated or undated constant curves.
     ///
-    /// Raises UnsupportedOperationError for nonconstant curves; use dividend_curve
-    /// to preserve coverage when passing yields to constructors or replacements.
+    /// Use ``dividend_curve`` to preserve coverage when passing yields to constructors
+    /// or replacements.
+    ///
+    /// Raises
+    /// ------
+    /// UnsupportedOperationError
+    ///     If the curve is nonconstant.
     ///
     #[getter]
     fn flat_dividend_yield(&self) -> PyResult<f64> {

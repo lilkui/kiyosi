@@ -93,7 +93,7 @@ macro_rules! snowball_properties {
             ///
             /// Returns
             /// -------
-            /// object
+            #[doc = stringify!($name)]
             ///     New note of the same type, preserving history and other terms.
             ///
             /// Raises
@@ -521,14 +521,12 @@ macro_rules! snowball_preset {
         ///
         /// Parameters
         /// ----------
-        ///
         #[doc = concat!(stringify!($coupon), " : float")]
         #[doc = concat!("    ", $coupon_doc)]
         /// initial_spot : float
         ///     Positive reference spot used to normalize downside losses.
         /// knock_in_level : float
         ///     Positive strict downside threshold.
-        ///
         #[doc = concat!(stringify!($level), " : float")]
         #[doc = concat!("    ", $level_doc)]
         $(
@@ -555,7 +553,6 @@ macro_rules! snowball_preset {
         /// calendar : TradingCalendar, optional
         ///     Explicit calendar override; omission or Ellipsis inherits an
         ///     ObservationSchedule calendar, otherwise weekdays.
-        ///
         ///
         /// Returns
         /// -------
@@ -779,7 +776,7 @@ times, stages may have no autocall_observations, and rates need not decrease."
 ///     Positive upper terminal settlement strike.
 /// lower_strike : float
 ///     Nonnegative lower terminal strike, at most the upper strike.
-/// knock_in_observation : KnockInObservation
+/// knock_in_observation : KnockInObservation, optional
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
@@ -814,28 +811,30 @@ snowball_properties! {
     SnowballOptionChanges,
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// maturity_coupon_rate, initial_spot, knock_in_level : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Annual maturity coupon, reference spot, and strict downside barrier.
     /// upper_strike, lower_strike : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// knock_in_observation : KnockInObservation
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Upper and lower strikes defining the downside loss interval.
+    /// knock_in_observation : KnockInObservation, optional
+    ///     Daily or expiry-only knock-in monitoring rule.
     /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Strictly prior event history; None clears it to unknown.
     /// principal_redemption_ratio : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Finite nonnegative principal redemption per unit of original notional.
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// autocall_observations : Iterable[AutocallableObservation], optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
+    /// autocall_observations : iterable of AutocallableObservation, optional
+    ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
     ///
     /// Returns
     /// -------
-    /// object
+    /// SnowballOption
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///
@@ -998,24 +997,26 @@ snowball_properties! {
     BinarySnowballOptionChanges,
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// maturity_coupon_rate : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Finite annual maturity coupon rate in decimal units.
     /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Strictly prior event history; None clears it to unknown.
     /// principal_redemption_ratio : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Finite nonnegative principal redemption per unit of original notional.
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// autocall_observations : Iterable[AutocallableObservation], optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
+    /// autocall_observations : iterable of AutocallableObservation, optional
+    ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
     ///
     /// Returns
     /// -------
-    /// object
+    /// BinarySnowballOption
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///
@@ -1102,7 +1103,7 @@ snowball_properties! {
 ///     Knocked-in maturity coupon, at most the intact maturity coupon.
 /// knock_in_level : float
 ///     Positive strict downside threshold.
-/// knock_in_observation : KnockInObservation
+/// knock_in_observation : KnockInObservation, optional
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
@@ -1136,26 +1137,28 @@ snowball_properties! {
     TernarySnowballOptionChanges,
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// maturity_coupon_rate, minimum_coupon_rate, knock_in_level : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// knock_in_observation : KnockInObservation
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Annual maturity and minimum coupons, and the strict downside barrier.
+    /// knock_in_observation : KnockInObservation, optional
+    ///     Daily or expiry-only knock-in monitoring rule.
     /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Strictly prior event history; None clears it to unknown.
     /// principal_redemption_ratio : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Finite nonnegative principal redemption per unit of original notional.
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// autocall_observations : Iterable[AutocallableObservation], optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
+    /// autocall_observations : iterable of AutocallableObservation, optional
+    ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
     ///
     /// Returns
     /// -------
-    /// object
+    /// TernarySnowballOption
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///
@@ -1277,7 +1280,7 @@ snowball_properties! {
 ///     Positive upper terminal settlement strike.
 /// lower_strike : float
 ///     Nonnegative lower terminal strike, at most the upper strike.
-/// knock_in_observation : KnockInObservation
+/// knock_in_observation : KnockInObservation, optional
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
@@ -1328,6 +1331,8 @@ autocallable_properties! {
     fn lockout_periods(&self) -> usize { self.0.lockout_periods() },
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// coupon_per_period : float, optional
@@ -1335,23 +1340,23 @@ autocallable_properties! {
     /// lockout_periods : int, optional
     ///     Initial observations excluded from knock-out. Does not regenerate barriers.
     /// initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// knock_in_observation : KnockInObservation
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Reference spot, strict downside barrier, and loss interval strikes.
+    /// knock_in_observation : KnockInObservation, optional
+    ///     Daily or expiry-only knock-in monitoring rule.
     /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Strictly prior event history; None clears it to unknown.
     /// principal_redemption_ratio : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Finite nonnegative principal redemption per unit of original notional.
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// autocall_observations : Iterable[AutocallableObservation], optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
+    /// autocall_observations : iterable of AutocallableObservation, optional
+    ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
     ///
     /// Returns
     /// -------
-    /// object
+    /// PhoenixOption
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///
@@ -1551,7 +1556,6 @@ macro_rules! phoenix_preset {
         /// calendar : TradingCalendar, optional
         ///     Explicit calendar override; omission or Ellipsis inherits an
         ///     ObservationSchedule calendar, otherwise weekdays.
-        ///
         ///
         /// Returns
         /// -------

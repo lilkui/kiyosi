@@ -1,3 +1,5 @@
+"""Price a European call, request Greeks, and recover its implied volatility."""
+
 from datetime import datetime
 from math import isclose
 

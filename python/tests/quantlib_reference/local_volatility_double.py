@@ -1,6 +1,8 @@
 """Independent local-volatility double-barrier path references.
 
-Run from this directory or by script path; this module never imports Kiyosi.
+Notes
+-----
+Run from this directory or by script path. This module never imports Kiyosi.
 Each finest path is monitored on four nested grids, separating monitoring
 differences from path evolution and sampling error. No Brownian-bridge
 correction is assumed exact for local volatility.

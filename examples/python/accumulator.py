@@ -1,3 +1,5 @@
+"""Price daily purchases and sales with outstanding quantity and settlement history."""
+
 from datetime import datetime, time
 
 from kiyosi.instruments import Accumulator

@@ -13,12 +13,26 @@ pub struct ObservationSchedule {
 impl ObservationSchedule {
     /// Creates an owning schedule after validating life bounds, order and trading days.
     ///
-    /// Empty schedules are valid.
+    /// Empty schedules are valid. The schedule owns its times and a clone of
+    /// `calendar`; see [`Self::times`] and [`Self::calendar`] for borrowed access.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for reversed life, unordered or out-of-life
     /// times, or nontrading observation times, checked in that order.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, ObservationSchedule, TimeOfDay, TradingCalendar};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 2)?.at_time(TimeOfDay::new(15, 0, 0, 0)?);
+    /// let end = start.add_days(1)?;
+    /// let schedule = ObservationSchedule::new(vec![start, end], start, end,
+    ///     &TradingCalendar::weekdays())?;
+    /// assert_eq!(schedule.times(), &[start, end]);
+    /// # Ok(()) }
+    /// ```
     pub fn new(
         times: Vec<Timestamp>,
         start_time: Timestamp,

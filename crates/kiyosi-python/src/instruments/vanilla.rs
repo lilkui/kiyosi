@@ -24,9 +24,8 @@ use pyo3::prelude::*;
 /// Notes
 /// -----
 /// Pricing permits valuation before effective_time for this fixed-strike
-/// terminal payoff. Model data must cover valuation through expiry; valuation
-/// after expiry remains invalid. Other contract families retain their own
-/// valuation bounds.
+/// terminal payoff. Model data must cover valuation through expiry. Valuation
+/// after expiry is invalid.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -68,7 +67,7 @@ macro_rules! vanilla_option_methods {
             ///
             /// Returns
             /// -------
-            /// object
+            #[doc = stringify!($name)]
             ///     Validated copy; omitted fields or Ellipsis retain their values.
             ///
             /// Raises

@@ -92,8 +92,9 @@
 //! enables cooperative cancellation from another thread. Built-in loops check between
 //! work units and return [`std::io::ErrorKind::Interrupted`] without a partial result.
 //! Custom engines must check their token. Allocation and callbacks may delay checks.
-//! Panics, including user callback panics, retain Rust behavior; allocation exhaustion
-//! normally aborts. Python signal handling and exception mappings belong to the bindings.
+//! Panics, including user callback panics, unwind or abort according to the build's
+//! panic strategy. Allocation exhaustion normally aborts. Python signal handling
+//! and exception mappings belong to the bindings.
 //!
 //! # Examples
 //!
@@ -220,5 +221,5 @@ pub use time::{
     BusinessDayConvention, Date, ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar,
 };
 
-/// Package version, shared with the Python bindings.
+/// Reports the package version shared with the Python bindings.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

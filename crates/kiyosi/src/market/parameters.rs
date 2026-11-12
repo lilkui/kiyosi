@@ -1,6 +1,6 @@
 use crate::{Date, Error, RateTermStructure, Result, Timestamp, error::finite};
 
-/// A continuously compounded flat rate or an owning term structure.
+/// Supplies a continuously compounded flat rate or an owned term structure.
 ///
 /// Non-finite scalar inputs return [`Error::InvalidInput`] on validation.
 /// See [`BlackScholesMertonParameters::new`] for mixing scalar rates and curves.
@@ -52,9 +52,8 @@ pub struct BlackScholesMertonParameterChanges {
 /// Volatility is nonnegative and expressed in decimal units. Zero selects the
 /// deterministic path implied by the rate and dividend curves. BSM engines use
 /// exact deterministic payoffs and contractual observations instead of stochastic
-/// grids or draws. See [`Self::new`] and the crate-level sensitivity contract.
-///
-/// See [`Self::new`] for construction.
+/// grids or draws. See [`Self::new`] for construction and [`crate::Greek`] for
+/// sensitivity conventions.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlackScholesMertonParameters {
     risk_free_curve: RateTermStructure,

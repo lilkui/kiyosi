@@ -168,8 +168,8 @@ impl ObservationSchedule {
 /// Notes
 /// -----
 /// Exclude start_time and include candidates through end_time. Following
-/// adjustment merges collisions and stops before crossing `end_time`;
-/// `end_time` need not appear.
+/// adjustment merges collisions and stops before crossing ``end_time``;
+/// ``end_time`` need not appear.
 ///
 #[pyfunction]
 #[pyo3(signature = (*, start_time, end_time, interval_days, observation_clock_time, calendar=TradingCalendar::default()))]
@@ -229,7 +229,7 @@ pub(crate) fn fixed_interval_schedule(
 /// Clamp each candidate to its month end while retaining the original
 /// starting-day anchor for later months. Exclude start_time and include
 /// candidates through end_time. Following adjustment merges collisions and
-/// stops before crossing `end_time`; `end_time` need not appear.
+/// stops before crossing ``end_time``; ``end_time`` need not appear.
 ///
 #[pyfunction]
 #[pyo3(signature = (*, start_time, end_time, first_observation_month, observation_clock_time, calendar=TradingCalendar::default()))]

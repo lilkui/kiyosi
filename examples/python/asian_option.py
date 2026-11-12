@@ -1,3 +1,5 @@
+"""Price geometric and arithmetic average-price Asian options."""
+
 from datetime import datetime
 
 from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption

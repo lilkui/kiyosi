@@ -1,3 +1,5 @@
+"""Price European cash-or-nothing and asset-or-nothing options."""
+
 from datetime import datetime
 from math import isclose
 

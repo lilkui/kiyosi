@@ -1,3 +1,5 @@
+"""Price single-barrier options with continuous and scheduled monitoring."""
+
 from datetime import datetime
 from math import isclose
 

@@ -23,7 +23,6 @@ macro_rules! quadrature_engine {
         /// asset_step_count : int, optional
         ///     Base number of spatial intervals, at least 4; defaults to 512. Event
         ///     boundaries may add intervals; Simpson panels round up to even.
-        ///
         $(#[doc = concat!(stringify!($time), " : int, optional\n    American exercise intervals, at least 1; defaults to 200. Ignored for European pricing.")])?
         /// integration_standard_deviations : float, optional
         ///     Positive finite integration extent in standard deviations; defaults to
@@ -34,8 +33,8 @@ macro_rules! quadrature_engine {
         /// InvalidInputError
         ///     If asset_step_count is below 4 or integration_standard_deviations is
         ///     nonpositive or non-finite.
-        ///
         $(#[doc = concat!("    Also raised if ", stringify!($time), " is below 1.")])?
+        ///
         $(#[$doc])*
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
@@ -47,8 +46,8 @@ macro_rules! quadrature_engine {
                 ///
                 /// Notes
                 /// -----
-                /// Before expiry requested Greeks use scalar numerical differences and the
-                /// engine defaults. Use numerical_greeks for configurable scalar differences.
+                /// Before expiry, requested Greeks use scalar numerical differences with
+                /// the request's shift controls. Omitted controls use engine defaults.
                 ///
             ],
             engine_methods!(

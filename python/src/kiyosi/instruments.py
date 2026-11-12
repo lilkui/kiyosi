@@ -41,12 +41,12 @@ Numerical time sensitivities hold supplied history fixed.
 ``None`` clears nullable fields to unknown. Terms and history are validated
 together, and each omitted history field retains its value independently.
 
-Use `AutocallableObservation.snowball` or `AutocallableObservation.phoenix` to
+Use ``AutocallableObservation.snowball`` or ``AutocallableObservation.phoenix`` to
 construct product-specific observations. ``autocall_observations`` contains the
 contractual knock-out and applicable coupon records; ``autocall_times`` returns
 their timestamps. Knock-in monitoring is defined independently by
 ``knock_in_observation`` and ``knock_in_observation_schedule``.
-`PhoenixOption` accepts a finite signed
+``PhoenixOption`` accepts a finite signed
 ``coupon_per_period`` rate applied at each qualifying observation without time accrual. Principal redemption is
 per unit of original notional; scale the complete price and Greeks for position
 size.
@@ -58,10 +58,10 @@ must allow knock-out. ``standard_phoenix`` uses a constant knock-out barrier;
 observation. Both use daily knock-in and initial spot as the upper loss strike.
 Replacing the lockout changes eligibility without regenerating barrier levels.
 
-`cash_touch_option` and `asset_touch_option` pay on a touch and require an
-``up_and_in`` or ``down_and_in`` barrier. `cash_no_touch_option` and
-`asset_no_touch_option` pay when the barrier is never reached and require
-``up_and_out`` or ``down_and_out``. `TouchOption` accepts either payment condition.
+``cash_touch_option`` and ``asset_touch_option`` pay on a touch and require an
+``up_and_in`` or ``down_and_in`` barrier. ``cash_no_touch_option`` and
+``asset_no_touch_option`` pay when the barrier is never reached and require
+``up_and_out`` or ``down_and_out``. ``TouchOption`` accepts either payment condition.
 
 Examples
 --------

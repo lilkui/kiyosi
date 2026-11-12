@@ -28,7 +28,6 @@ macro_rules! digital_option {
             ///     Call or put payoff direction.
             /// strike : float, optional
             ///     Positive finite strike price.
-            ///
             $(#[doc = concat!(stringify!($payout), " : float, optional\n    Positive finite cash payment.")])?
             /// effective_time : datetime.datetime, optional
             ///     Inclusive contract start.
@@ -37,7 +36,7 @@ macro_rules! digital_option {
             ///
             /// Returns
             /// -------
-            /// object
+            #[doc = stringify!($name)]
             ///     Validated copy; omitted fields or Ellipsis retain their values.
             ///
             /// Raises

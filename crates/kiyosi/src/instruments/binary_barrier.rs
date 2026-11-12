@@ -420,23 +420,23 @@ macro_rules! monitoring_accessors {
             pub fn calendar(&self) -> &TradingCalendar {
                 self.monitoring.calendar()
             }
-            /// Returns the inclusive effective time; see the cash constructor.
+            /// Returns the inclusive effective time; see [`Self::cash`].
             pub fn effective_time(&self) -> Timestamp {
                 self.monitoring.effective_time()
             }
-            /// Returns the inclusive expiry timestamp; see the cash constructor.
+            /// Returns the inclusive expiry timestamp; see [`Self::cash`].
             pub fn expiry_time(&self) -> Timestamp {
                 self.monitoring.expiry_time()
             }
-            /// Returns the positive barrier; see the cash constructor.
+            /// Returns the positive barrier; see [`Self::cash`].
             pub fn barrier_level(&self) -> f64 {
                 self.monitoring.barrier_level()
             }
-            /// Returns direction and activation behavior; see the cash constructor.
+            /// Returns direction and activation behavior; see [`Self::cash`].
             pub fn barrier_type(&self) -> BarrierType {
                 self.monitoring.barrier_type()
             }
-            /// Returns monitoring frequency; see the cash constructor.
+            /// Returns monitoring frequency; see [`Self::cash`].
             pub fn observation_mode(&self) -> ObservationMode {
                 self.monitoring.observation_mode()
             }
@@ -452,11 +452,11 @@ macro_rules! monitoring_accessors {
             pub fn observation_times(&self) -> Option<&[Timestamp]> {
                 (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
             }
-            /// Returns mean fixing spacing in Actual/365 Fixed years; see the cash constructor.
+            /// Returns mean fixing spacing in Actual/365 Fixed years; see [`Self::cash`].
             pub fn mean_observation_year_fraction(&self) -> f64 {
                 self.monitoring.mean_observation_year_fraction()
             }
-            /// Returns strictly prior history; see the replace method.
+            /// Returns strictly prior touch history; see [`Self::replace`].
             pub fn touch_state(&self) -> Option<BarrierTouchState> {
                 self.monitoring.touch_state()
             }

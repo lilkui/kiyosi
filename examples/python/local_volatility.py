@@ -1,3 +1,5 @@
+"""Price options with an explicitly supplied local-volatility surface."""
+
 from datetime import datetime
 
 from kiyosi.instruments import EuropeanOption

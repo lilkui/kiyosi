@@ -1,7 +1,7 @@
 """Price derivatives with Rust models and engines.
 
-Use `kiyosi.instruments` for contracts, `kiyosi.market` for market data and
-calendars, and `kiyosi.pricing` for engines and implied-parameter solvers.
+Use ``kiyosi.instruments`` for contracts, ``kiyosi.market`` for market data and
+calendars, and ``kiyosi.pricing`` for engines and implied-parameter solvers.
 
 Notes
 -----
@@ -17,11 +17,11 @@ Integer inputs require ``__index__``; fractional values raise ``TypeError``
 and out-of-range values raise ``OverflowError``. Decimal conversion preserves
 the caller's context and flags; finite decimal overflow raises ``OverflowError``.
 
-Domain failures raise `KiyosiError` subclasses. `InvalidInputError` also inherits
+Domain failures raise ``KiyosiError`` subclasses. ``InvalidInputError`` also inherits
 ``ValueError``; representation and signature failures use native Python
 exceptions, and operational failures use ``OSError``. Catch exception types;
-messages are diagnostic text. `MissingHistoryError` identifies absent required
-history and inherits `InvalidInputError`.
+messages are diagnostic text. ``MissingHistoryError`` identifies absent required
+history and inherits ``InvalidInputError``.
 Rust panics are not domain errors, and allocation
 exhaustion may terminate the process.
 
@@ -38,7 +38,7 @@ consistency with valuation time and contract terms. Callers must prevent stale
 or future state from being supplied; Kiyosi does not check state age or replay
 history. Missing history is unknown; explicit zero, false, untouched, and no-event
 states are known history where supported. Numerical time sensitivities hold
-supplied history fixed. See `kiyosi.instruments` for product conventions.
+supplied history fixed. See ``kiyosi.instruments`` for product conventions.
 
 Shared and distinct instances support concurrent reads and pricing. Long calls
 release the GIL; short analytic calls may retain it. Parallel Monte Carlo calls

@@ -38,22 +38,24 @@ macro_rules! average_option {
         impl $name {
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// option_type : {'call', 'put'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Call or put payoff direction.
     /// strike : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Positive finite strike price.
     /// effective_time, averaging_start_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Contract start and first averaging timestamp, respectively.
     /// expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive expiry timestamp.
     /// realized_average : float or None, optional
     ///     Omission or Ellipsis retains the average; None clears it to unknown.
     ///
     /// Returns
     /// -------
-    /// object
+    #[doc = stringify!($name)]
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///

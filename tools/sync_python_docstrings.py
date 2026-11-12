@@ -1,12 +1,16 @@
 """Copy native API documentation into the type stub for editor discovery.
 
-After rebuilding the extension in an editable install, run::
+Notes
+-----
+Signatures are maintained in the stub; docstrings come from the Rust bindings.
+
+Examples
+--------
+Rebuild the extension in an editable install, then synchronize its docs::
 
     python tools/sync_python_docstrings.py
     ruff check --fix python/src/kiyosi/_native.pyi
     ruff format python/src/kiyosi/_native.pyi
-
-Signatures are maintained in the stub; docstrings come from the Rust bindings.
 """
 
 import ast

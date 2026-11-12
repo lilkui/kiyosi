@@ -242,9 +242,8 @@ class EuropeanOption:
     Notes
     -----
     Pricing permits valuation before effective_time for this fixed-strike
-    terminal payoff. Model data must cover valuation through expiry; valuation
-    after expiry remains invalid. Other contract families retain their own
-    valuation bounds.
+    terminal payoff. Model data must cover valuation through expiry. Valuation
+    after expiry is invalid.
     """
 
     def __init__(
@@ -278,7 +277,7 @@ class EuropeanOption:
 
         Returns
         -------
-        object
+        EuropeanOption
             Validated copy; omitted fields or Ellipsis retain their values.
 
         Raises
@@ -355,7 +354,7 @@ class AmericanOption:
 
         Returns
         -------
-        object
+        AmericanOption
             Validated copy; omitted fields or Ellipsis retain their values.
 
         Raises
@@ -429,7 +428,6 @@ class CashOrNothingOption:
             Call or put payoff direction.
         strike : float, optional
             Positive finite strike price.
-
         payout : float, optional
             Positive finite cash payment.
         effective_time : datetime.datetime, optional
@@ -439,7 +437,7 @@ class CashOrNothingOption:
 
         Returns
         -------
-        object
+        CashOrNothingOption
             Validated copy; omitted fields or Ellipsis retain their values.
 
         Raises
@@ -513,7 +511,6 @@ class AssetOrNothingOption:
             Call or put payoff direction.
         strike : float, optional
             Positive finite strike price.
-
         effective_time : datetime.datetime, optional
             Inclusive contract start.
         expiry_time : datetime.datetime, optional
@@ -521,7 +518,7 @@ class AssetOrNothingOption:
 
         Returns
         -------
-        object
+        AssetOrNothingOption
             Validated copy; omitted fields or Ellipsis retain their values.
 
         Raises
@@ -808,7 +805,7 @@ class BlackScholesMertonParameters:
 
         Returns
         -------
-        object
+        BlackScholesMertonParameters
             Validated copy; omitted fields or Ellipsis retain their values.
 
         Raises
@@ -821,17 +818,26 @@ class BlackScholesMertonParameters:
     def flat_risk_free_rate(self) -> float:
         """Return the scalar rate for dated or undated constant curves.
 
-        Raises UnsupportedOperationError for nonconstant curves; use
-        risk_free_curve to preserve coverage when passing rates to constructors or
-        replacements.
+        Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
+        or replacements.
+
+        Raises
+        ------
+        UnsupportedOperationError
+            If the curve is nonconstant.
         """
 
     @property
     def flat_dividend_yield(self) -> float:
         """Return the scalar yield for dated or undated constant curves.
 
-        Raises UnsupportedOperationError for nonconstant curves; use dividend_curve
-        to preserve coverage when passing yields to constructors or replacements.
+        Use ``dividend_curve`` to preserve coverage when passing yields to constructors
+        or replacements.
+
+        Raises
+        ------
+        UnsupportedOperationError
+            If the curve is nonconstant.
         """
 
     @property
@@ -934,17 +940,26 @@ class HestonParameters:
     def flat_risk_free_rate(self) -> float:
         """Return the scalar rate for dated or undated constant curves.
 
-        Raises UnsupportedOperationError for nonconstant curves; use
-        risk_free_curve to preserve coverage when passing rates to constructors or
-        replacements.
+        Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
+        or replacements.
+
+        Raises
+        ------
+        UnsupportedOperationError
+            If the curve is nonconstant.
         """
 
     @property
     def flat_dividend_yield(self) -> float:
         """Return the scalar yield for dated or undated constant curves.
 
-        Raises UnsupportedOperationError for nonconstant curves; use dividend_curve
-        to preserve coverage when passing yields to constructors or replacements.
+        Use ``dividend_curve`` to preserve coverage when passing yields to constructors
+        or replacements.
+
+        Raises
+        ------
+        UnsupportedOperationError
+            If the curve is nonconstant.
         """
 
     @property
@@ -1112,17 +1127,26 @@ class LocalVolatilityParameters:
     def flat_risk_free_rate(self) -> float:
         """Return the scalar rate for dated or undated constant curves.
 
-        Raises UnsupportedOperationError for nonconstant curves; use
-        risk_free_curve to preserve coverage when passing rates to constructors or
-        replacements.
+        Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
+        or replacements.
+
+        Raises
+        ------
+        UnsupportedOperationError
+            If the curve is nonconstant.
         """
 
     @property
     def flat_dividend_yield(self) -> float:
         """Return the scalar yield for dated or undated constant curves.
 
-        Raises UnsupportedOperationError for nonconstant curves; use dividend_curve
-        to preserve coverage when passing yields to constructors or replacements.
+        Use ``dividend_curve`` to preserve coverage when passing yields to constructors
+        or replacements.
+
+        Raises
+        ------
+        UnsupportedOperationError
+            If the curve is nonconstant.
         """
 
     @property
@@ -1388,8 +1412,8 @@ def fixed_interval_schedule(
     Notes
     -----
     Exclude start_time and include candidates through end_time. Following
-    adjustment merges collisions and stops before crossing `end_time`;
-    `end_time` need not appear.
+    adjustment merges collisions and stops before crossing ``end_time``;
+    ``end_time`` need not appear.
     """
 
 def monthly_schedule(
@@ -1431,7 +1455,7 @@ def monthly_schedule(
     Clamp each candidate to its month end while retaining the original
     starting-day anchor for later months. Exclude start_time and include
     candidates through end_time. Following adjustment merges collisions and
-    stops before crossing `end_time`; `end_time` need not appear.
+    stops before crossing ``end_time``; ``end_time`` need not appear.
     """
 
 class PricingContext:
@@ -1486,7 +1510,7 @@ class PricingContext:
 
         Returns
         -------
-        object
+        PricingContext
             Validated copy; omitted fields or Ellipsis retain their values.
 
         Raises
@@ -1559,6 +1583,11 @@ class AnalyticEuropeanEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -1578,6 +1607,11 @@ class AnalyticEuropeanEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
@@ -1612,7 +1646,7 @@ class AnalyticEuropeanEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -1657,9 +1691,10 @@ class AnalyticEuropeanEngine:
 
         Notes
         -----
-        Uses analytic Greeks at positive volatility before expiry, scalar
-        differences at zero volatility, and default terminal stencils at expiry.
-        Use numerical_greeks for configurable scalar differences.
+        Uses analytic Greeks at positive volatility before expiry and scalar
+        differences at zero volatility. At expiry, supported Greeks use exact
+        payoff derivatives; spot derivatives are undefined at the strike and
+        time Greeks are absent. Use numerical_greeks for scalar differences.
         """
 
 class AnalyticHestonEuropeanEngine:
@@ -1765,6 +1800,11 @@ class AnalyticHestonEuropeanEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -1784,6 +1824,11 @@ class AnalyticHestonEuropeanEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
@@ -1825,7 +1870,7 @@ class AnalyticHestonEuropeanEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -1928,6 +1973,11 @@ class BjerksundStenslandVanillaEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -1947,6 +1997,11 @@ class BjerksundStenslandVanillaEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: AmericanOption, context: PricingContext) -> float:
@@ -1981,7 +2036,7 @@ class BjerksundStenslandVanillaEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -2026,8 +2081,8 @@ class BjerksundStenslandVanillaEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class AnalyticDigitalEngine:
@@ -2079,6 +2134,11 @@ class AnalyticDigitalEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -2100,6 +2160,11 @@ class AnalyticDigitalEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -2138,7 +2203,7 @@ class AnalyticDigitalEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -2259,6 +2324,11 @@ class CoxRossRubinsteinBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -2278,6 +2348,11 @@ class CoxRossRubinsteinBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
@@ -2312,7 +2387,7 @@ class CoxRossRubinsteinBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -2371,7 +2446,6 @@ class QuadratureBarrierEngine:
     asset_step_count : int, optional
         Base number of spatial intervals, at least 4; defaults to 512. Event
         boundaries may add intervals; Simpson panels round up to even.
-
     integration_standard_deviations : float, optional
         Positive finite integration extent in standard deviations; defaults to
         8.
@@ -2410,7 +2484,6 @@ class QuadratureBarrierEngine:
         asset_step_count : int, optional
             Base number of spatial intervals, at least 4; defaults to 512. Event
             boundaries may add intervals; Simpson panels round up to even.
-
         integration_standard_deviations : float, optional
             Positive finite integration extent in standard deviations; defaults to
             8.
@@ -2453,6 +2526,11 @@ class QuadratureBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -2472,6 +2550,11 @@ class QuadratureBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
@@ -2506,7 +2589,7 @@ class QuadratureBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -2551,8 +2634,8 @@ class QuadratureBarrierEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class QuadratureDigitalEngine:
@@ -2563,7 +2646,6 @@ class QuadratureDigitalEngine:
     asset_step_count : int, optional
         Base number of spatial intervals, at least 4; defaults to 512. Event
         boundaries may add intervals; Simpson panels round up to even.
-
     integration_standard_deviations : float, optional
         Positive finite integration extent in standard deviations; defaults to
         8.
@@ -2611,7 +2693,6 @@ class QuadratureDigitalEngine:
         asset_step_count : int, optional
             Base number of spatial intervals, at least 4; defaults to 512. Event
             boundaries may add intervals; Simpson panels round up to even.
-
         integration_standard_deviations : float, optional
             Positive finite integration extent in standard deviations; defaults to
             8.
@@ -2656,6 +2737,11 @@ class QuadratureDigitalEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -2677,6 +2763,11 @@ class QuadratureDigitalEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -2715,7 +2806,7 @@ class QuadratureDigitalEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -2760,8 +2851,8 @@ class QuadratureDigitalEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class QuadratureVanillaEngine:
@@ -2772,7 +2863,6 @@ class QuadratureVanillaEngine:
     asset_step_count : int, optional
         Base number of spatial intervals, at least 4; defaults to 512. Event
         boundaries may add intervals; Simpson panels round up to even.
-
     time_step_count : int, optional
         American exercise intervals, at least 1; defaults to 200. Ignored for European pricing.
     integration_standard_deviations : float, optional
@@ -2784,8 +2874,8 @@ class QuadratureVanillaEngine:
     InvalidInputError
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
-
         Also raised if time_step_count is below 1.
+
     See Also
     --------
     EuropeanOption : Supported contract.
@@ -2826,7 +2916,6 @@ class QuadratureVanillaEngine:
         asset_step_count : int, optional
             Base number of spatial intervals, at least 4; defaults to 512. Event
             boundaries may add intervals; Simpson panels round up to even.
-
         time_step_count : int, optional
             American exercise intervals, at least 1; defaults to 200. Ignored for European pricing.
         integration_standard_deviations : float, optional
@@ -2875,6 +2964,11 @@ class QuadratureVanillaEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -2894,6 +2988,11 @@ class QuadratureVanillaEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -2930,7 +3029,7 @@ class QuadratureVanillaEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -2975,8 +3074,8 @@ class QuadratureVanillaEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class CoxRossRubinsteinVanillaEngine:
@@ -3044,6 +3143,11 @@ class CoxRossRubinsteinVanillaEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -3063,6 +3167,11 @@ class CoxRossRubinsteinVanillaEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -3099,7 +3208,7 @@ class CoxRossRubinsteinVanillaEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -3223,6 +3332,11 @@ class CoxRossRubinsteinDigitalEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -3244,6 +3358,11 @@ class CoxRossRubinsteinDigitalEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -3282,7 +3401,7 @@ class CoxRossRubinsteinDigitalEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -3344,8 +3463,7 @@ class FiniteDifferenceAccumulatorEngine:
     time_step_count : int, optional
         Positive base number of time intervals; event dates and curve knots are
         added.
-
-        Read `FiniteDifferenceAccumulatorEngine().time_step_count` for the engine's default.
+        Read ``FiniteDifferenceAccumulatorEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -3434,8 +3552,7 @@ class FiniteDifferenceAccumulatorEngine:
         time_step_count : int, optional
             Positive base number of time intervals; event dates and curve knots are
             added.
-
-            Read `FiniteDifferenceAccumulatorEngine().time_step_count` for the engine's default.
+            Read ``FiniteDifferenceAccumulatorEngine().time_step_count`` for the engine's default.
         scheme : FiniteDifferenceScheme, optional
             Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
             "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -3517,6 +3634,11 @@ class FiniteDifferenceAccumulatorEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -3536,6 +3658,11 @@ class FiniteDifferenceAccumulatorEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     @property
@@ -3574,7 +3701,7 @@ class FiniteDifferenceAccumulatorEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -3638,8 +3765,7 @@ class FiniteDifferenceBarrierEngine:
     time_step_count : int, optional
         Positive base number of time intervals; event dates and curve knots are
         added.
-
-        Read `FiniteDifferenceBarrierEngine().time_step_count` for the engine's default.
+        Read ``FiniteDifferenceBarrierEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -3728,8 +3854,7 @@ class FiniteDifferenceBarrierEngine:
         time_step_count : int, optional
             Positive base number of time intervals; event dates and curve knots are
             added.
-
-            Read `FiniteDifferenceBarrierEngine().time_step_count` for the engine's default.
+            Read ``FiniteDifferenceBarrierEngine().time_step_count`` for the engine's default.
         scheme : FiniteDifferenceScheme, optional
             Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
             "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -3811,6 +3936,11 @@ class FiniteDifferenceBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -3830,6 +3960,11 @@ class FiniteDifferenceBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     @property
@@ -3868,7 +4003,7 @@ class FiniteDifferenceBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -3932,8 +4067,7 @@ class FiniteDifferenceDoubleBarrierEngine:
     time_step_count : int, optional
         Positive base number of time intervals; event dates and curve knots are
         added.
-
-        Read `FiniteDifferenceDoubleBarrierEngine().time_step_count` for the engine's default.
+        Read ``FiniteDifferenceDoubleBarrierEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -4022,8 +4156,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         time_step_count : int, optional
             Positive base number of time intervals; event dates and curve knots are
             added.
-
-            Read `FiniteDifferenceDoubleBarrierEngine().time_step_count` for the engine's default.
+            Read ``FiniteDifferenceDoubleBarrierEngine().time_step_count`` for the engine's default.
         scheme : FiniteDifferenceScheme, optional
             Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
             "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -4105,6 +4238,11 @@ class FiniteDifferenceDoubleBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -4124,6 +4262,11 @@ class FiniteDifferenceDoubleBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     @property
@@ -4162,7 +4305,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -4226,8 +4369,7 @@ class FiniteDifferenceAutocallableEngine:
     time_step_count : int, optional
         Positive base number of time intervals; event dates and curve knots are
         added.
-
-        Read `FiniteDifferenceAutocallableEngine().time_step_count` for the engine's default.
+        Read ``FiniteDifferenceAutocallableEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -4316,8 +4458,7 @@ class FiniteDifferenceAutocallableEngine:
         time_step_count : int, optional
             Positive base number of time intervals; event dates and curve knots are
             added.
-
-            Read `FiniteDifferenceAutocallableEngine().time_step_count` for the engine's default.
+            Read ``FiniteDifferenceAutocallableEngine().time_step_count`` for the engine's default.
         scheme : FiniteDifferenceScheme, optional
             Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
             "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -4404,6 +4545,11 @@ class FiniteDifferenceAutocallableEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -4428,6 +4574,11 @@ class FiniteDifferenceAutocallableEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     @property
@@ -4476,7 +4627,7 @@ class FiniteDifferenceAutocallableEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -4540,8 +4691,7 @@ class FiniteDifferenceDoubleTouchEngine:
     time_step_count : int, optional
         Positive base number of time intervals; event dates and curve knots are
         added.
-
-        Read `FiniteDifferenceDoubleTouchEngine().time_step_count` for the engine's default.
+        Read ``FiniteDifferenceDoubleTouchEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -4630,8 +4780,7 @@ class FiniteDifferenceDoubleTouchEngine:
         time_step_count : int, optional
             Positive base number of time intervals; event dates and curve knots are
             added.
-
-            Read `FiniteDifferenceDoubleTouchEngine().time_step_count` for the engine's default.
+            Read ``FiniteDifferenceDoubleTouchEngine().time_step_count`` for the engine's default.
         scheme : FiniteDifferenceScheme, optional
             Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
             "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -4713,6 +4862,11 @@ class FiniteDifferenceDoubleTouchEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -4732,6 +4886,11 @@ class FiniteDifferenceDoubleTouchEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     @property
@@ -4770,7 +4929,7 @@ class FiniteDifferenceDoubleTouchEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -4834,8 +4993,7 @@ class FiniteDifferenceBinaryBarrierEngine:
     time_step_count : int, optional
         Positive base number of time intervals; event dates and curve knots are
         added.
-
-        Read `FiniteDifferenceBinaryBarrierEngine().time_step_count` for the engine's default.
+        Read ``FiniteDifferenceBinaryBarrierEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -4924,8 +5082,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         time_step_count : int, optional
             Positive base number of time intervals; event dates and curve knots are
             added.
-
-            Read `FiniteDifferenceBinaryBarrierEngine().time_step_count` for the engine's default.
+            Read ``FiniteDifferenceBinaryBarrierEngine().time_step_count`` for the engine's default.
         scheme : FiniteDifferenceScheme, optional
             Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
             "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -5007,6 +5164,11 @@ class FiniteDifferenceBinaryBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -5026,6 +5188,11 @@ class FiniteDifferenceBinaryBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     @property
@@ -5066,7 +5233,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -5249,6 +5416,11 @@ class FiniteDifferenceHestonVanillaEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -5268,6 +5440,11 @@ class FiniteDifferenceHestonVanillaEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -5311,7 +5488,7 @@ class FiniteDifferenceHestonVanillaEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -5371,8 +5548,7 @@ class FiniteDifferenceVanillaEngine:
     time_step_count : int, optional
         Positive base number of time intervals; event dates and curve knots are
         added.
-
-        Read `FiniteDifferenceVanillaEngine().time_step_count` for the engine's default.
+        Read ``FiniteDifferenceVanillaEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -5461,8 +5637,7 @@ class FiniteDifferenceVanillaEngine:
         time_step_count : int, optional
             Positive base number of time intervals; event dates and curve knots are
             added.
-
-            Read `FiniteDifferenceVanillaEngine().time_step_count` for the engine's default.
+            Read ``FiniteDifferenceVanillaEngine().time_step_count`` for the engine's default.
         scheme : FiniteDifferenceScheme, optional
             Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
             "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -5544,6 +5719,11 @@ class FiniteDifferenceVanillaEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -5563,6 +5743,11 @@ class FiniteDifferenceVanillaEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     @property
@@ -5603,7 +5788,7 @@ class FiniteDifferenceVanillaEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -5667,8 +5852,7 @@ class FiniteDifferenceDigitalEngine:
     time_step_count : int, optional
         Positive base number of time intervals; event dates and curve knots are
         added.
-
-        Read `FiniteDifferenceDigitalEngine().time_step_count` for the engine's default.
+        Read ``FiniteDifferenceDigitalEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -5757,8 +5941,7 @@ class FiniteDifferenceDigitalEngine:
         time_step_count : int, optional
             Positive base number of time intervals; event dates and curve knots are
             added.
-
-            Read `FiniteDifferenceDigitalEngine().time_step_count` for the engine's default.
+            Read ``FiniteDifferenceDigitalEngine().time_step_count`` for the engine's default.
         scheme : FiniteDifferenceScheme, optional
             Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
             "crank_nicolson" uses standard Crank-Nicolson without time-step
@@ -5842,6 +6025,11 @@ class FiniteDifferenceDigitalEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -5863,6 +6051,11 @@ class FiniteDifferenceDigitalEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     @property
@@ -5905,7 +6098,7 @@ class FiniteDifferenceDigitalEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -6118,6 +6311,11 @@ class MonteCarloVanillaEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -6137,6 +6335,11 @@ class MonteCarloVanillaEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price_with_seed(
@@ -6239,7 +6442,7 @@ class MonteCarloVanillaEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -6465,6 +6668,11 @@ class MonteCarloDigitalEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -6486,6 +6694,11 @@ class MonteCarloDigitalEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price_with_seed(
@@ -6594,7 +6807,7 @@ class MonteCarloDigitalEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -6791,6 +7004,11 @@ class MonteCarloBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -6810,6 +7028,11 @@ class MonteCarloBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price_with_seed(
@@ -6908,7 +7131,7 @@ class MonteCarloBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -7106,6 +7329,11 @@ class MonteCarloDoubleBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -7125,6 +7353,11 @@ class MonteCarloDoubleBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price_with_seed(
@@ -7223,7 +7456,7 @@ class MonteCarloDoubleBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -7428,6 +7661,11 @@ class MonteCarloAutocallableEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -7452,6 +7690,11 @@ class MonteCarloAutocallableEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price_with_seed(
@@ -7570,7 +7813,7 @@ class MonteCarloAutocallableEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -7767,6 +8010,11 @@ class MonteCarloAccumulatorEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -7786,6 +8034,11 @@ class MonteCarloAccumulatorEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price_with_seed(
@@ -7884,7 +8137,7 @@ class MonteCarloAccumulatorEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -8098,6 +8351,11 @@ class MonteCarloAsianEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -8119,6 +8377,11 @@ class MonteCarloAsianEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price_with_seed(
@@ -8227,7 +8490,7 @@ class MonteCarloAsianEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -8934,22 +9197,24 @@ class GeometricAveragePriceOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         option_type : {'call', 'put'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Call or put payoff direction.
         strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite strike price.
         effective_time, averaging_start_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Contract start and first averaging timestamp, respectively.
         expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive expiry timestamp.
         realized_average : float or None, optional
             Omission or Ellipsis retains the average; None clears it to unknown.
 
         Returns
         -------
-        object
+        GeometricAveragePriceOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -9043,6 +9308,11 @@ class AnalyticGeometricAveragePriceEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -9062,6 +9332,11 @@ class AnalyticGeometricAveragePriceEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -9098,7 +9373,7 @@ class AnalyticGeometricAveragePriceEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -9143,8 +9418,8 @@ class AnalyticGeometricAveragePriceEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class ArithmeticAveragePriceOption:
@@ -9187,22 +9462,24 @@ class ArithmeticAveragePriceOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         option_type : {'call', 'put'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Call or put payoff direction.
         strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite strike price.
         effective_time, averaging_start_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Contract start and first averaging timestamp, respectively.
         expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive expiry timestamp.
         realized_average : float or None, optional
             Omission or Ellipsis retains the average; None clears it to unknown.
 
         Returns
         -------
-        object
+        ArithmeticAveragePriceOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -9297,6 +9574,11 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -9316,6 +9598,11 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -9352,7 +9639,7 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -9397,8 +9684,8 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class BarrierOption:
@@ -9462,27 +9749,29 @@ class BarrierOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         option_type : {'call', 'put'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Call or put payoff direction.
         strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite strike price.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
         barrier_level : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite trigger level; equality counts as a touch.
         barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Barrier direction and knock-in or knock-out behavior.
         rebate : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Nonnegative finite cash rebate.
         rebate_timing : {'at_hit', 'at_expiry'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime] or None, optional
+            Rebate payment timing; at-hit rebates require knock-out.
+        observation_times : iterable of datetime.datetime or None, optional
             Omission retains monitoring; None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior touch history; None clears it to unknown.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
@@ -9490,7 +9779,7 @@ class BarrierOption:
 
         Returns
         -------
-        object
+        BarrierOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -9620,6 +9909,11 @@ class AnalyticBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -9639,6 +9933,11 @@ class AnalyticBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
@@ -9673,7 +9972,7 @@ class AnalyticBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -9718,8 +10017,8 @@ class AnalyticBarrierEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class DoubleBarrierOption:
@@ -9785,27 +10084,29 @@ class DoubleBarrierOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         option_type : {'call', 'put'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Call or put payoff direction.
         strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite strike price.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
         lower_barrier, upper_barrier : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite lower and upper triggers, with the lower strictly smaller.
         barrier_type : {'knock_in', 'knock_out'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Knock-in or knock-out activation at either boundary.
         rebate : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Nonnegative finite cash rebate.
         rebate_timing : {'at_hit', 'at_expiry'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime] or None, optional
+            Rebate payment timing; at-hit rebates require knock-out.
+        observation_times : iterable of datetime.datetime or None, optional
             Omission retains monitoring; None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior touch history; None clears it to unknown.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
@@ -9813,7 +10114,7 @@ class DoubleBarrierOption:
 
         Returns
         -------
-        object
+        DoubleBarrierOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -9964,12 +10265,14 @@ class RangeAccrualOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         notional, annual_coupon_rate, lower_bound, upper_bound : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Notional, annual coupon rate, and inclusive accrual band bounds.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
         observation_clock_time : datetime.time, optional
             Daily observation clock, without timezone information.
         realized_hit_count : int | None, optional
@@ -9980,7 +10283,7 @@ class RangeAccrualOption:
 
         Returns
         -------
-        object
+        RangeAccrualOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -10083,6 +10386,11 @@ class AnalyticRangeAccrualEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -10102,6 +10410,11 @@ class AnalyticRangeAccrualEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: RangeAccrualOption, context: PricingContext) -> float:
@@ -10136,7 +10449,7 @@ class AnalyticRangeAccrualEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -10181,8 +10494,8 @@ class AnalyticRangeAccrualEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class AnalyticDoubleBarrierEngine:
@@ -10234,6 +10547,11 @@ class AnalyticDoubleBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -10253,6 +10571,11 @@ class AnalyticDoubleBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
@@ -10287,7 +10610,7 @@ class AnalyticDoubleBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -10332,8 +10655,8 @@ class AnalyticDoubleBarrierEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class AnalyticDoubleTouchEngine:
@@ -10395,6 +10718,11 @@ class AnalyticDoubleTouchEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -10414,6 +10742,11 @@ class AnalyticDoubleTouchEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
@@ -10448,7 +10781,7 @@ class AnalyticDoubleTouchEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -10493,8 +10826,8 @@ class AnalyticDoubleTouchEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class BinaryBarrierOption:
@@ -10592,23 +10925,25 @@ class BinaryBarrierOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         option_type : {'call', 'put'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Call or put payoff direction.
         strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite strike price.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
         barrier_level : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite trigger level; equality counts as a touch.
         barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime] or None, optional
+            Barrier direction and knock-in or knock-out behavior.
+        observation_times : iterable of datetime.datetime or None, optional
             Omission retains monitoring; None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior touch history; None clears it to unknown.
         payoff_type : {'cash', 'asset'}, optional
             Explicit settlement choice; omission preserves the current kind.
         payout : float or None, optional
@@ -10621,7 +10956,7 @@ class BinaryBarrierOption:
 
         Returns
         -------
-        object
+        BinaryBarrierOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -10778,21 +11113,23 @@ class TouchOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
         barrier_level : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite trigger level; equality counts as a touch.
         barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Barrier direction and knock-in or knock-out behavior.
         settlement_timing : {'at_hit', 'at_expiry'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime] or None, optional
+            Payment timing; at-hit settlement requires a one-touch contract.
+        observation_times : iterable of datetime.datetime or None, optional
             Omission retains monitoring; None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior touch history; None clears it to unknown.
         payoff_type : {'cash', 'asset'}, optional
             Explicit settlement choice; omission preserves the current kind.
         payout : float or None, optional
@@ -10805,7 +11142,7 @@ class TouchOption:
 
         Returns
         -------
-        object
+        TouchOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -10916,7 +11253,6 @@ def cash_binary_barrier_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-
     Returns
     -------
     BinaryBarrierOption
@@ -10972,7 +11308,6 @@ def asset_binary_barrier_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-
     Returns
     -------
     BinaryBarrierOption
@@ -11027,7 +11362,6 @@ def cash_touch_option(
         Explicit override. Omission or Ellipsis inherits a supplied
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
-
 
     Returns
     -------
@@ -11087,7 +11421,6 @@ def cash_no_touch_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-
     Returns
     -------
     TouchOption
@@ -11143,7 +11476,6 @@ def asset_touch_option(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-
     Returns
     -------
     TouchOption
@@ -11198,7 +11530,6 @@ def asset_no_touch_option(
         Explicit override. Omission or Ellipsis inherits a supplied
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
-
 
     Returns
     -------
@@ -11267,6 +11598,11 @@ class AnalyticBinaryBarrierEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -11286,6 +11622,11 @@ class AnalyticBinaryBarrierEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -11322,7 +11663,7 @@ class AnalyticBinaryBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -11367,8 +11708,8 @@ class AnalyticBinaryBarrierEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class DoubleTouchOption:
@@ -11443,23 +11784,25 @@ class DoubleTouchOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
         lower_barrier, upper_barrier : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite lower and upper triggers, with the lower strictly smaller.
         barrier_type : {'knock_in', 'knock_out'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Knock-in or knock-out activation at either boundary.
         settlement_timing : {'at_hit', 'at_expiry'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        observation_times : Iterable[datetime.datetime] or None, optional
+            Payment timing; at-hit settlement requires a one-touch contract.
+        observation_times : iterable of datetime.datetime or None, optional
             Omission retains monitoring; None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior touch history; None clears it to unknown.
         payout : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Positive finite cash payment.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
             ObservationSchedule calendar; otherwise construction uses weekdays
@@ -11467,7 +11810,7 @@ class DoubleTouchOption:
 
         Returns
         -------
-        object
+        DoubleTouchOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -11565,7 +11908,6 @@ def cash_double_touch(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-
     Returns
     -------
     DoubleTouchOption
@@ -11619,7 +11961,6 @@ def cash_double_no_touch(
         ObservationSchedule calendar; otherwise construction uses weekdays
         and replacement retains the current calendar.
 
-
     Returns
     -------
     DoubleTouchOption
@@ -11646,7 +11987,6 @@ class QuadratureAutocallableEngine:
     asset_step_count : int, optional
         Base number of spatial intervals, at least 4; defaults to 512. Event
         boundaries may add intervals; Simpson panels round up to even.
-
     integration_standard_deviations : float, optional
         Positive finite integration extent in standard deviations; defaults to
         8.
@@ -11693,7 +12033,6 @@ class QuadratureAutocallableEngine:
         asset_step_count : int, optional
             Base number of spatial intervals, at least 4; defaults to 512. Event
             boundaries may add intervals; Simpson panels round up to even.
-
         integration_standard_deviations : float, optional
             Positive finite integration extent in standard deviations; defaults to
             8.
@@ -11741,6 +12080,11 @@ class QuadratureAutocallableEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -11765,6 +12109,11 @@ class QuadratureAutocallableEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(
@@ -11809,7 +12158,7 @@ class QuadratureAutocallableEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -11854,8 +12203,8 @@ class QuadratureAutocallableEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class KnockInObservation:
@@ -12129,7 +12478,7 @@ class SnowballOption:
         Positive upper terminal settlement strike.
     lower_strike : float
         Nonnegative lower terminal strike, at most the upper strike.
-    knock_in_observation : KnockInObservation
+    knock_in_observation : KnockInObservation, optional
         Observe knock-in on every trading day or only at expiry.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -12186,28 +12535,30 @@ class SnowballOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         maturity_coupon_rate, initial_spot, knock_in_level : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Annual maturity coupon, reference spot, and strict downside barrier.
         upper_strike, lower_strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        knock_in_observation : KnockInObservation
-            Replacement value; omission or Ellipsis retains the current field.
+            Upper and lower strikes defining the downside loss interval.
+        knock_in_observation : KnockInObservation, optional
+            Daily or expiry-only knock-in monitoring rule.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior event history; None clears it to unknown.
         principal_redemption_ratio : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Finite nonnegative principal redemption per unit of original notional.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        autocall_observations : Iterable[AutocallableObservation], optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
+        autocall_observations : iterable of AutocallableObservation, optional
+            Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
         Returns
         -------
-        object
+        SnowballOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -12237,7 +12588,7 @@ class SnowballOption:
 
         Returns
         -------
-        object
+        SnowballOption
             New note of the same type, preserving history and other terms.
 
         Raises
@@ -12346,7 +12697,7 @@ class PhoenixOption:
         Positive upper terminal settlement strike.
     lower_strike : float
         Nonnegative lower terminal strike, at most the upper strike.
-    knock_in_observation : KnockInObservation
+    knock_in_observation : KnockInObservation, optional
         Observe knock-in on every trading day or only at expiry.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -12444,6 +12795,8 @@ class PhoenixOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         coupon_per_period : float, optional
@@ -12451,23 +12804,23 @@ class PhoenixOption:
         lockout_periods : int, optional
             Initial observations excluded from knock-out. Does not regenerate barriers.
         initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        knock_in_observation : KnockInObservation
-            Replacement value; omission or Ellipsis retains the current field.
+            Reference spot, strict downside barrier, and loss interval strikes.
+        knock_in_observation : KnockInObservation, optional
+            Daily or expiry-only knock-in monitoring rule.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior event history; None clears it to unknown.
         principal_redemption_ratio : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Finite nonnegative principal redemption per unit of original notional.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        autocall_observations : Iterable[AutocallableObservation], optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
+        autocall_observations : iterable of AutocallableObservation, optional
+            Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
         Returns
         -------
-        object
+        PhoenixOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -12620,24 +12973,26 @@ class BinarySnowballOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         maturity_coupon_rate : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Finite annual maturity coupon rate in decimal units.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior event history; None clears it to unknown.
         principal_redemption_ratio : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Finite nonnegative principal redemption per unit of original notional.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        autocall_observations : Iterable[AutocallableObservation], optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
+        autocall_observations : iterable of AutocallableObservation, optional
+            Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
         Returns
         -------
-        object
+        BinarySnowballOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -12667,7 +13022,7 @@ class BinarySnowballOption:
 
         Returns
         -------
-        object
+        BinarySnowballOption
             New note of the same type, preserving history and other terms.
 
         Raises
@@ -12746,7 +13101,7 @@ class TernarySnowballOption:
         Knocked-in maturity coupon, at most the intact maturity coupon.
     knock_in_level : float
         Positive strict downside threshold.
-    knock_in_observation : KnockInObservation
+    knock_in_observation : KnockInObservation, optional
         Observe knock-in on every trading day or only at expiry.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -12800,26 +13155,28 @@ class TernarySnowballOption:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         maturity_coupon_rate, minimum_coupon_rate, knock_in_level : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        knock_in_observation : KnockInObservation
-            Replacement value; omission or Ellipsis retains the current field.
+            Annual maturity and minimum coupons, and the strict downside barrier.
+        knock_in_observation : KnockInObservation, optional
+            Daily or expiry-only knock-in monitoring rule.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strictly prior event history; None clears it to unknown.
         principal_redemption_ratio : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Finite nonnegative principal redemption per unit of original notional.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
-        autocall_observations : Iterable[AutocallableObservation], optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
+        autocall_observations : iterable of AutocallableObservation, optional
+            Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
         Returns
         -------
-        object
+        TernarySnowballOption
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -12849,7 +13206,7 @@ class TernarySnowballOption:
 
         Returns
         -------
-        object
+        TernarySnowballOption
             New note of the same type, preserving history and other terms.
 
         Raises
@@ -12950,14 +13307,12 @@ def standard_snowball(
 
     Parameters
     ----------
-
     coupon_rate : float
         Finite annual coupon rate in decimal units.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     knock_out_level : float
         Positive inclusive knock-out threshold.
     autocall_times : iterable of datetime.datetime
@@ -12978,7 +13333,6 @@ def standard_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -13027,14 +13381,12 @@ def european_snowball(
 
     Parameters
     ----------
-
     coupon_rate : float
         Finite annual coupon rate in decimal units.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     knock_out_level : float
         Positive inclusive knock-out threshold.
     autocall_times : iterable of datetime.datetime
@@ -13053,7 +13405,6 @@ def european_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -13104,14 +13455,12 @@ def step_down_snowball(
 
     Parameters
     ----------
-
     coupon_rate : float
         Finite annual coupon rate in decimal units.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     initial_knock_out_level : float
         Positive knock-out threshold at the first observation.
     knock_out_level_decrement : float
@@ -13134,7 +13483,6 @@ def step_down_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -13188,14 +13536,12 @@ def both_down_snowball(
 
     Parameters
     ----------
-
     initial_coupon_rate : float
         Annual coupon rate at the first observation.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     initial_knock_out_level : float
         Positive knock-out threshold at the first observation.
     coupon_rate_decrement : float
@@ -13220,7 +13566,6 @@ def both_down_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -13273,14 +13618,12 @@ def dual_coupon_snowball(
 
     Parameters
     ----------
-
     knock_out_coupon_rate : float
         Annual coupon rate for knock-out settlement.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     knock_out_level : float
         Positive inclusive knock-out threshold.
     maturity_coupon_rate : float
@@ -13303,7 +13646,6 @@ def dual_coupon_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -13354,14 +13696,12 @@ def parachute_snowball(
 
     Parameters
     ----------
-
     coupon_rate : float
         Finite annual coupon rate in decimal units.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     knock_out_level : float
         Positive inclusive knock-out threshold.
     final_knock_out_level : float
@@ -13384,7 +13724,6 @@ def parachute_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -13435,14 +13774,12 @@ def otm_snowball(
 
     Parameters
     ----------
-
     coupon_rate : float
         Finite annual coupon rate in decimal units.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     knock_out_level : float
         Positive inclusive knock-out threshold.
     upper_strike : float
@@ -13465,7 +13802,6 @@ def otm_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -13516,14 +13852,12 @@ def loss_capped_snowball(
 
     Parameters
     ----------
-
     coupon_rate : float
         Finite annual coupon rate in decimal units.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     knock_out_level : float
         Positive inclusive knock-out threshold.
     lower_strike : float
@@ -13546,7 +13880,6 @@ def loss_capped_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -13679,23 +14012,25 @@ class Accumulator:
     ) -> Self:
         """Return a validated replacement.
 
+        Omission or Ellipsis retains a field. The original value is unchanged.
+
         Parameters
         ----------
         option_type : {'call', 'put'}, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Call or put payoff direction.
         strike, knock_out_level, daily_quantity : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Strike, inclusive knock-out threshold, and daily purchase or sale quantity.
         acceleration_factor : float, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Nonnegative quantity multiplier below strike for calls or above strike for puts.
         accumulated_quantity : float or None, optional
             Quantity strictly before valuation; None clears to unknown.
             Omission or Ellipsis retains the current field.
         effective_time, expiry_time : datetime.datetime, optional
-            Replacement value; omission or Ellipsis retains the current field.
+            Inclusive contract start and expiry timestamps.
         observation_clock_time : datetime.time, optional
             Daily observation clock, without timezone information.
-        knock_out_observation_times : Iterable[datetime.datetime] | None, optional
-            Replacement value; omission or Ellipsis retains the current field.
+        knock_out_observation_times : iterable of datetime.datetime or None, optional
+            Knock-out schedule; None observes at each daily accumulation time.
         knock_out_settled : bool or None, optional
             Records a settled knock-out strictly before valuation; None clears to
             unknown. Omission or Ellipsis retains the current state.
@@ -13706,7 +14041,7 @@ class Accumulator:
 
         Returns
         -------
-        object
+        Accumulator
             Independent contract of the same class, preserving omitted history and
             terms.
 
@@ -13787,7 +14122,6 @@ class QuadratureAccumulatorEngine:
     asset_step_count : int, optional
         Base number of spatial intervals, at least 4; defaults to 512. Event
         boundaries may add intervals; Simpson panels round up to even.
-
     integration_standard_deviations : float, optional
         Positive finite integration extent in standard deviations; defaults to
         8.
@@ -13826,7 +14160,6 @@ class QuadratureAccumulatorEngine:
         asset_step_count : int, optional
             Base number of spatial intervals, at least 4; defaults to 512. Event
             boundaries may add intervals; Simpson panels round up to even.
-
         integration_standard_deviations : float, optional
             Positive finite integration extent in standard deviations; defaults to
             8.
@@ -13869,6 +14202,11 @@ class QuadratureAccumulatorEngine:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def active_greek_controls(
@@ -13888,6 +14226,11 @@ class QuadratureAccumulatorEngine:
         list of str
             Potentially active controls: spot_shift, volatility_shift, rate_shift,
             and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
         """
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
@@ -13922,7 +14265,7 @@ class QuadratureAccumulatorEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Return the price and selected sensitivities with native estimators.
+        """Return the price and selected sensitivities using engine estimators.
 
         Parameters
         ----------
@@ -13967,8 +14310,8 @@ class QuadratureAccumulatorEngine:
 
         Notes
         -----
-        Before expiry requested Greeks use scalar numerical differences and the
-        engine defaults. Use numerical_greeks for configurable scalar differences.
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
         """
 
 def standard_phoenix(
@@ -14024,7 +14367,6 @@ def standard_phoenix(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -14107,7 +14449,6 @@ def step_down_phoenix(
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-
     Returns
     -------
     PhoenixOption
@@ -14179,7 +14520,6 @@ def fixed_coupon_note(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -14256,7 +14596,6 @@ def digital_coupon_note(
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
 
-
     Returns
     -------
     PhoenixOption
@@ -14301,14 +14640,12 @@ def early_profit_snowball(
 
     Parameters
     ----------
-
     first_coupon_rate : float
         Finite signed annual coupon rate through first_stage_end_time.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     knock_out_level : float
         Positive inclusive knock-out threshold.
     second_coupon_rate : float
@@ -14333,7 +14670,6 @@ def early_profit_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------
@@ -14389,14 +14725,12 @@ def butterfly_snowball(
 
     Parameters
     ----------
-
     first_coupon_rate : float
         Finite signed annual coupon rate through first_stage_end_time.
     initial_spot : float
         Positive reference spot used to normalize downside losses.
     knock_in_level : float
         Positive strict downside threshold.
-
     knock_out_level : float
         Positive inclusive knock-out threshold.
     second_coupon_rate : float
@@ -14425,7 +14759,6 @@ def butterfly_snowball(
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
-
 
     Returns
     -------

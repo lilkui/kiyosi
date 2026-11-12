@@ -1,3 +1,5 @@
+"""Price European and American options under the Heston model."""
+
 from datetime import datetime
 
 from kiyosi.instruments import AmericanOption, EuropeanOption
@@ -27,7 +29,7 @@ fourier = AnalyticHestonEuropeanEngine()
 price = fourier.price(call, context)
 print(f"欧式看涨 Fourier 积分价：{price:.6f}")
 
-# Heston 引擎不提供 Greeks；非空请求抛出 UnsupportedOperationError。
+# Heston 引擎不提供 Greeks；请求的指标标记为 unsupported。
 print(f"Greeks 计算方式：{fourier.greek_method(call, context)}")
 fd = FiniteDifferenceHestonVanillaEngine()
 fd_price = fd.price(call, context)

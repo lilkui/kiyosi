@@ -60,27 +60,29 @@ monitoring_properties!(
     DoubleBarrierOptionChanges,
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// option_type : {'call', 'put'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Call or put payoff direction.
     /// strike : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Positive finite strike price.
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
     /// lower_barrier, upper_barrier : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Positive finite lower and upper triggers, with the lower strictly smaller.
     /// barrier_type : {'knock_in', 'knock_out'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Knock-in or knock-out activation at either boundary.
     /// rebate : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Nonnegative finite cash rebate.
     /// rebate_timing : {'at_hit', 'at_expiry'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// observation_times : Iterable[datetime.datetime] or None, optional
+    ///     Rebate payment timing; at-hit rebates require knock-out.
+    /// observation_times : iterable of datetime.datetime or None, optional
     ///     Omission retains monitoring; None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Strictly prior touch history; None clears it to unknown.
     /// calendar : TradingCalendar, optional
     ///     Explicit override. Omission or Ellipsis inherits a supplied
     ///     ObservationSchedule calendar; otherwise construction uses weekdays
@@ -88,7 +90,7 @@ monitoring_properties!(
     ///
     /// Returns
     /// -------
-    /// object
+    /// DoubleBarrierOption
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///

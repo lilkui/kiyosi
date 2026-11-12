@@ -10,8 +10,8 @@ macro_rules! analytic_engine {
                 ///
                 /// Notes
                 /// -----
-                /// Before expiry requested Greeks use scalar numerical differences and the
-                /// engine defaults. Use numerical_greeks for configurable scalar differences.
+                /// Before expiry, requested Greeks use scalar numerical differences with
+                /// the request's shift controls. Omitted controls use engine defaults.
                 ///
             ]
         );

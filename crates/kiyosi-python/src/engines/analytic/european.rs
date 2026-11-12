@@ -18,9 +18,10 @@ analytic_engine!(
         ///
         /// Notes
         /// -----
-        /// Uses analytic Greeks at positive volatility before expiry, scalar
-        /// differences at zero volatility, and default terminal stencils at expiry.
-        /// Use numerical_greeks for configurable scalar differences.
+        /// Uses analytic Greeks at positive volatility before expiry and scalar
+        /// differences at zero volatility. At expiry, supported Greeks use exact
+        /// payoff derivatives; spot derivatives are undefined at the strike and
+        /// time Greeks are absent. Use numerical_greeks for scalar differences.
         ///
     ]
 );

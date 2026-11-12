@@ -1,3 +1,5 @@
+"""Build calendars and observation schedules with explicit observation clocks."""
+
 from datetime import date, datetime, time
 
 from kiyosi.market import (

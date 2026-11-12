@@ -80,23 +80,25 @@ pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 impl Accumulator {
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// option_type : {'call', 'put'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Call or put payoff direction.
     /// strike, knock_out_level, daily_quantity : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Strike, inclusive knock-out threshold, and daily purchase or sale quantity.
     /// acceleration_factor : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Nonnegative quantity multiplier below strike for calls or above strike for puts.
     /// accumulated_quantity : float or None, optional
     ///     Quantity strictly before valuation; None clears to unknown.
     ///     Omission or Ellipsis retains the current field.
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
     /// observation_clock_time : datetime.time, optional
     ///     Daily observation clock, without timezone information.
-    /// knock_out_observation_times : Iterable[datetime.datetime] | None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_out_observation_times : iterable of datetime.datetime or None, optional
+    ///     Knock-out schedule; None observes at each daily accumulation time.
     /// knock_out_settled : bool or None, optional
     ///     Records a settled knock-out strictly before valuation; None clears to
     ///     unknown. Omission or Ellipsis retains the current state.
@@ -107,7 +109,7 @@ impl Accumulator {
     ///
     /// Returns
     /// -------
-    /// object
+    /// Accumulator
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///

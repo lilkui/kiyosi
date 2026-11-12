@@ -197,23 +197,25 @@ binary_properties!(
     },
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// option_type : {'call', 'put'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Call or put payoff direction.
     /// strike : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Positive finite strike price.
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
     /// barrier_level : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Positive finite trigger level; equality counts as a touch.
     /// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// observation_times : Iterable[datetime.datetime] or None, optional
+    ///     Barrier direction and knock-in or knock-out behavior.
+    /// observation_times : iterable of datetime.datetime or None, optional
     ///     Omission retains monitoring; None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Strictly prior touch history; None clears it to unknown.
     /// payoff_type : {'cash', 'asset'}, optional
     ///     Explicit settlement choice; omission preserves the current kind.
     /// payout : float or None, optional
@@ -226,7 +228,7 @@ binary_properties!(
     ///
     /// Returns
     /// -------
-    /// object
+    /// BinaryBarrierOption
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///
@@ -342,21 +344,23 @@ binary_properties!(
     },
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
     /// barrier_level : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Positive finite trigger level; equality counts as a touch.
     /// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Barrier direction and knock-in or knock-out behavior.
     /// settlement_timing : {'at_hit', 'at_expiry'}, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
-    /// observation_times : Iterable[datetime.datetime] or None, optional
+    ///     Payment timing; at-hit settlement requires a one-touch contract.
+    /// observation_times : iterable of datetime.datetime or None, optional
     ///     Omission retains monitoring; None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Strictly prior touch history; None clears it to unknown.
     /// payoff_type : {'cash', 'asset'}, optional
     ///     Explicit settlement choice; omission preserves the current kind.
     /// payout : float or None, optional
@@ -369,7 +373,7 @@ binary_properties!(
     ///
     /// Returns
     /// -------
-    /// object
+    /// TouchOption
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///
@@ -508,7 +512,6 @@ calendar : TradingCalendar, optional
     ObservationSchedule calendar; otherwise construction uses weekdays
     and replacement retains the current calendar.
 
-
 Returns
 -------
 BinaryBarrierOption
@@ -554,7 +557,6 @@ calendar : TradingCalendar, optional
     Explicit override. Omission or Ellipsis inherits a supplied
     ObservationSchedule calendar; otherwise construction uses weekdays
     and replacement retains the current calendar.
-
 
 Returns
 -------
@@ -611,7 +613,6 @@ macro_rules! touch_factory {
         ///     Explicit override. Omission or Ellipsis inherits a supplied
         ///     ObservationSchedule calendar; otherwise construction uses weekdays
         ///     and replacement retains the current calendar.
-        ///
         ///
         /// Returns
         /// -------

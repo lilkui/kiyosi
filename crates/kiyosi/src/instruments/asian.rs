@@ -341,11 +341,10 @@ average_option!(
     false
 );
 
-/// Selects replacements for [`GeometricAveragePriceOption::replace`]; absent fields retain their values.
+/// Selects replacements for continuous average-price Asian options.
 ///
-/// For history, `Some(None)` restores unknown history.
-///
-/// For nullable fields, `Some(None)` clears the value.
+/// Absent fields retain their values; `Some(None)` clears realized history to
+/// unknown. See [`GeometricAveragePriceOption::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AveragePriceOptionChanges {
     /// Replaces [`option_type`](GeometricAveragePriceOption::option_type).

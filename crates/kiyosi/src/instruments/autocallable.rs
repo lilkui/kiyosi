@@ -421,9 +421,10 @@ pub struct PhoenixTerms {
     pub autocall_observations: Vec<AutocallableObservation>,
 }
 impl PhoenixTerms {
-    /// Creates periodic coupon terms with explicit knock-in observation, unknown history and unit principal.
+    /// Creates periodic coupon terms with explicit knock-in monitoring.
     ///
-    /// The explicit calendar controls contractual observations.
+    /// History defaults to unknown and principal redemption to one.
+    /// The supplied calendar controls contractual observations.
     /// Validation occurs in [`PhoenixOption::new`]; see its example.
     #[expect(
         clippy::too_many_arguments,

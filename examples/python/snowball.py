@@ -1,3 +1,5 @@
+"""Build snowball variants and solve their implied coupon rates."""
+
 from datetime import datetime, time
 
 from kiyosi.instruments import standard_snowball

@@ -1,3 +1,5 @@
+"""Price a range accrual with a daily observation clock and prior hit counts."""
+
 from datetime import datetime, time
 
 from kiyosi.instruments import RangeAccrualOption

@@ -40,8 +40,7 @@ macro_rules! fd_engine {
         /// time_step_count : int, optional
         ///     Positive base number of time intervals; event dates and curve knots are
         ///     added.
-        ///
-        #[doc = concat!("    Read `", stringify!($name), "().time_step_count` for the engine's default.")]
+        #[doc = concat!("    Read ``", stringify!($name), "().time_step_count`` for the engine's default.")]
         /// scheme : FiniteDifferenceScheme, optional
         ///     Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
         ///     "crank_nicolson" uses standard Crank-Nicolson without time-step

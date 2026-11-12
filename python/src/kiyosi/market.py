@@ -6,18 +6,18 @@ Rates use annual decimal units and continuous compounding; volatility is
 annualized in decimal units. Rate curves use Actual/365 Fixed. Calendar
 trading-year fractions use the calendar's annualization basis.
 
-`BlackScholesMertonParameters` accepts nonnegative volatility; zero selects
-deterministic pricing. `LocalVolatilityParameters` uses an absolute time/spot
-surface. `HestonParameters` uses risk-neutral variance parameters. Engine
+``BlackScholesMertonParameters`` accepts nonnegative volatility; zero selects
+deterministic pricing. ``LocalVolatilityParameters`` uses an absolute time/spot
+surface. ``HestonParameters`` uses risk-neutral variance parameters. Engine
 support and numerical controls are documented on each engine.
 
 Use ``risk_free_curve`` and ``dividend_curve`` to preserve coverage when passing
 model rates to another constructor. Scalar rate queries discard coverage bounds.
-Use `RateTermStructure.bounded_flat` when exact flatness and coverage bounds
+Use ``RateTermStructure.bounded_flat`` when exact flatness and coverage bounds
 are required; rounded node factors may imply slightly different forward rates.
 
 Calendars classify dates without moving contract boundaries. Automatic
-schedules require an explicit observation clock. `ObservationSchedule` supports
+schedules require an explicit observation clock. ``ObservationSchedule`` supports
 integer indexing, slicing, and ``reversed(schedule)``. Reverse iteration owns a
 copy of the timestamps. Slices return independent schedules with the same
 calendar and reject decreasing selections. Its ``calendar``

@@ -59,12 +59,14 @@ pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
 impl RangeAccrualOption {
     /// Return a validated replacement.
     ///
+    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    ///
     /// Parameters
     /// ----------
     /// notional, annual_coupon_rate, lower_bound, upper_bound : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Notional, annual coupon rate, and inclusive accrual band bounds.
     /// effective_time, expiry_time : datetime.datetime, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Inclusive contract start and expiry timestamps.
     /// observation_clock_time : datetime.time, optional
     ///     Daily observation clock, without timezone information.
     /// realized_hit_count : int | None, optional
@@ -75,7 +77,7 @@ impl RangeAccrualOption {
     ///
     /// Returns
     /// -------
-    /// object
+    /// RangeAccrualOption
     ///     Independent contract of the same class, preserving omitted history and
     ///     terms.
     ///

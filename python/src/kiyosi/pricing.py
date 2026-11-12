@@ -9,10 +9,10 @@ bias. Solver tolerances constrain the engine's price curve, not pricing accuracy
 ``price_with_greeks`` requires a Greek name, an iterable of names, or ``"all"``.
 An empty iterable requests price only. Unsupported measures remain absent with
 status ``"unsupported"``, including requests with no supported measures.
-`PricingResult` documents units;
+``PricingResult`` documents units;
 ``result.status`` explains missing measures, and ``result.require`` rejects them.
 Use ``engine.greek_method`` and ``engine.active_greek_controls`` to inspect
-estimation before pricing. `numerical_greeks` selects scalar BSM differences.
+estimation before pricing. ``numerical_greeks`` selects scalar BSM differences.
 
 Request-level shifts tune numerical fallbacks and availability checks without
 changing engine settings. Both Greek entry points inherit the engine's settings

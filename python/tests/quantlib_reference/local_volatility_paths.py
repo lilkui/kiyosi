@@ -1,9 +1,15 @@
 """Independent QuantLib local-volatility paths and structured payoffs.
 
-Regenerate from the repository root with:
-python python/tests/quantlib_reference/local_volatility_paths.py --pairs 262144 --substeps 4
+Notes
+-----
 The result contains antithetic-pair standard errors, not FD acceptance budgets.
 This module never imports Kiyosi.
+
+Examples
+--------
+Regenerate from the repository root::
+
+    python python/tests/quantlib_reference/local_volatility_paths.py --pairs 262144 --substeps 4
 """
 
 import argparse

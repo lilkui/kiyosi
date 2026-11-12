@@ -1,3 +1,5 @@
+"""Compare approximation, binomial, and finite-difference American prices."""
+
 from datetime import datetime
 
 from kiyosi.instruments import AmericanOption, EuropeanOption

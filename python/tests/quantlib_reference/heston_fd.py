@@ -1,10 +1,17 @@
 """Regenerate the cached Heston American reference (several minutes).
 
-Run from python/tests with: python -m quantlib_reference.heston_fd
+Notes
+-----
 QuantLib uses Hundsdorfer-Verwer time stepping and its American payoff
 projection, independently of Kiyosi's modified Craig-Sneyd scheme and
 Ikonen-Toivanen splitting. First-order extrapolation removes the leading
 exercise-time discretization error; consecutive extrapolates estimate uncertainty.
+
+Examples
+--------
+Run from ``python/tests``::
+
+    python -m quantlib_reference.heston_fd
 """
 
 import json

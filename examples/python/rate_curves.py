@@ -1,3 +1,5 @@
+"""Construct rate curves and use them in derivative pricing."""
+
 from datetime import datetime
 from math import isclose
 
