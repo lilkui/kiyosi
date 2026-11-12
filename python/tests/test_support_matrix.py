@@ -6,6 +6,7 @@ from datetime import time as clock_time
 import pytest
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi import instruments as ins
+from kiyosi.instruments import KnockInObservation
 from kiyosi.market import (
     BlackScholesMertonParameters,
     HestonParameters,
@@ -206,7 +207,7 @@ def terminal_cases():
         "knock_in_level": 80,
         "upper_strike": 100,
         "lower_strike": 60,
-        "knock_in_observation_mode": "at_expiry",
+        "knock_in_observation": KnockInObservation.at_expiry(),
         "barrier_state": "no_event",
     }
     cases.extend(
@@ -214,7 +215,6 @@ def terminal_cases():
             (
                 ins.SnowballOption(
                     calendar=weekdays_calendar(),
-                    observation_clock_time=None,
                     **common,
                     **loss,
                     maturity_coupon_rate=0.06,
@@ -234,12 +234,11 @@ def terminal_cases():
             (
                 ins.TernarySnowballOption(
                     calendar=weekdays_calendar(),
-                    observation_clock_time=None,
                     **common,
                     maturity_coupon_rate=0.06,
                     minimum_coupon_rate=-0.02,
                     knock_in_level=80,
-                    knock_in_observation_mode="at_expiry",
+                    knock_in_observation=KnockInObservation.at_expiry(),
                     barrier_state="no_event",
                 ),
                 notes,
@@ -248,7 +247,6 @@ def terminal_cases():
             (
                 ins.PhoenixOption(
                     calendar=weekdays_calendar(),
-                    observation_clock_time=None,
                     **dates,
                     **loss,
                     coupon_per_period=0.08,

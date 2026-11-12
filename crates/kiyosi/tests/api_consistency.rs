@@ -37,7 +37,9 @@ fn autocallable_calendars_control_knock_in_after_record_conversion() -> Result<(
             start,
             end,
             records.clone(),
-            Some(clock),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: clock,
+            },
             calendar.clone(),
         );
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
@@ -295,10 +297,10 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
             start,
             end,
             vec![AutocallableObservation::phoenix(end, 200.0, barrier)?],
-            None,
+            kiyosi::KnockInObservation::AtExpiry,
             TradingCalendar::weekdays(),
         );
-        terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+        terms.knock_in_observation = KnockInObservation::AtExpiry;
         let note = PhoenixOption::new(terms)?.replace(PhoenixOptionChanges {
             barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
             ..Default::default()
@@ -565,7 +567,9 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         start,
         end,
         vec![AutocallableObservation::snowball(end, 110.0, 0.0)?],
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     ))?;
     let daily = note.replace_calendar(TradingCalendar::all_days()).unwrap();
@@ -1954,7 +1958,9 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
             start,
             end,
             observations.clone(),
-            Some((end).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (end).time_of_day(),
+            },
             TradingCalendar::weekdays(),
         ));
         let minimum = TernarySnowballOption::new(TernarySnowballTerms::new(
@@ -1964,7 +1970,9 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
             start,
             end,
             observations.clone(),
-            Some((end).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (end).time_of_day(),
+            },
             TradingCalendar::weekdays(),
         ));
         for (error, field) in [
@@ -2629,7 +2637,9 @@ fn zero_coupon_observations_preserve_product_identity() -> Result<()> {
         start,
         end,
         vec![snowball],
-        Some(end.time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: end.time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     assert!(matches!(

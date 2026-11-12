@@ -118,6 +118,14 @@ def _reduce(
                 "seed": value.seed,
             },
         )
+    if isinstance(value, _native.KnockInObservation):
+        factory = getattr(_native.KnockInObservation, value.kind)
+        fields = (
+            {"observation_clock_time": value.observation_clock_time}
+            if value.kind == "every_trading_day"
+            else {}
+        )
+        return _restore, (factory, fields)
     if isinstance(value, _native.AutocallableObservation):
         field = "coupon_barrier_level" if value.kind == "phoenix" else "coupon_rate"
         factory = getattr(_native.AutocallableObservation, value.kind)

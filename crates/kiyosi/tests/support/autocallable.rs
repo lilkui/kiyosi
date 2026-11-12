@@ -1,7 +1,7 @@
 use kiyosi::*;
 
 pub fn multi_event_terms(
-    mode: KnockInObservationMode,
+    mode: KnockInObservation,
 ) -> (SnowballTerms, TernarySnowballTerms, PhoenixTerms) {
     let date = |month, day| Date::new(2025, month, day).unwrap().start_of_day();
     let start = date(1, 1);
@@ -22,12 +22,13 @@ pub fn multi_event_terms(
         start,
         end,
         observations.clone(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    snow.knock_in_observation_mode = mode;
-    snow.observation_clock_time =
-        (mode == KnockInObservationMode::EveryTradingDay).then_some(snow.expiry_time.time_of_day());
+    snow.knock_in_observation = mode;
+
     snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
     let mut ternary = TernarySnowballTerms::new(
@@ -37,12 +38,13 @@ pub fn multi_event_terms(
         start,
         end,
         observations.clone(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    ternary.knock_in_observation_mode = mode;
-    ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-        .then_some(ternary.expiry_time.time_of_day());
+    ternary.knock_in_observation = mode;
+
     ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
     let mut phoenix = PhoenixTerms::new(
@@ -60,12 +62,13 @@ pub fn multi_event_terms(
             Some(&[95.0; 3]),
         )
         .unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    phoenix.knock_in_observation_mode = mode;
-    phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-        .then_some(phoenix.expiry_time.time_of_day());
+    phoenix.knock_in_observation = mode;
+
     phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
     (snow, ternary, phoenix)

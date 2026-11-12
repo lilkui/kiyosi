@@ -11,12 +11,28 @@ pub const DEFAULT_PRINCIPAL_REDEMPTION_RATIO: f64 = 1.0;
 /// Supplies no initial knock-out lockout; see [`PhoenixPresetTerms::expand`].
 pub const DEFAULT_PHOENIX_LOCKOUT_PERIODS: usize = 0;
 
-/// Selects strict downside monitoring; see [`SnowballTerms::new`] for construction.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum KnockInObservationMode {
-    /// Observes at the specified observation clock time on trading times within the inclusive contract life.
-    #[default]
-    EveryTradingDay,
+/// Specifies when an autocallable's strict downside barrier is observed.
+///
+/// Daily observation owns its required clock; expiry-only observation has no clock.
+///
+/// # Examples
+///
+/// ```rust
+/// use kiyosi::{KnockInObservation, TimeOfDay};
+/// # fn main() -> kiyosi::Result<()> {
+/// let daily = KnockInObservation::EveryTradingDay {
+///     observation_clock_time: TimeOfDay::new(15, 0, 0, 0)?,
+/// };
+/// assert_ne!(daily, KnockInObservation::AtExpiry);
+/// # Ok(()) }
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KnockInObservation {
+    /// Observes at the specified clock on trading dates within the inclusive contract life.
+    EveryTradingDay {
+        /// Sets the timezone-free daily knock-in observation clock; see [`Self`].
+        observation_clock_time: TimeOfDay,
+    },
     /// Observes only at expiry.
     AtExpiry,
 }
@@ -317,10 +333,8 @@ pub struct SnowballTerms {
     pub upper_strike: f64,
     /// Sets the nonnegative lower settlement strike, at most the upper strike.
     pub lower_strike: f64,
-    /// Selects knock-in monitoring; defaults to every trading day.
-    pub knock_in_observation_mode: KnockInObservationMode,
-    /// Supplies the daily clock, required for daily monitoring and absent at expiry; see [`TimeOfDay::new`].
-    pub observation_clock_time: Option<TimeOfDay>,
+    /// Specifies knock-in monitoring and its daily clock, if applicable; see [`KnockInObservation`].
+    pub knock_in_observation: KnockInObservation,
     /// Records prior events; `None` means unknown history.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
@@ -333,7 +347,7 @@ pub struct SnowballTerms {
     pub observations: Vec<AutocallableObservation>,
 }
 impl SnowballTerms {
-    /// Creates input terms with daily monitoring, unknown history and unit principal.
+    /// Creates input terms with explicit knock-in observation, unknown history and unit principal.
     ///
     /// The explicit calendar controls contractual observations.
     /// Validation occurs in [`SnowballOption::new`]; see its example.
@@ -350,7 +364,7 @@ impl SnowballTerms {
         effective_time: Timestamp,
         expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
-        observation_clock_time: Option<TimeOfDay>,
+        knock_in_observation: KnockInObservation,
         calendar: TradingCalendar,
     ) -> Self {
         Self {
@@ -360,8 +374,7 @@ impl SnowballTerms {
             knock_in_level,
             upper_strike,
             lower_strike,
-            knock_in_observation_mode: KnockInObservationMode::default(),
-            observation_clock_time,
+            knock_in_observation,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
@@ -391,10 +404,8 @@ pub struct PhoenixTerms {
     pub upper_strike: f64,
     /// Sets the nonnegative lower settlement strike, at most the upper strike.
     pub lower_strike: f64,
-    /// Selects knock-in monitoring; defaults to every trading day.
-    pub knock_in_observation_mode: KnockInObservationMode,
-    /// Supplies the daily clock, required for daily monitoring and absent at expiry; see [`TimeOfDay::new`].
-    pub observation_clock_time: Option<TimeOfDay>,
+    /// Specifies knock-in monitoring and its daily clock, if applicable; see [`KnockInObservation`].
+    pub knock_in_observation: KnockInObservation,
     /// Records prior events; `None` means unknown history.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
@@ -407,7 +418,7 @@ pub struct PhoenixTerms {
     pub observations: Vec<AutocallableObservation>,
 }
 impl PhoenixTerms {
-    /// Creates periodic coupon terms with daily monitoring, unknown history and unit principal.
+    /// Creates periodic coupon terms with explicit knock-in observation, unknown history and unit principal.
     ///
     /// The explicit calendar controls contractual observations.
     /// Validation occurs in [`PhoenixOption::new`]; see its example.
@@ -424,7 +435,7 @@ impl PhoenixTerms {
         effective_time: Timestamp,
         expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
-        observation_clock_time: Option<TimeOfDay>,
+        knock_in_observation: KnockInObservation,
         calendar: TradingCalendar,
     ) -> Self {
         Self {
@@ -435,8 +446,7 @@ impl PhoenixTerms {
             knock_in_level,
             upper_strike,
             lower_strike,
-            knock_in_observation_mode: KnockInObservationMode::default(),
-            observation_clock_time,
+            knock_in_observation,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
@@ -512,10 +522,8 @@ pub struct TernarySnowballTerms {
     pub minimum_coupon_rate: f64,
     /// Sets the positive strict downside threshold.
     pub knock_in_level: f64,
-    /// Selects knock-in monitoring; defaults to every trading day.
-    pub knock_in_observation_mode: KnockInObservationMode,
-    /// Supplies the daily clock, required for daily monitoring and absent at expiry; see [`TimeOfDay::new`].
-    pub observation_clock_time: Option<TimeOfDay>,
+    /// Specifies knock-in monitoring and its daily clock, if applicable; see [`KnockInObservation`].
+    pub knock_in_observation: KnockInObservation,
     /// Records prior events; `None` means unknown history.
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons.
@@ -528,7 +536,7 @@ pub struct TernarySnowballTerms {
     pub observations: Vec<AutocallableObservation>,
 }
 impl TernarySnowballTerms {
-    /// Creates input terms with daily monitoring, unknown history and unit principal.
+    /// Creates input terms with explicit knock-in observation, unknown history and unit principal.
     ///
     /// The explicit calendar controls contractual observations.
     /// Validation occurs in [`TernarySnowballOption::new`]; see its example.
@@ -543,7 +551,7 @@ impl TernarySnowballTerms {
         effective_time: Timestamp,
         expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
-        observation_clock_time: Option<TimeOfDay>,
+        knock_in_observation: KnockInObservation,
         calendar: TradingCalendar,
     ) -> Self {
         Self {
@@ -551,8 +559,7 @@ impl TernarySnowballTerms {
             maturity_coupon_rate,
             minimum_coupon_rate,
             knock_in_level,
-            knock_in_observation_mode: KnockInObservationMode::default(),
-            observation_clock_time,
+            knock_in_observation,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
             effective_time,
@@ -665,9 +672,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
 }
 
 mod sealed {
-    use super::{
-        AutocallableBarrierState, AutocallableObservation, KnockInObservationMode, Timestamp,
-    };
+    use super::{AutocallableBarrierState, AutocallableObservation, KnockInObservation, Timestamp};
     pub trait Terms {
         fn set_calendar(&mut self, calendar: crate::TradingCalendar);
         fn view(&self) -> View<'_>;
@@ -690,8 +695,7 @@ mod sealed {
     #[derive(Clone, Copy)]
     pub struct KnockIn {
         pub level: f64,
-        pub observation_mode: KnockInObservationMode,
-        pub observation_clock_time: Option<crate::TimeOfDay>,
+        pub observation: KnockInObservation,
         pub redemption: Redemption,
     }
     #[derive(Clone, Copy)]
@@ -728,8 +732,7 @@ macro_rules! terms_view {
                     calendar: &self.calendar,
                     knock_in: Some(KnockIn {
                         level: self.knock_in_level,
-                        observation_mode: self.knock_in_observation_mode,
-                        observation_clock_time: self.observation_clock_time,
+                        observation: self.knock_in_observation,
                         redemption: Redemption::Downside(Downside {
                             initial_spot: self.initial_spot,
                             upper_strike: self.upper_strike,
@@ -784,8 +787,7 @@ impl sealed::Terms for TernarySnowballTerms {
             calendar: &self.calendar,
             knock_in: Some(KnockIn {
                 level: self.knock_in_level,
-                observation_mode: self.knock_in_observation_mode,
-                observation_clock_time: self.observation_clock_time,
+                observation: self.knock_in_observation,
                 redemption: Redemption::FixedCoupon(self.minimum_coupon_rate),
             }),
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
@@ -830,8 +832,11 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
+    /// let knock_in_observation = KnockInObservation::EveryTradingDay {
+    ///     observation_clock_time: TimeOfDay::new(0, 0, 0, 0)?,
+    /// };
     /// let terms = PhoenixTerms::new(0.02, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?), kiyosi::TradingCalendar::weekdays());
+    ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, knock_in_observation, kiyosi::TradingCalendar::weekdays());
     /// let note = PhoenixOption::new(terms)?;
     /// let known = note.replace(PhoenixOptionChanges {
     ///     barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
@@ -843,7 +848,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
     ///     0.06, start, end, records.clone(), kiyosi::TradingCalendar::weekdays()))?;
     /// let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
-    ///     0.06, 0.02, 80.0, start, end, records, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?), kiyosi::TradingCalendar::weekdays()))?;
+    ///     0.06, 0.02, 80.0, start, end, records, knock_in_observation, kiyosi::TradingCalendar::weekdays()))?;
     /// assert_eq!(binary.terms().principal_redemption_ratio, 1.0);
     /// assert_eq!(ternary.terms().minimum_coupon_rate, 0.02);
     /// // Amend an already validated contract to include weekend monitoring.
@@ -905,18 +910,19 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
 
     /// Returns the daily clock, or `None` for monitoring without daily events; see [`TimeOfDay::new`].
     pub fn observation_clock_time(&self) -> Option<TimeOfDay> {
-        self.view()
-            .knock_in
-            .and_then(|ki| ki.observation_clock_time)
+        self.view().knock_in.and_then(|ki| match ki.observation {
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time,
+            } => Some(observation_clock_time),
+            KnockInObservation::AtExpiry => None,
+        })
     }
 
     pub(crate) fn observes_knock_in(&self, time: Timestamp) -> bool {
-        self.view()
-            .knock_in
-            .is_some_and(|ki| match ki.observation_mode {
-                KnockInObservationMode::EveryTradingDay => self.daily_time(time, self.calendar()),
-                KnockInObservationMode::AtExpiry => time == self.expiry_time(),
-            })
+        self.view().knock_in.is_some_and(|ki| match ki.observation {
+            KnockInObservation::EveryTradingDay { .. } => self.daily_time(time, self.calendar()),
+            KnockInObservation::AtExpiry => time == self.expiry_time(),
+        })
     }
 
     /// Returns an owned knock-in schedule, or `None` for products without knock-in.
@@ -937,20 +943,23 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AutocallableObservation, Date, SnowballOption, SnowballTerms, TimeOfDay};
+    /// use kiyosi::{AutocallableObservation, Date, KnockInObservation, SnowballOption, SnowballTerms, TimeOfDay};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 6)?.start_of_day();
     /// let end = start.add_days(2)?;
+    /// let knock_in_observation = KnockInObservation::EveryTradingDay {
+    ///     observation_clock_time: TimeOfDay::new(0, 0, 0, 0)?,
+    /// };
     /// let note = SnowballOption::new(SnowballTerms::new(
     ///     0.1, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     vec![AutocallableObservation::snowball(end, 110.0, 0.0)?], Some(TimeOfDay::new(0, 0, 0, 0)?), kiyosi::TradingCalendar::weekdays()))?;
+    ///     vec![AutocallableObservation::snowball(end, 110.0, 0.0)?], knock_in_observation, kiyosi::TradingCalendar::weekdays()))?;
     /// assert_eq!(note.knock_in_observation_schedule()?.map(|s| s.len()), Some(3));
     /// # Ok(()) }
     /// ```
     pub fn knock_in_observation_schedule(&self) -> Result<Option<crate::ObservationSchedule>> {
         match self.view().knock_in {
             None => Ok(None),
-            Some(ki) if ki.observation_mode == KnockInObservationMode::AtExpiry => {
+            Some(ki) if ki.observation == KnockInObservation::AtExpiry => {
                 crate::ObservationSchedule::new(
                     vec![self.expiry_time()],
                     self.effective_time(),
@@ -1271,7 +1280,7 @@ impl sealed::View<'_> {
         }
         if self
             .knock_in
-            .is_some_and(|ki| ki.observation_mode == KnockInObservationMode::AtExpiry)
+            .is_some_and(|ki| ki.observation == KnockInObservation::AtExpiry)
             && !self.calendar.is_trading_day(self.expiry_time.date())
         {
             return Err(Error::InvalidInput(
@@ -1315,7 +1324,7 @@ impl sealed::View<'_> {
 
     pub(crate) fn daily_knock_in(&self) -> bool {
         self.knock_in
-            .is_some_and(|ki| ki.observation_mode == KnockInObservationMode::EveryTradingDay)
+            .is_some_and(|ki| matches!(ki.observation, KnockInObservation::EveryTradingDay { .. }))
     }
 
     pub(crate) fn below_knock_in(&self, spot: f64) -> bool {
@@ -1333,14 +1342,6 @@ impl sealed::View<'_> {
 
     fn validate(&self) -> Result<()> {
         let terms = self;
-        if self.knock_in.is_some_and(|ki| {
-            (ki.observation_mode == KnockInObservationMode::EveryTradingDay)
-                != ki.observation_clock_time.is_some()
-        }) {
-            return Err(Error::InvalidInput(
-                "observation_clock_time is required only for daily monitoring".into(),
-            ));
-        }
         if let Some(d) = terms.downside() {
             for (field, value) in [
                 ("initial_spot", d.initial_spot),
@@ -1441,10 +1442,8 @@ pub struct SnowballOptionChanges {
     pub upper_strike: Option<f64>,
     /// Replaces [`lower_strike`](SnowballTerms::lower_strike).
     pub lower_strike: Option<f64>,
-    /// Replaces [`knock_in_observation_mode`](SnowballTerms::knock_in_observation_mode).
-    pub knock_in_observation_mode: Option<KnockInObservationMode>,
-    /// Replaces or clears the daily observation clock; see [`TimeOfDay::new`].
-    pub observation_clock_time: Option<Option<TimeOfDay>>,
+    /// Replaces [`knock_in_observation`](SnowballTerms::knock_in_observation).
+    pub knock_in_observation: Option<KnockInObservation>,
     /// Replaces [`barrier_state`](SnowballTerms::barrier_state).
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_redemption_ratio`](SnowballTerms::principal_redemption_ratio).
@@ -1477,12 +1476,9 @@ impl SnowballOption {
             knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
             upper_strike: changes.upper_strike.unwrap_or(self.0.upper_strike),
             lower_strike: changes.lower_strike.unwrap_or(self.0.lower_strike),
-            observation_clock_time: changes
-                .observation_clock_time
-                .unwrap_or(self.0.observation_clock_time),
-            knock_in_observation_mode: changes
-                .knock_in_observation_mode
-                .unwrap_or(self.0.knock_in_observation_mode),
+            knock_in_observation: changes
+                .knock_in_observation
+                .unwrap_or(self.0.knock_in_observation),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_redemption_ratio: changes
                 .principal_redemption_ratio
@@ -1515,10 +1511,8 @@ pub struct PhoenixOptionChanges {
     pub upper_strike: Option<f64>,
     /// Replaces [`lower_strike`](PhoenixTerms::lower_strike).
     pub lower_strike: Option<f64>,
-    /// Replaces [`knock_in_observation_mode`](PhoenixTerms::knock_in_observation_mode).
-    pub knock_in_observation_mode: Option<KnockInObservationMode>,
-    /// Replaces or clears the daily observation clock; see [`TimeOfDay::new`].
-    pub observation_clock_time: Option<Option<TimeOfDay>>,
+    /// Replaces [`knock_in_observation`](PhoenixTerms::knock_in_observation).
+    pub knock_in_observation: Option<KnockInObservation>,
     /// Replaces [`barrier_state`](PhoenixTerms::barrier_state).
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_redemption_ratio`](PhoenixTerms::principal_redemption_ratio).
@@ -1580,12 +1574,9 @@ impl PhoenixOption {
             knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
             upper_strike: changes.upper_strike.unwrap_or(self.0.upper_strike),
             lower_strike: changes.lower_strike.unwrap_or(self.0.lower_strike),
-            observation_clock_time: changes
-                .observation_clock_time
-                .unwrap_or(self.0.observation_clock_time),
-            knock_in_observation_mode: changes
-                .knock_in_observation_mode
-                .unwrap_or(self.0.knock_in_observation_mode),
+            knock_in_observation: changes
+                .knock_in_observation
+                .unwrap_or(self.0.knock_in_observation),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_redemption_ratio: changes
                 .principal_redemption_ratio
@@ -1662,10 +1653,8 @@ pub struct TernarySnowballOptionChanges {
     pub minimum_coupon_rate: Option<f64>,
     /// Replaces [`knock_in_level`](TernarySnowballTerms::knock_in_level).
     pub knock_in_level: Option<f64>,
-    /// Replaces [`knock_in_observation_mode`](TernarySnowballTerms::knock_in_observation_mode).
-    pub knock_in_observation_mode: Option<KnockInObservationMode>,
-    /// Replaces or clears the daily observation clock; see [`TimeOfDay::new`].
-    pub observation_clock_time: Option<Option<TimeOfDay>>,
+    /// Replaces [`knock_in_observation`](TernarySnowballTerms::knock_in_observation).
+    pub knock_in_observation: Option<KnockInObservation>,
     /// Replaces [`barrier_state`](TernarySnowballTerms::barrier_state).
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_redemption_ratio`](TernarySnowballTerms::principal_redemption_ratio).
@@ -1698,12 +1687,9 @@ impl TernarySnowballOption {
                 .minimum_coupon_rate
                 .unwrap_or(self.0.minimum_coupon_rate),
             knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
-            observation_clock_time: changes
-                .observation_clock_time
-                .unwrap_or(self.0.observation_clock_time),
-            knock_in_observation_mode: changes
-                .knock_in_observation_mode
-                .unwrap_or(self.0.knock_in_observation_mode),
+            knock_in_observation: changes
+                .knock_in_observation
+                .unwrap_or(self.0.knock_in_observation),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_redemption_ratio: changes
                 .principal_redemption_ratio

@@ -3,6 +3,7 @@
 import math
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 
 import pytest
 from kiyosi import (
@@ -10,7 +11,11 @@ from kiyosi import (
     RootNotBracketedError,
     UnsupportedOperationError,
 )
-from kiyosi.instruments import BinarySnowballOption, autocallable_observations
+from kiyosi.instruments import (
+    BinarySnowballOption,
+    KnockInObservation,
+    autocallable_observations,
+)
 from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import MonteCarloAutocallableEngine as MC
 from kiyosi.pricing import (
@@ -193,7 +198,7 @@ def test_current_phoenix_coupon_paid_once_and_weekend_does_not_knock_in():
     snow = contract(
         expiry_time=datetime(2025, 1, 6),
         maturity_coupon_rate=0.12,
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         barrier_state="no_event",
         observations=autocallable_observations(
             [datetime(2025, 1, 6)], [120], knock_out_coupon_rates=[0.12]
@@ -345,7 +350,10 @@ def test_sobol_dimension_limit_uses_remaining_monitoring_dates():
     assert_rejection(
         InvalidInputError,
         lambda: engine.price(
-            contract(**fields, knock_in_observation_mode="every_trading_day"),
+            contract(
+                **fields,
+                knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+            ),
             market(),
         ),
     )

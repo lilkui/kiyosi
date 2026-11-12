@@ -17,6 +17,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import (
     AutocallableObservation,
+    KnockInObservation,
     PhoenixOption,
     autocallable_observations,
 )
@@ -63,7 +64,7 @@ def contract(**changes):
         "knock_in_level": 80,
         "upper_strike": 100,
         "lower_strike": 60,
-        "knock_in_observation_mode": "at_expiry",
+        "knock_in_observation": KnockInObservation.at_expiry(),
         "effective_time": START,
         "expiry_time": END,
         "barrier_state": "no_event",
@@ -73,10 +74,6 @@ def contract(**changes):
     }
     fields.update(changes)
     return PhoenixOption(
-        observation_clock_time=clock_time()
-        if fields.get("knock_in_observation_mode", "every_trading_day")
-        == "every_trading_day"
-        else None,
         **fields,
     )
 
@@ -87,7 +84,7 @@ def test_lockout_daily_layers_agree_across_engines_and_constant_local_volatility
         expiry_time=end,
         knock_in_level=99,
         lower_strike=0,
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         lockout_periods=2,
         observations=autocallable_observations(
             [datetime(2025, 1, 2), datetime(2025, 1, 6), end],
@@ -151,7 +148,7 @@ def test_lockout_preserves_daily_knock_in_and_first_eligible_knock_out():
     note = contract(
         lower_strike=0,
         lockout_periods=1,
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         observations=autocallable_observations(
             [START, END], [50, 200], coupon_barrier_levels=[0, 0]
         ),
@@ -199,8 +196,7 @@ def test_lockout_history_depends_only_on_eligible_knock_out_observations():
     possible = note.replace(barrier_state="knocked_out")
     assert engine.price(possible, market(100, after_eligible)) == 0
     daily = note.replace(
-        knock_in_observation_mode="every_trading_day",
-        observation_clock_time=clock_time(),
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
     )
     with pytest.raises(MissingHistoryError):
         engine.price(daily, market(100, START + timedelta(days=1)))
@@ -321,15 +317,13 @@ def test_owned_defaults_replacement_and_strict_representations(subtests):
         {"initial_spot": True},
         {"observations": [(END, 110)]},
         {"effective_time": datetime(2025, 1, 1).date()},
-        {"knock_in_observation_mode": 1},
+        {"knock_in_observation": 1},
+        {"knock_in_observation": "daily"},
         {"barrier_state": True},
     ):
         with subtests.test(fields=fields), pytest.raises(TypeError):
             contract(**fields)
-    for fields in (
-        {"knock_in_observation_mode": "daily"},
-        {"barrier_state": "unknown"},
-    ):
+    for fields in ({"barrier_state": "unknown"},):
         with pytest.raises(ValueError):
             contract(**fields)
     for replacement in (
@@ -397,7 +391,8 @@ def test_core_validation_order_errors_and_history():
     )
     engine = QuadratureAutocallableEngine()
     unknown = contract(
-        knock_in_observation_mode="every_trading_day", barrier_state=None
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        barrier_state=None,
     )
     assert_rejection(
         MissingHistoryError,
@@ -473,7 +468,11 @@ def test_independent_quantlib_terminal_portfolios(subtests):
                 principal_redemption_ratio=inputs["principal_redemption_ratio"],
                 barrier_state=inputs["history"],
                 knock_in_level=inputs["knock_in_level"],
-                knock_in_observation_mode=inputs["knock_in_mode"],
+                knock_in_observation=(
+                    KnockInObservation.every_trading_day(clock_time())
+                    if inputs["knock_in_mode"] == "every_trading_day"
+                    else KnockInObservation.at_expiry()
+                ),
                 observations=autocallable_observations(
                     [end],
                     [110],
@@ -722,7 +721,11 @@ def test_two_event_prices_match_independent_conditional_payoff_integral():
                 calendar=calendar,
                 coupon_per_period=coupon,
                 knock_in_level=95,
-                knock_in_observation_mode=mode,
+                knock_in_observation=(
+                    KnockInObservation.every_trading_day(clock_time())
+                    if mode == "every_trading_day"
+                    else KnockInObservation.at_expiry()
+                ),
             )
             assert QuadratureAutocallableEngine().price(
                 note, market()
@@ -734,7 +737,11 @@ def test_grid_domain_and_bump_convergence():
     for mode in ("at_expiry", "every_trading_day"):
         note = contract(
             knock_in_level=95,
-            knock_in_observation_mode=mode,
+            knock_in_observation=(
+                KnockInObservation.every_trading_day(clock_time())
+                if mode == "every_trading_day"
+                else KnockInObservation.at_expiry()
+            ),
             observations=autocallable_observations(
                 [MIDDLE, datetime(2025, 3, 3), END],
                 [110, 108, 105],

@@ -29,7 +29,7 @@ fn phoenix_terms() -> PhoenixPresetTerms {
 fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observation() {
     let mut input = phoenix_terms();
     input.observation_times = vec![date(1, 2), date(2, 3), date(3, 3), date(4, 1)];
-    input.observation_clock_time = Some(date(1, 1).time_of_day());
+    input.knock_in_observation_clock_time = Some(date(1, 1).time_of_day());
     input.lockout_periods = 2;
     let step = input
         .clone()
@@ -53,7 +53,9 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
             Some(&[90.0; 4]),
         )
         .unwrap(),
-        input.observation_clock_time,
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: input.knock_in_observation_clock_time.unwrap(),
+        },
         TradingCalendar::weekdays(),
     );
     expected.lockout_periods = 2;
@@ -82,7 +84,7 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
             })
             .unwrap()
     );
-    input.observation_clock_time = None;
+    input.knock_in_observation_clock_time = None;
     for preset in [
         PhoenixPreset::FixedCouponNote,
         PhoenixPreset::DigitalCouponNote {
@@ -93,8 +95,8 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
         assert_eq!(note.lockout_periods(), 2);
         assert_eq!(note.terms().upper_strike, 80.0);
         assert_eq!(
-            note.terms().knock_in_observation_mode,
-            KnockInObservationMode::AtExpiry
+            note.terms().knock_in_observation,
+            KnockInObservation::AtExpiry
         );
     }
     assert!(matches!(
@@ -103,7 +105,7 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
         }),
         Err(Error::InvalidInput(_))
     ));
-    input.observation_clock_time = Some(date(1, 1).time_of_day());
+    input.knock_in_observation_clock_time = Some(date(1, 1).time_of_day());
     assert!(matches!(
         input.clone().expand(PhoenixPreset::FixedCouponNote),
         Err(Error::InvalidInput(_))
@@ -153,11 +155,12 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
                     Some(&[barrier; 2]),
                 )
                 .unwrap(),
-                Some((date(4, 1)).time_of_day()),
+                kiyosi::KnockInObservation::EveryTradingDay {
+                    observation_clock_time: (date(4, 1)).time_of_day(),
+                },
                 TradingCalendar::weekdays(),
             );
-            expected.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-            expected.observation_clock_time = None;
+            expected.knock_in_observation = KnockInObservation::AtExpiry;
             expected.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
             expected.principal_redemption_ratio = 0.25;
@@ -474,7 +477,9 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             date(1, 1),
             date(4, 1),
             autocallable_observations(&dates, &[110.0; 5], Some(&rates), None).unwrap(),
-            Some((date(4, 1)).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (date(4, 1)).time_of_day(),
+            },
             TradingCalendar::weekdays(),
         );
         expected.barrier_state = Some(AutocallableBarrierState::NoEvent);

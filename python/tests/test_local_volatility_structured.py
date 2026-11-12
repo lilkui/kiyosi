@@ -10,6 +10,7 @@ import pytest
 import QuantLib as ql
 from kiyosi import instruments as ins
 from kiyosi import pricing
+from kiyosi.instruments import KnockInObservation
 from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
@@ -76,12 +77,16 @@ def contracts():
         )
     }
     for suffix, mode in [("daily", "every_trading_day"), ("terminal", "at_expiry")]:
-        state = {"knock_in_observation_mode": mode, "barrier_state": "no_event"}
+        state = {
+            "knock_in_observation": (
+                KnockInObservation.every_trading_day(clock_time())
+                if mode == "every_trading_day"
+                else KnockInObservation.at_expiry()
+            ),
+            "barrier_state": "no_event",
+        }
         result[f"snowball_{suffix}"] = ins.SnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=clock_time()
-            if mode == "every_trading_day"
-            else None,
             **common,
             **loss,
             **state,
@@ -89,9 +94,6 @@ def contracts():
         )
         result[f"ternary_{suffix}"] = ins.TernarySnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=clock_time()
-            if mode == "every_trading_day"
-            else None,
             **common,
             **state,
             maturity_coupon_rate=0.06,
@@ -100,9 +102,6 @@ def contracts():
         )
         result[f"phoenix_{suffix}"] = ins.PhoenixOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=clock_time()
-            if mode == "every_trading_day"
-            else None,
             **dates,
             **loss,
             **state,

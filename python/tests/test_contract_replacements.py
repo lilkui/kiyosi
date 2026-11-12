@@ -7,6 +7,7 @@ from datetime import time as clock_time
 import pytest
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
+from kiyosi.instruments import KnockInObservation
 from kiyosi.market import all_days_calendar, weekdays_calendar
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -142,13 +143,12 @@ def contract_inputs():
         i.SnowballOption,
         {
             "calendar": weekdays_calendar(),
-            "observation_clock_time": clock_time(),
             "maturity_coupon_rate": 0.1,
             "initial_spot": 100,
             "knock_in_level": 80,
             "upper_strike": 100,
             "lower_strike": 0,
-            "knock_in_observation_mode": "every_trading_day",
+            "knock_in_observation": KnockInObservation.every_trading_day(clock_time()),
             "barrier_state": "no_event",
             "principal_redemption_ratio": 1,
             "effective_time": START,
@@ -162,13 +162,12 @@ def contract_inputs():
         i.PhoenixOption,
         {
             "calendar": weekdays_calendar(),
-            "observation_clock_time": clock_time(),
             "coupon_per_period": 0.1,
             "initial_spot": 100,
             "knock_in_level": 80,
             "upper_strike": 100,
             "lower_strike": 0,
-            "knock_in_observation_mode": "every_trading_day",
+            "knock_in_observation": KnockInObservation.every_trading_day(clock_time()),
             "barrier_state": "no_event",
             "principal_redemption_ratio": 1,
             "effective_time": START,
@@ -199,11 +198,10 @@ def contract_inputs():
         i.TernarySnowballOption,
         {
             "calendar": weekdays_calendar(),
-            "observation_clock_time": clock_time(),
             "maturity_coupon_rate": 0.1,
             "minimum_coupon_rate": 0.02,
             "knock_in_level": 80,
-            "knock_in_observation_mode": "every_trading_day",
+            "knock_in_observation": KnockInObservation.every_trading_day(clock_time()),
             "barrier_state": "no_event",
             "principal_redemption_ratio": 1,
             "effective_time": START,
@@ -272,7 +270,7 @@ UPDATES = {
     "knock_in_level": 75,
     "upper_strike": 105,
     "lower_strike": 5,
-    "knock_in_observation_mode": "at_expiry",
+    "knock_in_observation": KnockInObservation.at_expiry(),
     "observation_clock_time": clock_time(1, 2, 3, 456789),
     "barrier_state": None,
     "principal_redemption_ratio": 0.9,
@@ -445,8 +443,6 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
                 )
             with subtests.test(contract=type(original).__name__, field=name):
                 updates = {name: value}
-                if name == "knock_in_observation_mode":
-                    updates["observation_clock_time"] = None
                 if isinstance(original, (i.BinaryBarrierOption, i.TouchOption)):
                     if name == "payoff_type":
                         value = "asset" if original.payoff_type == "cash" else "cash"
@@ -479,8 +475,6 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
                         tuple(value) if isinstance(value, list) else value
                     )
                 expected = initial | updates
-                if name == "knock_in_observation_mode":
-                    expected["observation_clock_time"] = None
                 if not (
                     isinstance(original, i.DoubleTouchOption) and name == "barrier_type"
                 ):

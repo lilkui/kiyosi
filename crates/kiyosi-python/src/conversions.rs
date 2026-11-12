@@ -220,14 +220,6 @@ pub(crate) fn clock_time(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::TimeOfDay
     ))
 }
 
-pub(crate) fn optional_clock_time(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::TimeOfDay>> {
-    if value.is_none() {
-        Ok(None)
-    } else {
-        clock_time(value).map(Some)
-    }
-}
-
 pub(crate) fn python_clock_time(
     py: Python<'_>,
     at: kiyosi::TimeOfDay,

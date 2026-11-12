@@ -16,7 +16,9 @@ building records from a schedule; presets inherit the schedule's calendar.
 Replacement inherits a supplied schedule's calendar, otherwise retaining the
 contract's calendar.
 Explicit observations use exact timestamps; automatic observations require
-``observation_clock_time``. Daily knock-in and accumulation include the effective
+``observation_clock_time``. Autocallable daily knock-in owns its clock in
+``KnockInObservation.every_trading_day``; daily presets accept
+``knock_in_observation_clock_time``. Daily knock-in and accumulation include the effective
 instant; range accrual observations exclude it. Settlement adds no observation.
 Barrier and touch contracts use ``observation_times=None`` for continuous
 monitoring and a nonempty iterable for scheduled monitoring. Their read-only
@@ -65,7 +67,7 @@ Edit a preset's observation and maturity coupons together:
 >>> note = standard_snowball(
 ...     coupon_rate=0.12, initial_spot=100, knock_in_level=80, knock_out_level=110,
 ...     effective_time=datetime(2025, 1, 2), expiry_time=datetime(2026, 1, 2),
-...     observation_times=[datetime(2026, 1, 2)], observation_clock_time=time(15),
+...     observation_times=[datetime(2026, 1, 2)], knock_in_observation_clock_time=time(15),
 ... )
 >>> edited = note.with_quoted_coupon(
 ...     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon",
@@ -111,6 +113,7 @@ from ._native import (
     DoubleTouchOption,
     EuropeanOption,
     GeometricAveragePriceOption,
+    KnockInObservation,
     PhoenixOption,
     RangeAccrualOption,
     SnowballOption,
@@ -157,6 +160,7 @@ __all__ = [
     "DoubleTouchOption",
     "EuropeanOption",
     "GeometricAveragePriceOption",
+    "KnockInObservation",
     "OptionType",
     "PhoenixOption",
     "RangeAccrualOption",

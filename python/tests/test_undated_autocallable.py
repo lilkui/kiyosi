@@ -8,6 +8,7 @@ from datetime import datetime, time, timedelta
 import pytest
 from kiyosi import InvalidInputError, MissingHistoryError
 from kiyosi.instruments import (
+    KnockInObservation,
     SnowballOption,
     autocallable_observations,
     standard_snowball,
@@ -33,7 +34,7 @@ def contract(state):
         lower_strike=60,
         effective_time=START,
         expiry_time=END,
-        observation_clock_time=time(),
+        knock_in_observation=KnockInObservation.every_trading_day(time()),
         observations=autocallable_observations(
             [EVENT, END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
         ),

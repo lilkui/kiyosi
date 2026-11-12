@@ -19,11 +19,12 @@ fn terms() -> PhoenixTerms {
             Some(&[90.0, 90.0]),
         )
         .unwrap(),
-        Some((date(4, 1)).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (date(4, 1)).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
     terms
@@ -85,8 +86,9 @@ fn lockout_preserves_daily_knock_in_and_first_eligible_knock_out() {
     let mut input = terms();
     input.lockout_periods = 1;
     input.lower_strike = 0.0;
-    input.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
-    input.observation_clock_time = Some(date(1, 1).time_of_day());
+    input.knock_in_observation = KnockInObservation::EveryTradingDay {
+        observation_clock_time: date(1, 1).time_of_day(),
+    };
     input.observations = autocallable_observations(
         &[date(1, 1), date(4, 1)],
         &[50.0, 200.0],
@@ -123,8 +125,9 @@ fn lockout_daily_layers_agree_across_engines_and_constant_local_volatility() {
     input.knock_in_level = 99.0;
     input.lower_strike = 0.0;
     input.lockout_periods = 2;
-    input.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
-    input.observation_clock_time = Some(date(1, 1).time_of_day());
+    input.knock_in_observation = KnockInObservation::EveryTradingDay {
+        observation_clock_time: date(1, 1).time_of_day(),
+    };
     input.observations = autocallable_observations(
         &[date(1, 2), date(1, 6), end],
         &[100.0; 3],
@@ -238,8 +241,9 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
         0.0
     );
     let mut daily = note.terms().clone();
-    daily.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
-    daily.observation_clock_time = Some(date(1, 1).time_of_day());
+    daily.knock_in_observation = KnockInObservation::EveryTradingDay {
+        observation_clock_time: date(1, 1).time_of_day(),
+    };
     assert!(matches!(
         engine.price(
             &PhoenixOption::new(daily).unwrap(),
@@ -458,8 +462,9 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         Error::InvalidInput(_)
     ));
     let mut t = terms();
-    t.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
-    t.observation_clock_time = Some(t.expiry_time.time_of_day());
+    t.knock_in_observation = KnockInObservation::EveryTradingDay {
+        observation_clock_time: t.expiry_time.time_of_day(),
+    };
     t.barrier_state = None;
     let note = PhoenixOption::new(t).unwrap();
     let engine = QuadratureAutocallableEngine::default();
@@ -603,14 +608,15 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
 fn phoenix_daily_layers_converge_with_conditional_coupons() {
     let mut prices = Vec::new();
     for mode in [
-        KnockInObservationMode::AtExpiry,
-        KnockInObservationMode::EveryTradingDay,
+        KnockInObservation::AtExpiry,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+        },
     ] {
         let mut t = terms();
         t.knock_in_level = 95.0;
-        t.knock_in_observation_mode = mode;
-        t.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-            .then_some(t.expiry_time.time_of_day());
+        t.knock_in_observation = mode;
+
         t.observations = autocallable_observations(
             &[date(2, 3), date(3, 3), date(4, 1)],
             &[110.0, 108.0, 105.0],

@@ -137,8 +137,10 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
     for risk in [Rate::Flat(0.04), Rate::Flat(-0.03), Rate::Curve(curve)] {
         let local = context(risk, -0.01, 101.0, false);
         for mode in [
-            KnockInObservationMode::AtExpiry,
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::AtExpiry,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
         ] {
             let (snow, ternary, phoenix) = autocallable_support::multi_event_terms(mode);
             parity(&engine, &SnowballOption::new(snow).unwrap(), &local);
@@ -267,11 +269,12 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         start,
         end,
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], None, Some(&[90.0; 2])).unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = PhoenixOption::new(terms).unwrap();
     let engine = FiniteDifferenceAutocallableEngine::new(settings()).unwrap();
@@ -460,7 +463,9 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
             None,
         )
         .unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
@@ -523,13 +528,15 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
     assert!((engine.price(&binary, &local).unwrap() - 1.005_744_900_754_879_5).abs() < 0.000_114);
     for (mode, snow_ref, ternary_ref, phoenix_ref) in [
         (
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
             0.960_932_575_380_086_7,
             1.000_047_411_574_597_9,
             1.101_753_945_540_377_3,
         ),
         (
-            KnockInObservationMode::AtExpiry,
+            KnockInObservation::AtExpiry,
             0.966_432_501_864_323_6,
             1.002_239_522_744_068_1,
             1.104_623_338_622_052_5,

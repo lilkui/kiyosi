@@ -6,6 +6,7 @@ from datetime import datetime
 import pytest
 from kiyosi import instruments as ins
 from kiyosi import market, pricing
+from kiyosi.instruments import KnockInObservation
 from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 
@@ -268,7 +269,6 @@ def test_terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = ins.SnowballOption(
         calendar=market.weekdays_calendar(),
-        observation_clock_time=None,
         maturity_coupon_rate=0.06,
         initial_spot=100,
         knock_in_level=80,
@@ -276,7 +276,7 @@ def test_terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes
         lower_strike=60,
         effective_time=start,
         expiry_time=end,
-        knock_in_observation_mode="at_expiry",
+        knock_in_observation=KnockInObservation.at_expiry(),
         barrier_state="no_event",
         observations=ins.autocallable_observations(
             [end], [120], knock_out_coupon_rates=[0.08]

@@ -7,6 +7,7 @@ from datetime import time as clock_time
 import pytest
 from kiyosi import InvalidInputError, pricing
 from kiyosi import instruments as ins
+from kiyosi.instruments import KnockInObservation
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -137,14 +138,14 @@ def cases():
     for contract in (
         ins.SnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=clock_time(),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             **note,
             **downside,
             maturity_coupon_rate=0.1,
         ),
         ins.PhoenixOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=clock_time(),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             **dict(
                 note,
                 observations=ins.autocallable_observations(
@@ -161,7 +162,7 @@ def cases():
         ),
         ins.TernarySnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=clock_time(),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             **note,
             knock_in_level=80,
             maturity_coupon_rate=0.1,
@@ -610,7 +611,6 @@ def test_expiry_only_knock_in_ignores_earlier_recovered_breaches(family):
         valuation_time=START,
     )
     note = ins.SnowballOption(
-        observation_clock_time=None,
         effective_time=START,
         expiry_time=end,
         maturity_coupon_rate=0.1,
@@ -618,7 +618,7 @@ def test_expiry_only_knock_in_ignores_earlier_recovered_breaches(family):
         knock_in_level=80,
         upper_strike=100,
         lower_strike=0,
-        knock_in_observation_mode="at_expiry",
+        knock_in_observation=KnockInObservation.at_expiry(),
         observations=ins.autocallable_observations(
             [START + timedelta(days=30), end],
             [300, 300],

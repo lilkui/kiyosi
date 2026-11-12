@@ -15,7 +15,9 @@ fn autocallable_history_respects_the_first_daily_observation_on_sparse_calendars
         start,
         end,
         vec![AutocallableObservation::snowball(end, 110.0, 0.0)?],
-        Some(TimeOfDay::new(12, 0, 0, 0)?),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: TimeOfDay::new(12, 0, 0, 0)?,
+        },
         TradingCalendar::custom(
             TradingCalendar::all_days(),
             vec![date.add_days(1)?, date.add_days(2)?, date.add_days(3)?],
@@ -74,7 +76,7 @@ fn autocallable_terms_roundtrip_preserves_history() -> Result<()> {
     }
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let end = start.add_days(8)?;
-    let clock = Some(TimeOfDay::new(15, 0, 0, 0)?);
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
     let records = vec![AutocallableObservation::snowball(end, 110.0, 0.0)?];
     check!(SnowballTerms::new(
         0.1,
@@ -85,7 +87,9 @@ fn autocallable_terms_roundtrip_preserves_history() -> Result<()> {
         start,
         end,
         records.clone(),
-        clock,
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock
+        },
         TradingCalendar::weekdays(),
     ));
     check!(PhoenixTerms::new(
@@ -97,7 +101,9 @@ fn autocallable_terms_roundtrip_preserves_history() -> Result<()> {
         start,
         end,
         vec![AutocallableObservation::phoenix(end, 110.0, 0.0)?],
-        clock,
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock
+        },
         TradingCalendar::weekdays(),
     ));
     check!(BinarySnowballTerms::new(
@@ -114,7 +120,9 @@ fn autocallable_terms_roundtrip_preserves_history() -> Result<()> {
         start,
         end,
         records,
-        clock,
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock
+        },
         TradingCalendar::weekdays(),
     ));
     Ok(())

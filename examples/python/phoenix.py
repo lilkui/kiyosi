@@ -1,6 +1,7 @@
 from datetime import datetime, time
 
 from kiyosi.instruments import (
+    KnockInObservation,
     PhoenixOption,
     autocallable_observations,
     fixed_coupon_note,
@@ -26,7 +27,7 @@ phoenix = PhoenixOption(
     knock_in_level=80,
     upper_strike=100,
     lower_strike=100,
-    observation_clock_time=time(15),
+    knock_in_observation=KnockInObservation.every_trading_day(time(15)),
     effective_time=start,
     expiry_time=end,
     observations=autocallable_observations(
@@ -63,7 +64,7 @@ standard = standard_phoenix(
     knock_out_level=103,
     coupon_barrier_level=90,
     lockout_periods=2,
-    observation_clock_time=time(15),
+    knock_in_observation_clock_time=time(15),
     observation_times=times,
     effective_time=start,
     expiry_time=end,
@@ -77,7 +78,7 @@ step_down = step_down_phoenix(
     knock_out_level_decrement=1,
     coupon_barrier_level=90,
     lockout_periods=2,
-    observation_clock_time=time(15),
+    knock_in_observation_clock_time=time(15),
     observation_times=times,
     effective_time=start,
     expiry_time=end,

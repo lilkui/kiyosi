@@ -1,5 +1,6 @@
 """Observation clocks are explicit and independent of maturity settlement."""
 
+import datetime as datetime_module
 import math
 import pickle
 from datetime import UTC, date, datetime, time
@@ -9,6 +10,7 @@ from kiyosi import InvalidInputError, UnsupportedOperationError
 from kiyosi.instruments import (
     Accumulator,
     AutocallableObservation,
+    KnockInObservation,
     RangeAccrualOption,
     SnowballOption,
 )
@@ -185,7 +187,7 @@ def test_accumulator_allows_no_daily_events_and_does_not_add_units_at_expiry():
 def test_daily_knock_in_does_not_observe_off_clock_maturity(subtests):
     note = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=time(15),
+        knock_in_observation=KnockInObservation.every_trading_day(time(15)),
         barrier_state="no_event",
         **snowball_terms(),
     )
@@ -255,7 +257,7 @@ def test_future_accumulation_occurs_once_before_off_clock_maturity(subtests):
 def test_future_pricing_after_last_observation_does_not_add_maturity_knock_in(subtests):
     note = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=time(15),
+        knock_in_observation=KnockInObservation.every_trading_day(time(15)),
         barrier_state="no_event",
         **snowball_terms(),
     )
@@ -278,41 +280,63 @@ def test_future_pricing_after_last_observation_does_not_add_maturity_knock_in(su
             )
 
 
-def test_monitoring_replacement_requires_explicit_clock_changes():
+def test_knock_in_observation_replacement_switches_rule_and_clock_atomically():
     expiry = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
-        knock_in_observation_mode="at_expiry",
+        knock_in_observation=KnockInObservation.at_expiry(),
         **snowball_terms(),
     )
-    assert expiry.observation_clock_time is None
-    with pytest.raises(InvalidInputError):
-        expiry.replace(knock_in_observation_mode="every_trading_day")
-    daily = expiry.replace(
-        knock_in_observation_mode="every_trading_day", observation_clock_time=CLOCK
+    daily_rule = KnockInObservation.every_trading_day(CLOCK)
+    daily = expiry.replace(knock_in_observation=daily_rule)
+    assert daily.knock_in_observation == daily_rule
+    assert daily.knock_in_observation.observation_clock_time == CLOCK
+    assert expiry.knock_in_observation == KnockInObservation.at_expiry()
+    assert daily.replace(knock_in_observation=KnockInObservation.at_expiry()) == expiry
+    changed_clock = time(14, 30, 1, 999999)
+    changed = daily.replace(
+        knock_in_observation=KnockInObservation.every_trading_day(changed_clock)
     )
-    assert daily.observation_clock_time == CLOCK
+    assert changed.knock_in_observation.observation_clock_time == changed_clock
+    assert daily.knock_in_observation == daily_rule
     assert pickle.loads(pickle.dumps(daily)) == daily
-    with pytest.raises(InvalidInputError):
-        daily.replace(knock_in_observation_mode="at_expiry")
+    assert daily.replace(knock_in_observation=Ellipsis) == daily
+    for invalid in (None, "every_trading_day", CLOCK):
+        with pytest.raises(TypeError):
+            daily.replace(knock_in_observation=invalid)
+    assert daily.knock_in_observation == daily_rule
+
+
+@pytest.mark.parametrize(
+    "observation,kind,clock",
+    [
+        (KnockInObservation.at_expiry(), "at_expiry", None),
+        (KnockInObservation.every_trading_day(CLOCK), "every_trading_day", CLOCK),
+    ],
+)
+def test_knock_in_observation_owned_values_roundtrip(observation, kind, clock):
+    assert observation.kind == kind
+    assert observation.observation_clock_time == clock
+    assert pickle.loads(pickle.dumps(observation)) == observation
     assert (
-        daily.replace(
-            knock_in_observation_mode="at_expiry", observation_clock_time=None
-        ).observation_clock_time
-        is None
+        eval(
+            repr(observation),
+            {
+                "KnockInObservation": KnockInObservation,
+                "datetime": datetime_module,
+            },
+        )
+        == observation
     )
-    with pytest.raises(InvalidInputError):
-        daily.replace(
-            knock_in_observation_mode="at_expiry", observation_clock_time=CLOCK
-        )
-    with pytest.raises(InvalidInputError):
-        SnowballOption(
-            calendar=weekdays_calendar(),
-            knock_in_observation_mode="at_expiry",
-            observation_clock_time=CLOCK,
-            **snowball_terms(),
-        )
-    assert daily.observation_clock_time == CLOCK
+    with pytest.raises(AttributeError):
+        observation.observation_clock_time = CLOCK
+
+
+@pytest.mark.parametrize(
+    "clock", [None, True, 15, "15:00", datetime(2025, 1, 6, 15), time(15, tzinfo=UTC)]
+)
+def test_knock_in_observation_requires_timezone_free_clock(clock):
+    with pytest.raises(TypeError):
+        KnockInObservation.every_trading_day(clock)
 
 
 def test_completed_daily_monitoring_has_no_implied_volatility_or_expiry_greeks_jump(
@@ -320,7 +344,7 @@ def test_completed_daily_monitoring_has_no_implied_volatility_or_expiry_greeks_j
 ):
     daily = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=time(15),
+        knock_in_observation=KnockInObservation.every_trading_day(time(15)),
         barrier_state="no_event",
         **(
             snowball_terms()
@@ -334,8 +358,7 @@ def test_completed_daily_monitoring_has_no_implied_volatility_or_expiry_greeks_j
         ),
     )
     expiry = daily.replace(
-        knock_in_observation_mode="at_expiry",
-        observation_clock_time=None,
+        knock_in_observation=KnockInObservation.at_expiry(),
         barrier_state=daily.barrier_state,
     )
     expected = 1 + 0.12 * 9 / (365 * 24)

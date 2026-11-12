@@ -13,6 +13,7 @@ from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
+from kiyosi.instruments import KnockInObservation
 
 START, END = datetime(2025, 1, 2), datetime(2025, 1, 10)
 
@@ -132,13 +133,13 @@ def values():
         ),
         i.SnowballOption(
             calendar=m.weekdays_calendar(),
-            observation_clock_time=clock_time(),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             maturity_coupon_rate=0.1,
             **common,
         ),
         i.PhoenixOption(
             calendar=m.weekdays_calendar(),
-            observation_clock_time=clock_time(),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             coupon_per_period=0.1,
             **dict(
                 common,
@@ -149,7 +150,7 @@ def values():
         ),
         i.PhoenixOption(
             calendar=m.weekdays_calendar(),
-            observation_clock_time=clock_time(),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             coupon_per_period=0.01,
             **dict(
                 common,
@@ -166,7 +167,7 @@ def values():
         ),
         i.TernarySnowballOption(
             calendar=m.weekdays_calendar(),
-            observation_clock_time=clock_time(),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,
             knock_in_level=80,

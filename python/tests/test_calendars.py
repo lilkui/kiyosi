@@ -81,7 +81,7 @@ def test_schedules_retain_calendars_for_contract_composition(subtests):
         effective_time=start,
         expiry_time=end,
         observation_times=schedule,
-        observation_clock_time=clock_time(15),
+        knock_in_observation_clock_time=clock_time(15),
     )
     assert note.calendar == calendar
     phoenix = i.fixed_coupon_note(
@@ -472,7 +472,7 @@ def test_sliced_schedule_preserves_snowball_monitoring_dates():
         knock_out_level=110,
         effective_time=start,
         expiry_time=end,
-        observation_clock_time=clock_time(15),
+        knock_in_observation_clock_time=clock_time(15),
         observation_times=schedule[:],
     )
     assert note.calendar == calendar

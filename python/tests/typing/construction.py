@@ -8,6 +8,7 @@ from kiyosi.instruments import (
     AutocallableObservation,
     BinaryBarrierOption,
     DoubleTouchOption,
+    KnockInObservation,
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
@@ -145,13 +146,26 @@ def accumulator_history(option: Accumulator) -> None:
     option.replace(knock_out_settled=0)  # ty: ignore[invalid-argument-type]
 
 
+def knock_in_observation_values(note: SnowballOption) -> None:
+    daily = KnockInObservation.every_trading_day(time(15))
+    assert_type(daily, KnockInObservation)
+    assert_type(KnockInObservation.at_expiry(), KnockInObservation)
+    assert_type(daily.observation_clock_time, time | None)
+    assert_type(daily.kind, Literal["every_trading_day", "at_expiry"])
+    assert_type(note.knock_in_observation, KnockInObservation)
+    assert_type(note.replace(knock_in_observation=daily), SnowballOption)
+    KnockInObservation.every_trading_day(None)  # ty: ignore[invalid-argument-type]
+    note.replace(knock_in_observation=None)  # ty: ignore[invalid-argument-type]
+    note.replace(knock_in_observation="at_expiry")  # ty: ignore[invalid-argument-type]
+
+
 def phoenix_periodic_coupon() -> None:
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     observations = [AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)]
     assert_type(
         PhoenixOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=None,
+            knock_in_observation=KnockInObservation.at_expiry(),
             coupon_per_period=0.01,
             initial_spot=100,
             knock_in_level=80,
@@ -165,7 +179,7 @@ def phoenix_periodic_coupon() -> None:
     )
     PhoenixOption(  # ty: ignore[missing-argument]
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
+        knock_in_observation=KnockInObservation.at_expiry(),
         initial_spot=100,
         knock_in_level=80,
         upper_strike=100,
@@ -201,7 +215,7 @@ def phoenix_presets(start: datetime, end: datetime) -> None:
             knock_out_level=110,
             coupon_barrier_level=90,
             observation_times=[start, end],
-            observation_clock_time=time(15),
+            knock_in_observation_clock_time=time(15),
             effective_time=start,
             expiry_time=end,
             lockout_periods=1,
@@ -216,7 +230,7 @@ def phoenix_presets(start: datetime, end: datetime) -> None:
             initial_knock_out_level=110,
             knock_out_level_decrement=2,
             coupon_barrier_level=90,
-            observation_clock_time=time(15),
+            knock_in_observation_clock_time=time(15),
             observation_times=[start, end],
             effective_time=start,
             expiry_time=end,
@@ -384,7 +398,6 @@ def expiry_only_snowballs() -> None:
     assert_type(
         SnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=None,
             maturity_coupon_rate=0.1,
             initial_spot=100,
             knock_in_level=80,
@@ -393,21 +406,20 @@ def expiry_only_snowballs() -> None:
             effective_time=start,
             expiry_time=end,
             observations=observations,
-            knock_in_observation_mode="at_expiry",
+            knock_in_observation=KnockInObservation.at_expiry(),
         ),
         SnowballOption,
     )
     assert_type(
         TernarySnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=None,
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,
             knock_in_level=80,
             effective_time=start,
             expiry_time=end,
             observations=observations,
-            knock_in_observation_mode="at_expiry",
+            knock_in_observation=KnockInObservation.at_expiry(),
         ),
         TernarySnowballOption,
     )

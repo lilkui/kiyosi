@@ -13,6 +13,7 @@ from kiyosi.instruments import (
     BarrierOption,
     BinarySnowballOption,
     EuropeanOption,
+    KnockInObservation,
     PhoenixOption,
     RangeAccrualOption,
     SnowballOption,
@@ -115,7 +116,7 @@ def test_closed_date_settlement_preserves_open_date_observations():
             knock_in_level=80,
             upper_strike=100,
             lower_strike=0,
-            observation_clock_time=clock_time(15),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time(15)),
             observations=autocallable_observations(
                 [observation], [110], knock_out_coupon_rates=[0]
             ),
@@ -141,8 +142,7 @@ def test_closed_date_settlement_preserves_open_date_observations():
                 **(
                     fields
                     | {
-                        "knock_in_observation_mode": "at_expiry",
-                        "observation_clock_time": None,
+                        "knock_in_observation": KnockInObservation.at_expiry(),
                     }
                 )
             )
@@ -221,7 +221,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
         knock_in_level=80,
         upper_strike=100,
         lower_strike=0,
-        observation_clock_time=clock,
+        knock_in_observation=KnockInObservation.every_trading_day(clock),
         observations=observations,
         **life,
     )
@@ -240,7 +240,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,
             knock_in_level=80,
-            observation_clock_time=clock,
+            knock_in_observation=KnockInObservation.every_trading_day(clock),
             observations=observations,
             **life,
         ),
@@ -249,7 +249,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
         with subtests.test(note=type(note).__name__):
             assert list(note.knock_in_observation_schedule) == [start, last]
             expiry_only = note.replace(
-                knock_in_observation_mode="at_expiry", observation_clock_time=None
+                knock_in_observation=KnockInObservation.at_expiry(),
             )
             assert list(expiry_only.knock_in_observation_schedule) == [expiry]
             exported = list(note.knock_in_observation_schedule.times)
@@ -506,7 +506,7 @@ def test_daily_history_uses_observation_clock_and_inclusive_start(subtests):
             assert engine.price(single, market(time(7, 15))) == 5
     note = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=clock_time(15),
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time(15)),
         maturity_coupon_rate=0.06,
         initial_spot=100,
         knock_in_level=80,
@@ -549,7 +549,7 @@ def test_explicit_accumulator_knock_outs_do_not_add_daily_quantity(
 def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(subtests):
     note = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=clock_time(15),
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time(15)),
         maturity_coupon_rate=0.12,
         initial_spot=100,
         knock_in_level=80,
@@ -621,7 +621,6 @@ def test_finite_difference_rejects_unresolvable_microsecond_events():
     last = first.replace(microsecond=2)
     note = PhoenixOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         coupon_per_period=0.01,
         initial_spot=100,
         knock_in_level=1,
@@ -632,7 +631,7 @@ def test_finite_difference_rejects_unresolvable_microsecond_events():
         observations=autocallable_observations(
             [first, last], [1000, 1000], coupon_barrier_levels=[0] * 2
         ),
-        knock_in_observation_mode="at_expiry",
+        knock_in_observation=KnockInObservation.at_expiry(),
     )
     context = market(start, 100)
     with pytest.raises(ComputationFailureError):

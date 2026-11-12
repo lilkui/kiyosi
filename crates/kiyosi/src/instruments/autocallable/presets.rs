@@ -1,6 +1,6 @@
 use super::{
     AutocallableBarrierState, AutocallableObservation, AutocallableObservationKind,
-    DEFAULT_PHOENIX_LOCKOUT_PERIODS, DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservationMode,
+    DEFAULT_PHOENIX_LOCKOUT_PERIODS, DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation,
     PhoenixOption, PhoenixTerms, SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
@@ -93,7 +93,7 @@ pub struct SnowballPresetTerms {
     /// Supplies nonempty, strictly increasing observation times within life.
     pub observation_times: Vec<Timestamp>,
     /// Supplies the daily observation clock, absent for European monitoring; see [`TimeOfDay::new`].
-    pub observation_clock_time: Option<TimeOfDay>,
+    pub knock_in_observation_clock_time: Option<TimeOfDay>,
 }
 impl SnowballPresetTerms {
     /// Creates input terms with the core snowball history and principal defaults.
@@ -111,7 +111,7 @@ impl SnowballPresetTerms {
         effective_time: Timestamp,
         expiry_time: Timestamp,
         observation_times: Vec<Timestamp>,
-        observation_clock_time: Option<TimeOfDay>,
+        knock_in_observation_clock_time: Option<TimeOfDay>,
     ) -> Self {
         Self {
             calendar: TradingCalendar::default(),
@@ -124,7 +124,7 @@ impl SnowballPresetTerms {
             effective_time,
             expiry_time,
             observation_times,
-            observation_clock_time,
+            knock_in_observation_clock_time,
         }
     }
     /// Expands a named convention into an ordinary validated [`SnowballOption`].
@@ -145,8 +145,9 @@ impl SnowballPresetTerms {
     /// # Errors
     ///
     /// Propagates [`SnowballOption::new`] errors for invalid expanded terms,
-    /// schedules or life times. Returns [`Error::InvalidInput`] for non-finite stage
-    /// rates or unordered cutoffs outside `[effective_time, expiry_time)`.
+    /// schedules or life times. Returns [`Error::InvalidInput`] for a missing daily
+    /// knock-in clock, a clock on the European preset, non-finite stage rates or
+    /// unordered cutoffs outside `[effective_time, expiry_time)`.
     /// Inputs are consumed on failure.
     ///
     /// # Examples
@@ -177,6 +178,17 @@ impl SnowballPresetTerms {
         reason = "Observation indices are bounded by the supported calendar range and fit exactly in f64."
     )]
     pub fn expand(self, preset: SnowballPreset) -> Result<SnowballOption> {
+        let knock_in_observation = match (preset, self.knock_in_observation_clock_time) {
+            (SnowballPreset::European, None) => KnockInObservation::AtExpiry,
+            (SnowballPreset::European, Some(_)) | (_, None) => {
+                return Err(Error::InvalidInput(
+                    "knock_in_observation_clock_time is required only for daily knock-in observation".into(),
+                ));
+            }
+            (_, Some(observation_clock_time)) => KnockInObservation::EveryTradingDay {
+                observation_clock_time,
+            },
+        };
         let observations = self
             .observation_times
             .into_iter()
@@ -197,16 +209,13 @@ impl SnowballPresetTerms {
             self.effective_time,
             self.expiry_time,
             observations,
-            self.observation_clock_time,
+            knock_in_observation,
             self.calendar,
         );
         terms.barrier_state = self.barrier_state;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
         match preset {
-            SnowballPreset::Standard => {}
-            SnowballPreset::European => {
-                terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-            }
+            SnowballPreset::Standard | SnowballPreset::European => {}
             SnowballPreset::StepDown {
                 knock_out_level_decrement,
             } => {
@@ -320,7 +329,7 @@ pub struct PhoenixPresetTerms {
     /// Disables knock-out for initial observations; defaults to [`DEFAULT_PHOENIX_LOCKOUT_PERIODS`].
     pub lockout_periods: usize,
     /// Supplies the daily clock for standard and step-down presets; absent for FCN/DCN.
-    pub observation_clock_time: Option<TimeOfDay>,
+    pub knock_in_observation_clock_time: Option<TimeOfDay>,
     /// Owns the contractual observation calendar; defaults to weekdays.
     pub calendar: TradingCalendar,
     /// Sets the finite signed proportion paid per qualifying observation, without day accrual.
@@ -357,7 +366,7 @@ impl PhoenixPresetTerms {
     ) -> Self {
         Self {
             lockout_periods: DEFAULT_PHOENIX_LOCKOUT_PERIODS,
-            observation_clock_time: None,
+            knock_in_observation_clock_time: None,
             calendar: TradingCalendar::default(),
             coupon_per_period,
             initial_spot,
@@ -406,7 +415,7 @@ impl PhoenixPresetTerms {
     /// let mut terms = PhoenixPresetTerms::new(0.01, 100.0, 80.0, 110.0,
     ///     start, end, vec![start.add_days(1)?, end]);
     /// terms.lockout_periods = 1;
-    /// terms.observation_clock_time = Some(start.time_of_day());
+    /// terms.knock_in_observation_clock_time = Some(start.time_of_day());
     /// let note = terms.expand(PhoenixPreset::StepDown {
     ///     coupon_barrier_level: 90.0, knock_out_level_decrement: 2.0,
     /// })?;
@@ -444,6 +453,16 @@ impl PhoenixPresetTerms {
                 coupon_barrier_level,
             } => (coupon_barrier_level, 0.0, false),
         };
+        let knock_in_observation = match (daily, self.knock_in_observation_clock_time) {
+            (false, None) => KnockInObservation::AtExpiry,
+            (true, Some(observation_clock_time)) => KnockInObservation::EveryTradingDay {
+                observation_clock_time,
+            },
+            _ => return Err(Error::InvalidInput(
+                "knock_in_observation_clock_time is required only for daily knock-in observation"
+                    .into(),
+            )),
+        };
         let observations = self
             .observation_times
             .into_iter()
@@ -470,15 +489,10 @@ impl PhoenixPresetTerms {
             self.effective_time,
             self.expiry_time,
             observations,
-            self.observation_clock_time,
+            knock_in_observation,
             self.calendar,
         );
         terms.lockout_periods = self.lockout_periods;
-        terms.knock_in_observation_mode = if daily {
-            KnockInObservationMode::EveryTradingDay
-        } else {
-            KnockInObservationMode::AtExpiry
-        };
         terms.barrier_state = self.barrier_state;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
         PhoenixOption::new(terms)

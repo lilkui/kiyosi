@@ -15,6 +15,7 @@ from kiyosi.instruments import (
     BinarySnowballOption,
     CashOrNothingOption,
     EuropeanOption,
+    KnockInObservation,
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
@@ -47,13 +48,16 @@ def test_finite_difference_greek_workspaces_preserve_independent_prices(subtests
     shifts = {"spot_shift": 0.25, "volatility_shift": 0.002, "rate_shift": 0.001}
     note = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=clock_time() if mode == "every_trading_day" else None,
         maturity_coupon_rate=0.06,
         initial_spot=100,
         knock_in_level=80,
         upper_strike=100,
         lower_strike=60,
-        knock_in_observation_mode=mode,
+        knock_in_observation=(
+            KnockInObservation.every_trading_day(clock_time())
+            if mode == "every_trading_day"
+            else KnockInObservation.at_expiry()
+        ),
         barrier_state="no_event",
         effective_time=start,
         expiry_time=end,
@@ -124,7 +128,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         "effective_time": start,
         "expiry_time": end,
         "knock_in_level": 100,
-        "knock_in_observation_mode": "every_trading_day",
+        "knock_in_observation": KnockInObservation.every_trading_day(clock_time()),
     }
     downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
     put = lambda strike: pricing.AnalyticEuropeanEngine().price(
@@ -141,7 +145,6 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         (
             SnowballOption(
                 calendar=weekdays_calendar(),
-                observation_clock_time=clock_time(),
                 **common,
                 **downside,
                 maturity_coupon_rate=0,
@@ -152,7 +155,6 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         (
             PhoenixOption(
                 calendar=weekdays_calendar(),
-                observation_clock_time=clock_time(),
                 **common,
                 **downside,
                 coupon_per_period=0.1,
@@ -165,7 +167,6 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         (
             TernarySnowballOption(
                 calendar=weekdays_calendar(),
-                observation_clock_time=clock_time(),
                 **common,
                 maturity_coupon_rate=0.1,
                 minimum_coupon_rate=0,
@@ -267,10 +268,11 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
     for mode in ("at_expiry", "every_trading_day"):
         knock_in = {
             "knock_in_level": 99,
-            "knock_in_observation_mode": mode,
-            "observation_clock_time": clock_time()
-            if mode == "every_trading_day"
-            else None,
+            "knock_in_observation": (
+                KnockInObservation.every_trading_day(clock_time())
+                if mode == "every_trading_day"
+                else KnockInObservation.at_expiry()
+            ),
         }
         cases = (
             (
@@ -385,8 +387,11 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
     )
     knock_in = {
         "knock_in_level": 99,
-        "knock_in_observation_mode": mode,
-        "observation_clock_time": clock_time() if mode == "every_trading_day" else None,
+        "knock_in_observation": (
+            KnockInObservation.every_trading_day(clock_time())
+            if mode == "every_trading_day"
+            else KnockInObservation.at_expiry()
+        ),
     }
     cases = (
         (
@@ -579,8 +584,7 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
         "knock_in_level": 99,
         "upper_strike": 100,
         "lower_strike": 60,
-        "knock_in_observation_mode": "every_trading_day",
-        "observation_clock_time": clock_time(),
+        "knock_in_observation": KnockInObservation.every_trading_day(clock_time()),
     }
     cases = (
         (BinarySnowballOption, coupons),
@@ -591,8 +595,9 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
                 **coupons,
                 "knock_in_level": 99,
                 "minimum_coupon_rate": 0.02,
-                "knock_in_observation_mode": "every_trading_day",
-                "observation_clock_time": clock_time(),
+                "knock_in_observation": KnockInObservation.every_trading_day(
+                    clock_time()
+                ),
             },
         ),
         (
@@ -720,14 +725,13 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=clock_time(),
         maturity_coupon_rate=0,
         initial_spot=100,
         knock_in_level=75,
         upper_strike=100,
         lower_strike=100,
         barrier_state="no_event",
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=start,
         expiry_time=end,
         observations=autocallable_observations(
@@ -779,7 +783,6 @@ def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(sub
             with subtests.test(engine=type(engine).__name__, state=state):
                 note = SnowballOption(
                     calendar=weekdays_calendar(),
-                    observation_clock_time=clock_time(),
                     maturity_coupon_rate=0.06,
                     initial_spot=100,
                     knock_in_level=75,
@@ -788,7 +791,9 @@ def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(sub
                     barrier_state=state,
                     effective_time=start,
                     expiry_time=end,
-                    knock_in_observation_mode="every_trading_day",
+                    knock_in_observation=KnockInObservation.every_trading_day(
+                        clock_time()
+                    ),
                     observations=autocallable_observations(
                         [end], [110], knock_out_coupon_rates=[0.08]
                     ),
@@ -820,13 +825,12 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
     knock_out_levels = [110]
     common = {
         "knock_in_level": 100,
-        "knock_in_observation_mode": "at_expiry",
+        "knock_in_observation": KnockInObservation.at_expiry(),
         "effective_time": start,
         "expiry_time": end,
     }
     snowball = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         **common,
         maturity_coupon_rate=0.06,
         initial_spot=100,
@@ -838,7 +842,6 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
     )
     phoenix = PhoenixOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         **common,
         coupon_per_period=0.08,
         initial_spot=100,
@@ -850,7 +853,6 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
     )
     ternary = TernarySnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         **common,
         maturity_coupon_rate=0.06,
         minimum_coupon_rate=0.02,
@@ -943,16 +945,16 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
         with subtests.test(engine=type(engine).__name__):
             assert engine.price(
                 SnowballOption(
-                    observation_clock_time=clock_time(),
                     **terms,
-                    knock_in_observation_mode="every_trading_day",
+                    knock_in_observation=KnockInObservation.every_trading_day(
+                        clock_time()
+                    ),
                 ),
                 context,
             ) == engine.price(
                 SnowballOption(
-                    observation_clock_time=None,
                     **terms,
-                    knock_in_observation_mode="at_expiry",
+                    knock_in_observation=KnockInObservation.at_expiry(),
                 ),
                 context,
             )
@@ -964,9 +966,8 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
     )
     actual = explicit.price(
         SnowballOption(
-            observation_clock_time=clock_time(),
             **terms,
-            knock_in_observation_mode="every_trading_day",
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         ),
         context,
     )
@@ -977,9 +978,8 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
         asset_upper_boundary=400,
     ).price(
         SnowballOption(
-            observation_clock_time=None,
             **terms,
-            knock_in_observation_mode="at_expiry",
+            knock_in_observation=KnockInObservation.at_expiry(),
         ),
         context,
     )
@@ -987,9 +987,8 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
     with pytest.raises(InvalidInputError) as error:
         explicit.price(
             SnowballOption(
-                observation_clock_time=None,
                 **terms,
-                knock_in_observation_mode="at_expiry",
+                knock_in_observation=KnockInObservation.at_expiry(),
             ),
             context,
         )

@@ -72,8 +72,10 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
     .unwrap();
     let context = market(100.0, start);
     for mode in [
-        KnockInObservationMode::AtExpiry,
-        KnockInObservationMode::EveryTradingDay,
+        KnockInObservation::AtExpiry,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+        },
     ] {
         let (snow, ternary, phoenix) = autocallable_support::multi_event_terms(mode);
 
@@ -107,11 +109,12 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         end,
         autocallable_observations(&[date(2, 3), end], &[110.0, 105.0], None, Some(&[90.0; 2]))
             .unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
     let note = PhoenixOption::new(terms).unwrap();
@@ -243,7 +246,9 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         start,
         end,
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], Some(&[0.08; 2]), None).unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -356,11 +361,12 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         start,
         end,
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], None, Some(&[90.0; 2])).unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
     let engine = FiniteDifferenceAutocallableEngine::default();

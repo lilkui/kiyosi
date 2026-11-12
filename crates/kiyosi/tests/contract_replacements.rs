@@ -196,18 +196,6 @@ macro_rules! check_field {
         }).unwrap();
         assert_eq!(changed.realized_average(), $value);
     };
-    ($original:ident, $changes:ident, knock_in_observation_mode, $value:expr, $($getter:tt)+) => {
-        assert!(matches!($original.replace($changes {
-            knock_in_observation_mode: Some($value),
-            ..history_changes!($original, $changes)
-        }), Err(Error::InvalidInput(_))));
-        let changed = $original.replace($changes {
-            knock_in_observation_mode: Some($value),
-            observation_clock_time: Some(None),
-            ..history_changes!($original, $changes)
-        }).unwrap();
-        assert_eq!(changed.$($getter)+, $value);
-    };
     ($original:ident, $changes:ident, $field:ident, $value:expr) => {
         check_field!($original, $changes, $field, $value, $field());
     };
@@ -950,14 +938,15 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = SnowballOption::new(SnowballTerms {
-        observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         initial_spot: 100.0,
         knock_in_level: 80.0,
         upper_strike: 100.0,
         lower_strike: 0.0,
-        knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
+        knock_in_observation: KnockInObservation::EveryTradingDay {
+            observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+        },
         barrier_state: Some(AutocallableBarrierState::NoEvent),
         principal_redemption_ratio: 1.0,
         effective_time: start,
@@ -1020,16 +1009,18 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         SnowballOptionChanges,
-        knock_in_observation_mode,
-        KnockInObservationMode::AtExpiry,
-        terms().knock_in_observation_mode
+        knock_in_observation,
+        KnockInObservation::AtExpiry,
+        terms().knock_in_observation
     );
     check_field!(
         original,
         SnowballOptionChanges,
-        observation_clock_time,
-        Some(TimeOfDay::new(15, 0, 0, 123_456).unwrap()),
-        terms().observation_clock_time
+        knock_in_observation,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: TimeOfDay::new(15, 0, 0, 123_456).unwrap()
+        },
+        terms().knock_in_observation
     );
     check_field!(
         original,
@@ -1089,14 +1080,15 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = PhoenixOption::new(PhoenixTerms {
         lockout_periods: 0,
-        observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         coupon_per_period: 0.1,
         initial_spot: 100.0,
         knock_in_level: 80.0,
         upper_strike: 100.0,
         lower_strike: 0.0,
-        knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
+        knock_in_observation: KnockInObservation::EveryTradingDay {
+            observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+        },
         barrier_state: Some(AutocallableBarrierState::NoEvent),
         principal_redemption_ratio: 1.0,
         effective_time: start,
@@ -1159,16 +1151,18 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         PhoenixOptionChanges,
-        knock_in_observation_mode,
-        KnockInObservationMode::AtExpiry,
-        terms().knock_in_observation_mode
+        knock_in_observation,
+        KnockInObservation::AtExpiry,
+        terms().knock_in_observation
     );
     check_field!(
         original,
         PhoenixOptionChanges,
-        observation_clock_time,
-        Some(TimeOfDay::new(15, 0, 0, 123_456).unwrap()),
-        terms().observation_clock_time
+        knock_in_observation,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: TimeOfDay::new(15, 0, 0, 123_456).unwrap()
+        },
+        terms().knock_in_observation
     );
     check_field!(
         original,
@@ -1319,12 +1313,13 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = TernarySnowballOption::new(TernarySnowballTerms {
-        observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         minimum_coupon_rate: 0.02,
         knock_in_level: 80.0,
-        knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
+        knock_in_observation: KnockInObservation::EveryTradingDay {
+            observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+        },
         barrier_state: Some(AutocallableBarrierState::NoEvent),
         principal_redemption_ratio: 1.0,
         effective_time: start,
@@ -1375,16 +1370,18 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
     check_field!(
         original,
         TernarySnowballOptionChanges,
-        knock_in_observation_mode,
-        KnockInObservationMode::AtExpiry,
-        terms().knock_in_observation_mode
+        knock_in_observation,
+        KnockInObservation::AtExpiry,
+        terms().knock_in_observation
     );
     check_field!(
         original,
         TernarySnowballOptionChanges,
-        observation_clock_time,
-        Some(TimeOfDay::new(15, 0, 0, 123_456).unwrap()),
-        terms().observation_clock_time
+        knock_in_observation,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: TimeOfDay::new(15, 0, 0, 123_456).unwrap()
+        },
+        terms().knock_in_observation
     );
     check_field!(
         original,

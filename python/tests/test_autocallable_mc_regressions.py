@@ -8,6 +8,7 @@ import pytest
 from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import (
     BinarySnowballOption,
+    KnockInObservation,
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
@@ -74,15 +75,20 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
         ),
     ]
     for mode in ("every_trading_day", "at_expiry"):
-        common = {**terms, "knock_in_level": 99, "knock_in_observation_mode": mode}
+        common = {
+            **terms,
+            "knock_in_level": 99,
+            "knock_in_observation": (
+                KnockInObservation.every_trading_day(clock_time())
+                if mode == "every_trading_day"
+                else KnockInObservation.at_expiry()
+            ),
+        }
         cases.extend(
             [
                 (
                     SnowballOption(
                         calendar=weekdays_calendar(),
-                        observation_clock_time=clock_time()
-                        if mode == "every_trading_day"
-                        else None,
                         maturity_coupon_rate=0.06,
                         initial_spot=100,
                         upper_strike=100,
@@ -99,9 +105,6 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
                 (
                     PhoenixOption(
                         calendar=weekdays_calendar(),
-                        observation_clock_time=clock_time()
-                        if mode == "every_trading_day"
-                        else None,
                         coupon_per_period=0.08,
                         initial_spot=100,
                         upper_strike=100,
@@ -118,9 +121,6 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
                 (
                     TernarySnowballOption(
                         calendar=weekdays_calendar(),
-                        observation_clock_time=clock_time()
-                        if mode == "every_trading_day"
-                        else None,
                         maturity_coupon_rate=0.06,
                         minimum_coupon_rate=0.02,
                         **common,
@@ -194,14 +194,13 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = SnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=clock_time(),
         maturity_coupon_rate=0,
         initial_spot=100,
         knock_in_level=75,
         upper_strike=100,
         lower_strike=100,
         barrier_state="no_event",
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=start,
         expiry_time=end,
         observations=autocallable_observations(
@@ -253,7 +252,6 @@ def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(sub
             with subtests.test(engine=type(engine).__name__, state=state):
                 note = SnowballOption(
                     calendar=weekdays_calendar(),
-                    observation_clock_time=clock_time(),
                     maturity_coupon_rate=0.06,
                     initial_spot=100,
                     knock_in_level=75,
@@ -262,7 +260,9 @@ def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(sub
                     barrier_state=state,
                     effective_time=start,
                     expiry_time=end,
-                    knock_in_observation_mode="every_trading_day",
+                    knock_in_observation=KnockInObservation.every_trading_day(
+                        clock_time()
+                    ),
                     observations=autocallable_observations(
                         [end], [110], knock_out_coupon_rates=[0.08]
                     ),
@@ -328,15 +328,16 @@ def test_contract_calendar_controls_daily_monte_carlo_observations(subtests):
         for mode in ("at_expiry", "every_trading_day"):
             snowball = SnowballOption(
                 calendar=weekdays_calendar(),
-                observation_clock_time=clock_time()
-                if mode == "every_trading_day"
-                else None,
                 **terms,
                 initial_spot=100,
                 knock_in_level=90,
                 upper_strike=100,
                 lower_strike=60,
-                knock_in_observation_mode=mode,
+                knock_in_observation=(
+                    KnockInObservation.every_trading_day(clock_time())
+                    if mode == "every_trading_day"
+                    else KnockInObservation.at_expiry()
+                ),
             )
             for note, engine in (
                 (
@@ -399,22 +400,20 @@ def test_current_knockouts_pay_only_contractual_coupon(subtests):
             observations=observations,
         ),
         SnowballOption(
-            observation_clock_time=clock_time(),
             **common,
             **strikes,
             maturity_coupon_rate=5,
             knock_in_level=80,
-            knock_in_observation_mode="every_trading_day",
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             barrier_state="knocked_in",
             observations=observations,
         ),
         TernarySnowballOption(
-            observation_clock_time=clock_time(),
             **common,
             maturity_coupon_rate=5,
             minimum_coupon_rate=-1,
             knock_in_level=80,
-            knock_in_observation_mode="every_trading_day",
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             barrier_state="knocked_in",
             observations=observations,
         ),
@@ -423,12 +422,11 @@ def test_current_knockouts_pay_only_contractual_coupon(subtests):
         check_autocallable(subtests, note, cashflow_market(100, FIRST), 0.99)
     for barrier, expected in ((100, 0.635), (math.nextafter(100, 200), 1)):
         note = PhoenixOption(
-            observation_clock_time=clock_time(),
             **common,
             **strikes,
             coupon_per_period=-0.365,
             knock_in_level=80,
-            knock_in_observation_mode="every_trading_day",
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             barrier_state="knocked_in",
             observations=autocallable_observations(
                 [FIRST, END], [100, 100], coupon_barrier_levels=[barrier, 0]
@@ -443,7 +441,7 @@ def test_historical_knockin_and_terminal_caps(subtests, spot, expected):
         "calendar": all_days_calendar(),
         "initial_spot": 100,
         "knock_in_level": 80,
-        "knock_in_observation_mode": "every_trading_day",
+        "knock_in_observation": KnockInObservation.every_trading_day(clock_time()),
         "upper_strike": 100,
         "lower_strike": 60,
         "barrier_state": "knocked_in",
@@ -452,7 +450,6 @@ def test_historical_knockin_and_terminal_caps(subtests, spot, expected):
         "expiry_time": END,
     }
     snowball = SnowballOption(
-        observation_clock_time=clock_time(),
         **common,
         maturity_coupon_rate=5,
         observations=autocallable_observations(
@@ -460,7 +457,6 @@ def test_historical_knockin_and_terminal_caps(subtests, spot, expected):
         ),
     )
     phoenix = PhoenixOption(
-        observation_clock_time=clock_time(),
         **common,
         coupon_per_period=-0.365,
         observations=autocallable_observations(

@@ -12,6 +12,7 @@ import pytest
 from kiyosi import InvalidInputError
 from kiyosi.instruments import (
     AutocallableObservation,
+    KnockInObservation,
     PhoenixOption,
     autocallable_observations,
     butterfly_snowball,
@@ -53,7 +54,7 @@ def phoenix_fields(**changes):
         "knock_in_level": 80,
         "upper_strike": 80,
         "lower_strike": 0,
-        "knock_in_observation_mode": "at_expiry",
+        "knock_in_observation": KnockInObservation.at_expiry(),
         "effective_time": START,
         "expiry_time": END,
         "barrier_state": "no_event",
@@ -81,7 +82,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         "coupon_per_period": 0.01,
         "initial_spot": 100,
         "knock_in_level": 80,
-        "observation_clock_time": clock_time(),
+        "knock_in_observation_clock_time": clock_time(),
         "coupon_barrier_level": 90,
         "observation_times": dates,
         "effective_time": START,
@@ -98,7 +99,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         knock_in_level=80,
         upper_strike=100,
         lower_strike=0,
-        observation_clock_time=clock_time(),
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=START,
         expiry_time=END,
         lockout_periods=2,
@@ -107,7 +108,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         ),
     )
     assert note == expected
-    assert note.knock_in_observation_mode == "every_trading_day"
+    assert note.knock_in_observation.kind == "every_trading_day"
     assert note.replace(lockout_periods=3).knock_out_levels == note.knock_out_levels
     assert note.replace(lockout_periods=3).knock_out_levels[-1] == 108
     assert standard_phoenix(knock_out_level=110, **common) == step_down_phoenix(
@@ -125,6 +126,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         {
             "datetime": datetime_module,
             "PhoenixOption": PhoenixOption,
+            "KnockInObservation": KnockInObservation,
             "AutocallableObservation": AutocallableObservation,
             "weekdays_calendar": weekdays_calendar,
         },
@@ -137,7 +139,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         locked = factory(coupon_per_period=0.01, lockout_periods=1, **terms(), **extra)
         assert locked.lockout_periods == 1
         assert locked.upper_strike == 80
-        assert locked.knock_in_observation_mode == "at_expiry"
+        assert locked.knock_in_observation.kind == "at_expiry"
     for factory in (
         fixed_coupon_note,
         digital_coupon_note,
@@ -181,7 +183,6 @@ def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, bar
     note = factory(coupon_per_period=0.01, **terms(observation_times=dates), **extra)
     expected = PhoenixOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         coupon_per_period=0.01,
         **phoenix_fields(
             barrier_state=None,
@@ -195,7 +196,7 @@ def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, bar
     assert note.coupon_per_period == 0.01
     assert note.upper_strike == 80
     assert note.lower_strike == 0
-    assert note.knock_in_observation_mode == "at_expiry"
+    assert note.knock_in_observation.kind == "at_expiry"
     assert note.barrier_state is None
     assert note.principal_redemption_ratio == 1
     dates.clear()
@@ -220,7 +221,6 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
     assert signature.parameters["coupon_per_period"].default is inspect.Parameter.empty
     note = PhoenixOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         coupon_per_period=-0.01,
         **phoenix_fields(),
     )
@@ -232,6 +232,7 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
             {
                 "datetime": datetime_module,
                 "PhoenixOption": PhoenixOption,
+                "KnockInObservation": KnockInObservation,
                 "AutocallableObservation": AutocallableObservation,
                 "weekdays_calendar": weekdays_calendar,
             },
@@ -250,7 +251,6 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
         with subtests.test(fields=fields), pytest.raises(TypeError):
             PhoenixOption(
                 calendar=weekdays_calendar(),
-                observation_clock_time=None,
                 **fields,
                 **phoenix_fields(),
             )
@@ -261,7 +261,6 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
         with subtests.test(value=value), pytest.raises(TypeError):
             PhoenixOption(
                 calendar=weekdays_calendar(),
-                observation_clock_time=None,
                 coupon_per_period=value,
                 **phoenix_fields(),
             )
@@ -269,7 +268,6 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
         with subtests.test(value=value), pytest.raises(InvalidInputError):
             PhoenixOption(
                 calendar=weekdays_calendar(),
-                observation_clock_time=None,
                 coupon_per_period=value,
                 **phoenix_fields(),
             )
@@ -359,7 +357,6 @@ def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtes
                 )
     fixed = PhoenixOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         coupon_per_period=0.01,
         **phoenix_fields(),
     )
@@ -412,7 +409,7 @@ def test_staged_snowballs_use_inclusive_cutoffs_and_whole_holding_coupons():
     )
     for factory, extra, rates in cases:
         note = factory(
-            observation_clock_time=clock_time(),
+            knock_in_observation_clock_time=clock_time(),
             first_coupon_rate=0.2,
             second_coupon_rate=0.05,
             first_stage_end_time=MIDDLE,
@@ -442,11 +439,13 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
         "first_stage_end_time": datetime(2025, 2, 1),
     }
     note = early_profit_snowball(
-        observation_clock_time=clock_time(), **fields, **terms(observation_times=[END])
+        knock_in_observation_clock_time=clock_time(),
+        **fields,
+        **terms(observation_times=[END]),
     )
     assert note.knock_out_coupon_rates == ((-0.02,))
     increasing = butterfly_snowball(
-        observation_clock_time=clock_time(),
+        knock_in_observation_clock_time=clock_time(),
         first_coupon_rate=-0.02,
         second_coupon_rate=0,
         third_coupon_rate=0.2,
@@ -459,14 +458,14 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
     for cutoff in (datetime(2024, 12, 31), END, datetime(2025, 4, 2)):
         with pytest.raises(InvalidInputError):
             early_profit_snowball(
-                observation_clock_time=clock_time(),
+                knock_in_observation_clock_time=clock_time(),
                 **(fields | {"first_stage_end_time": cutoff}),
                 **terms(),
             )
     for cutoff in (datetime(2025, 1, 31), datetime(2025, 2, 1), END):
         with pytest.raises(InvalidInputError):
             butterfly_snowball(
-                observation_clock_time=clock_time(),
+                knock_in_observation_clock_time=clock_time(),
                 **fields,
                 third_coupon_rate=0.01,
                 second_stage_end_time=cutoff,
@@ -479,14 +478,14 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
                 pytest.raises(InvalidInputError),
             ):
                 early_profit_snowball(
-                    observation_clock_time=clock_time(),
+                    knock_in_observation_clock_time=clock_time(),
                     **(fields | {key: value}),
                     **terms(observation_times=[END]),
                 )
     for value in (math.nan, math.inf, -math.inf):
         with pytest.raises(InvalidInputError):
             butterfly_snowball(
-                observation_clock_time=clock_time(),
+                knock_in_observation_clock_time=clock_time(),
                 **fields,
                 third_coupon_rate=value,
                 second_stage_end_time=datetime(2025, 3, 1),
@@ -495,7 +494,7 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
     for value in (True, "2025-02-01", datetime(2025, 2, 1, tzinfo=UTC)):
         with pytest.raises(TypeError):
             early_profit_snowball(
-                observation_clock_time=clock_time(),
+                knock_in_observation_clock_time=clock_time(),
                 **(fields | {"first_stage_end_time": value}),
                 **terms(),
             )

@@ -127,7 +127,9 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         start,
         end,
         autocallable_observations(&[end], &[1.0], None, Some(&[0.0])).unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     terms.principal_redemption_ratio = 1e308;
@@ -236,7 +238,9 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         end,
         autocallable_observations(&[date(2, 3), end], &[103.0, 105.0], Some(&[0.08; 2]), None)
             .unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
@@ -326,11 +330,12 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         date(1, 1),
         end,
         autocallable_observations(&[end], &[100.0], Some(&[0.0]), None).unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    smooth_terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    smooth_terms.observation_clock_time = None;
+    smooth_terms.knock_in_observation = KnockInObservation::AtExpiry;
     let smooth = SnowballOption::new(smooth_terms).unwrap();
     let price = prepared.price(&smooth, &context).unwrap();
     assert_eq!(price, prepared.price(&smooth, &context).unwrap());
@@ -366,7 +371,9 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
             None,
         )
         .unwrap(),
-        Some((date(4, 1)).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (date(4, 1)).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
@@ -470,7 +477,9 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
         start,
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.08]), None).unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     let note = SnowballOption::new(terms.clone()).unwrap();
@@ -485,8 +494,7 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
         engine.price(&note, &market(100.0, start)).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     assert!(
         engine
             .price(&SnowballOption::new(terms).unwrap(), &market(100.0, start))
@@ -531,8 +539,10 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
     .unwrap();
     let context = market(100.0, start);
     for mode in [
-        KnockInObservationMode::AtExpiry,
-        KnockInObservationMode::EveryTradingDay,
+        KnockInObservation::AtExpiry,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+        },
     ] {
         let (snow, ternary, phoenix) = autocallable_support::multi_event_terms(mode);
 

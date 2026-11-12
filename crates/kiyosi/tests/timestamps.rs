@@ -161,7 +161,9 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
             start,
             expiry,
             records.clone(),
-            Some(observation.time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: observation.time_of_day(),
+            },
             calendar.clone(),
         );
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
@@ -170,8 +172,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
             note.knock_in_observation_schedule()?.unwrap().times(),
             &[observation]
         );
-        terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-        terms.observation_clock_time = None;
+        terms.knock_in_observation = KnockInObservation::AtExpiry;
         assert!(matches!(
             SnowballOption::new(terms),
             Err(Error::InvalidInput(_))
@@ -443,7 +444,9 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
         time(6, 9, 0),
         time(7, 15, 0),
         vec![AutocallableObservation::snowball(time(7, 15, 0), 110.0, 0.0).unwrap()],
-        Some((time(7, 15, 0)).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (time(7, 15, 0)).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -583,7 +586,9 @@ fn empty_daily_windows_are_valid_except_for_range_accrual() -> Result<()> {
         start,
         end,
         vec![AutocallableObservation::snowball(end, 1000.0, 0.0)?],
-        Some(clock),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        },
         TradingCalendar::weekdays(),
     ))?;
     assert_eq!(
@@ -660,15 +665,16 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
             1000.0,
             0.0,
         )?],
-        Some(clock),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        },
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let daily = SnowballOption::new(terms)?;
     let at_expiry = daily.replace(SnowballOptionChanges {
         barrier_state: Some(daily.barrier_state()),
-        knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
-        observation_clock_time: Some(None),
+        knock_in_observation: Some(KnockInObservation::AtExpiry),
         ..Default::default()
     })?;
     let mc = MonteCarloAutocallableEngine::new(MonteCarloSettings {
@@ -738,7 +744,7 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
 }
 
 #[test]
-fn knock_in_mode_replacement_requires_clock_and_preserves_original_on_failure() -> Result<()> {
+fn knock_in_observation_replacement_switches_rule_and_clock_atomically() -> Result<()> {
     let clock = TimeOfDay::new(15, 0, 0, 123_456)?;
     let original = SnowballOption::new(SnowballTerms::new(
         0.12,
@@ -753,45 +759,20 @@ fn knock_in_mode_replacement_requires_clock_and_preserves_original_on_failure() 
             110.0,
             0.0,
         )?],
-        Some(clock),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        },
         TradingCalendar::weekdays(),
     ))?;
     let inactive = original.replace(SnowballOptionChanges {
-        knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
-        observation_clock_time: Some(None),
+        knock_in_observation: Some(KnockInObservation::AtExpiry),
         ..Default::default()
     })?;
     assert_eq!(inactive.observation_clock_time(), None);
-    let mut missing = original.terms().clone();
-    missing.observation_clock_time = None;
-    assert!(matches!(
-        SnowballOption::new(missing),
-        Err(Error::InvalidInput(_))
-    ));
-    let mut redundant = inactive.terms().clone();
-    redundant.observation_clock_time = Some(clock);
-    assert!(matches!(
-        SnowballOption::new(redundant),
-        Err(Error::InvalidInput(_))
-    ));
-    assert!(matches!(
-        inactive.replace(SnowballOptionChanges {
-            knock_in_observation_mode: Some(KnockInObservationMode::EveryTradingDay),
-            ..Default::default()
-        }),
-        Err(Error::InvalidInput(_))
-    ));
-    assert!(matches!(
-        original.replace(SnowballOptionChanges {
-            knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
-            observation_clock_time: Some(Some(clock)),
-            ..Default::default()
-        }),
-        Err(Error::InvalidInput(_))
-    ));
     let active = inactive.replace(SnowballOptionChanges {
-        knock_in_observation_mode: Some(KnockInObservationMode::EveryTradingDay),
-        observation_clock_time: Some(Some(clock)),
+        knock_in_observation: Some(KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        }),
         ..Default::default()
     })?;
     assert_eq!(active, original);
@@ -844,7 +825,9 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         start,
         expiry,
         vec![AutocallableObservation::snowball(time(6, 10, 0), 1000.0, 0.0).unwrap()],
-        Some((expiry).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (expiry).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -876,7 +859,9 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         start,
         expiry,
         vec![AutocallableObservation::snowball(time(6, 10, 0), 110.0, 0.0).unwrap()],
-        Some((expiry).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (expiry).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     terms.observations[0] = terms.observations[0]
@@ -930,9 +915,8 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
     let first = Timestamp::new(Date::new(9998, 1, 1).unwrap(), 10, 0, 0, 1).unwrap();
     let last = Timestamp::new(first.date(), 10, 0, 0, 2).unwrap();
     let note = PhoenixOption::new(PhoenixTerms {
-        observation_clock_time: None,
         coupon_per_period: 0.01,
-        knock_in_observation_mode: KnockInObservationMode::AtExpiry,
+        knock_in_observation: KnockInObservation::AtExpiry,
         ..PhoenixTerms::new(
             0.0,
             100.0,
@@ -945,7 +929,9 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
                 AutocallableObservation::phoenix(first, 1000.0, 0.0).unwrap(),
                 AutocallableObservation::phoenix(last, 1000.0, 0.0).unwrap(),
             ],
-            Some((last).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (last).time_of_day(),
+            },
             TradingCalendar::weekdays(),
         )
     })
@@ -1061,7 +1047,9 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         start,
         expiry,
         observations.clone(),
-        Some(clock),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        },
         calendar.clone(),
     );
     let note = SnowballOption::new(terms)?;
@@ -1071,8 +1059,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         Some(vec![start, last])
     );
     let expiry_only = note.replace(SnowballOptionChanges {
-        knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
-        observation_clock_time: Some(None),
+        knock_in_observation: Some(KnockInObservation::AtExpiry),
         ..Default::default()
     })?;
     assert_eq!(
@@ -1090,7 +1077,9 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         start,
         expiry,
         vec![AutocallableObservation::phoenix(expiry, 110.0, 0.0)?],
-        Some(clock),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        },
         calendar.clone(),
     );
     assert_eq!(
@@ -1104,7 +1093,9 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         start,
         expiry,
         observations.clone(),
-        Some(clock),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        },
         calendar.clone(),
     );
     assert_eq!(

@@ -12,6 +12,7 @@ from pathlib import Path
 import kiyosi
 import pytest
 from kiyosi import _native, instruments, market, pricing
+from kiyosi.instruments import KnockInObservation
 from kiyosi.pricing import numerical_greeks
 
 
@@ -646,66 +647,27 @@ def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
         if cls is instruments.PhoenixOption
         else instruments.AutocallableObservation.snowball(end, 110, coupon_rate=0)
     ]
+    signature = inspect.signature(cls)
     assert (
-        inspect.signature(cls).parameters["observation_clock_time"].default
-        is inspect.Parameter.empty
+        signature.parameters["knock_in_observation"].default is inspect.Parameter.empty
     )
+    assert "observation_clock_time" not in signature.parameters
     with pytest.raises(TypeError):
         cls(**common, **extra)
-    arguments = inspect.signature(cls).bind(
-        **common, **extra, observation_clock_time=clock_time()
-    )
+    observation = KnockInObservation.every_trading_day(clock_time())
+    arguments = signature.bind(**common, **extra, knock_in_observation=observation)
     arguments.apply_defaults()
-    assert arguments.arguments["observation_clock_time"] == clock_time()
-    assert (
-        cls(*arguments.args, **arguments.kwargs).observation_clock_time == clock_time()
-    )
-    with pytest.raises(kiyosi.InvalidInputError):
-        cls(observation_clock_time=None, **common, **extra)
-    note = cls(observation_clock_time=clock_time(), **common, **extra)
-    assert note.knock_in_observation_mode == "every_trading_day"
-    default = inspect.signature(cls).parameters["knock_in_observation_mode"].default
-    assert default == "every_trading_day"
-    assert note == cls(
-        observation_clock_time=clock_time(),
-        **common,
-        **extra,
-        knock_in_observation_mode=default,
-    )
+    note = cls(*arguments.args, **arguments.kwargs)
+    assert note.knock_in_observation == observation
     expiry_only = cls(
-        observation_clock_time=None,
-        **common,
-        **extra,
-        knock_in_observation_mode="at_expiry",
+        **common, **extra, knock_in_observation=KnockInObservation.at_expiry()
     )
     assert note != expiry_only
-    assert expiry_only.observation_clock_time is None
-    assert (
-        cls(
-            **common,
-            **extra,
-            knock_in_observation_mode="at_expiry",
-            observation_clock_time=None,
-        )
-        == expiry_only
-    )
     assert list(expiry_only.knock_in_observation_schedule) == [end]
     assert pickle.loads(pickle.dumps(expiry_only)) == expiry_only
-    with pytest.raises(kiyosi.InvalidInputError):
-        cls(
-            **common,
-            **extra,
-            knock_in_observation_mode="at_expiry",
-            observation_clock_time=clock_time(),
-        )
-    for invalid in (None, True, "invalid"):
-        with pytest.raises((TypeError, ValueError)):
-            cls(
-                observation_clock_time=None,
-                **common,
-                **extra,
-                knock_in_observation_mode=invalid,
-            )
+    for invalid in (None, True, "every_trading_day", "at_expiry", clock_time()):
+        with pytest.raises(TypeError):
+            cls(**common, **extra, knock_in_observation=invalid)
 
 
 @pytest.mark.parametrize(

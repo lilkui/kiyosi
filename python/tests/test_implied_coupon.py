@@ -18,7 +18,7 @@ from kiyosi import (
     UnsupportedOperationError,
     instruments,
 )
-from kiyosi.instruments import BinarySnowballOption, PhoenixOption
+from kiyosi.instruments import BinarySnowballOption, KnockInObservation, PhoenixOption
 from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
@@ -100,8 +100,7 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
             lower_strike=60,
             effective_time=START,
             expiry_time=END,
-            knock_in_observation_mode="at_expiry",
-            observation_clock_time=None,
+            knock_in_observation=KnockInObservation.at_expiry(),
             observations=[
                 instruments.AutocallableObservation.phoenix(
                     END, 110, coupon_barrier_level=90
@@ -164,7 +163,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
         ):
             note = instruments.TernarySnowballOption(
                 calendar=weekdays_calendar(),
-                observation_clock_time=clock_time(),
+                knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
                 maturity_coupon_rate=maturity,
                 minimum_coupon_rate=minimum,
                 knock_in_level=80,
@@ -226,7 +225,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
             assert note.minimum_coupon_rate == minimum
         boundary = instruments.TernarySnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=clock_time(),
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             maturity_coupon_rate=0.05,
             minimum_coupon_rate=0.05,
             knock_in_level=80,
@@ -256,11 +255,10 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
         binary(observations=observations),
         instruments.TernarySnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=None,
             maturity_coupon_rate=0.06,
             minimum_coupon_rate=-0.2,
             knock_in_level=80,
-            knock_in_observation_mode="at_expiry",
+            knock_in_observation=KnockInObservation.at_expiry(),
             effective_time=START,
             expiry_time=END,
             observations=observations,
@@ -428,7 +426,7 @@ def test_coupon_endpoints_can_change_daily_knock_in_layers():
         maturity_coupon_rate=0.073,
         knock_in_level=99,
         lower_strike=100,
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         barrier_state="no_event",
         expiry_time=end,
         observations=autocallable_observations(
@@ -500,7 +498,7 @@ def check_all_products(subtests, engine):
         if kind == "PhoenixOption":
             return phoenix(
                 coupon_per_period=coupon,
-                knock_in_observation_mode="every_trading_day",
+                knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             )
         if kind in (
             "SnowballOption",
@@ -521,24 +519,29 @@ def check_all_products(subtests, engine):
             if kind != "BinarySnowballOption":
                 fields.update(
                     knock_in_level=80,
-                    knock_in_observation_mode="every_trading_day",
-                    observation_clock_time=clock_time(),
+                    knock_in_observation=KnockInObservation.every_trading_day(
+                        clock_time()
+                    ),
                 )
             if kind == "SnowballOption":
                 fields.update(
                     initial_spot=100,
                     upper_strike=100,
                     lower_strike=60,
-                    knock_in_observation_mode="every_trading_day",
+                    knock_in_observation=KnockInObservation.every_trading_day(
+                        clock_time()
+                    ),
                 )
             if kind == "TernarySnowballOption":
                 fields.update(minimum_coupon_rate=-0.2)
             return getattr(instruments, kind)(calendar=weekdays_calendar(), **fields)
         fields = {
             "coupon_rate": coupon,
-            "observation_clock_time": None
-            if kind == "european_snowball"
-            else clock_time(),
+            **(
+                {"knock_in_observation_clock_time": clock_time()}
+                if kind != "european_snowball"
+                else {}
+            ),
             "initial_spot": 100,
             "knock_in_level": 80,
             "knock_out_level": 110,
@@ -808,11 +811,10 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
         )
     ternary = instruments.TernarySnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         maturity_coupon_rate=0.06,
         minimum_coupon_rate=0.02,
         knock_in_level=80,
-        knock_in_observation_mode="at_expiry",
+        knock_in_observation=KnockInObservation.at_expiry(),
         effective_time=START,
         expiry_time=END,
         observations=known.observations,
@@ -956,7 +958,7 @@ def test_nonfinite_residual_and_exhausted_bisection_errors():
         ),
     )
     note = snowball(
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         observations=autocallable_observations(
             [datetime(2025, 2, 3), END],
             [110, 105],

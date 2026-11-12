@@ -9,6 +9,7 @@ from kiyosi import pricing
 from kiyosi.instruments import (
     BinarySnowballOption,
     CashOrNothingOption,
+    KnockInObservation,
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
@@ -127,14 +128,13 @@ def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(subtes
     if dates[-1] != end:
         dates.append(end)
     note = SnowballOption(
-        observation_clock_time=clock_time(),
         calendar=calendar,
         maturity_coupon_rate=0.2,
         initial_spot=100,
         knock_in_level=80,
         upper_strike=100,
         lower_strike=0,
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         barrier_state="no_event",
         effective_time=start,
         expiry_time=end,
@@ -276,14 +276,13 @@ def test_projection_preserves_exact_current_event_barrier_comparisons(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     option = PhoenixOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=clock_time(),
         coupon_per_period=0.08,
         initial_spot=100,
         knock_in_level=80,
         upper_strike=100,
         lower_strike=60,
         barrier_state="no_event",
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=start,
         expiry_time=end,
         observations=autocallable_observations(
@@ -322,11 +321,10 @@ def test_cash_carry_portfolio_is_preserved_across_event_restarts(subtests):
 
     option = TernarySnowballOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=clock_time(),
         maturity_coupon_rate=carry_rate(end),
         minimum_coupon_rate=carry_rate(end),
         knock_in_level=75,
-        knock_in_observation_mode="every_trading_day",
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         barrier_state="no_event",
         effective_time=start,
         expiry_time=end,

@@ -2,6 +2,7 @@
 
 import math
 from datetime import datetime
+from datetime import time as clock_time
 
 import pytest
 from kiyosi import (
@@ -9,7 +10,11 @@ from kiyosi import (
     MissingHistoryError,
     UnsupportedOperationError,
 )
-from kiyosi.instruments import BinarySnowballOption, autocallable_observations
+from kiyosi.instruments import (
+    BinarySnowballOption,
+    KnockInObservation,
+    autocallable_observations,
+)
 from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine as FD
 from kiyosi.pricing import (
@@ -241,7 +246,8 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
         ),
     )
     missing = snowball(
-        knock_in_observation_mode="every_trading_day", barrier_state=None
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        barrier_state=None,
     )
     later = market(100, datetime(2025, 2, 3))
     assert_rejection(

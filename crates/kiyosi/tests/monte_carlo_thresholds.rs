@@ -94,8 +94,10 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
     for volatility in [1e-18, 1e-200] {
         let context = context(volatility, true);
         for mode in [
-            KnockInObservationMode::EveryTradingDay,
-            KnockInObservationMode::AtExpiry,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
+            KnockInObservation::AtExpiry,
         ] {
             let mut terms = TernarySnowballTerms::new(
                 0.12,
@@ -104,12 +106,13 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
                 start,
                 end,
                 autocallable_observations(&[end], &[120.0], Some(&[0.0]), None).unwrap(),
-                Some((end).time_of_day()),
+                kiyosi::KnockInObservation::EveryTradingDay {
+                    observation_clock_time: (end).time_of_day(),
+                },
                 TradingCalendar::weekdays(),
             );
-            terms.knock_in_observation_mode = mode;
-            terms.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-                .then_some(terms.expiry_time.time_of_day());
+            terms.knock_in_observation = mode;
+
             terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let note = TernarySnowballOption::new(terms).unwrap();
             assert!((engine.price(&note, &context).unwrap() - (1.0 + 0.07 / 365.0)).abs() < 1e-12);
@@ -123,12 +126,13 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             start,
             end,
             autocallable_observations(&[end], &[120.0], None, Some(&[100.0])).unwrap(),
-            Some((end).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (end).time_of_day(),
+            },
             TradingCalendar::weekdays(),
         );
         terms.coupon_per_period = 0.12;
-        terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-        terms.observation_clock_time = None;
+        terms.knock_in_observation = KnockInObservation::AtExpiry;
         let note = PhoenixOption::new(terms).unwrap();
         assert!((engine.price(&note, &context).unwrap() - 1.06).abs() < 1e-12);
     }

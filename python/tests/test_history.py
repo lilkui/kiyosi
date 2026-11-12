@@ -7,6 +7,7 @@ from kiyosi import InvalidInputError, MissingHistoryError
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
+from kiyosi.instruments import KnockInObservation
 
 AT = datetime(2025, 1, 6, 12)
 
@@ -38,7 +39,7 @@ def test_autocallable_history_respects_first_daily_observation_on_sparse_calenda
         effective_time=start,
         expiry_time=end,
         observations=[i.AutocallableObservation.snowball(end, 110, coupon_rate=0)],
-        observation_clock_time=time(12),
+        knock_in_observation=KnockInObservation.every_trading_day(time(12)),
         calendar=m.custom_calendar(
             base=m.all_days_calendar(),
             closed_dates=[(start + timedelta(days=day)).date() for day in (1, 2, 3)],

@@ -6,6 +6,7 @@ from datetime import time as clock_time
 import pytest
 from kiyosi import instruments as ins
 from kiyosi import pricing
+from kiyosi.instruments import KnockInObservation
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -101,14 +102,15 @@ def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(
     for mode in ("every_trading_day", "at_expiry"):
         note = ins.TernarySnowballOption(
             calendar=weekdays_calendar(),
-            observation_clock_time=clock_time()
-            if mode == "every_trading_day"
-            else None,
             **common,
             maturity_coupon_rate=0.12,
             minimum_coupon_rate=0.02,
             knock_in_level=100,
-            knock_in_observation_mode=mode,
+            knock_in_observation=(
+                KnockInObservation.every_trading_day(clock_time())
+                if mode == "every_trading_day"
+                else KnockInObservation.at_expiry()
+            ),
             barrier_state="no_event",
             observations=ins.autocallable_observations(
                 [end], [120], knock_out_coupon_rates=[0]
@@ -120,14 +122,13 @@ def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(
             )
     note = ins.PhoenixOption(
         calendar=weekdays_calendar(),
-        observation_clock_time=None,
         **common,
         coupon_per_period=0.12,
         initial_spot=100,
         knock_in_level=80,
         upper_strike=100,
         lower_strike=100,
-        knock_in_observation_mode="at_expiry",
+        knock_in_observation=KnockInObservation.at_expiry(),
         observations=ins.autocallable_observations(
             [end], [120], coupon_barrier_levels=[100]
         ),

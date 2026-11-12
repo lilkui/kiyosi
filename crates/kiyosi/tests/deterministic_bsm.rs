@@ -222,7 +222,9 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             start,
             end,
             observations.clone(),
-            Some((end).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (end).time_of_day()
+            },
             TradingCalendar::weekdays()
         ))?,
         1.0 + 0.1 * 4.0 / 365.0
@@ -237,7 +239,9 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             start,
             end,
             autocallable_observations(&[end], &[120.0], None, Some(&[0.0]))?,
-            Some((end).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (end).time_of_day()
+            },
             TradingCalendar::weekdays()
         ))?,
         1.1
@@ -260,7 +264,9 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             start,
             end,
             observations,
-            Some((end).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (end).time_of_day()
+            },
             TradingCalendar::weekdays()
         ))?,
         1.0 + 0.1 * 4.0 / 365.0
@@ -539,11 +545,12 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
             Some(&[0.0; 2]),
             None,
         )?,
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::all_days(),
     );
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     let expiry_only = SnowballOption::new(terms)?;
     verify(
         &expiry_only,

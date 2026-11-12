@@ -13,7 +13,9 @@ fn supplied_autocallable_state_is_undated_and_retained_on_term_edits() -> Result
         start,
         expiry,
         vec![AutocallableObservation::snowball(expiry, 110.0, 0.08)?],
-        Some(start.time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: start.time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::KnockedIn);
@@ -56,7 +58,9 @@ fn valuation_observations_use_current_spot_and_supplied_prior_state() -> Result<
             AutocallableObservation::snowball(event, 110.0, 0.08)?,
             AutocallableObservation::snowball(expiry, 110.0, 0.08)?,
         ],
-        Some(start.time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: start.time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);

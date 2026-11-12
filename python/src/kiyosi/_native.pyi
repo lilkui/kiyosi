@@ -11858,6 +11858,55 @@ class QuadratureAutocallableEngine:
         engine defaults. Use numerical_greeks for configurable scalar differences.
         """
 
+class KnockInObservation:
+    """Knock-in observation rule with an owned daily clock when applicable.
+
+    Notes
+    -----
+    Construct with every_trading_day(observation_clock_time) or at_expiry().
+    Knock-out and coupon timestamps are supplied independently through
+    AutocallableObservation.
+    """
+
+    def __eq__(self, other: object) -> bool: ...
+    @staticmethod
+    def every_trading_day(observation_clock_time: time) -> KnockInObservation:
+        """Create daily knock-in observation on trading days.
+
+        Parameters
+        ----------
+        observation_clock_time : datetime.time
+            Timezone-free daily knock-in clock with microsecond precision.
+
+        Returns
+        -------
+        KnockInObservation
+            Immutable daily observation rule.
+
+        Raises
+        ------
+        TypeError
+            If the clock representation is invalid or timezone-aware.
+        """
+
+    @staticmethod
+    def at_expiry() -> KnockInObservation:
+        """Create knock-in observation only at the contract's expiry timestamp.
+
+        Returns
+        -------
+        KnockInObservation
+            Immutable expiry-only observation rule without a daily clock.
+        """
+
+    @property
+    def kind(self) -> Literal["every_trading_day", "at_expiry"]:
+        """Return every_trading_day or at_expiry."""
+
+    @property
+    def observation_clock_time(self) -> time | None:
+        """Return the owned daily clock, or None for expiry-only observation."""
+
 class AutocallableObservation:
     """Observation with validated numeric terms for an autocallable note.
 
@@ -12042,7 +12091,8 @@ def autocallable_observations(
     ... )
     >>> note = ins.SnowballOption(
     ...     maturity_coupon_rate=0.1, initial_spot=100, knock_in_level=80,
-    ...     upper_strike=100, lower_strike=0, observation_clock_time=time(15),
+    ...     upper_strike=100, lower_strike=0,
+    ...     knock_in_observation=ins.KnockInObservation.every_trading_day(time(15)),
     ...     effective_time=start, expiry_time=end, observations=records,
     ...     calendar=schedule.calendar,
     ... )
@@ -12076,10 +12126,8 @@ class SnowballOption:
         Positive upper terminal settlement strike.
     lower_strike : float
         Nonnegative lower terminal strike, at most the upper strike.
-    knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+    knock_in_observation : KnockInObservation
         Observe knock-in on every trading day or only at expiry.
-    observation_clock_time : datetime.time or None
-        Required keyword: a time for daily monitoring, or None for expiry-only monitoring.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -12115,10 +12163,6 @@ class SnowballOption:
         knock-out and coupons remain available through observations.
         """
 
-    @property
-    def observation_clock_time(self) -> time | None:
-        """Return the daily clock, or None for expiry-only monitoring."""
-
     def replace(
         self,
         *,
@@ -12127,9 +12171,7 @@ class SnowballOption:
         knock_in_level: _Real | EllipsisType = ...,
         upper_strike: _Real | EllipsisType = ...,
         lower_strike: _Real | EllipsisType = ...,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
-        | EllipsisType = ...,
-        observation_clock_time: time | None | EllipsisType = ...,
+        knock_in_observation: KnockInObservation | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
@@ -12147,10 +12189,8 @@ class SnowballOption:
             Replacement value; omission or Ellipsis retains the current field.
         upper_strike, lower_strike : float, optional
             Replacement value; omission or Ellipsis retains the current field.
-        knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+        knock_in_observation : KnockInObservation
             Replacement value; omission or Ellipsis retains the current field.
-        observation_clock_time : datetime.time or None, optional
-            Required for daily monitoring; absent for expiry-only monitoring.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         principal_redemption_ratio : float, optional
@@ -12211,8 +12251,7 @@ class SnowballOption:
         knock_in_level: _Real,
         upper_strike: _Real,
         lower_strike: _Real,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        observation_clock_time: time | None,
+        knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -12261,8 +12300,8 @@ class SnowballOption:
         """Return nonnegative normalized principal, independent of coupons and losses."""
 
     @property
-    def knock_in_observation_mode(self) -> Literal["every_trading_day", "at_expiry"]:
-        """Return the knock-in monitoring choice string."""
+    def knock_in_observation(self) -> KnockInObservation:
+        """Return an owned knock-in observation rule."""
 
     @property
     def barrier_state(self) -> Literal["no_event", "knocked_in", "knocked_out"] | None:
@@ -12296,10 +12335,8 @@ class PhoenixOption:
         Positive upper terminal settlement strike.
     lower_strike : float
         Nonnegative lower terminal strike, at most the upper strike.
-    knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+    knock_in_observation : KnockInObservation
         Observe knock-in on every trading day or only at expiry.
-    observation_clock_time : datetime.time or None
-        Required keyword: a time for daily monitoring, or None for expiry-only monitoring.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -12375,10 +12412,6 @@ class PhoenixOption:
         knock-out and coupons remain available through observations.
         """
 
-    @property
-    def observation_clock_time(self) -> time | None:
-        """Return the daily clock, or None for expiry-only monitoring."""
-
     def replace(
         self,
         *,
@@ -12388,9 +12421,7 @@ class PhoenixOption:
         knock_in_level: _Real | EllipsisType = ...,
         upper_strike: _Real | EllipsisType = ...,
         lower_strike: _Real | EllipsisType = ...,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
-        | EllipsisType = ...,
-        observation_clock_time: time | None | EllipsisType = ...,
+        knock_in_observation: KnockInObservation | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
@@ -12410,10 +12441,8 @@ class PhoenixOption:
             Initial observations excluded from knock-out. Does not regenerate barriers.
         initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
             Replacement value; omission or Ellipsis retains the current field.
-        knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+        knock_in_observation : KnockInObservation
             Replacement value; omission or Ellipsis retains the current field.
-        observation_clock_time : datetime.time or None, optional
-            Required for daily monitoring; absent for expiry-only monitoring.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         principal_redemption_ratio : float, optional
@@ -12447,8 +12476,7 @@ class PhoenixOption:
         knock_in_level: _Real,
         upper_strike: _Real,
         lower_strike: _Real,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        observation_clock_time: time | None,
+        knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -12498,8 +12526,8 @@ class PhoenixOption:
         """Return nonnegative normalized principal, independent of coupons and losses."""
 
     @property
-    def knock_in_observation_mode(self) -> Literal["every_trading_day", "at_expiry"]:
-        """Return the knock-in monitoring choice string."""
+    def knock_in_observation(self) -> KnockInObservation:
+        """Return an owned knock-in observation rule."""
 
     @property
     def barrier_state(self) -> Literal["no_event", "knocked_in", "knocked_out"] | None:
@@ -12691,10 +12719,8 @@ class TernarySnowballOption:
         Knocked-in maturity coupon, at most the intact maturity coupon.
     knock_in_level : float
         Positive strict downside threshold.
-    knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+    knock_in_observation : KnockInObservation
         Observe knock-in on every trading day or only at expiry.
-    observation_clock_time : datetime.time or None
-        Required keyword: a time for daily monitoring, or None for expiry-only monitoring.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
@@ -12729,19 +12755,13 @@ class TernarySnowballOption:
         knock-out and coupons remain available through observations.
         """
 
-    @property
-    def observation_clock_time(self) -> time | None:
-        """Return the daily clock, or None for expiry-only monitoring."""
-
     def replace(
         self,
         *,
         maturity_coupon_rate: _Real | EllipsisType = ...,
         minimum_coupon_rate: _Real | EllipsisType = ...,
         knock_in_level: _Real | EllipsisType = ...,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
-        | EllipsisType = ...,
-        observation_clock_time: time | None | EllipsisType = ...,
+        knock_in_observation: KnockInObservation | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
@@ -12757,10 +12777,8 @@ class TernarySnowballOption:
         ----------
         maturity_coupon_rate, minimum_coupon_rate, knock_in_level : float, optional
             Replacement value; omission or Ellipsis retains the current field.
-        knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+        knock_in_observation : KnockInObservation
             Replacement value; omission or Ellipsis retains the current field.
-        observation_clock_time : datetime.time or None, optional
-            Required for daily monitoring; absent for expiry-only monitoring.
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
             Replacement value; omission or Ellipsis retains the current field.
         principal_redemption_ratio : float, optional
@@ -12819,8 +12837,7 @@ class TernarySnowballOption:
         maturity_coupon_rate: _Real,
         minimum_coupon_rate: _Real,
         knock_in_level: _Real,
-        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        observation_clock_time: time | None,
+        knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -12861,8 +12878,8 @@ class TernarySnowballOption:
         """Return nonnegative normalized principal, independent of coupons and losses."""
 
     @property
-    def knock_in_observation_mode(self) -> Literal["every_trading_day", "at_expiry"]:
-        """Return the knock-in monitoring choice string."""
+    def knock_in_observation(self) -> KnockInObservation:
+        """Return an owned knock-in observation rule."""
 
     @property
     def barrier_state(self) -> Literal["no_event", "knocked_in", "knocked_out"] | None:
@@ -12889,7 +12906,7 @@ def standard_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -12914,8 +12931,8 @@ def standard_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -12967,7 +12984,6 @@ def european_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time | None = None,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -12992,8 +13008,6 @@ def european_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -13046,7 +13060,7 @@ def step_down_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -13073,8 +13087,8 @@ def step_down_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -13130,7 +13144,7 @@ def both_down_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -13159,8 +13173,8 @@ def both_down_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -13215,7 +13229,7 @@ def dual_coupon_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -13242,8 +13256,8 @@ def dual_coupon_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -13296,7 +13310,7 @@ def parachute_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -13323,8 +13337,8 @@ def parachute_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -13377,7 +13391,7 @@ def otm_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -13404,8 +13418,8 @@ def otm_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -13458,7 +13472,7 @@ def loss_capped_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -13485,8 +13499,8 @@ def loss_capped_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -13929,7 +13943,7 @@ def standard_phoenix(
     knock_in_level: _Real,
     knock_out_level: _Real,
     coupon_barrier_level: _Real,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
@@ -13954,7 +13968,7 @@ def standard_phoenix(
     lockout_periods : int, optional
         Initial observations excluded from knock-out; defaults to zero and must
         leave at least one eligible observation. Coupons and knock-in remain active.
-    observation_clock_time : datetime.time
+    knock_in_observation_clock_time : datetime.time
         Daily knock-in observation clock on trading days.
 
     coupon_barrier_level : float
@@ -14009,7 +14023,7 @@ def step_down_phoenix(
     initial_knock_out_level: _Real,
     coupon_barrier_level: _Real,
     knock_out_level_decrement: _Real,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
@@ -14034,7 +14048,7 @@ def step_down_phoenix(
     lockout_periods : int, optional
         Initial observations excluded from knock-out; defaults to zero and must
         leave at least one eligible observation. Coupons and knock-in remain active.
-    observation_clock_time : datetime.time
+    knock_in_observation_clock_time : datetime.time
         Daily knock-in observation clock on trading days.
 
     coupon_barrier_level : float
@@ -14243,7 +14257,7 @@ def early_profit_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -14272,8 +14286,8 @@ def early_profit_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -14331,7 +14345,7 @@ def butterfly_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
-    observation_clock_time: time,
+    knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
@@ -14364,8 +14378,8 @@ def butterfly_snowball(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    observation_clock_time : datetime.time or None
-        Required for daily monitoring; absent for expiry-only monitoring.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;

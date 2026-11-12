@@ -527,11 +527,12 @@ fn terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes() -> 
         start,
         end,
         autocallable_observations(&[end], &[120.0], Some(&[0.08]), None)?,
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms)?;
     for (spot, delta) in [

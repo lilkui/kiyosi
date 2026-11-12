@@ -215,6 +215,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         module
     )?)?;
     module.add_class::<instruments::autocallable::AutocallableObservation>()?;
+    module.add_class::<instruments::autocallable::KnockInObservation>()?;
     module.add_function(wrap_pyfunction!(
         instruments::autocallable::fixed_coupon_note,
         module

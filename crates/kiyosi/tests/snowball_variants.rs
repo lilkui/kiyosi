@@ -61,7 +61,9 @@ fn quadrature_covers_drift_below_future_knock_out() {
         date(1, 1),
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.2]), None).unwrap(),
-        Some((end).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (end).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -182,11 +184,12 @@ fn ternary_strict_knock_in_pays_floor_and_rejects_floor_above_coupon() {
         date(1, 1),
         date(4, 1),
         observations(),
-        Some((date(4, 1)).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (date(4, 1)).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     terms.principal_redemption_ratio = 0.5;
     let note = TernarySnowballOption::new(terms.clone()).unwrap();
     let engine = QuadratureAutocallableEngine::default();
@@ -224,7 +227,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             0.08,
             100.0,
             0.0,
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
         ),
         (
             SnowballPreset::European,
@@ -233,7 +238,7 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             0.08,
             100.0,
             0.0,
-            KnockInObservationMode::AtExpiry,
+            KnockInObservation::AtExpiry,
         ),
         (
             SnowballPreset::StepDown {
@@ -244,7 +249,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             0.08,
             100.0,
             0.0,
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
         ),
         (
             SnowballPreset::BothDown {
@@ -256,7 +263,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             0.06,
             100.0,
             0.0,
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
         ),
         (
             SnowballPreset::DualCoupon {
@@ -267,7 +276,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             -0.02,
             100.0,
             0.0,
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
         ),
         (
             SnowballPreset::Parachute {
@@ -278,7 +289,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             0.08,
             100.0,
             0.0,
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
         ),
         (
             SnowballPreset::Otm { upper_strike: 90.0 },
@@ -287,7 +300,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             0.08,
             90.0,
             0.0,
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
         ),
         (
             SnowballPreset::LossCapped { lower_strike: 60.0 },
@@ -296,7 +311,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             0.08,
             100.0,
             60.0,
-            KnockInObservationMode::EveryTradingDay,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+            },
         ),
     ];
     let engine = QuadratureAutocallableEngine::default();
@@ -310,22 +327,23 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             date(1, 1),
             date(4, 1),
             autocallable_observations(&dates, &levels, Some(&coupons), None).unwrap(),
-            Some((date(4, 1)).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (date(4, 1)).time_of_day(),
+            },
             TradingCalendar::weekdays(),
         );
-        explicit.knock_in_observation_mode = mode;
-        explicit.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-            .then_some(explicit.expiry_time.time_of_day());
+        explicit.knock_in_observation = mode;
+
         let expected = SnowballOption::new(explicit).unwrap();
         let mut input = base.clone();
-        input.observation_clock_time = expected.observation_clock_time();
+        input.knock_in_observation_clock_time = expected.observation_clock_time();
         let actual = input.expand(preset).unwrap();
         for (a, b) in actual.observations().iter().zip(expected.observations()) {
             assert_eq!(a.time(), b.time());
             assert!((a.knock_out_level() - b.knock_out_level()).abs() < 1e-14);
             assert!((a.coupon_rate().unwrap() - b.coupon_rate().unwrap()).abs() < 1e-14);
         }
-        assert_eq!(actual.terms().knock_in_observation_mode, mode);
+        assert_eq!(actual.terms().knock_in_observation, mode);
         assert_eq!(
             actual.observation_clock_time(),
             expected.observation_clock_time()
@@ -371,12 +389,13 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
                 date(1, 1),
                 date(4, 1),
                 records,
-                Some((date(4, 1)).time_of_day()),
+                kiyosi::KnockInObservation::EveryTradingDay {
+                    observation_clock_time: (date(4, 1)).time_of_day(),
+                },
                 TradingCalendar::weekdays(),
             );
             ternary.principal_redemption_ratio = 0.25;
-            ternary.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-            ternary.observation_clock_time = None;
+            ternary.knock_in_observation = KnockInObservation::AtExpiry;
             let context = market(spot, date(1, 1));
             let above = 1.0 - probability_below(spot, 110.0, time);
             let expected_binary =
@@ -478,11 +497,12 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         date(1, 1),
         date(4, 1),
         observations(),
-        Some((date(4, 1)).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (date(4, 1)).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
-    terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.observation_clock_time = None;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
     check(&TernarySnowballOption::new(terms).unwrap());
 }
 
@@ -501,18 +521,21 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
             None,
         )
         .unwrap(),
-        Some((date(4, 1)).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (date(4, 1)).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     let context = market(100.0, date(1, 1));
     let mut modes = Vec::new();
     for mode in [
-        KnockInObservationMode::AtExpiry,
-        KnockInObservationMode::EveryTradingDay,
+        KnockInObservation::AtExpiry,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: kiyosi::TimeOfDay::new(0, 0, 0, 0).unwrap(),
+        },
     ] {
-        terms.knock_in_observation_mode = mode;
-        terms.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
-            .then_some(terms.expiry_time.time_of_day());
+        terms.knock_in_observation = mode;
+
         let note = TernarySnowballOption::new(terms.clone()).unwrap();
         let prices: Vec<_> = [(512, 8.0), (1024, 8.0), (1024, 10.0)]
             .into_iter()
@@ -626,7 +649,9 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
             date(1, 1),
             date(4, 1),
             observations(),
-            Some((date(4, 1)).time_of_day()),
+            kiyosi::KnockInObservation::EveryTradingDay {
+                observation_clock_time: (date(4, 1)).time_of_day(),
+            },
             TradingCalendar::weekdays(),
         );
         assert!(matches!(
@@ -658,7 +683,9 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
                 date(1, 1),
                 date(4, 1),
                 bad,
-                Some((date(4, 1)).time_of_day()),
+                kiyosi::KnockInObservation::EveryTradingDay {
+                    observation_clock_time: (date(4, 1)).time_of_day()
+                },
                 TradingCalendar::weekdays()
             ))
             .unwrap_err(),
@@ -684,7 +711,9 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         date(1, 1),
         date(4, 1),
         Vec::new(),
-        Some((date(4, 1)).time_of_day()),
+        kiyosi::KnockInObservation::EveryTradingDay {
+            observation_clock_time: (date(4, 1)).time_of_day(),
+        },
         TradingCalendar::weekdays(),
     );
     // Schedule validation precedes knock-in validation.

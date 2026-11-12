@@ -10,6 +10,7 @@ from fractions import Fraction
 import pytest
 from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
 from kiyosi import instruments as ins
+from kiyosi.instruments import KnockInObservation
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_decimal_equal
 
@@ -189,22 +190,19 @@ def test_autocallable_constructors_require_an_explicit_observation_clock(subtest
     ):
         with subtests.test(contract=cls.__name__):
             assert (
-                inspect.signature(cls).parameters["observation_clock_time"].default
+                inspect.signature(cls).parameters["knock_in_observation"].default
                 is inspect.Parameter.empty
             )
             with pytest.raises(TypeError):
                 cls(**common, **extra)
-            daily = cls(**common, **extra, observation_clock_time=time(15))
-            assert daily.observation_clock_time == time(15)
-            expiry = cls(
-                **common,
-                **extra,
-                knock_in_observation_mode="at_expiry",
-                observation_clock_time=None,
-            )
-            assert expiry.observation_clock_time is None
-            with pytest.raises(InvalidInputError):
-                cls(**common, **extra, observation_clock_time=None)
+            observation = KnockInObservation.every_trading_day(time(15))
+            daily = cls(**common, **extra, knock_in_observation=observation)
+            assert daily.knock_in_observation == observation
+            expiry = daily.replace(knock_in_observation=KnockInObservation.at_expiry())
+            assert expiry.knock_in_observation.observation_clock_time is None
+            assert daily.knock_in_observation.observation_clock_time == time(15)
+            with pytest.raises(TypeError):
+                daily.replace(knock_in_observation=None)
 
 
 def test_autocallable_constructors_require_an_explicit_calendar(subtests):
@@ -266,7 +264,7 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
         "lower_strike": 0,
         "effective_time": start,
         "expiry_time": end,
-        "observation_clock_time": clock_time(15),
+        "knock_in_observation": KnockInObservation.every_trading_day(clock_time(15)),
         "observations": records,
         "barrier_state": "no_event",
     }
@@ -290,7 +288,7 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
         knock_out_level=110,
         effective_time=start,
         expiry_time=end,
-        observation_clock_time=clock_time(15),
+        knock_in_observation_clock_time=clock_time(15),
         observation_times=schedule,
         barrier_state="no_event",
     )
@@ -339,8 +337,7 @@ def test_observation_coupon_choices_are_explicit_and_control_cashflows():
             lower_strike=100,
             effective_time=start,
             expiry_time=end,
-            knock_in_observation_mode="at_expiry",
-            observation_clock_time=None,
+            knock_in_observation=KnockInObservation.at_expiry(),
             observations=[
                 ins.AutocallableObservation.phoenix(
                     end, 200, coupon_barrier_level=barrier
@@ -593,7 +590,9 @@ def test_snowball_coupon_diagnostics_identify_the_supplied_field(subtests, inval
                 "maturity_coupon_rate": invalid,
                 "minimum_coupon_rate": 0,
                 "knock_in_level": 80,
-                "observation_clock_time": clock_time(),
+                "knock_in_observation": KnockInObservation.every_trading_day(
+                    clock_time()
+                ),
             },
             "maturity_coupon_rate",
         ),
@@ -603,7 +602,9 @@ def test_snowball_coupon_diagnostics_identify_the_supplied_field(subtests, inval
                 "maturity_coupon_rate": 0.1,
                 "minimum_coupon_rate": invalid,
                 "knock_in_level": 80,
-                "observation_clock_time": clock_time(),
+                "knock_in_observation": KnockInObservation.every_trading_day(
+                    clock_time()
+                ),
             },
             "minimum_coupon_rate",
         ),
@@ -836,7 +837,7 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
                 knock_out_level=110,
                 coupon_rate=0.1,
                 observation_times=[closed],
-                observation_clock_time=clock_time(),
+                knock_in_observation_clock_time=clock_time(),
             ),
         ),
         (
@@ -986,7 +987,7 @@ def test_structured_contract_calendars_control_observations_and_survive_reconstr
         expiry_time=end,
     )
     note = ins.standard_snowball(
-        observation_clock_time=clock_time(),
+        knock_in_observation_clock_time=clock_time(),
         coupon_rate=0.1,
         initial_spot=100,
         knock_in_level=80,
@@ -2236,7 +2237,7 @@ def test_zero_coupon_observations_preserve_product_identity(subtests):
             upper_strike=100,
             lower_strike=0,
             observations=[snowball],
-            observation_clock_time=end.time(),
+            knock_in_observation=KnockInObservation.every_trading_day(end.time()),
             **life,
         )
 

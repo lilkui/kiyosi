@@ -3,6 +3,7 @@ from datetime import time as clock_time
 from functools import cache
 
 from kiyosi import instruments
+from kiyosi.instruments import KnockInObservation
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -57,10 +58,11 @@ def contract(row):
     if row["instrument"] != "BinarySnowballOption":
         common.update(
             knock_in_level=number("knock_in_level"),
-            knock_in_observation_mode=inputs["knock_in_mode"],
-            observation_clock_time=clock_time()
-            if inputs["knock_in_mode"] == "every_trading_day"
-            else None,
+            knock_in_observation=(
+                KnockInObservation.every_trading_day(clock_time())
+                if inputs["knock_in_mode"] == "every_trading_day"
+                else KnockInObservation.at_expiry()
+            ),
         )
     if row["instrument"] in ("SnowballOption", "PhoenixOption"):
         common.update(
