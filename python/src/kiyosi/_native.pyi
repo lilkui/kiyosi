@@ -262,7 +262,11 @@ class EuropeanOption:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> EuropeanOption:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
+
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -278,12 +282,14 @@ class EuropeanOption:
         Returns
         -------
         EuropeanOption
-            Validated copy; omitted fields or Ellipsis retain their values.
+            Validated value.
 
         Raises
         ------
-        KiyosiError
-            If replacement terms fail domain validation.
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -339,7 +345,11 @@ class AmericanOption:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> AmericanOption:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
+
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -355,12 +365,14 @@ class AmericanOption:
         Returns
         -------
         AmericanOption
-            Validated copy; omitted fields or Ellipsis retain their values.
+            Validated value.
 
         Raises
         ------
-        KiyosiError
-            If replacement terms fail domain validation.
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -420,7 +432,11 @@ class CashOrNothingOption:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> CashOrNothingOption:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
+
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -438,12 +454,14 @@ class CashOrNothingOption:
         Returns
         -------
         CashOrNothingOption
-            Validated copy; omitted fields or Ellipsis retain their values.
+            Validated value.
 
         Raises
         ------
-        KiyosiError
-            If replacement terms fail domain validation.
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -503,7 +521,11 @@ class AssetOrNothingOption:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> AssetOrNothingOption:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
+
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -519,12 +541,14 @@ class AssetOrNothingOption:
         Returns
         -------
         AssetOrNothingOption
-            Validated copy; omitted fields or Ellipsis retain their values.
+            Validated value.
 
         Raises
         ------
-        KiyosiError
-            If replacement terms fail domain validation.
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -792,7 +816,11 @@ class BlackScholesMertonParameters:
         dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
         volatility: _Real | EllipsisType = ...,
     ) -> BlackScholesMertonParameters:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
+
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -802,16 +830,19 @@ class BlackScholesMertonParameters:
             Continuously compounded dividend yield or owned rate curve.
         volatility : float, optional
             Nonnegative finite annualized log-return volatility in decimal units.
+            Zero selects the exact deterministic path implied by the rate curves.
 
         Returns
         -------
         BlackScholesMertonParameters
-            Validated copy; omitted fields or Ellipsis retain their values.
+            Validated value.
 
         Raises
         ------
-        KiyosiError
-            If replacement terms fail domain validation.
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -911,29 +942,40 @@ class HestonParameters:
         vol_of_vol: _Real | EllipsisType = ...,
         correlation: _Real | EllipsisType = ...,
     ) -> HestonParameters:
-        """Return a validated model, retaining omitted fields or Ellipsis.
+        """Return a validated copy with replacement fields.
+
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
         risk_free_rate, dividend_yield : float or RateTermStructure, optional
-            Replacement continuously compounded rates or owned curves.
-        initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol : float, optional
-            Replacement finite nonnegative variance-process parameters.
+            Continuously compounded annual rates or owned deterministic curves.
+        initial_variance : float, optional
+            Variance at valuation; 20% initial volatility means 0.04 variance.
+        long_run_variance : float, optional
+            Long-run variance level theta.
+        mean_reversion_speed : float, optional
+            Mean-reversion coefficient kappa, with time measured in years.
+        vol_of_vol : float, optional
+            Volatility-of-volatility parameter xi in dv = kappa * (theta - v) dt +
+            xi * sqrt(v) dW.
         correlation : float, optional
-            Replacement finite correlation in [-1, 1].
+            Correlation between the asset and variance Brownian motions in [-1, 1],
+            including endpoints.
 
         Returns
         -------
         HestonParameters
-            New owned value; the original is unchanged on success and failure.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If replacement parameters fail model validation.
+            If fields fail constructor validation.
         TypeError
-            If a supplied value is None, bool or another unsupported
-            representation.
+            If a field name or representation is invalid.
         """
 
     @property
@@ -1099,24 +1141,30 @@ class LocalVolatilityParameters:
         dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
         surface: LocalVolatilitySurface | EllipsisType = ...,
     ) -> LocalVolatilityParameters:
-        """Return a validated model, retaining omitted fields or Ellipsis.
+        """Return a validated copy with replacement fields.
+
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
         risk_free_rate, dividend_yield : float or RateTermStructure, optional
-            Replacement continuously compounded rates or curves.
+            Finite continuously compounded rates or validated rate curves.
         surface : LocalVolatilitySurface, optional
-            Replacement owned surface.
+            Validated surface in absolute time and price coordinates.
 
         Returns
         -------
         LocalVolatilityParameters
-            Independent replacement; the original is unchanged on failure.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If a replacement scalar rate is non-finite.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -1497,7 +1545,11 @@ class PricingContext:
         spot_price: _Real | EllipsisType = ...,
         valuation_time: datetime | EllipsisType = ...,
     ) -> PricingContext:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
+
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -1511,12 +1563,14 @@ class PricingContext:
         Returns
         -------
         PricingContext
-            Validated copy; omitted fields or Ellipsis retain their values.
+            Validated value.
 
         Raises
         ------
-        KiyosiError
-            If replacement terms fail domain validation.
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -1548,20 +1602,23 @@ class AnalyticEuropeanEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         AnalyticEuropeanEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -1743,10 +1800,11 @@ class AnalyticHestonEuropeanEngine:
         relative_tolerance: _Real | EllipsisType = ...,
         max_evaluations: SupportsIndex | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -1761,12 +1819,14 @@ class AnalyticHestonEuropeanEngine:
         Returns
         -------
         AnalyticHestonEuropeanEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -1938,20 +1998,23 @@ class BjerksundStenslandVanillaEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         BjerksundStenslandVanillaEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -2097,20 +2160,23 @@ class AnalyticDigitalEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         AnalyticDigitalEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -2280,10 +2346,11 @@ class CoxRossRubinsteinBarrierEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -2293,12 +2360,14 @@ class CoxRossRubinsteinBarrierEngine:
         Returns
         -------
         CoxRossRubinsteinBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -2474,10 +2543,11 @@ class QuadratureBarrierEngine:
         asset_step_count: SupportsIndex | EllipsisType = ...,
         integration_standard_deviations: _Real | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -2491,12 +2561,14 @@ class QuadratureBarrierEngine:
         Returns
         -------
         QuadratureBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -2683,10 +2755,11 @@ class QuadratureDigitalEngine:
         asset_step_count: SupportsIndex | EllipsisType = ...,
         integration_standard_deviations: _Real | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -2700,12 +2773,14 @@ class QuadratureDigitalEngine:
         Returns
         -------
         QuadratureDigitalEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -2906,10 +2981,11 @@ class QuadratureVanillaEngine:
         time_step_count: SupportsIndex | EllipsisType = ...,
         integration_standard_deviations: _Real | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -2925,12 +3001,14 @@ class QuadratureVanillaEngine:
         Returns
         -------
         QuadratureVanillaEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -3099,10 +3177,11 @@ class CoxRossRubinsteinVanillaEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -3112,12 +3191,14 @@ class CoxRossRubinsteinVanillaEngine:
         Returns
         -------
         CoxRossRubinsteinVanillaEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -3286,10 +3367,11 @@ class CoxRossRubinsteinDigitalEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -3299,12 +3381,14 @@ class CoxRossRubinsteinDigitalEngine:
         Returns
         -------
         CoxRossRubinsteinDigitalEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -3539,10 +3623,11 @@ class FiniteDifferenceAccumulatorEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -3579,12 +3664,14 @@ class FiniteDifferenceAccumulatorEngine:
         Returns
         -------
         FiniteDifferenceAccumulatorEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -3841,10 +3928,11 @@ class FiniteDifferenceBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -3881,12 +3969,14 @@ class FiniteDifferenceBarrierEngine:
         Returns
         -------
         FiniteDifferenceBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -4143,10 +4233,11 @@ class FiniteDifferenceDoubleBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -4183,12 +4274,14 @@ class FiniteDifferenceDoubleBarrierEngine:
         Returns
         -------
         FiniteDifferenceDoubleBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -4445,10 +4538,11 @@ class FiniteDifferenceAutocallableEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -4485,12 +4579,14 @@ class FiniteDifferenceAutocallableEngine:
         Returns
         -------
         FiniteDifferenceAutocallableEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -4767,10 +4863,11 @@ class FiniteDifferenceDoubleTouchEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -4807,12 +4904,14 @@ class FiniteDifferenceDoubleTouchEngine:
         Returns
         -------
         FiniteDifferenceDoubleTouchEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -5069,10 +5168,11 @@ class FiniteDifferenceBinaryBarrierEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -5109,12 +5209,14 @@ class FiniteDifferenceBinaryBarrierEngine:
         Returns
         -------
         FiniteDifferenceBinaryBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -5345,10 +5447,11 @@ class FiniteDifferenceHestonVanillaEngine:
         asset_upper_boundary: _Real | None | EllipsisType = ...,
         variance_upper_boundary: _Real | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -5369,12 +5472,14 @@ class FiniteDifferenceHestonVanillaEngine:
         Returns
         -------
         FiniteDifferenceHestonVanillaEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -5624,10 +5729,11 @@ class FiniteDifferenceVanillaEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -5664,12 +5770,14 @@ class FiniteDifferenceVanillaEngine:
         Returns
         -------
         FiniteDifferenceVanillaEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -5928,10 +6036,11 @@ class FiniteDifferenceDigitalEngine:
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -5968,12 +6077,14 @@ class FiniteDifferenceDigitalEngine:
         Returns
         -------
         FiniteDifferenceDigitalEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -6228,10 +6339,11 @@ class MonteCarloVanillaEngine:
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -6256,12 +6368,14 @@ class MonteCarloVanillaEngine:
         Returns
         -------
         MonteCarloVanillaEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -6590,10 +6704,11 @@ class MonteCarloDigitalEngine:
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -6615,12 +6730,14 @@ class MonteCarloDigitalEngine:
         Returns
         -------
         MonteCarloDigitalEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -6928,10 +7045,11 @@ class MonteCarloBarrierEngine:
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -6953,12 +7071,14 @@ class MonteCarloBarrierEngine:
         Returns
         -------
         MonteCarloBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -7253,10 +7373,11 @@ class MonteCarloDoubleBarrierEngine:
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -7278,12 +7399,14 @@ class MonteCarloDoubleBarrierEngine:
         Returns
         -------
         MonteCarloDoubleBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -7580,10 +7703,11 @@ class MonteCarloAutocallableEngine:
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -7605,12 +7729,14 @@ class MonteCarloAutocallableEngine:
         Returns
         -------
         MonteCarloAutocallableEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -7934,10 +8060,11 @@ class MonteCarloAccumulatorEngine:
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -7959,12 +8086,14 @@ class MonteCarloAccumulatorEngine:
         Returns
         -------
         MonteCarloAccumulatorEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -8266,10 +8395,11 @@ class MonteCarloAsianEngine:
         sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
         antithetic: bool | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -8294,12 +8424,14 @@ class MonteCarloAsianEngine:
         Returns
         -------
         MonteCarloAsianEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -9195,9 +9327,11 @@ class GeometricAveragePriceOption:
         expiry_time: datetime | EllipsisType = ...,
         realized_average: _Real | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -9205,25 +9339,29 @@ class GeometricAveragePriceOption:
             Call or put payoff direction.
         strike : float, optional
             Positive finite strike price.
-        effective_time, averaging_start_time : datetime.datetime, optional
-            Contract start and first averaging timestamp, respectively.
+        effective_time : datetime.datetime, optional
+            Inclusive contract start.
+        averaging_start_time : datetime.datetime, optional
+            First averaging timestamp, within the contract life.
         expiry_time : datetime.datetime, optional
-            Inclusive expiry timestamp.
+            Inclusive expiry time.
         realized_average : float or None, optional
-            Omission or Ellipsis retains the average; None clears it to unknown.
+            Positive finite prior average; defaults to None (unknown). Must be None
+            at or before averaging starts, and supplied strictly after it; time
+            consistency is checked at pricing. History covers averaging strictly
+            before valuation; callers supply the applicable average.
 
         Returns
         -------
         GeometricAveragePriceOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated value.
 
         Raises
         ------
-        KiyosiError
-            If the resulting contract fails core validation.
+        InvalidInputError
+            If fields fail constructor validation.
         TypeError
-            If a representation or field name is invalid.
+            If a field name or representation is invalid.
         """
 
     def __init__(
@@ -9273,20 +9411,23 @@ class AnalyticGeometricAveragePriceEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         AnalyticGeometricAveragePriceEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -9460,9 +9601,11 @@ class ArithmeticAveragePriceOption:
         expiry_time: datetime | EllipsisType = ...,
         realized_average: _Real | None | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omission or Ellipsis retains a field; None clears nullable fields.
+        Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -9470,25 +9613,29 @@ class ArithmeticAveragePriceOption:
             Call or put payoff direction.
         strike : float, optional
             Positive finite strike price.
-        effective_time, averaging_start_time : datetime.datetime, optional
-            Contract start and first averaging timestamp, respectively.
+        effective_time : datetime.datetime, optional
+            Inclusive contract start.
+        averaging_start_time : datetime.datetime, optional
+            First averaging timestamp, within the contract life.
         expiry_time : datetime.datetime, optional
-            Inclusive expiry timestamp.
+            Inclusive expiry time.
         realized_average : float or None, optional
-            Omission or Ellipsis retains the average; None clears it to unknown.
+            Positive finite prior average; defaults to None (unknown). Must be None
+            at or before averaging starts, and supplied strictly after it; time
+            consistency is checked at pricing. History covers averaging strictly
+            before valuation; callers supply the applicable average.
 
         Returns
         -------
         ArithmeticAveragePriceOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated value.
 
         Raises
         ------
-        KiyosiError
-            If the resulting contract fails core validation.
+        InvalidInputError
+            If fields fail constructor validation.
         TypeError
-            If a representation or field name is invalid.
+            If a field name or representation is invalid.
         """
 
     def __init__(
@@ -9539,20 +9686,23 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         TurnbullWakemanArithmeticAveragePriceEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -9874,20 +10024,23 @@ class AnalyticBarrierEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         AnalyticBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -10353,20 +10506,23 @@ class AnalyticRangeAccrualEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         AnalyticRangeAccrualEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -10514,20 +10670,23 @@ class AnalyticDoubleBarrierEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         AnalyticDoubleBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -10685,20 +10844,23 @@ class AnalyticDoubleTouchEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         AnalyticDoubleTouchEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -11565,20 +11727,23 @@ class AnalyticBinaryBarrierEngine:
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
     def replace(self) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Returns
         -------
         AnalyticBinaryBarrierEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     def greek_method(
@@ -12025,10 +12190,11 @@ class QuadratureAutocallableEngine:
         asset_step_count: SupportsIndex | EllipsisType = ...,
         integration_standard_deviations: _Real | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -12042,12 +12208,14 @@ class QuadratureAutocallableEngine:
         Returns
         -------
         QuadratureAutocallableEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property
@@ -14152,10 +14320,11 @@ class QuadratureAccumulatorEngine:
         asset_step_count: SupportsIndex | EllipsisType = ...,
         integration_standard_deviations: _Real | EllipsisType = ...,
     ) -> Self:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
@@ -14169,12 +14338,14 @@ class QuadratureAccumulatorEngine:
         Returns
         -------
         QuadratureAccumulatorEngine
-            Validated engine.
+            Validated value.
 
         Raises
         ------
         InvalidInputError
-            If controls fail constructor validation.
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
 
     @property

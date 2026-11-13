@@ -1,4 +1,4 @@
-use crate::conversions::{direction, python_timestamp, real, supplied, timestamp};
+use crate::conversions::{direction, python_timestamp, real, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
 
@@ -20,49 +20,7 @@ macro_rules! digital_option {
                     real(strike)?, $(real($payout)?,)? timestamp(effective_time)?, timestamp(expiry_time)?) )?))
             }
 
-            /// Return a validated replacement.
-            ///
-            /// Parameters
-            /// ----------
-            /// option_type : {'call', 'put'}, optional
-            ///     Call or put payoff direction.
-            /// strike : float, optional
-            ///     Positive finite strike price.
-            $(#[doc = concat!(stringify!($payout), " : float, optional\n    Positive finite cash payment.")])?
-            /// effective_time : datetime.datetime, optional
-            ///     Inclusive contract start.
-            /// expiry_time : datetime.datetime, optional
-            ///     Inclusive expiry time.
-            ///
-            /// Returns
-            /// -------
-            #[doc = stringify!($name)]
-            ///     Validated copy; omitted fields or Ellipsis retain their values.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If replacement terms fail domain validation.
-            ///
-            #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, $($payout=crate::conversions::OMITTED,)? effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED))]
-            fn replace(
-                &self,
-                #[pyo3(from_py_with = supplied)] option_type: Option<&Bound<'_, PyAny>>,
-                #[pyo3(from_py_with = supplied)] strike: Option<&Bound<'_, PyAny>>,
-                $(#[pyo3(from_py_with = supplied)] $payout: Option<&Bound<'_, PyAny>>,)?
-                #[pyo3(from_py_with = supplied)] effective_time: Option<&Bound<'_, PyAny>>,
-                #[pyo3(from_py_with = supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
-            ) -> PyResult<Self> {
-                let mut changes = kiyosi::DigitalOptionChanges {
-                    option_type: option_type.map(direction).transpose()?,
-                    strike: strike.map(real).transpose()?,
-                    ..Default::default()
-                };
-                $(changes.payout = $payout.map(real).transpose()?;)?
-                changes.effective_time = effective_time.map(timestamp).transpose()?;
-                changes.expiry_time = expiry_time.map(timestamp).transpose()?;
-                Ok(Self(domain(self.0.replace(changes))?))
-            }
+
 
             /// Return call or put payoff direction.
             #[getter]

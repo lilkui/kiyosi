@@ -1,5 +1,5 @@
 use super::vanilla::vanilla_option_methods;
-use crate::conversions::{direction, python_timestamp, real, supplied, timestamp};
+use crate::conversions::{direction, python_timestamp, real, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
 
@@ -26,4 +26,4 @@ use pyo3::prelude::*;
 #[derive(Clone, PartialEq)]
 pub(crate) struct AmericanOption(pub(crate) kiyosi::AmericanOption);
 
-vanilla_option_methods!(AmericanOption, AmericanOptionChanges);
+vanilla_option_methods!(AmericanOption);

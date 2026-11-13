@@ -1,4 +1,4 @@
-use crate::conversions::{real, supplied};
+use crate::conversions::real;
 use crate::error::domain;
 use crate::market::{RateTermStructure, rate};
 use pyo3::prelude::*;
@@ -68,57 +68,6 @@ impl HestonParameters {
         ))?))
     }
 
-    /// Return a validated model, retaining omitted fields or Ellipsis.
-    ///
-    /// Parameters
-    /// ----------
-    /// risk_free_rate, dividend_yield : float or RateTermStructure, optional
-    ///     Replacement continuously compounded rates or owned curves.
-    /// initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol : float, optional
-    ///     Replacement finite nonnegative variance-process parameters.
-    /// correlation : float, optional
-    ///     Replacement finite correlation in [-1, 1].
-    ///
-    /// Returns
-    /// -------
-    /// HestonParameters
-    ///     New owned value; the original is unchanged on success and failure.
-    ///
-    /// Raises
-    /// ------
-    /// InvalidInputError
-    ///     If replacement parameters fail model validation.
-    /// TypeError
-    ///     If a supplied value is None, bool or another unsupported
-    ///     representation.
-    ///
-    #[pyo3(signature = (*, risk_free_rate=crate::conversions::OMITTED, dividend_yield=crate::conversions::OMITTED, initial_variance=crate::conversions::OMITTED, long_run_variance=crate::conversions::OMITTED, mean_reversion_speed=crate::conversions::OMITTED, vol_of_vol=crate::conversions::OMITTED, correlation=crate::conversions::OMITTED))]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "explicit Python replacement fields"
-    )]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = supplied)] risk_free_rate: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] dividend_yield: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] initial_variance: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] long_run_variance: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] mean_reversion_speed: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] vol_of_vol: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] correlation: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        Ok(Self(domain(self.0.replace(
-            kiyosi::HestonParameterChanges {
-                risk_free_rate: risk_free_rate.map(rate).transpose()?,
-                dividend_yield: dividend_yield.map(rate).transpose()?,
-                initial_variance: initial_variance.map(real).transpose()?,
-                long_run_variance: long_run_variance.map(real).transpose()?,
-                mean_reversion_speed: mean_reversion_speed.map(real).transpose()?,
-                vol_of_vol: vol_of_vol.map(real).transpose()?,
-                correlation: correlation.map(real).transpose()?,
-            },
-        ))?))
-    }
     /// Return the scalar rate for dated or undated constant curves.
     ///
     /// Use ``risk_free_curve`` to preserve coverage when passing rates to constructors

@@ -5,6 +5,8 @@ from inspect import Parameter, Signature, getdoc, isbuiltin, isclass, signature
 from types import ModuleType
 from typing import Any
 
+from ._serialization import _fields
+
 
 def _signature(callable: Any, defaults: dict[str, Any]) -> Signature:
     original = signature(callable)
@@ -40,17 +42,18 @@ def _wrap(callable: Any, defaults: dict[str, Any]) -> Any:
     return call
 
 
-def _engine_replacement(factory: Any) -> Any:
+def _replacement(factory: Any) -> Any:
     constructor = signature(factory)
 
     def replace(self: Any, **changes: Any) -> Any:
-        """Return a validated copy with replacement controls.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a control; None clears nullable controls.
+        Omission or Ellipsis retains a field; None clears nullable fields.
         Parameter defaults below describe construction, not replacement.
+        The original value is unchanged on success and failure.
         """
         constructor.bind_partial(**changes)
-        controls = {name: getattr(self, name) for name in constructor.parameters}
+        controls = _fields(self)
         controls.update(
             (name, value) for name, value in changes.items() if value is not Ellipsis
         )
@@ -68,11 +71,20 @@ def _engine_replacement(factory: Any) -> Any:
     )
     parameters = (getdoc(factory) or "").partition("\nParameters\n----------\n")[2]
     parameters = parameters.partition("\nRaises\n------")[0].strip()
+    parameters = "\n".join(
+        f"{line}, optional"
+        if " : " in line
+        and not line.startswith(" ")
+        and not line.endswith(", optional")
+        else line
+        for line in parameters.splitlines()
+    )
     replace.__doc__ = (
         f"{getdoc(replace)}\n\n"
         + (f"Parameters\n----------\n{parameters}\n\n" if parameters else "")
-        + f"Returns\n-------\n{factory.__name__}\n    Validated engine.\n\n"
-        "Raises\n------\nInvalidInputError\n    If controls fail constructor validation.\n"
+        + f"Returns\n-------\n{factory.__name__}\n    Validated value.\n\n"
+        "Raises\n------\nInvalidInputError\n    If fields fail constructor validation.\n"
+        "TypeError\n    If a field name or representation is invalid.\n"
     )
     return replace
 
@@ -103,7 +115,18 @@ def install(native: ModuleType) -> None:
             resolved = _signature(value, constructor_defaults)
             if resolved != original:
                 value.__signature__ = resolved
-            if name.endswith("Engine"):
-                value.replace = _engine_replacement(value)
+            if name.endswith("Engine") or name in (
+                "EuropeanOption",
+                "AmericanOption",
+                "CashOrNothingOption",
+                "AssetOrNothingOption",
+                "GeometricAveragePriceOption",
+                "ArithmeticAveragePriceOption",
+                "BlackScholesMertonParameters",
+                "HestonParameters",
+                "LocalVolatilityParameters",
+                "PricingContext",
+            ):
+                value.replace = _replacement(value)
         elif isbuiltin(value) and name != "numerical_greeks":
             setattr(native, name, _wrap(value, solvers.get(name, defaults)))

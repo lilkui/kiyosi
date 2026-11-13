@@ -36,58 +36,8 @@ macro_rules! average_option {
 
         #[pymethods]
         impl $name {
-    /// Return a validated replacement.
-    ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
-    ///
-    /// Parameters
-    /// ----------
-    /// option_type : {'call', 'put'}, optional
-    ///     Call or put payoff direction.
-    /// strike : float, optional
-    ///     Positive finite strike price.
-    /// effective_time, averaging_start_time : datetime.datetime, optional
-    ///     Contract start and first averaging timestamp, respectively.
-    /// expiry_time : datetime.datetime, optional
-    ///     Inclusive expiry timestamp.
-    /// realized_average : float or None, optional
-    ///     Omission or Ellipsis retains the average; None clears it to unknown.
-    ///
-    /// Returns
-    /// -------
-    #[doc = stringify!($name)]
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If the resulting contract fails core validation.
-    /// TypeError
-    ///     If a representation or field name is invalid.
-    ///
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, averaging_start_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED))]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] averaging_start_time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] realized_average: Option<&Bound<'_, PyAny>>,
 
-    ) -> PyResult<Self> {
 
-        let changes = kiyosi::AveragePriceOptionChanges {
-            option_type: option_type.map(crate::conversions::direction).transpose()?,
-            strike: strike.map(crate::conversions::real).transpose()?,
-            effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
-            averaging_start_time: averaging_start_time.map(crate::conversions::timestamp).transpose()?,
-            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
-            realized_average: realized_average.map(optional_real).transpose()?,
-        };
-        Ok(Self(domain(self.0.replace(changes))?))
-    }
             #[new]
             #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,

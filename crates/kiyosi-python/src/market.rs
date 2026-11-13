@@ -1,6 +1,4 @@
-use crate::conversions::{
-    python_date, python_timestamp, python_timestamps, real, supplied, timestamp,
-};
+use crate::conversions::{python_date, python_timestamp, python_timestamps, real, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyTuple};
@@ -313,41 +311,7 @@ impl BlackScholesMertonParameters {
             real(volatility)?,
         ))?))
     }
-    /// Return a validated replacement.
-    ///
-    /// Parameters
-    /// ----------
-    /// risk_free_rate : float or RateTermStructure, optional
-    ///     Continuously compounded risk-free rate or owned rate curve.
-    /// dividend_yield : float or RateTermStructure, optional
-    ///     Continuously compounded dividend yield or owned rate curve.
-    /// volatility : float, optional
-    ///     Nonnegative finite annualized log-return volatility in decimal units.
-    ///
-    /// Returns
-    /// -------
-    /// BlackScholesMertonParameters
-    ///     Validated copy; omitted fields or Ellipsis retain their values.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If replacement terms fail domain validation.
-    ///
-    #[pyo3(signature = (*, risk_free_rate=crate::conversions::OMITTED, dividend_yield=crate::conversions::OMITTED, volatility=crate::conversions::OMITTED))]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = supplied)] risk_free_rate: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] dividend_yield: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] volatility: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let update = kiyosi::BlackScholesMertonParameterChanges {
-            risk_free_rate: risk_free_rate.map(rate).transpose()?,
-            dividend_yield: dividend_yield.map(rate).transpose()?,
-            volatility: volatility.map(real).transpose()?,
-        };
-        Ok(Self(domain(self.0.replace(update))?))
-    }
+
     /// Return the scalar rate for dated or undated constant curves.
     ///
     /// Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
@@ -430,41 +394,7 @@ impl PricingContext {
             timestamp(valuation_time)?,
         ))?))
     }
-    /// Return a validated replacement.
-    ///
-    /// Parameters
-    /// ----------
-    /// model_parameters : BlackScholesMertonParameters, LocalVolatilityParameters or HestonParameters, optional
-    ///     Validated rates and the selected volatility or variance model.
-    /// spot_price : float, optional
-    ///     Positive finite underlying spot price.
-    /// valuation_time : datetime.datetime, optional
-    ///     Valuation time.
-    ///
-    /// Returns
-    /// -------
-    /// PricingContext
-    ///     Validated copy; omitted fields or Ellipsis retain their values.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If replacement terms fail domain validation.
-    ///
-    #[pyo3(signature = (*, model_parameters=crate::conversions::OMITTED, spot_price=crate::conversions::OMITTED, valuation_time=crate::conversions::OMITTED))]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = supplied)] model_parameters: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] spot_price: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] valuation_time: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let update = kiyosi::PricingContextChanges {
-            model_parameters: model_parameters.map(model_parameters_value).transpose()?,
-            spot_price: spot_price.map(real).transpose()?,
-            valuation_time: valuation_time.map(timestamp).transpose()?,
-        };
-        Ok(Self(domain(self.0.replace(update))?))
-    }
+
     /// Return an owned copy of the model parameters.
     #[getter]
     fn model_parameters(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {

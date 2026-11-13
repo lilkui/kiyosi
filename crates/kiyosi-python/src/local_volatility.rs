@@ -1,4 +1,4 @@
-use crate::conversions::{python_timestamps, real, reals, supplied, timestamp, timestamps};
+use crate::conversions::{python_timestamps, real, reals, timestamp, timestamps};
 use crate::error::domain;
 use crate::market::{RateTermStructure, rate};
 use pyo3::prelude::*;
@@ -143,44 +143,7 @@ impl LocalVolatilityParameters {
             surface.0.clone(),
         ))?))
     }
-    /// Return a validated model, retaining omitted fields or Ellipsis.
-    ///
-    /// Parameters
-    /// ----------
-    /// risk_free_rate, dividend_yield : float or RateTermStructure, optional
-    ///     Replacement continuously compounded rates or curves.
-    /// surface : LocalVolatilitySurface, optional
-    ///     Replacement owned surface.
-    ///
-    /// Returns
-    /// -------
-    /// LocalVolatilityParameters
-    ///     Independent replacement; the original is unchanged on failure.
-    ///
-    /// Raises
-    /// ------
-    /// InvalidInputError
-    ///     If a replacement scalar rate is non-finite.
-    ///
-    #[pyo3(signature = (*, risk_free_rate=crate::conversions::OMITTED, dividend_yield=crate::conversions::OMITTED, surface=crate::conversions::OMITTED))]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = supplied)] risk_free_rate: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] dividend_yield: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] surface: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        Ok(Self(domain(
-            self.0.replace(kiyosi::LocalVolatilityParameterChanges {
-                risk_free_rate: risk_free_rate.map(rate).transpose()?,
-                dividend_yield: dividend_yield.map(rate).transpose()?,
-                surface: surface
-                    .map(|v| -> PyResult<_> {
-                        Ok(v.extract::<PyRef<'_, LocalVolatilitySurface>>()?.0.clone())
-                    })
-                    .transpose()?,
-            }),
-        )?))
-    }
+
     /// Return an owned copy of the fixed surface.
     #[getter]
     fn surface(&self) -> LocalVolatilitySurface {
