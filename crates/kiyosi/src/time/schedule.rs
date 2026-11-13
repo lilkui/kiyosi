@@ -39,6 +39,19 @@ impl ObservationSchedule {
         end_time: Timestamp,
         calendar: &TradingCalendar,
     ) -> Result<Self> {
+        Self::validate_times(&times, start_time, end_time, calendar)?;
+        Ok(Self {
+            times,
+            calendar: calendar.clone(),
+        })
+    }
+
+    pub(crate) fn validate_times(
+        times: &[Timestamp],
+        start_time: Timestamp,
+        end_time: Timestamp,
+        calendar: &TradingCalendar,
+    ) -> Result<()> {
         validate_range(start_time, end_time)?;
         for (index, time) in times.iter().enumerate() {
             if (index > 0 && *time <= times[index - 1]) || *time < start_time || *time > end_time {
@@ -55,10 +68,7 @@ impl ObservationSchedule {
                 "observation time is not a trading day".into(),
             ));
         }
-        Ok(Self {
-            times,
-            calendar: calendar.clone(),
-        })
+        Ok(())
     }
 
     pub(crate) fn daily(

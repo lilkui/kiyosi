@@ -428,6 +428,57 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
 }
 
 #[test]
+fn schedule_validation_checks_structure_before_calendar_queries() -> kiyosi::Result<()> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calendar = TradingCalendar::new(
+        {
+            let calls = Arc::clone(&calls);
+            move |_| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                true
+            }
+        },
+        252,
+    )?;
+    let start = time(2025, 1, 1);
+    let end = time(2025, 1, 3);
+    for (first, last, dates) in [
+        (end, start, vec![]),
+        (start, end, vec![end, start]),
+        (start, end, vec![start, start]),
+        (start, end, vec![start.add_micros(-1)?]),
+        (start, end, vec![end.add_micros(1)?]),
+    ] {
+        assert!(matches!(
+            ObservationSchedule::new(dates.clone(), first, last, &calendar),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            kiyosi::Accumulator::new(kiyosi::AccumulatorTerms {
+                calendar: calendar.clone(),
+                knock_out_observation_times: Some(dates),
+                ..kiyosi::AccumulatorTerms::new(
+                    100.0,
+                    110.0,
+                    1.0,
+                    2.0,
+                    first,
+                    last,
+                    first.time_of_day()
+                )
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    Ok(())
+}
+
+#[test]
 fn closed_calendars_stop_at_domain_and_schedule_bounds() {
     let closed = TradingCalendar::new(|_| false, 252).unwrap();
     for (boundary, convention) in [

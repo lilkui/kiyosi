@@ -160,8 +160,8 @@ impl Accumulator {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         if let Some(dates) = &terms.knock_out_observation_times {
-            ObservationSchedule::new(
-                dates.clone(),
+            ObservationSchedule::validate_times(
+                dates,
                 terms.effective_time,
                 terms.expiry_time,
                 &terms.calendar,
