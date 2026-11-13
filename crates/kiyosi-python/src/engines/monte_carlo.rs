@@ -1,5 +1,4 @@
 use crate::conversions::{boolean, integer, integer_index};
-use crate::engines::ScalarRequest;
 use crate::engines::binomial;
 use crate::error::domain;
 use crate::instruments::accumulator;
@@ -67,8 +66,8 @@ macro_rules! sampling_settings {
         $engine.settings().sampling
     };
     (@structured $engine:ident, $instrument:ty, $with:path) => {
-        numerical_greeks_methods!(
-            $instrument,
+        sampling_settings!(
+            $engine, $instrument, [],
             [
                 /// OSError
                 ///     If system entropy or worker creation fails.
@@ -81,40 +80,7 @@ macro_rules! sampling_settings {
                 /// default terminal-payoff stencils. Use numerical_greeks for explicit scalar
                 /// bump calculations on supported BSM pairs.
                 ///
-            ],
-            sampling_settings!(
-                $engine,
-                [],
-                /// Return the price.
-                ///
-                /// Parameters
-                /// ----------
-                /// instrument : object
-                ///     Supported contract; see the engine class for accepted types.
-                /// context : PricingContext
-                ///     Market snapshot and valuation instant.
-                ///
-                /// Returns
-                /// -------
-                /// float
-                ///     Present value of remaining contractual payments.
-                ///
-                /// Raises
-                /// ------
-                /// KiyosiError
-                ///     If domain validation, engine applicability or numerical pricing fails.
-                /// OSError
-                ///     If system entropy or worker creation fails.
-                ///
-                fn price(
-                    &self,
-                    py: Python<'_>,
-                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                    context: &PricingContext,
-                ) -> PyResult<f64> {
-                    self.evaluate(py, instrument, context, ScalarRequest::Price)
-                }
-            )
+            ]
         );
         impl $engine {
             pub(crate) fn evaluate<R: Send>(
@@ -128,9 +94,12 @@ macro_rules! sampling_settings {
             }
         }
     };
-    ($engine:ident, [$($step:ident)?], $($methods:item),* $(,)?) => {
-        #[pymethods]
-        impl $engine {
+    ($engine:ident, $instrument:ty, [$($step:ident)?], [$(#[$greeks_doc:meta])*]) => {
+        engine_methods!(@price $engine, $instrument, [$(#[$greeks_doc])*], [
+            /// OSError
+            ///     If system entropy or worker creation fails.
+            ///
+        ], {
             /// Return the scalar price and the seed used by this request.
             ///
             /// Parameters
@@ -276,8 +245,7 @@ macro_rules! sampling_settings {
             fn antithetic(&self) -> bool {
                 sampling_settings!(@sampling self.0, [$($step)?]).antithetic
             }
-            $($methods)*
-        }
+        });
     };
 }
 
@@ -331,46 +299,10 @@ macro_rules! sampling_settings {
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloVanillaEngine(pub(crate) kiyosi::MonteCarloVanillaEngine);
 
-numerical_greeks_methods!(
-    binomial::VanillaInstrument<'_>,
+sampling_settings!(
+    MonteCarloVanillaEngine, binomial::VanillaInstrument<'_>, [step_count],
     [///
-    ],
-    sampling_settings!(
-        MonteCarloVanillaEngine,
-        [step_count],
-        /// Return the price.
-        ///
-        /// Parameters
-        /// ----------
-        /// instrument : object
-        ///     Supported contract; see the engine class for accepted types.
-        /// context : PricingContext
-        ///     Market snapshot and valuation instant.
-        ///
-        /// Returns
-        /// -------
-        /// float
-        ///     Present value of remaining contractual payments.
-        ///
-        /// Raises
-        /// ------
-        /// KiyosiError
-        ///     If domain validation, engine applicability or numerical pricing fails.
-        ///
-        /// Notes
-        /// -----
-        /// System entropy and worker-creation failures raise OSError.
-        ///
-        fn price(
-            &self,
-            py: Python<'_>,
-            #[pyo3(from_py_with = crate::conversions::instrument)]
-            instrument: binomial::VanillaInstrument<'_>,
-            context: &PricingContext,
-        ) -> PyResult<f64> {
-            self.evaluate(py, instrument, context, ScalarRequest::Price)
-        }
-    )
+    ]
 );
 
 /// Monte Carlo price with optional sampling uncertainty.
@@ -461,8 +393,8 @@ impl MonteCarloEstimate {
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEngine);
 
-numerical_greeks_methods!(
-    digital::DigitalInstrument<'_>,
+sampling_settings!(
+    MonteCarloDigitalEngine, digital::DigitalInstrument<'_>, [],
     [
         /// OSError
         ///     If system entropy or worker creation fails.
@@ -474,43 +406,7 @@ numerical_greeks_methods!(
         /// expiry they use default terminal-payoff stencils. Use numerical_greeks for
         /// configurable scalar differences.
         ///
-    ],
-    sampling_settings!(
-        MonteCarloDigitalEngine,
-        [],
-        /// Return the price.
-        ///
-        /// Parameters
-        /// ----------
-        /// instrument : object
-        ///     Supported contract; see the engine class for accepted types.
-        /// context : PricingContext
-        ///     Market snapshot and valuation instant.
-        ///
-        /// Returns
-        /// -------
-        /// float
-        ///     Present value of remaining contractual payments.
-        ///
-        /// Raises
-        /// ------
-        /// KiyosiError
-        ///     If domain validation, engine applicability or numerical pricing fails.
-        ///
-        /// Notes
-        /// -----
-        /// System entropy and worker-creation failures raise OSError.
-        ///
-        fn price(
-            &self,
-            py: Python<'_>,
-            #[pyo3(from_py_with = crate::conversions::instrument)]
-            instrument: digital::DigitalInstrument<'_>,
-            context: &PricingContext,
-        ) -> PyResult<f64> {
-            self.evaluate(py, instrument, context, ScalarRequest::Price)
-        }
-    )
+    ]
 );
 
 /// Flat-rate CPU Monte Carlo pricing for continuous average-price options.
@@ -561,8 +457,8 @@ numerical_greeks_methods!(
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloAsianEngine(pub(crate) kiyosi::MonteCarloAsianEngine);
 
-numerical_greeks_methods!(
-    asian::AsianInstrument<'_>,
+sampling_settings!(
+    MonteCarloAsianEngine, asian::AsianInstrument<'_>, [step_count],
     [
         /// OSError
         ///     If system entropy or worker creation fails.
@@ -574,43 +470,7 @@ numerical_greeks_methods!(
         /// default terminal-payoff stencils. Use numerical_greeks for configurable
         /// scalar differences.
         ///
-    ],
-    sampling_settings!(
-        MonteCarloAsianEngine,
-        [step_count],
-        /// Return the price.
-        ///
-        /// Parameters
-        /// ----------
-        /// instrument : object
-        ///     Supported contract; see the engine class for accepted types.
-        /// context : PricingContext
-        ///     Market snapshot and valuation instant.
-        ///
-        /// Returns
-        /// -------
-        /// float
-        ///     Present value of remaining contractual payments.
-        ///
-        /// Raises
-        /// ------
-        /// KiyosiError
-        ///     If domain validation, engine applicability or numerical pricing fails.
-        ///
-        /// Notes
-        /// -----
-        /// System entropy and worker-creation failures raise OSError.
-        ///
-        fn price(
-            &self,
-            py: Python<'_>,
-            #[pyo3(from_py_with = crate::conversions::instrument)]
-            instrument: asian::AsianInstrument<'_>,
-            context: &PricingContext,
-        ) -> PyResult<f64> {
-            self.evaluate(py, instrument, context, ScalarRequest::Price)
-        }
-    )
+    ]
 );
 
 /// Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.

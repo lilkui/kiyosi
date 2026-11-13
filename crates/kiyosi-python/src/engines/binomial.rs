@@ -63,25 +63,24 @@ macro_rules! binomial_engine {
         #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 
-        numerical_greeks_methods!(
-            $instrument,
+        engine_methods!(@price $name, $instrument,
             [$(#[$greeks_doc])*],
-            engine_methods!(@price
-                $name, $instrument,
+            [],
+            {
                 #[new]
                 #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
                 fn new(
                     #[pyo3(from_py_with = integer)] step_count: i32,
                 ) -> PyResult<Self> {
                     Ok(Self(domain(kiyosi::$name::new(kiyosi::BinomialSettings { step_count }))?))
-                },
+                }
 
                 /// Return the configured number of binomial time steps.
                 #[getter]
                 fn step_count(&self) -> i32 {
                     self.0.settings().step_count
                 }
-            )
+            }
         );
         impl $name {
             pub(crate) fn evaluate<R: Send>(

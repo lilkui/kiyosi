@@ -47,8 +47,7 @@ macro_rules! quadrature_engine {
         #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 
-        numerical_greeks_methods!(
-            $instrument,
+        engine_methods!(@price $name, $instrument,
             [
                 ///
                 /// Notes
@@ -57,8 +56,8 @@ macro_rules! quadrature_engine {
                 /// the request's shift controls. Omitted controls use engine defaults.
                 ///
             ],
-            engine_methods!(@price
-                $name, $instrument,
+            [],
+            {
                 #[new]
                 #[pyo3(signature = (*, asset_step_count=kiyosi::$settings::default().asset_step_count, $($time=kiyosi::$settings::default().$time,)? integration_standard_deviations=kiyosi::$settings::default().integration_standard_deviations))]
                 fn new(
@@ -73,25 +72,27 @@ macro_rules! quadrature_engine {
                             integration_standard_deviations,
                         },
                     ))?))
-                },
+                }
+
                 /// Return the configured number of spatial intervals.
                 #[getter]
                 fn asset_step_count(&self) -> i32 {
                     self.0.settings().asset_step_count
-                },
+                }
+
                 $(
                     /// Return the configured American exercise interval count.
                     #[getter]
                     fn $time(&self) -> i32 {
                         self.0.settings().$time
-                    },
+                    }
                 )?
                 /// Return the integration extent in standard deviations.
                 #[getter]
                 fn integration_standard_deviations(&self) -> f64 {
                     self.0.settings().integration_standard_deviations
                 }
-            )
+            }
         );
         impl $name {
             pub(crate) fn evaluate<R: Send>(

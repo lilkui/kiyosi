@@ -1,5 +1,5 @@
 use crate::conversions::{integer, real};
-use crate::engines::{ScalarRequest, binomial};
+use crate::engines::binomial;
 use crate::error::domain;
 use crate::market::PricingContext;
 use pyo3::prelude::*;
@@ -48,8 +48,34 @@ pub(crate) struct FiniteDifferenceHestonVanillaEngine(
     pub(crate) kiyosi::FiniteDifferenceHestonVanillaEngine,
 );
 
-numerical_greeks_methods!(
-    binomial::VanillaInstrument<'_>,
+engine_methods!(
+    /// Return the price.
+    ///
+    /// Parameters
+    /// ----------
+    /// instrument : EuropeanOption or AmericanOption
+    ///     European or American call or put. European valuation may precede
+    ///     effective_time; American valuation must be within contract life.
+    /// context : PricingContext
+    ///     Heston market snapshot, with initial variance at valuation. Rate/dividend
+    ///     curves must cover valuation through expiry.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Price, or intrinsic value at the expiry instant.
+    ///
+    /// Raises
+    /// ------
+    /// UnsupportedOperationError
+    ///     For other models or instruments, including at expiry.
+    /// InvalidInputError
+    ///     Outside permitted valuation bounds or curve coverage, or for
+    ///     insufficient explicit bounds.
+    /// ComputationFailureError
+    ///     For unrepresentable grids or invalid numerical results.
+    ///
+    FiniteDifferenceHestonVanillaEngine, binomial::VanillaInstrument<'_>,
     [
         ///
         /// Notes
@@ -58,8 +84,7 @@ numerical_greeks_methods!(
         /// validated but unused; numerical_greeks rejects Heston.
         ///
     ],
-    engine_methods!(
-        FiniteDifferenceHestonVanillaEngine,
+    {
         #[new]
         #[pyo3(signature = (*, asset_step_count=kiyosi::HestonFiniteDifferenceSettings::default().asset_step_count, variance_step_count=kiyosi::HestonFiniteDifferenceSettings::default().variance_step_count, time_step_count=kiyosi::HestonFiniteDifferenceSettings::default().time_step_count, asset_upper_boundary=None, variance_upper_boundary=None))]
         fn new(
@@ -80,68 +105,38 @@ numerical_greeks_methods!(
                     },
                 ),
             )?))
-        },
+        }
+
         /// Return the configured number of asset intervals.
         #[getter]
         fn asset_step_count(&self) -> i32 {
             self.0.settings().asset_step_count
-        },
+        }
+
         /// Return the configured number of variance intervals.
         #[getter]
         fn variance_step_count(&self) -> i32 {
             self.0.settings().variance_step_count
-        },
+        }
+
         /// Return the base time intervals before inserting curve knots.
         #[getter]
         fn time_step_count(&self) -> i32 {
             self.0.settings().time_step_count
-        },
+        }
+
         /// Return the explicit asset upper bound, or None.
         #[getter]
         fn asset_upper_boundary(&self) -> Option<f64> {
             self.0.settings().asset_upper_boundary
-        },
+        }
+
         /// Return the explicit variance upper bound, or None.
         #[getter]
         fn variance_upper_boundary(&self) -> Option<f64> {
             self.0.settings().variance_upper_boundary
-        },
-        /// Return the price.
-        ///
-        /// Parameters
-        /// ----------
-        /// instrument : EuropeanOption or AmericanOption
-        ///     European or American call or put. European valuation may precede
-        ///     effective_time; American valuation must be within contract life.
-        /// context : PricingContext
-        ///     Heston market snapshot, with initial variance at valuation. Rate/dividend
-        ///     curves must cover valuation through expiry.
-        ///
-        /// Returns
-        /// -------
-        /// float
-        ///     Price, or intrinsic value at the expiry instant.
-        ///
-        /// Raises
-        /// ------
-        /// UnsupportedOperationError
-        ///     For other models or instruments, including at expiry.
-        /// InvalidInputError
-        ///     Outside permitted valuation bounds or curve coverage, or for
-        ///     insufficient explicit bounds.
-        /// ComputationFailureError
-        ///     For unrepresentable grids or invalid numerical results.
-        ///
-        fn price(
-            &self,
-            py: Python<'_>,
-            #[pyo3(from_py_with = crate::conversions::instrument)]
-            instrument: binomial::VanillaInstrument<'_>,
-            context: &PricingContext,
-        ) -> PyResult<f64> {
-            self.evaluate(py, instrument, context, ScalarRequest::Price)
         }
-    )
+    }
 );
 
 impl FiniteDifferenceHestonVanillaEngine {

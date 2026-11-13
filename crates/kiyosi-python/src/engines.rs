@@ -1,10 +1,9 @@
 use pyo3::prelude::*;
 
+// Expand the complete method block before PyO3 parses the implementation.
 macro_rules! engine_methods {
-    (@price $name:ident, $instrument:ty, $($method:item),* $(,)?) => {
+    (@price $name:ident, $instrument:ty, $greeks_doc:tt, [$(#[$price_extra:meta])*], {$($method:item)*}) => {
         engine_methods!(
-            $name,
-            $($method,)*
             /// Return the price.
             ///
             /// Parameters
@@ -24,6 +23,15 @@ macro_rules! engine_methods {
             /// KiyosiError
             ///     If domain validation, engine applicability or numerical pricing fails.
             ///
+            $(#[$price_extra])*
+            $name, $instrument, $greeks_doc, {$($method)*}
+        );
+    };
+    ($(#[$price_doc:meta])* $name:ident, $instrument:ty, [$(#[$extra_doc:meta])*], {$($method:item)*}) => {
+        #[pyo3::pymethods]
+        impl $name {
+            $($method)*
+            $(#[$price_doc])*
             fn price(
                 &self,
                 py: pyo3::Python<'_>,
@@ -32,28 +40,6 @@ macro_rules! engine_methods {
             ) -> pyo3::PyResult<f64> {
                 self.evaluate(py, instrument, context, $crate::engines::ScalarRequest::Price)
             }
-        );
-    };
-    ($name:ident, $($method:item),* $(,)?) => {
-        #[pyo3::pymethods]
-        impl $name {
-            $($method)*
-        }
-    };
-}
-
-macro_rules! with_contract {
-    ($instrument:expr, $option:ident, $body:expr) => {{
-        let $option = &$instrument.0;
-        $body
-    }};
-}
-
-// Expand methods before PyO3 parses the impl, including Monte Carlo's settings methods.
-macro_rules! numerical_greeks_methods {
-    ($instrument:ty, [$(#[$extra_doc:meta])*], $methods:ident!($($args:tt)*)) => {
-        $methods! {
-            $($args)*,
             /// Return the Greek estimation method.
             ///
             /// Checks model applicability; pricing validates life and history.
@@ -83,7 +69,7 @@ macro_rules! numerical_greeks_methods {
                 context: &$crate::market::PricingContext,
             ) -> pyo3::PyResult<&'static str> {
                 Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.name())
-            },
+            }
             /// Return shift controls used by the Greek estimation method.
             ///
             /// Parameters
@@ -111,7 +97,7 @@ macro_rules! numerical_greeks_methods {
                 context: &$crate::market::PricingContext,
             ) -> pyo3::PyResult<Vec<&'static str>> {
                 Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.active_controls().to_vec())
-            },
+            }
             /// Return the price and selected sensitivities using engine estimators.
             ///
             /// Parameters
@@ -177,6 +163,13 @@ macro_rules! numerical_greeks_methods {
             }
         }
     };
+}
+
+macro_rules! with_contract {
+    ($instrument:expr, $option:ident, $body:expr) => {{
+        let $option = &$instrument.0;
+        $body
+    }};
 }
 
 pub(crate) mod analytic;

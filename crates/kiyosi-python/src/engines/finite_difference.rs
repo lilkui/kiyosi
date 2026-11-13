@@ -93,8 +93,7 @@ macro_rules! fd_engine {
         #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 
-        numerical_greeks_methods!(
-            $instrument,
+        engine_methods!(@price $name, $instrument,
             [
                 ///
                 /// Notes
@@ -107,8 +106,8 @@ macro_rules! fd_engine {
                 /// numerical_greeks for configurable scalar differences under BSM.
                 ///
             ],
-            engine_methods!(@price
-                $name, $instrument,
+            [],
+            {
                 #[new]
                 #[expect(clippy::too_many_arguments, reason = "explicit Python grid and Greek controls")]
                 #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=None))]
@@ -134,17 +133,20 @@ macro_rules! fd_engine {
                             time_shift: time_shift.map(crate::conversions::duration).transpose()?,
                         },
                     }))?))
-                },
+                }
+
                 /// Return the configured number of spatial intervals.
                 #[getter]
                 fn asset_step_count(&self) -> i32 {
                     self.0.settings().asset_step_count
-                },
+                }
+
                 /// Return the configured base number of time intervals before event insertion.
                 #[getter]
                 fn time_step_count(&self) -> i32 {
                     self.0.settings().time_step_count
-                },
+                }
+
                 /// Return the configured time-marching choice string.
                 #[getter]
                 fn scheme(&self) -> &'static str {
@@ -154,33 +156,38 @@ macro_rules! fd_engine {
                         kiyosi::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
                         kiyosi::FiniteDifferenceScheme::Rannacher => "rannacher",
                     }
-                },
+                }
+
                 /// Return the explicit upper spot boundary, or None for automatic selection.
                 #[getter]
                 fn asset_upper_boundary(&self) -> Option<f64> {
                     self.0.settings().asset_upper_boundary
-                },
+                }
+
                 /// Return the native Greek spot bump, or None for automatic selection.
                 #[getter]
                 fn spot_shift(&self) -> Option<f64> {
                     self.0.settings().greek_shifts.spot_shift
-                },
+                }
+
                 /// Return the numerical volatility bump, or None for automatic selection.
                 #[getter]
                 fn volatility_shift(&self) -> Option<f64> {
                     self.0.settings().greek_shifts.volatility_shift
-                },
+                }
+
                 /// Return the numerical parallel rate bump in decimal units.
                 #[getter]
                 fn rate_shift(&self) -> f64 {
                     self.0.settings().greek_shifts.rate_shift
-                },
+                }
+
                 /// Return the explicit time bump, or None for automatic selection.
                 #[getter]
                 fn time_shift<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, pyo3::types::PyDelta>>> {
                     self.0.settings().greek_shifts.time_shift.map(|value| crate::conversions::python_duration(py, value)).transpose()
                 }
-            )
+            }
         );
         impl $name {
             pub(crate) fn evaluate<R: Send>(

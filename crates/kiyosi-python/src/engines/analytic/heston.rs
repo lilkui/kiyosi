@@ -1,5 +1,4 @@
 use crate::conversions::{integer_index, real};
-use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
@@ -42,8 +41,34 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 #[derive(PartialEq)]
 pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHestonEuropeanEngine);
 
-numerical_greeks_methods!(
-    PyRef<'_, EuropeanOption>,
+engine_methods!(
+    /// Return the price.
+    ///
+    /// Parameters
+    /// ----------
+    /// instrument : EuropeanOption
+    ///     European call or put; valuation may precede effective_time.
+    /// context : PricingContext
+    ///     Heston market snapshot; initial variance is at valuation. Rate/dividend
+    ///     curves must cover valuation through expiry.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Price, or intrinsic payoff at the expiry instant.
+    ///
+    /// Raises
+    /// ------
+    /// UnsupportedOperationError
+    ///     For unsupported instruments or models, including at expiry.
+    /// InvalidInputError
+    ///     If valuation follows expiry or lies outside curve coverage.
+    /// NonConvergenceError
+    ///     If the budget or numerical resolution cannot meet the estimated target.
+    /// ComputationFailureError
+    ///     For invalid numerical intermediates or prices.
+    ///
+    AnalyticHestonEuropeanEngine, PyRef<'_, EuropeanOption>,
     [
         ///
         /// Notes
@@ -52,8 +77,7 @@ numerical_greeks_methods!(
         /// validated but unused; numerical_greeks rejects Heston.
         ///
     ],
-    engine_methods!(
-        AnalyticHestonEuropeanEngine,
+    {
         #[new]
         #[pyo3(signature = (*, absolute_tolerance=kiyosi::HestonIntegrationSettings::default().absolute_tolerance, relative_tolerance=kiyosi::HestonIntegrationSettings::default().relative_tolerance, max_evaluations=kiyosi::HestonIntegrationSettings::default().max_evaluations))]
         fn new(
@@ -68,60 +92,26 @@ numerical_greeks_methods!(
                     max_evaluations,
                 },
             ))?))
-        },
+        }
+
         /// Return the absolute tolerance in price units.
         #[getter]
         fn absolute_tolerance(&self) -> f64 {
             self.0.settings().absolute_tolerance
-        },
+        }
+
         /// Return the dimensionless relative tolerance.
         #[getter]
         fn relative_tolerance(&self) -> f64 {
             self.0.settings().relative_tolerance
-        },
+        }
+
         /// Return the total characteristic-function budget per price request.
         #[getter]
         fn max_evaluations(&self) -> usize {
             self.0.settings().max_evaluations
-        },
-        /// Return the price.
-        ///
-        /// Parameters
-        /// ----------
-        /// instrument : EuropeanOption
-        ///     European call or put; valuation may precede effective_time.
-        /// context : PricingContext
-        ///     Heston market snapshot; initial variance is at valuation. Rate/dividend
-        ///     curves must cover valuation through expiry.
-        ///
-        /// Returns
-        /// -------
-        /// float
-        ///     Price, or intrinsic payoff at the expiry instant.
-        ///
-        /// Raises
-        /// ------
-        /// UnsupportedOperationError
-        ///     For unsupported instruments or models, including at expiry.
-        /// InvalidInputError
-        ///     If valuation follows expiry or lies outside curve coverage.
-        /// NonConvergenceError
-        ///     If the budget or numerical resolution cannot meet the estimated target.
-        /// ComputationFailureError
-        ///     For invalid numerical intermediates or prices.
-        ///
-        fn price(
-            &self,
-            py: Python<'_>,
-            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
-                '_,
-                EuropeanOption,
-            >,
-            context: &PricingContext,
-        ) -> PyResult<f64> {
-            self.evaluate(py, instrument, context, ScalarRequest::Price)
         }
-    )
+    }
 );
 
 impl AnalyticHestonEuropeanEngine {

@@ -23,18 +23,17 @@ macro_rules! analytic_engine {
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
         pub(crate) struct $engine;
-        numerical_greeks_methods!(
-            $instrument,
+        engine_methods!(@price $engine, $instrument,
             [
                 $(#[$greeks_doc])*
             ],
-            engine_methods!(@price
-                $engine, $instrument,
+            [],
+            {
                 #[new]
                 fn new() -> Self {
                     Self
                 }
-            )
+            }
         );
         impl $engine {
             pub(crate) fn evaluate<R: Send>(

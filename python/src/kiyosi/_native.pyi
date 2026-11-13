@@ -6213,9 +6213,8 @@ class MonteCarloVanillaEngine:
         KiyosiError
             If domain validation, engine applicability or numerical pricing fails.
 
-        Notes
-        -----
-        System entropy and worker-creation failures raise OSError.
+        OSError
+            If system entropy or worker creation fails.
         """
 
     def price_with_statistics(
@@ -6567,9 +6566,8 @@ class MonteCarloDigitalEngine:
         KiyosiError
             If domain validation, engine applicability or numerical pricing fails.
 
-        Notes
-        -----
-        System entropy and worker-creation failures raise OSError.
+        OSError
+            If system entropy or worker creation fails.
         """
 
     def price_with_statistics(
@@ -6885,6 +6883,7 @@ class MonteCarloBarrierEngine:
         ------
         KiyosiError
             If domain validation, engine applicability or numerical pricing fails.
+
         OSError
             If system entropy or worker creation fails.
         """
@@ -7201,6 +7200,7 @@ class MonteCarloDoubleBarrierEngine:
         ------
         KiyosiError
             If domain validation, engine applicability or numerical pricing fails.
+
         OSError
             If system entropy or worker creation fails.
         """
@@ -7541,6 +7541,7 @@ class MonteCarloAutocallableEngine:
         ------
         KiyosiError
             If domain validation, engine applicability or numerical pricing fails.
+
         OSError
             If system entropy or worker creation fails.
         """
@@ -7864,6 +7865,7 @@ class MonteCarloAccumulatorEngine:
         ------
         KiyosiError
             If domain validation, engine applicability or numerical pricing fails.
+
         OSError
             If system entropy or worker creation fails.
         """
@@ -8202,9 +8204,8 @@ class MonteCarloAsianEngine:
         KiyosiError
             If domain validation, engine applicability or numerical pricing fails.
 
-        Notes
-        -----
-        System entropy and worker-creation failures raise OSError.
+        OSError
+            If system entropy or worker creation fails.
         """
 
     def price_with_statistics(
