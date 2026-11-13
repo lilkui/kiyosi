@@ -110,6 +110,10 @@ pub(crate) fn scaled_cash(amount: f64, exponent: f64) -> f64 {
     }
 }
 
+pub(crate) fn scaled_signed_cash(amount: f64, exponent: f64) -> f64 {
+    scaled_cash(amount.abs(), exponent).copysign(amount)
+}
+
 fn normal_cdf(value: f64) -> f64 {
     0.5 * libm::erfc(-value * FRAC_1_SQRT_2)
 }
@@ -249,6 +253,25 @@ mod integration_tests {
 #[cfg(test)]
 mod price_validation_tests {
     use super::*;
+
+    #[test]
+    fn signed_cash_scaling_preserves_sign_and_extreme_finite_values() {
+        for sign in [-1.0, 1.0] {
+            for (amount, exponent, expected) in [
+                (3.0, 0.0, 3.0),
+                ((-700.0_f64).exp(), 1000.0, 300.0_f64.exp()),
+                (700.0_f64.exp(), -1000.0, (-300.0_f64).exp()),
+                (f64::MAX, 0.0, f64::MAX),
+            ] {
+                let actual = scaled_signed_cash(sign * amount, exponent);
+                assert!((actual / (sign * expected) - 1.0).abs() < 1e-13);
+            }
+            for exponent in [-1000.0, 0.0, 1000.0] {
+                let zero = sign * 0.0_f64;
+                assert_eq!(scaled_signed_cash(zero, exponent).to_bits(), zero.to_bits());
+            }
+        }
+    }
 
     #[test]
     fn nonnegative_prices_only_clip_roundoff_at_the_monetary_scale() {

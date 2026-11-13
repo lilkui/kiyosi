@@ -1,13 +1,13 @@
 use super::gaussian::{
     CubicInterpolation, Polynomial, TerminalPiece, TransitionCache, integrate_curve,
-    integrate_terminal, integration_nodes, scaled,
+    integrate_terminal, integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_times, initial, validate, volatility_affects_price,
 };
-use crate::numerics::log_ratio;
+use crate::numerics::{log_ratio, scaled_signed_cash};
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
     Error, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
@@ -514,19 +514,19 @@ fn price<T: AutocallableTerms>(
         alive = Curve {
             cells: interpolation.interpolate(&values),
             low: [
-                scaled(alive.low[0], discount),
-                scaled(alive.low[1], -dividend * time),
+                scaled_signed_cash(alive.low[0], discount),
+                scaled_signed_cash(alive.low[1], -dividend * time),
             ],
-            high: scaled(alive.high, discount),
+            high: scaled_signed_cash(alive.high, discount),
         };
         if layers {
             knocked = Curve {
                 cells: interpolation.interpolate(&values_in),
                 low: [
-                    scaled(knocked.low[0], discount),
-                    scaled(knocked.low[1], -dividend * time),
+                    scaled_signed_cash(knocked.low[0], discount),
+                    scaled_signed_cash(knocked.low[1], -dividend * time),
                 ],
-                high: scaled(knocked.high, discount),
+                high: scaled_signed_cash(knocked.high, discount),
             };
         }
     }

@@ -4,6 +4,7 @@ use crate::engines::analytic::barrier::resolved_price_with_state;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{
     Sum, adaptive_simpson, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf,
+    scaled_signed_cash,
 };
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, ObservationMode, OptionType, PricingContext,
@@ -113,10 +114,6 @@ pub(crate) fn resolved_price(
         option.state(context)?,
         option.payoff_requires_touch(),
     )
-}
-
-fn scaled(value: f64, exponent: f64) -> f64 {
-    scaled_cash(value.abs(), exponent).copysign(value)
 }
 
 #[derive(Clone, Copy)]
@@ -288,7 +285,7 @@ impl AbsorbingDistribution {
                     let coefficient = ((slope / denominator) * sine
                         - (frequency / denominator) * cosine)
                         / denominator;
-                    scaled(coefficient, log_weight - decay)
+                    scaled_signed_cash(coefficient, log_weight - decay)
                 };
                 let term = 2.0
                     * (frequency * (initial / band)).sin()
@@ -359,11 +356,11 @@ impl AbsorbingDistribution {
                 sum.add(1.0);
                 for index in 1..=64 {
                     let shift = f64::from(index) * self.band;
-                    let plus = scaled(
+                    let plus = scaled_signed_cash(
                         1.0 + 2.0 * shift / distance,
                         -2.0 * (shift / deviation) * ((shift + distance) / deviation),
                     );
-                    let minus = scaled(
+                    let minus = scaled_signed_cash(
                         1.0 - 2.0 * shift / distance,
                         -2.0 * (shift / deviation) * ((shift - distance) / deviation),
                     );

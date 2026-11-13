@@ -4,7 +4,7 @@ use crate::instruments::{
     binary_barrier::Contract,
     monitoring::{Monitoring, validate_life},
 };
-use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash};
+use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash, scaled_signed_cash};
 use crate::{
     Accumulator, AutocallableNote, AutocallableTerms, BarrierOption, DoubleBarrierOption, Error,
     ModelParameters, ObservationMode, OptionContract, PricingContext, RebateTiming, Result,
@@ -346,21 +346,18 @@ pub(super) fn autocallable<T: AutocallableTerms>(
             if note.knock_out_enabled(record) && spot >= record.knock_out_level() {
                 return finite(
                     coupons
-                        + scaled_cash(
-                            (note.knock_out_payment(record) + coupon).abs(),
+                        + scaled_signed_cash(
+                            note.knock_out_payment(record) + coupon,
                             discount(context, time)?,
-                        )
-                        .copysign(note.knock_out_payment(record) + coupon),
+                        ),
                 );
             }
-            coupons += scaled_cash(coupon.abs(), discount(context, time)?).copysign(coupon);
+            coupons += scaled_signed_cash(coupon, discount(context, time)?);
         }
         if time == note.expiry_time() {
             knocked_in |= note.observes_knock_in(time) && note.view().below_knock_in(spot);
             let terminal = note.terminal(spot, knocked_in);
-            return finite(
-                coupons + scaled_cash(terminal.abs(), discount(context, time)?).copysign(terminal),
-            );
+            return finite(coupons + scaled_signed_cash(terminal, discount(context, time)?));
         }
     }
     Err(invalid())

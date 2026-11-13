@@ -1,7 +1,7 @@
 use super::flat_rates;
 use crate::engines::analytic::barrier::{hit_value, resolved_price};
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{checked, log_ratio, scaled_cash};
+use crate::numerics::{checked, log_ratio, scaled_cash, scaled_signed_cash};
 use crate::{
     BarrierOption, Error, GreeksRequest, OptionType, PricingContext, PricingEngine, PricingResult,
     RebateTiming, Result,
@@ -346,7 +346,7 @@ fn terminal_layer(option: &BarrierOption) -> Vec<super::gaussian::TerminalPiece>
 
 use super::gaussian::{
     CubicInterpolation, Layer, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes, scaled,
+    integration_nodes,
 };
 
 fn event_limit(
@@ -365,7 +365,7 @@ fn event_limit(
         };
         return Ok(if (sign > 0.0) == high {
             [
-                -sign * scaled(option.strike(), -rate * remaining),
+                -sign * scaled_signed_cash(option.strike(), -rate * remaining),
                 sign * (-dividend * remaining).exp(),
             ]
         } else {
@@ -378,7 +378,7 @@ fn event_limit(
         } else {
             -rate * remaining
         };
-    Ok([scaled(option.rebate(), discount), 0.0])
+    Ok([scaled_signed_cash(option.rebate(), discount), 0.0])
 }
 
 fn event_layer(
@@ -392,7 +392,7 @@ fn event_layer(
     let remaining = date.years_until(option.expiry_time());
     let knock_in = option.barrier_type().is_knock_in();
     let (rate, _) = flat_rates(context)?;
-    let rebate = scaled(
+    let rebate = scaled_signed_cash(
         option.rebate(),
         if !knock_in && option.rebate_timing() == RebateTiming::AtHit {
             0.0
@@ -406,7 +406,7 @@ fn event_layer(
         let values = nodes
             .iter()
             .map(|&node| {
-                let spot = scaled(option.strike(), node);
+                let spot = scaled_signed_cash(option.strike(), node);
                 if !spot.is_finite() || spot <= 0.0 {
                     return Err(Error::ComputationFailure(
                         "quadrature asset grid is not representable".into(),

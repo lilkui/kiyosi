@@ -1,9 +1,9 @@
 use super::gaussian::{
     CubicInterpolation, Layer, Polynomial, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes, scaled,
+    integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
-use crate::numerics::log_ratio;
+use crate::numerics::{log_ratio, scaled_signed_cash};
 use crate::{
     Accumulator, BlackScholesMertonParameters, Error, GreeksRequest, OptionType, PricingContext,
     PricingEngine, PricingResult, Result, Timestamp,
@@ -312,7 +312,7 @@ fn price(
                     result.exact.push(TerminalPiece {
                         lower,
                         upper,
-                        cash: quantity * scaled(-sign * strike, -rate * remaining),
+                        cash: quantity * scaled_signed_cash(-sign * strike, -rate * remaining),
                         asset: sign * quantity * (-dividend * remaining).exp(),
                     });
                 }

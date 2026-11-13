@@ -1,9 +1,5 @@
-use crate::numerics::{Sum, log_interval_mass, scaled_cash};
+use crate::numerics::{Sum, log_interval_mass, scaled_signed_cash};
 const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
-
-pub(super) fn scaled(amount: f64, exponent: f64) -> f64 {
-    amount.signum() * scaled_cash(amount.abs(), exponent)
-}
 
 pub(super) struct TerminalPiece {
     pub lower: f64,
@@ -26,13 +22,13 @@ pub(super) fn integrate_terminal(
         let lower = (piece.lower - mean) / deviation;
         let upper = (piece.upper - mean) / deviation;
         if piece.cash != 0.0 {
-            sum.add(scaled(
+            sum.add(scaled_signed_cash(
                 piece.cash,
                 discount + log_interval_mass(lower, upper),
             ));
         }
         if piece.asset != 0.0 {
-            sum.add(scaled(
+            sum.add(scaled_signed_cash(
                 piece.asset,
                 anchor.ln()
                     + mean
@@ -104,7 +100,7 @@ impl IntervalMoments {
         if self.mass > 0.0 {
             mean * self.mass
         } else {
-            scaled(mean, self.log_mass)
+            scaled_signed_cash(mean, self.log_mass)
         }
     }
 }
@@ -368,7 +364,7 @@ pub(super) fn integrate_curve(
         sum.add(if factor.is_normal() {
             value * factor
         } else {
-            scaled(value, discount)
+            scaled_signed_cash(value, discount)
         });
     }
     sum.total()
@@ -461,7 +457,7 @@ impl Transition {
                 sum.add(if factor.is_normal() {
                     value * factor
                 } else {
-                    scaled(value, discount)
+                    scaled_signed_cash(value, discount)
                 });
             }
             *value = sum.total();
