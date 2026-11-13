@@ -163,6 +163,15 @@ impl RateTermStructure {
                 .map(|rate| rate + self.spread)
         })
     }
+
+    pub(super) fn require_flat_rate(&self, field: &str) -> Result<f64> {
+        self.exact_flat_rate().ok_or_else(|| {
+            Error::UnsupportedOperation(format!(
+                "{field} curve is not exactly constant; use an explicitly flat curve (bounded_flat preserves coverage)"
+            ).into())
+        })
+    }
+
     /// Returns the inclusive lower coverage bound, or `None` for undated flat rates.
     ///
     /// See [`Self::new`] for a dated curve example.

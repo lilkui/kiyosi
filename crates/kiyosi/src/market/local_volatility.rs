@@ -254,11 +254,7 @@ impl LocalVolatilityParameters {
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant curves.
     pub fn flat_risk_free_rate(&self) -> Result<f64> {
-        self.risk_free_curve
-            .exact_flat_rate()
-            .ok_or(Error::UnsupportedOperation(
-                "risk-free curve is not exactly constant; use an explicitly flat curve (bounded_flat preserves coverage)".into(),
-            ))
+        self.risk_free_curve.require_flat_rate("risk-free")
     }
     /// Returns the constant scalar dividend yield, including dated curves.
     ///
@@ -268,11 +264,7 @@ impl LocalVolatilityParameters {
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant curves.
     pub fn flat_dividend_yield(&self) -> Result<f64> {
-        self.dividend_curve
-            .exact_flat_rate()
-            .ok_or(Error::UnsupportedOperation(
-                "dividend curve is not exactly constant; use an explicitly flat curve (bounded_flat preserves coverage)".into(),
-            ))
+        self.dividend_curve.require_flat_rate("dividend")
     }
     /// Borrows the fixed surface; see [`Self::new`] for construction.
     pub fn surface(&self) -> &LocalVolatilitySurface {
