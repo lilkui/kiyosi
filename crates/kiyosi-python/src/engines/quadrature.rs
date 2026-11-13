@@ -1,5 +1,4 @@
 use crate::conversions::{integer, real};
-use crate::engines::ScalarRequest;
 use crate::engines::binomial::{VanillaInstrument, with_vanilla};
 use crate::error::domain;
 use crate::instruments::{accumulator::Accumulator, autocallable, barrier::BarrierOption, digital};
@@ -50,8 +49,8 @@ macro_rules! quadrature_engine {
                 /// the request's shift controls. Omitted controls use engine defaults.
                 ///
             ],
-            engine_methods!(
-                $name,
+            engine_methods!(@price
+                $name, $instrument,
                 #[new]
                 #[pyo3(signature = (*, asset_step_count=kiyosi::$settings::default().asset_step_count, $($time=kiyosi::$settings::default().$time,)? integration_standard_deviations=kiyosi::$settings::default().integration_standard_deviations))]
                 fn new(
@@ -83,33 +82,6 @@ macro_rules! quadrature_engine {
                 #[getter]
                 fn integration_standard_deviations(&self) -> f64 {
                     self.0.settings().integration_standard_deviations
-                },
-                /// Return the price.
-                ///
-                /// Parameters
-                /// ----------
-                /// instrument : object
-                ///     Supported contract; see the engine class for accepted types.
-                /// context : PricingContext
-                ///     Market snapshot and valuation instant.
-                ///
-                /// Returns
-                /// -------
-                /// float
-                ///     Present value of remaining contractual payments.
-                ///
-                /// Raises
-                /// ------
-                /// KiyosiError
-                ///     If domain validation, engine applicability or numerical pricing fails.
-                ///
-                fn price(
-                    &self,
-                    py: Python<'_>,
-                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                    context: &PricingContext,
-                ) -> PyResult<f64> {
-                    self.evaluate(py, instrument, context, ScalarRequest::Price)
                 }
             )
         );

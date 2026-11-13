@@ -1,5 +1,4 @@
 use crate::conversions::integer;
-use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::american;
 use crate::instruments::barrier::BarrierOption;
@@ -67,8 +66,8 @@ macro_rules! binomial_engine {
         numerical_greeks_methods!(
             $instrument,
             [$(#[$greeks_doc])*],
-            engine_methods!(
-                $name,
+            engine_methods!(@price
+                $name, $instrument,
                 #[new]
                 #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
                 fn new(
@@ -81,34 +80,6 @@ macro_rules! binomial_engine {
                 #[getter]
                 fn step_count(&self) -> i32 {
                     self.0.settings().step_count
-                },
-
-                /// Return the price.
-                ///
-                /// Parameters
-                /// ----------
-                /// instrument : object
-                ///     Supported contract; see the engine class for accepted types.
-                /// context : PricingContext
-                ///     Market snapshot and valuation instant.
-                ///
-                /// Returns
-                /// -------
-                /// float
-                ///     Present value of remaining contractual payments.
-                ///
-                /// Raises
-                /// ------
-                /// KiyosiError
-                ///     If domain validation, engine applicability or numerical pricing fails.
-                ///
-                fn price(
-                    &self,
-                    py: Python<'_>,
-                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                    context: &PricingContext,
-                ) -> PyResult<f64> {
-                    self.evaluate(py, instrument, context, ScalarRequest::Price)
                 }
             )
         );

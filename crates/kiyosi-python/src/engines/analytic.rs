@@ -28,38 +28,11 @@ macro_rules! analytic_engine {
             [
                 $(#[$greeks_doc])*
             ],
-            engine_methods!(
-                $engine,
+            engine_methods!(@price
+                $engine, $instrument,
                 #[new]
                 fn new() -> Self {
                     Self
-                },
-                /// Return the price.
-                ///
-                /// Parameters
-                /// ----------
-                /// instrument : object
-                ///     Supported contract; see the engine class for accepted types.
-                /// context : PricingContext
-                ///     Market snapshot and valuation instant.
-                ///
-                /// Returns
-                /// -------
-                /// float
-                ///     Present value of remaining contractual payments.
-                ///
-                /// Raises
-                /// ------
-                /// KiyosiError
-                ///     If domain validation, engine applicability or numerical pricing fails.
-                ///
-                fn price(
-                    &self,
-                    py: Python<'_>,
-                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                    context: &PricingContext,
-                ) -> PyResult<f64> {
-                    self.evaluate(py, instrument, context, $crate::engines::ScalarRequest::Price)
                 }
             )
         );

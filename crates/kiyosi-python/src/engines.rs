@@ -1,6 +1,39 @@
 use pyo3::prelude::*;
 
 macro_rules! engine_methods {
+    (@price $name:ident, $instrument:ty, $($method:item),* $(,)?) => {
+        engine_methods!(
+            $name,
+            $($method,)*
+            /// Return the price.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            ///
+            /// Returns
+            /// -------
+            /// float
+            ///     Present value of remaining contractual payments.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If domain validation, engine applicability or numerical pricing fails.
+            ///
+            fn price(
+                &self,
+                py: pyo3::Python<'_>,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                context: &$crate::market::PricingContext,
+            ) -> pyo3::PyResult<f64> {
+                self.evaluate(py, instrument, context, $crate::engines::ScalarRequest::Price)
+            }
+        );
+    };
     ($name:ident, $($method:item),* $(,)?) => {
         #[pyo3::pymethods]
         impl $name {

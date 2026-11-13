@@ -1,5 +1,4 @@
 use crate::conversions::{integer, real};
-use crate::engines::ScalarRequest;
 use crate::engines::binomial;
 use crate::error::domain;
 use crate::instruments::accumulator;
@@ -108,8 +107,8 @@ macro_rules! fd_engine {
                 /// numerical_greeks for configurable scalar differences under BSM.
                 ///
             ],
-            engine_methods!(
-                $name,
+            engine_methods!(@price
+                $name, $instrument,
                 #[new]
                 #[expect(clippy::too_many_arguments, reason = "explicit Python grid and Greek controls")]
                 #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=None))]
@@ -180,33 +179,6 @@ macro_rules! fd_engine {
                 #[getter]
                 fn time_shift<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, pyo3::types::PyDelta>>> {
                     self.0.settings().greek_shifts.time_shift.map(|value| crate::conversions::python_duration(py, value)).transpose()
-                },
-                /// Return the price.
-                ///
-                /// Parameters
-                /// ----------
-                /// instrument : object
-                ///     Supported contract; see the engine class for accepted types.
-                /// context : PricingContext
-                ///     Market snapshot and valuation instant.
-                ///
-                /// Returns
-                /// -------
-                /// float
-                ///     Present value of remaining contractual payments.
-                ///
-                /// Raises
-                /// ------
-                /// KiyosiError
-                ///     If domain validation, engine applicability or numerical pricing fails.
-                ///
-                fn price(
-                    &self,
-                    py: Python<'_>,
-                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                    context: &PricingContext,
-                ) -> PyResult<f64> {
-                    self.evaluate(py, instrument, context, ScalarRequest::Price)
                 }
             )
         );
