@@ -81,7 +81,7 @@ fn touch(kind: BarrierType) -> TouchOptionTerms {
 }
 
 #[test]
-fn named_touch_constructors_enforce_the_payment_condition() -> Result<()> {
+fn touch_barrier_types_select_the_payment_condition() -> Result<()> {
     let start = day(2025, 1, 1);
     let end = start.add_days(365)?;
     let context = PricingContext::new(
@@ -95,23 +95,15 @@ fn named_touch_constructors_enforce_the_payment_condition() -> Result<()> {
     ] {
         let terms = |kind| TouchOptionTerms::new(start, end, level, kind);
         for (option, expected) in [
-            (TouchOption::cash_one_touch(terms(inside), 10.0)?, 0.0),
-            (TouchOption::cash_no_touch(terms(outside), 10.0)?, 10.0),
-            (TouchOption::asset_one_touch(terms(inside))?, 0.0),
-            (TouchOption::asset_no_touch(terms(outside))?, 100.0),
+            (TouchOption::cash(terms(inside), 10.0)?, 0.0),
+            (TouchOption::cash(terms(outside), 10.0)?, 10.0),
+            (TouchOption::asset(terms(inside))?, 0.0),
+            (TouchOption::asset(terms(outside))?, 100.0),
         ] {
             assert_eq!(
                 AnalyticBinaryBarrierEngine.price(&option, &context)?,
                 expected
             );
-        }
-        for result in [
-            TouchOption::cash_one_touch(terms(outside), 10.0),
-            TouchOption::cash_no_touch(terms(inside), 10.0),
-            TouchOption::asset_one_touch(terms(outside)),
-            TouchOption::asset_no_touch(terms(inside)),
-        ] {
-            assert!(matches!(result, Err(Error::InvalidInput(_))));
         }
     }
     Ok(())

@@ -239,15 +239,6 @@ impl TouchOptionTerms {
             &self.calendar,
         )
     }
-
-    fn validate_touch_kind(&self, one_touch: bool) -> Result<()> {
-        if self.barrier_type.is_knock_in() != one_touch {
-            return Err(Error::InvalidInput(
-                "one-touch constructors require knock-in barriers; no-touch constructors require knock-out barriers".into(),
-            ));
-        }
-        Ok(())
-    }
 }
 
 /// Owns a validated cash/asset one-touch or no-touch contract, with no strike.
@@ -261,61 +252,6 @@ pub struct TouchOption {
     settlement_timing: SettlementTiming,
 }
 impl TouchOption {
-    /// Creates a cash one-touch contract that pays when its barrier is reached.
-    ///
-    /// Uses [`Self::cash`]'s settlement and history rules. See that method for an example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a knock-out barrier, then propagates
-    /// [`Self::cash`] validation errors.
-    pub fn cash_one_touch(terms: TouchOptionTerms, payout: f64) -> Result<Self> {
-        terms.validate_touch_kind(true)?;
-        Self::cash(terms, payout)
-    }
-
-    /// Creates a cash no-touch contract that pays when its barrier is never reached.
-    ///
-    /// Uses [`Self::cash`]'s settlement and history rules; payment is at expiry.
-    /// See [`Self::asset`] for an example of no-touch monitoring terms.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a knock-in barrier, then propagates
-    /// [`Self::cash`] validation errors.
-    pub fn cash_no_touch(terms: TouchOptionTerms, payout: f64) -> Result<Self> {
-        terms.validate_touch_kind(false)?;
-        Self::cash(terms, payout)
-    }
-
-    /// Creates an asset one-touch contract that pays when its barrier is reached.
-    ///
-    /// Uses [`Self::asset`]'s settlement and history rules. See [`Self::cash`] for
-    /// an example of one-touch monitoring terms.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a knock-out barrier, then propagates
-    /// [`Self::asset`] validation errors.
-    pub fn asset_one_touch(terms: TouchOptionTerms) -> Result<Self> {
-        terms.validate_touch_kind(true)?;
-        Self::asset(terms)
-    }
-
-    /// Creates an asset no-touch contract that pays when its barrier is never reached.
-    ///
-    /// Uses [`Self::asset`]'s settlement and history rules; payment is at expiry.
-    /// See that method for an example of no-touch monitoring terms.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a knock-in barrier, then propagates
-    /// [`Self::asset`] validation errors.
-    pub fn asset_no_touch(terms: TouchOptionTerms) -> Result<Self> {
-        terms.validate_touch_kind(false)?;
-        Self::asset(terms)
-    }
-
     /// Creates a cash touch contract; one-touch pays on a hit, no-touch on its absence.
     ///
     /// Current at-hit cash pays the payout; prior at-hit settlement has zero remaining value.
