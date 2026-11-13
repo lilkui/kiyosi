@@ -51,21 +51,15 @@ def make_terms(**changes):
     } | changes
 
 
-def make_touch(factory=ins.cash_touch_option, **changes):
+def make_touch(payoff_type="cash", **changes):
     terms = make_terms()
     for key in ("option_type", "strike"):
         terms.pop(key)
     terms["barrier_type"] = "up_and_in"
-    if factory is ins.cash_touch_option:
+    terms["payoff_type"] = payoff_type
+    if payoff_type == "cash":
         terms["payout"] = 10
-    terms |= changes
-    if terms["barrier_type"] in ("up_and_out", "down_and_out"):
-        factory = (
-            ins.cash_no_touch_option
-            if factory is ins.cash_touch_option
-            else ins.asset_no_touch_option
-        )
-    return factory(**terms)
+    return ins.TouchOption(**(terms | changes))
 
 
 def make_context(
@@ -89,10 +83,10 @@ def make_context(
 
 def test_strict_history_current_and_paid_cash_and_asset_settlement():
     engine = AnalyticBinaryBarrierEngine()
-    for factory in (ins.cash_touch_option, ins.asset_touch_option):
-        asset = factory is ins.asset_touch_option
+    for payoff_type in ("cash", "asset"):
+        asset = payoff_type == "asset"
         for timing in ("at_hit", "at_expiry"):
-            option = make_touch(factory, settlement_timing=timing)
+            option = make_touch(payoff_type, settlement_timing=timing)
             assert option.touch_state is None
             assert option.observation_mode == "continuous"
             amount = 130 if asset else 10
@@ -154,8 +148,8 @@ def test_strict_history_current_and_paid_cash_and_asset_settlement():
             assert option.replace(payoff_type="cash", payout=7).payout == 7
             assert option.touch_state is None
     for kind in ("up_and_in", "up_and_out"):
-        option = ins.cash_binary_barrier_option(
-            **make_terms(barrier_type=kind), payout=10
+        option = ins.BinaryBarrierOption(
+            payoff_type="cash", **make_terms(barrier_type=kind), payout=10
         )
         assert_rejection(
             MissingHistoryError,
@@ -178,28 +172,34 @@ def test_strict_history_current_and_paid_cash_and_asset_settlement():
 
 
 def test_representation_domain_validation_and_failure_state(subtests):
-    for factory in (
-        ins.cash_binary_barrier_option,
-        ins.asset_binary_barrier_option,
+    for payoff_type in (
+        "cash",
+        "asset",
     ):
-        extra = {"payout": 10} if factory is ins.cash_binary_barrier_option else {}
-        option = factory(**make_terms(), **extra)
+        extra = {"payout": 10} if payoff_type == "cash" else {}
+        option = ins.BinaryBarrierOption(**make_terms(payoff_type=payoff_type), **extra)
         for field in ("strike", "barrier_level", *extra):
             for value in (True, "100", None, 1 + 0j):
                 with (
                     subtests.test(field=field, value=value),
                     pytest.raises(TypeError),
                 ):
-                    factory(**(make_terms() | extra | {field: value}))
+                    ins.BinaryBarrierOption(
+                        **(make_terms(payoff_type=payoff_type) | extra | {field: value})
+                    )
         for field in (
             "option_type",
             "barrier_type",
             "touch_state",
         ):
             with subtests.test(field=field), pytest.raises(TypeError):
-                factory(**(make_terms() | extra | {field: True}))
+                ins.BinaryBarrierOption(
+                    **(make_terms(payoff_type=payoff_type) | extra | {field: True})
+                )
             with subtests.test(field=field), pytest.raises(ValueError):
-                factory(**(make_terms() | extra | {field: "unknown"}))
+                ins.BinaryBarrierOption(
+                    **(make_terms(payoff_type=payoff_type) | extra | {field: "unknown"})
+                )
         for fields, expected_error in (
             ({"strike": 0, "barrier_level": 0}, InvalidInputError),
             ({"barrier_level": 0}, InvalidInputError),
@@ -220,14 +220,18 @@ def test_representation_domain_validation_and_failure_state(subtests):
         ):
             assert_rejection(
                 expected_error,
-                lambda fields=fields, factory=factory, extra=extra: factory(
-                    **(make_terms() | extra | fields)
+                lambda fields=fields, payoff_type=payoff_type, extra=extra: (
+                    ins.BinaryBarrierOption(
+                        **(make_terms(payoff_type=payoff_type) | extra | fields)
+                    )
                 ),
             )
         for fields in ({"strike": True}, {"touch_state": True}):
             with pytest.raises(TypeError):
                 option.replace(**fields)
-        assert option == factory(**make_terms(), **extra)
+        assert option == ins.BinaryBarrierOption(
+            **make_terms(payoff_type=payoff_type), **extra
+        )
         with pytest.raises(AttributeError):
             option.strike = 0
     for payout in (0, -1, math.inf, math.nan):
@@ -236,8 +240,8 @@ def test_representation_domain_validation_and_failure_state(subtests):
         )
         assert_rejection(
             InvalidInputError,
-            lambda payout=payout: ins.cash_binary_barrier_option(
-                **make_terms(strike=0), payout=payout
+            lambda payout=payout: ins.BinaryBarrierOption(
+                payoff_type="cash", **make_terms(strike=0), payout=payout
             ),
         )
     for field in (
@@ -264,28 +268,28 @@ def test_representation_domain_validation_and_failure_state(subtests):
         AnalyticBinaryBarrierEngine().price(object(), make_context())
 
 
-@pytest.mark.parametrize("factory", (ins.cash_touch_option, ins.asset_touch_option))
-def test_touch_factories_select_all_barrier_types_and_validate_settlement(
-    subtests, factory
+@pytest.mark.parametrize("payoff_type", ("cash", "asset"))
+def test_touch_payoffs_select_all_barrier_types_and_validate_settlement(
+    subtests, payoff_type
 ):
     for kind in ("up_and_in", "up_and_out", "down_and_in", "down_and_out"):
-        with subtests.test(factory=factory.__name__, barrier_type=kind):
-            option = make_touch(factory, barrier_type=kind)
+        with subtests.test(payoff_type=payoff_type, barrier_type=kind):
+            option = make_touch(payoff_type, barrier_type=kind)
             assert option.barrier_type == kind
             assert option.is_up == kind.startswith("up")
             assert option.is_one_touch == kind.endswith("_in")
             assert option.settlement_timing == "at_expiry"
-            assert option.payout == (10 if factory is ins.cash_touch_option else None)
+            assert option.payout == (10 if payoff_type == "cash" else None)
             if kind.endswith("_in"):
                 at_hit = make_touch(
-                    factory, barrier_type=kind, settlement_timing="at_hit"
+                    payoff_type, barrier_type=kind, settlement_timing="at_hit"
                 )
                 assert at_hit.settlement_timing == "at_hit"
             else:
                 assert_rejection(
                     InvalidInputError,
-                    lambda factory=factory, kind=kind: make_touch(
-                        factory, barrier_type=kind, settlement_timing="at_hit"
+                    lambda payoff_type=payoff_type, kind=kind: make_touch(
+                        payoff_type, barrier_type=kind, settlement_timing="at_hit"
                     ),
                 )
     for invalid, error in (
@@ -293,11 +297,11 @@ def test_touch_factories_select_all_barrier_types_and_validate_settlement(
         (None, TypeError),
         ("up", ValueError),
     ):
-        with subtests.test(factory=factory.__name__, invalid=invalid):
+        with subtests.test(payoff_type=payoff_type, invalid=invalid):
             assert_rejection(
                 error,
-                lambda factory=factory, invalid=invalid: make_touch(
-                    factory, barrier_type=invalid
+                lambda payoff_type=payoff_type, invalid=invalid: make_touch(
+                    payoff_type, barrier_type=invalid
                 ),
             )
 
@@ -360,8 +364,8 @@ def test_scheduled_boundaries_history_and_owned_dates():
 def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
     engine = AnalyticBinaryBarrierEngine()
     options = [
-        ins.cash_binary_barrier_option(
-            **make_terms(touch_state="untouched"), payout=10
+        ins.BinaryBarrierOption(
+            payoff_type="cash", **make_terms(touch_state="untouched"), payout=10
         ),
         make_touch(touch_state="untouched"),
     ]
@@ -488,22 +492,13 @@ def test_existing_quantlib_price_and_greek_scenarios(subtests, quantlib_settings
             }
             if not asset:
                 terms["payout"] = inputs["payout"]
+            terms["payoff_type"] = "asset" if asset else "cash"
             if inputs["option"] == "none":
-                factory = (
-                    (ins.asset_no_touch_option if asset else ins.cash_no_touch_option)
-                    if kind.endswith("_out")
-                    else (ins.asset_touch_option if asset else ins.cash_touch_option)
-                )
-                option = factory(
+                option = ins.TouchOption(
                     **terms, barrier_type=kind, settlement_timing=inputs["settlement"]
                 )
             else:
-                factory = (
-                    ins.asset_binary_barrier_option
-                    if asset
-                    else ins.cash_binary_barrier_option
-                )
-                option = factory(
+                option = ins.BinaryBarrierOption(
                     **terms,
                     option_type=inputs["option"],
                     strike=inputs["strike"],

@@ -13,11 +13,7 @@ from kiyosi.instruments import (
     SnowballOption,
     TernarySnowballOption,
     TouchOption,
-    asset_no_touch_option,
-    asset_touch_option,
     autocallable_observations,
-    cash_no_touch_option,
-    cash_touch_option,
     standard_phoenix,
     step_down_phoenix,
 )
@@ -36,7 +32,8 @@ DoubleTouchOption()  # ty: ignore[missing-argument]
 
 def touch_payment_conditions(start: datetime, end: datetime) -> None:
     assert_type(
-        cash_touch_option(
+        TouchOption(
+            payoff_type="cash",
             effective_time=start,
             expiry_time=end,
             barrier_level=120,
@@ -46,7 +43,8 @@ def touch_payment_conditions(start: datetime, end: datetime) -> None:
         TouchOption,
     )
     assert_type(
-        cash_no_touch_option(
+        TouchOption(
+            payoff_type="cash",
             effective_time=start,
             expiry_time=end,
             barrier_level=120,
@@ -56,7 +54,8 @@ def touch_payment_conditions(start: datetime, end: datetime) -> None:
         TouchOption,
     )
     assert_type(
-        asset_touch_option(
+        TouchOption(
+            payoff_type="asset",
             effective_time=start,
             expiry_time=end,
             barrier_level=80,
@@ -65,7 +64,8 @@ def touch_payment_conditions(start: datetime, end: datetime) -> None:
         TouchOption,
     )
     assert_type(
-        asset_no_touch_option(
+        TouchOption(
+            payoff_type="asset",
             effective_time=start,
             expiry_time=end,
             barrier_level=80,
@@ -73,18 +73,20 @@ def touch_payment_conditions(start: datetime, end: datetime) -> None:
         ),
         TouchOption,
     )
-    cash_touch_option(
+    TouchOption(  # ty: ignore[no-matching-overload]
+        payoff_type="cash",
         effective_time=start,
         expiry_time=end,
         barrier_level=120,
-        barrier_type="up_and_out",  # ty: ignore[invalid-argument-type]
+        barrier_type="invalid",
         payout=10,
     )
-    asset_no_touch_option(
+    TouchOption(
+        payoff_type="asset",
         effective_time=start,
         expiry_time=end,
         barrier_level=80,
-        barrier_type="down_and_in",  # ty: ignore[invalid-argument-type]
+        barrier_type="invalid",  # ty: ignore[invalid-argument-type]
     )
 
 

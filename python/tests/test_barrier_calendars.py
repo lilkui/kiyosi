@@ -54,8 +54,9 @@ def test_barrier_calendars_are_owned_and_survive_reconstruction(subtests):
             [pricing.FiniteDifferenceDoubleBarrierEngine()],
         ),
         (
-            ins.cash_binary_barrier_option,
+            ins.BinaryBarrierOption,
             {
+                "payoff_type": "cash",
                 "option_type": "call",
                 "strike": 100,
                 "barrier_level": 120,
@@ -65,8 +66,9 @@ def test_barrier_calendars_are_owned_and_survive_reconstruction(subtests):
             [pricing.FiniteDifferenceBinaryBarrierEngine()],
         ),
         (
-            ins.asset_binary_barrier_option,
+            ins.BinaryBarrierOption,
             {
+                "payoff_type": "asset",
                 "option_type": "call",
                 "strike": 100,
                 "barrier_level": 120,
@@ -75,23 +77,38 @@ def test_barrier_calendars_are_owned_and_survive_reconstruction(subtests):
             [pricing.FiniteDifferenceBinaryBarrierEngine()],
         ),
         (
-            ins.cash_touch_option,
-            {"barrier_level": 120, "barrier_type": "up_and_in", "payout": 10},
+            ins.TouchOption,
+            {
+                "payoff_type": "cash",
+                "barrier_level": 120,
+                "barrier_type": "up_and_in",
+                "payout": 10,
+            },
             [pricing.FiniteDifferenceBinaryBarrierEngine()],
         ),
         (
-            ins.asset_touch_option,
-            {"barrier_level": 120, "barrier_type": "up_and_in"},
+            ins.TouchOption,
+            {"payoff_type": "asset", "barrier_level": 120, "barrier_type": "up_and_in"},
             [pricing.FiniteDifferenceBinaryBarrierEngine()],
         ),
         (
-            ins.cash_double_touch,
-            {"lower_barrier": 80, "upper_barrier": 120, "payout": 10},
+            ins.DoubleTouchOption,
+            {
+                "barrier_type": "knock_in",
+                "lower_barrier": 80,
+                "upper_barrier": 120,
+                "payout": 10,
+            },
             [pricing.FiniteDifferenceDoubleTouchEngine()],
         ),
         (
-            ins.cash_double_no_touch,
-            {"lower_barrier": 80, "upper_barrier": 120, "payout": 10},
+            ins.DoubleTouchOption,
+            {
+                "barrier_type": "knock_out",
+                "lower_barrier": 80,
+                "upper_barrier": 120,
+                "payout": 10,
+            },
             [pricing.FiniteDifferenceDoubleTouchEngine()],
         ),
     ]

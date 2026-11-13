@@ -86,11 +86,11 @@ def terminal_cases():
             5,
         ),
         (
-            ins.cash_binary_barrier_option(**barrier, payout=10),
+            ins.BinaryBarrierOption(payoff_type="cash", **barrier, payout=10),
             binary,
             10,
         ),
-        (ins.asset_binary_barrier_option(**barrier), binary, 105),
+        (ins.BinaryBarrierOption(payoff_type="asset", **barrier), binary, 105),
         (
             ins.DoubleBarrierOption(
                 **vanilla,
@@ -158,34 +158,31 @@ def terminal_cases():
             120 / 365,
         ),
     ]
-    for factory, kind, amount in (
-        (ins.cash_touch_option, "up_and_in", 0),
-        (ins.cash_no_touch_option, "up_and_out", 10),
-        (ins.asset_touch_option, "up_and_in", 0),
-        (ins.asset_no_touch_option, "up_and_out", 105),
+    for payoff_type, kind, amount in (
+        ("cash", "up_and_in", 0),
+        ("cash", "up_and_out", 10),
+        ("asset", "up_and_in", 0),
+        ("asset", "up_and_out", 105),
     ):
-        payout = (
-            {"payout": 10}
-            if factory in (ins.cash_touch_option, ins.cash_no_touch_option)
-            else {}
-        )
         cases.append(
             (
-                factory(
+                ins.TouchOption(
+                    payoff_type=payoff_type,
                     **dates,
                     barrier_level=120,
                     barrier_type=kind,
                     touch_state="untouched",
-                    **payout,
+                    **({"payout": 10} if payoff_type == "cash" else {}),
                 ),
                 binary,
                 amount,
             )
         )
-    for factory, amount in ((ins.cash_double_touch, 0), (ins.cash_double_no_touch, 10)):
+    for kind, amount in (("knock_in", 0), ("knock_out", 10)):
         cases.append(
             (
-                factory(
+                ins.DoubleTouchOption(
+                    barrier_type=kind,
                     **dates,
                     lower_barrier=80,
                     upper_barrier=120,

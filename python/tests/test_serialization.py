@@ -177,30 +177,26 @@ def values():
             **life,
         ),
     )
-    for factory, cash in (
-        (i.cash_binary_barrier_option, True),
-        (i.asset_binary_barrier_option, False),
-    ):
-        yield factory(
+    for payoff_type in ("cash", "asset"):
+        yield i.BinaryBarrierOption(
+            payoff_type=payoff_type,
             barrier_level=120,
             barrier_type="up_and_out",
             **vanilla,
-            **({"payout": 10} if cash else {}),
+            **({"payout": 10} if payoff_type == "cash" else {}),
         )
-    for cash in (True, False):
         for kind in ("up_and_in", "down_and_out"):
-            if kind.endswith("_in"):
-                factory = i.cash_touch_option if cash else i.asset_touch_option
-            else:
-                factory = i.cash_no_touch_option if cash else i.asset_no_touch_option
-            yield factory(
+            yield i.TouchOption(
+                payoff_type=payoff_type,
                 barrier_level=120,
                 barrier_type=kind,
                 **life,
-                **({"payout": 10} if cash else {}),
+                **({"payout": 10} if payoff_type == "cash" else {}),
             )
-    for factory in (i.cash_double_touch, i.cash_double_no_touch):
-        yield factory(lower_barrier=80, upper_barrier=120, payout=10, **life)
+    for kind in ("knock_in", "knock_out"):
+        yield i.DoubleTouchOption(
+            barrier_type=kind, lower_barrier=80, upper_barrier=120, payout=10, **life
+        )
 
 
 def test_owned_collection_properties_reject_silent_edits():

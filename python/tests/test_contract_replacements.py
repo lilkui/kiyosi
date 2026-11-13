@@ -46,8 +46,9 @@ def contract_inputs():
         },
     )
     yield (
-        i.cash_binary_barrier_option,
+        i.BinaryBarrierOption,
         {
+            "payoff_type": "cash",
             "option_type": "call",
             "strike": 100,
             "effective_time": START,
@@ -60,8 +61,9 @@ def contract_inputs():
         },
     )
     yield (
-        i.asset_binary_barrier_option,
+        i.BinaryBarrierOption,
         {
+            "payoff_type": "asset",
             "option_type": "call",
             "strike": 100,
             "effective_time": START,
@@ -73,8 +75,9 @@ def contract_inputs():
         },
     )
     yield (
-        i.cash_touch_option,
+        i.TouchOption,
         {
+            "payoff_type": "cash",
             "effective_time": START,
             "expiry_time": END,
             "barrier_level": 120,
@@ -86,8 +89,9 @@ def contract_inputs():
         },
     )
     yield (
-        i.asset_touch_option,
+        i.TouchOption,
         {
+            "payoff_type": "asset",
             "effective_time": START,
             "expiry_time": END,
             "barrier_level": 120,
@@ -98,8 +102,9 @@ def contract_inputs():
         },
     )
     yield (
-        i.cash_double_touch,
+        i.DoubleTouchOption,
         {
+            "barrier_type": "knock_in",
             "effective_time": START,
             "expiry_time": END,
             "lower_barrier": 80,

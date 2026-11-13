@@ -27,21 +27,27 @@ def test_settled_binary_and_touch_payoffs_do_not_require_future_curve_coverage(
         "touch_state": "touched",
         "payout": 10,
     }
-    binary = ins.cash_binary_barrier_option(
+    binary = ins.BinaryBarrierOption(
+        payoff_type="cash",
         **common,
         option_type="call",
         strike=100,
         barrier_level=120,
         barrier_type="up_and_out",
     )
-    touch = ins.cash_touch_option(
+    touch = ins.TouchOption(
+        payoff_type="cash",
         **common,
         barrier_level=120,
         barrier_type="up_and_in",
         settlement_timing="at_hit",
     )
-    double = ins.cash_double_touch(
-        **common, lower_barrier=80, upper_barrier=120, settlement_timing="at_hit"
+    double = ins.DoubleTouchOption(
+        barrier_type="knock_in",
+        **common,
+        lower_barrier=80,
+        upper_barrier=120,
+        settlement_timing="at_hit",
     )
     for engine, settled, unpaid in (
         (

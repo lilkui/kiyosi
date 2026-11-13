@@ -16,11 +16,7 @@ from kiyosi import (
     UnsupportedOperationError,
     pricing,
 )
-from kiyosi.instruments import (
-    DoubleTouchOption,
-    cash_double_no_touch,
-    cash_double_touch,
-)
+from kiyosi.instruments import DoubleTouchOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -35,8 +31,9 @@ START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 FIRST = START + timedelta(days=180)
 
 
-def contract(factory=cash_double_touch, **changes):
-    return factory(
+def contract(barrier_type="knock_in", **changes):
+    return DoubleTouchOption(
+        barrier_type=barrier_type,
         **(
             {
                 "effective_time": START,
@@ -46,7 +43,7 @@ def contract(factory=cash_double_touch, **changes):
                 "payout": 1,
             }
             | changes
-        )
+        ),
     )
 
 
@@ -285,7 +282,7 @@ def scheduled_reference(dates, count=1024):
     )
 
 
-def test_factories_defaults_owning_schedules_and_history():
+def test_constructor_defaults_owning_schedules_and_history():
     option = contract()
     assert isinstance(option, DoubleTouchOption)
     assert option.is_one_touch
@@ -301,7 +298,7 @@ def test_factories_defaults_owning_schedules_and_history():
     assert option.touch_state is None
     assert replaced.replace(touch_state=None) == option
     dates = [FIRST, END]
-    scheduled = contract(cash_double_no_touch, observation_times=dates)
+    scheduled = contract("knock_out", observation_times=dates)
     dates.clear()
     copy = list(scheduled.observation_times)
     copy.clear()
@@ -314,19 +311,19 @@ def test_factories_defaults_owning_schedules_and_history():
 
 
 def test_protocols_domain_errors_and_failed_replace_preserve_inputs(subtests):
-    for factory in (cash_double_touch, cash_double_no_touch):
+    for barrier_type in ("knock_in", "knock_out"):
         for key in ("payout", "lower_barrier", "upper_barrier"):
             for value in (True, "100", object()):
                 with (
-                    subtests.test(factory=factory, key=key, value=value),
+                    subtests.test(barrier_type=barrier_type, key=key, value=value),
                     pytest.raises(TypeError),
                 ):
-                    contract(factory, **{key: value})
+                    contract(barrier_type, **{key: value})
             for value in (0, -1, math.inf, math.nan):
                 assert_rejection(
                     InvalidInputError,
-                    lambda factory=factory, key=key, value=value: contract(
-                        factory, **{key: value}
+                    lambda barrier_type=barrier_type, key=key, value=value: contract(
+                        barrier_type, **{key: value}
                     ),
                 )
         for changes, expected_error in (
@@ -346,10 +343,12 @@ def test_protocols_domain_errors_and_failed_replace_preserve_inputs(subtests):
         ):
             assert_rejection(
                 expected_error,
-                lambda factory=factory, changes=changes: contract(factory, **changes),
+                lambda barrier_type=barrier_type, changes=changes: contract(
+                    barrier_type, **changes
+                ),
             )
-    with pytest.raises(TypeError):
-        contract(cash_double_no_touch, settlement_timing="at_hit")
+    with pytest.raises(InvalidInputError):
+        contract("knock_out", settlement_timing="at_hit")
     with pytest.raises(ValueError):
         contract(settlement_timing="later")
     option = contract()
@@ -364,7 +363,7 @@ def test_continuous_prices_match_independent_series_and_converge():
     options = (
         contract(),
         contract(settlement_timing="at_hit"),
-        contract(cash_double_no_touch),
+        contract("knock_out"),
     )
     reference = continuous_reference()
     for left, right in zip(reference, continuous_reference(count=2048), strict=True):
@@ -382,7 +381,7 @@ def test_continuous_prices_match_independent_series_and_converge():
     scaled = (
         contract(payout=7.5),
         contract(payout=7.5, settlement_timing="at_hit"),
-        contract(cash_double_no_touch, payout=7.5),
+        contract("knock_out", payout=7.5),
     )
     for option, expected in zip(scaled, reference, strict=True):
         assert fine.price(option, market()) == pytest.approx(
@@ -414,7 +413,7 @@ def test_scheduled_one_two_fixings_early_window_and_outside_continuation():
         options = (
             contract(**changes),
             contract(**changes, settlement_timing="at_hit"),
-            contract(cash_double_no_touch, **changes),
+            contract("knock_out", **changes),
         )
         expected = scheduled_reference(dates)
         for a, b in zip(expected, scheduled_reference(dates, 2048), strict=True):
@@ -424,7 +423,7 @@ def test_scheduled_one_two_fixings_early_window_and_outside_continuation():
                 value, rel=0, abs=3e-5
             )
     future = contract(
-        cash_double_no_touch,
+        "knock_out",
         lower_barrier=80.125,
         upper_barrier=120.125,
         observation_times=[END],
@@ -472,7 +471,7 @@ def test_history_current_touch_past_payments_and_expiry():
                 upper_bound=4.0,
             ),
         )
-    no_touch = contract(cash_double_no_touch, payout=3)
+    no_touch = contract("knock_out", payout=3)
     for spot in (80, 120):
         assert engine.price(no_touch, market(spot)) == 0
     for option in (
@@ -496,7 +495,7 @@ def test_history_current_touch_past_payments_and_expiry():
 def test_early_window_utc_fixing_calendar_and_fixed_cash_greeks():
     engine = pricing.FiniteDifferenceDoubleTouchEngine()
     option = contract(
-        cash_double_no_touch,
+        "knock_out",
         payout=2,
         observation_times=[FIRST],
     )
@@ -535,7 +534,7 @@ def test_early_window_utc_fixing_calendar_and_fixed_cash_greeks():
         )
     with pytest.raises(InvalidInputError):
         contract(
-            cash_double_no_touch,
+            "knock_out",
             observation_times=[datetime(2025, 1, 4)],
         )
 
@@ -547,7 +546,7 @@ def test_greeks_iv_boundary_and_time_stencils():
     for option in (
         contract(touch_state="untouched"),
         contract(settlement_timing="at_hit", touch_state="untouched"),
-        contract(cash_double_no_touch, touch_state="untouched"),
+        contract("knock_out", touch_state="untouched"),
     ):
         result = engine.price_with_greeks(option, market(), greeks="all")
         bumped = price_differences(engine, option, market())
@@ -592,7 +591,7 @@ def test_greeks_iv_boundary_and_time_stencils():
             assert boundary.gamma is None
             assert boundary.vega == 0
     scheduled = contract(
-        cash_double_no_touch,
+        "knock_out",
         observation_times=[FIRST, END],
         touch_state="untouched",
     )
@@ -611,7 +610,7 @@ def test_near_barrier_greeks_converge_to_independent_series(subtests, spot):
     options = (
         contract(touch_state="untouched"),
         contract(settlement_timing="at_hit", touch_state="untouched"),
-        contract(cash_double_no_touch, touch_state="untouched"),
+        contract("knock_out", touch_state="untouched"),
     )
     # Absolute budgets use the library's per-unit, per-percent and per-day Greek units.
     budgets = {
@@ -699,7 +698,7 @@ def test_node_curves_and_early_at_hit_curve_horizon(early):
             ),
         )
     else:
-        no = contract(cash_double_no_touch, **fields)
+        no = contract("knock_out", **fields)
         assert engine.price(no, context) == pytest.approx(
             0.99 - touched, rel=0, abs=3e-5
         )
@@ -709,7 +708,7 @@ def test_narrow_band_tiny_volatility_settings_and_concurrency():
     engine = pricing.FiniteDifferenceDoubleTouchEngine(
         asset_step_count=160, time_step_count=800
     )
-    option = contract(cash_double_no_touch, lower_barrier=99.5, upper_barrier=100.5)
+    option = contract("knock_out", lower_barrier=99.5, upper_barrier=100.5)
     assert engine.price(option, market()) < 1e-8
     assert engine.price(
         option,
@@ -835,18 +834,18 @@ def test_analytic_discount_and_payout_scaling_preserve_representable_prices(subt
         (800, 1e300, 2.2797808602039585e-48, 1.3880937239736419e-48, None),
     ):
         context = market(rate=rate, dividend=rate - 0.02)
-        for factory, timing, expected in (
-            (cash_double_touch, "at_expiry", one),
-            (cash_double_no_touch, "at_expiry", no),
-            (cash_double_touch, "at_hit", hit),
+        for barrier_type, timing, expected in (
+            ("knock_in", "at_expiry", one),
+            ("knock_out", "at_expiry", no),
+            ("knock_in", "at_hit", hit),
         ):
             if expected is None:
                 continue
             changes = (
-                {"settlement_timing": timing} if factory is cash_double_touch else {}
+                {"settlement_timing": timing} if barrier_type == "knock_in" else {}
             )
-            option = contract(factory, payout=payout, **changes)
-            with subtests.test(rate=rate, factory=factory, timing=timing):
+            option = contract(barrier_type, payout=payout, **changes)
+            with subtests.test(rate=rate, barrier_type=barrier_type, timing=timing):
                 actual = engine.price(option, context)
                 assert actual / expected == pytest.approx(
                     1, rel=0, abs=(1e-8 if timing == "at_hit" else 1e-11)
@@ -854,7 +853,7 @@ def test_analytic_discount_and_payout_scaling_preserve_representable_prices(subt
                 if rate < 0:
                     with pytest.raises(ComputationFailureError):
                         engine.price(
-                            contract(factory, payout=1, **changes),
+                            contract(barrier_type, payout=1, **changes),
                             context,
                         )
 
@@ -879,9 +878,9 @@ def test_analytic_expiry_payments_match_live_quantlib(subtests):
                         ql.BlackConstantVol(start, ql.NullCalendar(), volatility, dc)
                     ),
                 )
-                for factory, kind in (
-                    (cash_double_touch, ql.DoubleBarrier.KnockIn),
-                    (cash_double_no_touch, ql.DoubleBarrier.KnockOut),
+                for barrier_type, kind in (
+                    ("knock_in", ql.DoubleBarrier.KnockIn),
+                    ("knock_out", ql.DoubleBarrier.KnockOut),
                 ):
                     reference = ql.DoubleBarrierOption(
                         kind,
@@ -895,7 +894,7 @@ def test_analytic_expiry_payments_match_live_quantlib(subtests):
                         ql.AnalyticDoubleBarrierBinaryEngine(process)
                     )
                     option = contract(
-                        factory,
+                        barrier_type,
                         payout=7.5,
                         expiry_time=START + timedelta(days=days),
                     )
@@ -909,7 +908,7 @@ def test_analytic_expiry_payments_match_live_quantlib(subtests):
                         ),
                     )
                     with subtests.test(
-                        days=days, rate=rate, spot=spot, factory=factory
+                        days=days, rate=rate, spot=spot, barrier_type=barrier_type
                     ):
                         assert actual == pytest.approx(
                             reference.NPV(), rel=0, abs=1e-10
@@ -926,15 +925,15 @@ def test_analytic_three_cashflows_match_independent_series_and_scale(
 ):
     engine = pricing.AnalyticDoubleTouchEngine()
     reference = continuous_reference(rate=rate, dividend=dividend, count=8192)
-    for factory, timing, expected in zip(
-        (cash_double_touch, cash_double_touch, cash_double_no_touch),
+    for barrier_type, timing, expected in zip(
+        ("knock_in", "knock_in", "knock_out"),
         ("at_expiry", "at_hit", "at_expiry"),
         reference,
         strict=True,
     ):
-        changes = {"settlement_timing": timing} if factory is cash_double_touch else {}
+        changes = {"settlement_timing": timing} if barrier_type == "knock_in" else {}
         for payout in (1, 7.5):
-            option = contract(factory, payout=payout, **changes)
+            option = contract(barrier_type, payout=payout, **changes)
             with subtests.test(rate=rate, option=option):
                 assert engine.price(
                     option,
@@ -947,7 +946,7 @@ def test_analytic_history_current_boundaries_and_expiry():
     for option in (
         contract(payout=3),
         contract(payout=3, settlement_timing="at_hit"),
-        contract(cash_double_no_touch, payout=3),
+        contract("knock_out", payout=3),
     ):
         at_hit = option.settlement_timing == "at_hit"
         for spot in (79, 80, 120, 121):
@@ -1004,7 +1003,7 @@ def test_analytic_schedules_validate_then_resolve_or_reject():
             settlement_timing="at_hit",
         ),
         contract(
-            cash_double_no_touch,
+            "knock_out",
             observation_times=[FIRST],
         ),
     ):
@@ -1102,7 +1101,7 @@ def test_analytic_greeks_iv_signatures_and_concurrent_pricing(subtests):
     options = (
         contract(touch_state="untouched"),
         contract(settlement_timing="at_hit", touch_state="untouched"),
-        contract(cash_double_no_touch, touch_state="untouched"),
+        contract("knock_out", touch_state="untouched"),
     )
     for spot in (80.02, 100, 119.98):
         for option, expected in zip(options, reference_greeks(spot), strict=True):

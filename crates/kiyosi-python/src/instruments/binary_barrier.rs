@@ -106,9 +106,7 @@ fn touch_monitoring(
 ///
 /// Notes
 /// -----
-/// The cash_binary_barrier_option and asset_binary_barrier_option functions
-/// are conveniences. Barrier equality touches; terminal strike equality pays
-/// zero.
+/// Barrier equality touches; terminal strike equality pays zero.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -148,9 +146,8 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 ///
 /// Notes
 /// -----
-/// The cash_touch_option and asset_touch_option factories create one-touch
-/// contracts; cash_no_touch_option and asset_no_touch_option create no-touch contracts.
-/// Prior at-hit payments are settled.
+/// Prior at-hit payments are settled. A current asset hit transfers spot;
+/// a future continuous asset hit transfers the barrier amount.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -468,126 +465,6 @@ binary_properties!(
     }
 );
 
-macro_rules! binary_factory {
-    (@payout) => { None };
-    (@payout $payout:ident) => { Some($payout) };
-    ($name:ident, $constructor:ident $(, $payout:ident)?, $doc:literal) => {
-        #[doc = $doc]
-        #[pyfunction]
-        #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, $($payout,)? observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
-        #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
-        pub(crate) fn $name(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
-            effective_time: &Bound<'_, PyAny>, expiry_time: &Bound<'_, PyAny>,
-            barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
-            $($payout: &Bound<'_, PyAny>,)?
-
-            observation_times: Option<&Bound<'_, PyAny>>,
-            #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
-            #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
-
-        ) -> PyResult<BinaryBarrierOption> {
-            BinaryBarrierOption::new(option_type, strike, effective_time, expiry_time,
-                barrier_level, barrier_type, stringify!($constructor), binary_factory!(@payout $($payout)?),
-                observation_times, touch_state, calendar)
-        }
-    };
-}
-binary_factory!(
-    cash_binary_barrier_option,
-    cash,
-    payout,
-    r"Create a barrier cash digital with strict terminal exercise.
-
-Parameters
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive finite exercise or purchase price.
-effective_time : datetime.datetime
-    Inclusive contract start.
-expiry_time : datetime.datetime
-    Inclusive expiry time.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
-    Trigger direction and knock-in or knock-out behavior.
-payout : float
-    Positive finite cash payment.
-observation_times : iterable of datetime.datetime or None, optional
-    Nonempty, strictly increasing times within life; None selects continuous monitoring.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-calendar : TradingCalendar, optional
-    Explicit override. Omission or Ellipsis inherits a supplied
-    ObservationSchedule calendar; otherwise construction uses weekdays
-    and replacement retains the current calendar.
-
-Returns
--------
-BinaryBarrierOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life times or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Trading-calendar compatibility is
-checked on construction; strictly prior history is checked during pricing.
-Terminal strike equality pays zero.
-"
-);
-binary_factory!(
-    asset_binary_barrier_option,
-    asset,
-    r"Create a barrier asset digital with strict terminal exercise.
-
-Parameters
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive finite exercise or purchase price.
-effective_time : datetime.datetime
-    Inclusive contract start.
-expiry_time : datetime.datetime
-    Inclusive expiry time.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
-    Trigger direction and knock-in or knock-out behavior.
-observation_times : iterable of datetime.datetime or None, optional
-    Nonempty, strictly increasing times within life; None selects continuous monitoring.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-calendar : TradingCalendar, optional
-    Explicit override. Omission or Ellipsis inherits a supplied
-    ObservationSchedule calendar; otherwise construction uses weekdays
-    and replacement retains the current calendar.
-
-Returns
--------
-BinaryBarrierOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life times or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Trading-calendar compatibility is
-checked on construction; strictly prior history is checked during pricing.
-Terminal strike equality pays zero.
-"
-);
-
 pub(crate) fn settlement(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::SettlementTiming> {
     match value.extract::<&str>()? {
         "at_hit" => Ok(kiyosi::SettlementTiming::AtHit),
@@ -595,101 +472,6 @@ pub(crate) fn settlement(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Settlemen
         _ => Err(PyValueError::new_err("unknown settlement_timing")),
     }
 }
-
-macro_rules! touch_factory {
-    ($name:ident, $constructor:ident, $kind:literal, $barriers:literal $(, $payout:ident)?) => {
-        #[doc = concat!("Create a cash or asset ", $kind, " contract.")]
-        ///
-        /// Parameters
-        /// ----------
-        /// effective_time : datetime.datetime
-        ///     Inclusive contract start.
-        /// expiry_time : datetime.datetime
-        ///     Inclusive expiry time.
-        /// barrier_level : float
-        ///     Positive finite trigger level; equality counts as a touch.
-        #[doc = concat!("barrier_type : ", $barriers)]
-        #[doc = concat!("    Select the direction of the ", $kind, " barrier.")]
-        ///
-        $(
-            #[doc = concat!(stringify!($payout), " : float")]
-            ///     Positive finite cash payment.
-        )?
-        /// settlement_timing : {'at_hit', 'at_expiry'}, optional
-        ///     Defaults to expiry. At-hit settlement requires a one-touch contract.
-        /// observation_times : iterable of datetime.datetime or None, optional
-        ///     Nonempty, strictly increasing times within life; None selects continuous monitoring.
-        /// touch_state : {'untouched', 'touched'} or None, optional
-        ///     Strictly prior history. None is unknown; untouched means known no hit.
-        /// calendar : TradingCalendar, optional
-        ///     Explicit override. Omission or Ellipsis inherits a supplied
-        ///     ObservationSchedule calendar; otherwise construction uses weekdays
-        ///     and replacement retains the current calendar.
-        ///
-        /// Returns
-        /// -------
-        /// TouchOption
-        ///     Validated owned contract. Asset settlement has no cash payout.
-        ///
-        /// Raises
-        /// ------
-        /// InvalidInputError
-        ///     If the barrier's payment condition disagrees with the factory, amounts,
-        ///     life times or observations are invalid, or no-touch settlement is at-hit.
-        ///
-        /// Notes
-        /// -----
-        /// Trading-calendar consistency is checked on construction; history is checked
-        /// during pricing. Prior at-hit payments have no remaining value. A current
-        /// asset hit transfers spot; a future continuous asset hit transfers the
-        /// barrier amount. See the kiyosi.instruments module examples for
-        /// construction.
-        ///
-        #[pyfunction]
-        #[pyo3(signature = (*, effective_time, expiry_time, barrier_level, barrier_type, $($payout,)? settlement_timing=kiyosi::SettlementTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
-        #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
-        pub(crate) fn $name(effective_time: &Bound<'_, PyAny>, expiry_time: &Bound<'_, PyAny>,
-            barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
-            $($payout: &Bound<'_, PyAny>,)?
-            #[pyo3(from_py_with = settlement)] settlement_timing: kiyosi::SettlementTiming,
-
-            observation_times: Option<&Bound<'_, PyAny>>,
-            #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
-            #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
-
-        ) -> PyResult<TouchOption> {
-            let terms = touch_terms(effective_time, expiry_time, barrier_level, barrier_type)?;
-            let terms = touch_monitoring(terms, settlement_timing, observation_times, touch_state, calendar)?;
-            Ok(TouchOption(domain(kiyosi::TouchOption::$constructor(terms $(, real($payout)?)?))?))
-        }
-    };
-}
-touch_factory!(
-    cash_touch_option,
-    cash_one_touch,
-    "one-touch",
-    "{'up_and_in', 'down_and_in'}",
-    payout
-);
-touch_factory!(
-    asset_touch_option,
-    asset_one_touch,
-    "one-touch",
-    "{'up_and_in', 'down_and_in'}"
-);
-touch_factory!(
-    cash_no_touch_option,
-    cash_no_touch,
-    "no-touch",
-    "{'up_and_out', 'down_and_out'}",
-    payout
-);
-touch_factory!(
-    asset_no_touch_option,
-    asset_no_touch,
-    "no-touch",
-    "{'up_and_out', 'down_and_out'}"
-);
 
 #[derive(FromPyObject)]
 pub(crate) enum BinaryInstrument<'py> {

@@ -793,18 +793,30 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
             ),
         ),
         (
-            ins.cash_binary_barrier_option,
-            dict(life, **vanilla, **single, payout=10, **monitoring),
+            ins.BinaryBarrierOption,
+            dict(
+                life, **vanilla, **single, payout=10, **monitoring, payoff_type="cash"
+            ),
         ),
         (
-            ins.asset_binary_barrier_option,
-            dict(life, **vanilla, **single, **monitoring),
+            ins.BinaryBarrierOption,
+            dict(life, **vanilla, **single, **monitoring, payoff_type="asset"),
         ),
-        (ins.cash_no_touch_option, dict(life, **single, payout=10, **monitoring)),
-        (ins.asset_no_touch_option, dict(life, **single, **monitoring)),
         (
-            ins.cash_double_touch,
-            dict(life, lower_barrier=80, upper_barrier=120, payout=10, **monitoring),
+            ins.TouchOption,
+            dict(life, **single, payout=10, **monitoring, payoff_type="cash"),
+        ),
+        (ins.TouchOption, dict(life, **single, **monitoring, payoff_type="asset")),
+        (
+            ins.DoubleTouchOption,
+            dict(
+                life,
+                lower_barrier=80,
+                upper_barrier=120,
+                payout=10,
+                **monitoring,
+                barrier_type="knock_in",
+            ),
         ),
         (
             ins.Accumulator,
@@ -1829,11 +1841,12 @@ def test_numerical_greeks_has_uniform_controls_across_engines(subtests):
 
 
 @pytest.mark.parametrize(
-    "factory,expected",
-    ((ins.cash_double_touch, "knock_in"), (ins.cash_double_no_touch, "knock_out")),
+    "expected",
+    ("knock_in", "knock_out"),
 )
-def test_double_touch_barrier_type_roundtrips_through_replacement(factory, expected):
-    option = factory(
+def test_double_touch_barrier_type_roundtrips_through_replacement(expected):
+    option = ins.DoubleTouchOption(
+        barrier_type=expected,
         effective_time=datetime(2025, 1, 1),
         expiry_time=datetime(2026, 1, 1),
         lower_barrier=80,

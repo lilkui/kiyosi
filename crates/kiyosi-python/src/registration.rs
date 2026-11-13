@@ -151,38 +151,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             .get_item(pyo3::types::PyTuple::new(py, names)?)?,
     )?;
     module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::cash_binary_barrier_option,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::asset_binary_barrier_option,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::cash_touch_option,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::asset_touch_option,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::cash_no_touch_option,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::asset_no_touch_option,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::double_touch::cash_double_touch,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::double_touch::cash_double_no_touch,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::standard_snowball,
         module
     )?)?;

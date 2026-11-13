@@ -58,10 +58,9 @@ must allow knock-out. ``standard_phoenix`` uses a constant knock-out barrier;
 observation. Both use daily knock-in and initial spot as the upper loss strike.
 Replacing the lockout changes eligibility without regenerating barrier levels.
 
-``cash_touch_option`` and ``asset_touch_option`` pay on a touch and require an
-``up_and_in`` or ``down_and_in`` barrier. ``cash_no_touch_option`` and
-``asset_no_touch_option`` pay when the barrier is never reached and require
-``up_and_out`` or ``down_and_out``. ``TouchOption`` accepts either payment condition.
+``TouchOption`` pays on a touch with an ``up_and_in`` or ``down_and_in`` barrier,
+or when the barrier is never reached with ``up_and_out`` or ``down_and_out``.
+Set ``payoff_type`` to ``cash`` or ``asset``; cash settlement requires ``payout``.
 
 Examples
 --------
@@ -123,17 +122,9 @@ from ._native import (
     SnowballOption,
     TernarySnowballOption,
     TouchOption,
-    asset_binary_barrier_option,
-    asset_no_touch_option,
-    asset_touch_option,
     autocallable_observations,
     both_down_snowball,
     butterfly_snowball,
-    cash_binary_barrier_option,
-    cash_double_no_touch,
-    cash_double_touch,
-    cash_no_touch_option,
-    cash_touch_option,
     digital_coupon_note,
     dual_coupon_snowball,
     early_profit_snowball,
@@ -171,17 +162,9 @@ __all__ = [
     "SnowballOption",
     "TernarySnowballOption",
     "TouchOption",
-    "asset_binary_barrier_option",
-    "asset_no_touch_option",
-    "asset_touch_option",
     "autocallable_observations",
     "both_down_snowball",
     "butterfly_snowball",
-    "cash_binary_barrier_option",
-    "cash_double_no_touch",
-    "cash_double_touch",
-    "cash_no_touch_option",
-    "cash_touch_option",
     "digital_coupon_note",
     "dual_coupon_snowball",
     "early_profit_snowball",

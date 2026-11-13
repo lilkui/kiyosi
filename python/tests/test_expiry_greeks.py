@@ -102,8 +102,12 @@ def test_resolved_barriers_have_zero_spot_greeks_at_inactive_strikes(subtests):
             ),
             (
                 pricing.AnalyticBinaryBarrierEngine(),
-                ins.cash_binary_barrier_option(
-                    **common, barrier_level=120, barrier_type="up_and_out", payout=10
+                ins.BinaryBarrierOption(
+                    payoff_type="cash",
+                    **common,
+                    barrier_level=120,
+                    barrier_type="up_and_out",
+                    payout=10,
                 ),
             ),
         ):

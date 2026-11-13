@@ -19,8 +19,6 @@ analytic_engine!(
     /// See Also
     /// --------
     /// DoubleTouchOption : Supported cash contract.
-    /// cash_double_touch : Double one-touch constructor.
-    /// cash_double_no_touch : Double no-touch constructor.
     /// FiniteDifferenceDoubleTouchEngine : Supports schedules and nonconstant rate curves.
     ///
     AnalyticDoubleTouchEngine,

@@ -26,13 +26,15 @@ def contracts(scheduled):
             result[f"{direction}_{kind}"] = ins.DoubleBarrierOption(
                 **terms, option_type=direction, strike=100, barrier_type=f"knock_{kind}"
             )
-    result["touch_expiry"] = ins.cash_double_touch(
-        **terms, payout=10, settlement_timing="at_expiry"
+    result["touch_expiry"] = ins.DoubleTouchOption(
+        barrier_type="knock_in", **terms, payout=10, settlement_timing="at_expiry"
     )
-    result["touch_hit"] = ins.cash_double_touch(
-        **terms, payout=10, settlement_timing="at_hit"
+    result["touch_hit"] = ins.DoubleTouchOption(
+        barrier_type="knock_in", **terms, payout=10, settlement_timing="at_hit"
     )
-    result["no_touch"] = ins.cash_double_no_touch(**terms, payout=10)
+    result["no_touch"] = ins.DoubleTouchOption(
+        barrier_type="knock_out", **terms, payout=10
+    )
     return result
 
 

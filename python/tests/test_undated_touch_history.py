@@ -18,10 +18,8 @@ def cases():
         if "touch_state" not in fields:
             continue
         expected = (
-            100
-            if factory is i.asset_touch_option
-            else 10
-            if factory in (i.cash_touch_option, i.cash_double_touch)
+            (100 if fields.get("payoff_type") == "asset" else 10)
+            if factory in (i.TouchOption, i.DoubleTouchOption)
             else 0
         )
         engine = (
@@ -30,7 +28,7 @@ def cases():
             else p.AnalyticDoubleBarrierEngine()
             if factory is i.DoubleBarrierOption
             else p.AnalyticDoubleTouchEngine()
-            if factory is i.cash_double_touch
+            if factory is i.DoubleTouchOption
             else p.AnalyticBinaryBarrierEngine()
         )
         yield pytest.param(factory, fields, engine, expected, id=factory.__name__)

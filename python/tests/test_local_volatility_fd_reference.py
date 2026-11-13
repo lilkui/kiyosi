@@ -11,9 +11,8 @@ from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
     BarrierOption,
+    BinaryBarrierOption,
     CashOrNothingOption,
-    asset_binary_barrier_option,
-    cash_binary_barrier_option,
 )
 from kiyosi.market import (
     LocalVolatilityParameters,
@@ -54,12 +53,10 @@ def instrument(kind, direction):
     if kind == "asset":
         return AssetOrNothingOption(**terms)
     factory = (
-        cash_binary_barrier_option
-        if kind == "binary"
-        else asset_binary_barrier_option
-        if kind == "asset_barrier"
-        else BarrierOption
+        BinaryBarrierOption if kind in ("binary", "asset_barrier") else BarrierOption
     )
+    if kind in ("binary", "asset_barrier"):
+        terms["payoff_type"] = "cash" if kind == "binary" else "asset"
     return factory(
         **terms,
         barrier_level=120 if direction == "call" else 80,

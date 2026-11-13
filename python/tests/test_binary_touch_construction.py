@@ -9,21 +9,10 @@ from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
 
 
-@pytest.mark.parametrize(
-    "factory,fields",
-    (
-        pytest.param(
-            ins.TouchOption, {"payoff_type": "cash", "payout": 10}, id="class-cash"
-        ),
-        pytest.param(ins.TouchOption, {"payoff_type": "asset"}, id="class-asset"),
-        pytest.param(ins.cash_touch_option, {"payout": 10}, id="cash-touch"),
-        pytest.param(ins.asset_touch_option, {}, id="asset-touch"),
-        pytest.param(ins.cash_no_touch_option, {"payout": 10}, id="cash-no-touch"),
-        pytest.param(ins.asset_no_touch_option, {}, id="asset-no-touch"),
-    ),
-)
+@pytest.mark.parametrize("payoff_type", ("cash", "asset"))
+@pytest.mark.parametrize("barrier_type", ("up_and_in", "up_and_out"))
 def test_touch_construction_inherits_schedule_calendar_and_honors_overrides(
-    factory, fields
+    payoff_type, barrier_type
 ):
     start, end = datetime(2025, 1, 3), datetime(2025, 1, 4)
     calendar = market.all_days_calendar()
@@ -34,55 +23,45 @@ def test_touch_construction_inherits_schedule_calendar_and_honors_overrides(
         "effective_time": start,
         "expiry_time": end,
         "barrier_level": 120,
-        "barrier_type": "up_and_out"
-        if factory in (ins.cash_no_touch_option, ins.asset_no_touch_option)
-        else "up_and_in",
+        "barrier_type": barrier_type,
+        "payoff_type": payoff_type,
+        "payout": 10 if payoff_type == "cash" else None,
         "observation_times": schedule,
         "touch_state": "untouched",
-        **fields,
     }
-    option = factory(**terms)
+    option = ins.TouchOption(**terms)
     assert option.calendar == calendar
     assert option.observation_times == (end,)
     assert option.touch_state == "untouched"
     with pytest.raises(InvalidInputError):
-        factory(**terms, calendar=market.weekdays_calendar())
+        ins.TouchOption(**terms, calendar=market.weekdays_calendar())
 
 
-@pytest.mark.parametrize(
-    "factory,fields,error",
-    (
-        pytest.param(ins.TouchOption, {"payoff_type": "cash"}, ValueError, id="class"),
-        pytest.param(ins.cash_touch_option, {}, TypeError, id="factory"),
-    ),
-)
-def test_touch_construction_preserves_payoff_and_monitoring_conversion_order(
-    factory, fields, error
-):
-    with pytest.raises(error):
-        factory(
+def test_touch_construction_preserves_payoff_and_monitoring_conversion_order():
+    with pytest.raises(ValueError):
+        ins.TouchOption(
+            payoff_type="cash",
             effective_time=datetime(2025, 1, 3),
             expiry_time=datetime(2025, 1, 6),
             barrier_level=120,
             barrier_type="up_and_in",
             payout=2**53 + 1,
             observation_times=[object()],
-            **fields,
         )
 
 
 @pytest.mark.parametrize("direction,level", (("up", 120), ("down", 80)))
 @pytest.mark.parametrize(
-    "factory,condition,payout,expected",
+    "payoff_type,condition,payout,expected",
     (
-        (ins.cash_touch_option, "in", {"payout": 10}, 0),
-        (ins.cash_no_touch_option, "out", {"payout": 10}, 10),
-        (ins.asset_touch_option, "in", {}, 0),
-        (ins.asset_no_touch_option, "out", {}, 100),
+        ("cash", "in", 10, 0),
+        ("cash", "out", 10, 10),
+        ("asset", "in", None, 0),
+        ("asset", "out", None, 100),
     ),
 )
-def test_named_touch_factories_enforce_the_payment_condition(
-    direction, level, factory, condition, payout, expected
+def test_touch_constructors_select_the_payment_condition(
+    direction, level, payoff_type, condition, payout, expected
 ):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     context = market.PricingContext(
@@ -92,17 +71,16 @@ def test_named_touch_factories_enforce_the_payment_condition(
         spot_price=100,
         valuation_time=start,
     )
-    terms = {
-        "effective_time": start,
-        "expiry_time": end,
-        "barrier_level": level,
-        **payout,
-    }
-    option = factory(**terms, barrier_type=f"{direction}_and_{condition}")
+    option = ins.TouchOption(
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=level,
+        barrier_type=f"{direction}_and_{condition}",
+        payoff_type=payoff_type,
+        payout=payout,
+    )
+    assert option.is_one_touch == (condition == "in")
     assert pricing.AnalyticBinaryBarrierEngine().price(option, context) == expected
-    opposite = "out" if condition == "in" else "in"
-    with pytest.raises(InvalidInputError):
-        factory(**terms, barrier_type=f"{direction}_and_{opposite}")
 
 
 @pytest.mark.parametrize(
@@ -161,45 +139,39 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
     cases = [
         (
             ins.BinaryBarrierOption,
-            ins.cash_binary_barrier_option,
             dict(binary, payout=10),
             10,
         ),
         (
             ins.BinaryBarrierOption,
-            ins.asset_binary_barrier_option,
             dict(binary, payout=None),
             125,
         ),
-        (ins.TouchOption, ins.cash_touch_option, dict(single, payout=10), 10),
-        (ins.TouchOption, ins.asset_touch_option, dict(single, payout=None), 125),
+        (ins.TouchOption, dict(single, payout=10), 10),
+        (ins.TouchOption, dict(single, payout=None), 125),
         (
             ins.TouchOption,
-            ins.cash_no_touch_option,
             dict(single, barrier_type="up_and_out", payout=10),
             0,
         ),
         (
             ins.TouchOption,
-            ins.asset_no_touch_option,
             dict(single, barrier_type="up_and_out", payout=None),
             0,
         ),
         (
             ins.DoubleTouchOption,
-            ins.cash_double_touch,
             dict(double, barrier_type="knock_in", payout=10),
             10,
         ),
         (
             ins.DoubleTouchOption,
-            ins.cash_double_no_touch,
             dict(double, barrier_type="knock_out", payout=10),
             0,
         ),
     ]
-    for cls, factory, terms, expected in cases:
-        with subtests.test(contract=cls.__name__, factory=factory.__name__):
+    for cls, terms, expected in cases:
+        with subtests.test(contract=cls.__name__, terms=terms):
             fields = {**life, **terms, **monitoring}
             if cls is not ins.DoubleTouchOption:
                 fields["payoff_type"] = (
@@ -208,13 +180,6 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
             arguments = inspect.signature(cls).bind(**fields)
             arguments.apply_defaults()
             contract = cls(*arguments.args, **arguments.kwargs)
-            factory_fields = fields.copy()
-            factory_fields.pop("payoff_type", None)
-            if cls is ins.DoubleTouchOption:
-                factory_fields.pop("barrier_type")
-            elif fields["payout"] is None:
-                factory_fields.pop("payout")
-            assert contract == factory(**factory_fields)
             assert contract.payout == terms["payout"]
             assert contract.calendar == calendar
             assert contract.observation_times == ((end,))

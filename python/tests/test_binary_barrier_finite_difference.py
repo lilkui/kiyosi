@@ -43,30 +43,24 @@ def market(spot=100, time=START, rate=0.04, dividend=0.01, sigma=0.2):
     )
 
 
-def touch(factory=ins.cash_touch_option, **changes):
+def touch(payoff_type="cash", **changes):
     terms = {"effective_time": START, "expiry_time": END, "barrier_level": 120.13}
     terms["barrier_type"] = "up_and_in"
-    if factory is ins.cash_touch_option:
+    terms["payoff_type"] = payoff_type
+    if payoff_type == "cash":
         terms["payout"] = 10
-    terms |= changes
-    if terms["barrier_type"] in ("up_and_out", "down_and_out"):
-        factory = (
-            ins.cash_no_touch_option
-            if factory is ins.cash_touch_option
-            else ins.asset_no_touch_option
-        )
-    return factory(**terms)
+    return ins.TouchOption(**(terms | changes))
 
 
 def test_continuous_touch_settlements_match_analytics():
     engine = FiniteDifferenceBinaryBarrierEngine()
-    for factory in (ins.cash_touch_option, ins.asset_touch_option):
+    for payoff_type in ("cash", "asset"):
         for kind in ("up_and_in", "up_and_out", "down_and_in", "down_and_out"):
             for timing in ("at_expiry", "at_hit"):
                 if kind.endswith("_out") and timing == "at_hit":
                     continue
                 option = touch(
-                    factory,
+                    payoff_type,
                     barrier_type=kind,
                     barrier_level=79.87 if kind.startswith("down") else 120.13,
                     settlement_timing=timing,
@@ -78,12 +72,10 @@ def test_continuous_touch_settlements_match_analytics():
                 )
 
 
-@pytest.mark.parametrize(
-    "factory,amount", ((ins.cash_touch_option, 10), (ins.asset_touch_option, 130))
-)
-def test_current_and_prior_at_hit_payment(factory, amount):
+@pytest.mark.parametrize("payoff_type,amount", (("cash", 10), ("asset", 130)))
+def test_current_and_prior_at_hit_payment(payoff_type, amount):
     engine = FiniteDifferenceBinaryBarrierEngine()
-    option = touch(factory, settlement_timing="at_hit")
+    option = touch(payoff_type, settlement_timing="at_hit")
     assert engine.price(option, market(130)) == amount
     assert (
         engine.price(
@@ -112,7 +104,7 @@ def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(
         ("one_touch", True),
         ("no_touch", False),
     ):
-        factory = ins.asset_touch_option if asset else ins.cash_touch_option
+        payoff_type = "asset" if asset else "cash"
         fields = {
             "barrier_level": 120.125 if up else 79.875,
             "barrier_type": f"{'up' if up else 'down'}_and_{'in' if kind == 'one_touch' else 'out'}",
@@ -120,7 +112,7 @@ def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(
         }
         if kind == "one_touch":
             fields["settlement_timing"] = "at_hit" if at_hit else "at_expiry"
-        option = touch(factory, **fields)
+        option = touch(payoff_type, **fields)
         expected = two_fixing_price(
             up=up, knock_in=kind == "one_touch", asset=asset, at_hit=at_hit
         )
@@ -129,11 +121,7 @@ def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(
         assert abs(value - expected) < abs(coarse.price(option, market()) - expected)
     for knock_in in (False, True):
         for direction in ("call", "put"):
-            factory = (
-                ins.asset_binary_barrier_option
-                if asset
-                else ins.cash_binary_barrier_option
-            )
+            payoff_type = "asset" if asset else "cash"
             fields = {
                 "option_type": direction,
                 "strike": 100,
@@ -145,7 +133,7 @@ def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(
             }
             if not asset:
                 fields["payout"] = 10
-            option = factory(**fields)
+            option = ins.BinaryBarrierOption(payoff_type=payoff_type, **fields)
             expected = two_fixing_price(
                 up=up, knock_in=knock_in, asset=asset, direction=direction
             )
@@ -181,7 +169,7 @@ def test_node_curves_and_early_at_hit_horizon():
     for asset in (False, True):
         for at_hit in (False, True):
             option = touch(
-                ins.asset_touch_option if asset else ins.cash_touch_option,
+                "asset" if asset else "cash",
                 barrier_level=120.125,
                 observation_times=[fixing, END],
                 settlement_timing="at_hit" if at_hit else "at_expiry",
@@ -302,9 +290,9 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
         ["delta"],
         spot_shift=0,
     )
-    for factory in (ins.cash_touch_option, ins.asset_touch_option):
+    for payoff_type in ("cash", "asset"):
         for kind in ("up_and_in", "up_and_out"):
-            contract = touch(factory, barrier_type=kind, touch_state="untouched")
+            contract = touch(payoff_type, barrier_type=kind, touch_state="untouched")
             expiry = engine.price_with_greeks(
                 contract,
                 market(130, END),
@@ -312,7 +300,7 @@ def test_history_expiry_greeks_and_solvers_preserve_inputs():
             )
             assert_terminal_greeks(
                 expiry,
-                int(factory is ins.asset_touch_option and kind == "up_and_in"),
+                int(payoff_type == "asset" and kind == "up_and_in"),
             )
     equality = engine.price_with_greeks(touch(), market(120.13), greeks="all")
     assert equality.delta is None
@@ -444,21 +432,13 @@ def test_existing_independent_quantlib_price_scenarios(subtests, quantlib_settin
             }
             if not asset:
                 fields["payout"] = inputs["payout"]
+            fields["payoff_type"] = "asset" if asset else "cash"
             if inputs["option"] == "none":
-                factory = (
-                    (ins.asset_no_touch_option if asset else ins.cash_no_touch_option)
-                    if kind.endswith("_out")
-                    else (ins.asset_touch_option if asset else ins.cash_touch_option)
-                )
-                option = factory(
+                option = ins.TouchOption(
                     **fields, barrier_type=kind, settlement_timing=inputs["settlement"]
                 )
             else:
-                option = (
-                    ins.asset_binary_barrier_option
-                    if asset
-                    else ins.cash_binary_barrier_option
-                )(
+                option = ins.BinaryBarrierOption(
                     **fields,
                     option_type=inputs["option"],
                     strike=inputs["strike"],
