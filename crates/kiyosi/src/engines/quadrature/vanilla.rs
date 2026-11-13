@@ -150,8 +150,7 @@ impl QuadratureVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
-        let shifts = crate::NumericalShiftSettings::default();
-        crate::numerical_greeks(self, option, context, request, shifts)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 

@@ -178,11 +178,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
-        let settings = crate::NumericalShiftSettings::default();
-        <Self as PricingEngine<I>>::validate_applicability(self, context)?;
-        settings.validate()?;
-        PricingResult::new(self.price(option, context)?)
-            .map(|result| result.with_request(request, GreeksRequest::new([])))
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 
@@ -224,7 +220,8 @@ macro_rules! pricing {
             ) -> Result<PricingResult> {
                 <Self as PricingEngine<$instrument>>::validate_applicability(self, context)?;
                 settings.validate()?;
-                Self::price_with_greeks(self, option, context, request)
+                PricingResult::new(self.price(option, context)?)
+                    .map(|result| result.with_request(request, GreeksRequest::new([])))
             }
         }
     };

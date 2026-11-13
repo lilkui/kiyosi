@@ -233,11 +233,7 @@ impl AnalyticHestonEuropeanEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
-        self.validate_applicability(context)?;
-        settings.validate()?;
-        PricingResult::new(self.price(option, context)?)
-            .map(|result| result.with_request(request, GreeksRequest::new([])))
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 
@@ -272,7 +268,8 @@ impl PricingEngine for AnalyticHestonEuropeanEngine {
     ) -> Result<PricingResult> {
         <Self as PricingEngine<EuropeanOption>>::validate_applicability(self, context)?;
         settings.validate()?;
-        Self::price_with_greeks(self, option, context, request)
+        PricingResult::new(self.price(option, context)?)
+            .map(|result| result.with_request(request, GreeksRequest::new([])))
     }
 }
 

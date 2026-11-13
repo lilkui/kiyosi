@@ -103,8 +103,7 @@ impl QuadratureAutocallableEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = crate::NumericalShiftSettings::default();
-        crate::numerical_greeks(self, option, context, request, shifts)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAutocallableEngine {

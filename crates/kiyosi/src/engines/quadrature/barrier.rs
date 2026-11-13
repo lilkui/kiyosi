@@ -131,8 +131,7 @@ impl QuadratureBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
-        crate::numerical_greeks(self, option, context, request, settings)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {
