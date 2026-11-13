@@ -14,6 +14,7 @@ mod diffusion;
 mod grid;
 pub(crate) mod heston;
 mod local_volatility;
+mod payoff;
 mod step;
 use diffusion::Diffusion;
 use grid::{SpatialGrid, TimeGrid};
@@ -395,54 +396,8 @@ fn native_model<D: Diffusion>(
             let q = dividend.rate(middle);
             let risk_log = risk.log_factor(time - tau, time);
             let dividend_log = dividend.log_factor(time - tau, time);
-            let high = if D::LOCAL {
-                let continuation = if payoff.is_digital() {
-                    if payoff.sign > 0.0 {
-                        scaled(
-                            payoff.payout().unwrap_or(upper),
-                            if payoff.payout().is_some() {
-                                risk_log
-                            } else {
-                                dividend_log
-                            },
-                        )
-                    } else {
-                        0.0
-                    }
-                } else {
-                    (payoff.sign * (scaled(upper, dividend_log) - scaled(payoff.strike, risk_log)))
-                        .max(0.0)
-                };
-                if payoff.is_american() {
-                    continuation.max(payoff.value(upper))
-                } else {
-                    continuation
-                }
-            } else {
-                let (d1, d2) = black_scholes_arguments(
-                    upper,
-                    payoff.strike,
-                    dividend_log - risk_log,
-                    diffusion.sigma(0.0, 0.0),
-                    tau.sqrt(),
-                );
-                if payoff.is_digital() {
-                    if let Some(amount) = payoff.payout() {
-                        weighted_cdf(amount, risk_log, payoff.sign * d2)
-                    } else {
-                        weighted_cdf(upper, dividend_log, payoff.sign * d1)
-                    }
-                } else {
-                    let continuation = payoff.sign
-                        * (weighted_cdf(upper, dividend_log, payoff.sign * d1)
-                            - weighted_cdf(payoff.strike, risk_log, payoff.sign * d2));
-                    if payoff.is_american() {
-                        continuation.max(payoff.value(upper))
-                    } else {
-                        continuation
-                    }
-                }
-            };
+            let high =
+                payoff::upper_boundary(payoff, upper, [risk_log, dividend_log], diffusion, tau);
             let low = if payoff.sign > 0.0 || (payoff.is_digital() && payoff.payout().is_none()) {
                 0.0
             } else if payoff.is_american() {
@@ -478,45 +433,14 @@ fn native_model<D: Diffusion>(
         0.0
     };
     let curvature = space.curvature(&old);
-    let price_at = |s| -> Result<f64> {
-        let value = space.sample(&old, &curvature, s)[0];
-        if !value.is_finite() {
-            return Err(unstable());
-        }
-        if !payoff.is_digital() {
-            let scale = scaled(s, dividend.log_factor(0.0, time))
-                .max(scaled(payoff.strike, risk.log_factor(0.0, time)));
-            let value = crate::numerics::checked_with_scale(value, scale)?;
-            return Ok(value.max(if payoff.is_american() {
-                payoff.value(s)
-            } else {
-                0.0
-            }));
-        }
-        let bound = scaled(
-            payoff.payout().unwrap_or(s),
-            if payoff.payout().is_some() {
-                risk.log_factor(0.0, time)
-            } else {
-                dividend.log_factor(0.0, time)
-            },
-        );
-        let tolerance = 64.0 * f64::EPSILON * bound;
-        let carry_error = bound * relative_carry_error;
-        if value < -tolerance
-            || value - bound
-                > tolerance
-                    + if carry_error.is_finite() {
-                        carry_error
-                    } else {
-                        0.0
-                    }
-        {
-            return Err(Error::ComputationFailure(
-                "finite-difference digital price violates payoff bounds".into(),
-            ));
-        }
-        Ok(value.clamp(0.0, bound))
+    let price_at = |spot| {
+        payoff::checked_price(
+            payoff,
+            spot,
+            space.sample(&old, &curvature, spot)[0],
+            [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
+            relative_carry_error,
+        )
     };
     let mut result = PricingResult::new(price_at(spot)?)?;
     if request.has(Greek::Delta) || request.has(Greek::Gamma) {
