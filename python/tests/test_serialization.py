@@ -367,6 +367,68 @@ def test_repr_and_pickle_reuse_constructor_metadata(monkeypatch):
         assert repr(restored) == expected
 
 
+@pytest.mark.parametrize(
+    ("factory", "parameters"),
+    (
+        (m.BlackScholesMertonParameters, {"volatility": 0.2}),
+        (
+            m.HestonParameters,
+            {
+                "initial_variance": 0.04,
+                "long_run_variance": 0.05,
+                "mean_reversion_speed": 1.0,
+                "vol_of_vol": 0.3,
+                "correlation": -0.5,
+            },
+        ),
+        (
+            m.LocalVolatilityParameters,
+            {
+                "surface": m.LocalVolatilitySurface(
+                    times=[START, END],
+                    spots=[80, 120],
+                    values=[[0.2, 0.3], [0.3, 0.4]],
+                )
+            },
+        ),
+    ),
+)
+def test_model_reconstruction_ignores_constructor_only_parameters(
+    factory, parameters, monkeypatch
+):
+    from kiyosi import _serialization
+
+    model = factory(
+        risk_free_rate=m.RateTermStructure(
+            reference_time=START, times=[END], factors=[0.99]
+        ).shifted(0.01),
+        dividend_yield=m.RateTermStructure.bounded_flat(
+            0.02, reference_time=START, max_time=END
+        ),
+        **parameters,
+    )
+    expected_repr = repr(model)
+    constructor = inspect.signature(factory)
+    monkeypatch.setattr(
+        factory,
+        "__signature__",
+        constructor.replace(
+            parameters=[
+                *constructor.parameters.values(),
+                inspect.Parameter(
+                    "construction_hint", inspect.Parameter.KEYWORD_ONLY, default=None
+                ),
+            ]
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(_serialization, "_constructor", inspect.signature)
+
+    restored = pickle.loads(pickle.dumps(model))
+    assert restored == model
+    assert repr(restored) == expected_repr
+
+
 def test_range_accrual_repr_identifies_observation_clock():
     morning = i.RangeAccrualOption(
         notional=1000,
