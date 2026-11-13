@@ -79,12 +79,12 @@ See [`examples/`](examples/) for more detailed usage.
 
 | Product | Models | Pricing algorithms |
 | --- | --- | --- |
-| European vanilla options | BSM, local volatility, Heston | Analytic, quadrature, CRR, FD, MC |
-| American vanilla options | BSM, local volatility, Heston | Bjerksund–Stensland 2002 approximation, quadrature, CRR, FD, least-squares MC |
-| Digital options | BSM, local volatility | Analytic, quadrature, CRR, FD, MC |
+| European vanilla options | BSM, local volatility, Heston | Analytic, quadrature, binomial tree, FD, MC |
+| American vanilla options | BSM, local volatility, Heston | Bjerksund–Stensland 2002 approximation, quadrature, binomial tree, FD, least-squares MC |
+| Digital options | BSM, local volatility | Analytic, quadrature, binomial tree, FD, MC |
 | Geometric-average Asian options | BSM | Analytic (continuous average), MC |
 | Arithmetic-average Asian options | BSM | Turnbull–Wakeman continuous-average approximation, MC |
-| Single-barrier options | BSM, local volatility | Analytic, quadrature, CRR, FD, MC |
+| Single-barrier options | BSM, local volatility | Analytic, quadrature, binomial tree, FD, MC |
 | Double-barrier options | BSM, local volatility | Analytic series, FD, MC |
 | Binary barriers, one-touch and no-touch options | BSM, local volatility | Analytic, FD |
 | Double-touch and double-no-touch options | BSM, local volatility | Analytic series, FD |
@@ -93,7 +93,7 @@ See [`examples/`](examples/) for more detailed usage.
 | Accumulators and decumulators | BSM, local volatility | Quadrature, FD, MC |
 | Range accruals | BSM | Analytic (sum of range probabilities) |
 
-Abbreviations: CRR = Cox–Ross–Rubinstein binomial tree; FD = finite differences; MC = Monte Carlo simulation.
+Abbreviations: FD = finite differences; MC = Monte Carlo simulation.
 
 ## Disclaimer
 
