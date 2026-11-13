@@ -16,6 +16,32 @@ from kiyosi.instruments import KnockInObservation
 from kiyosi.pricing import numerical_greeks
 
 
+def stub_members(stub, node):
+    members = [member for member in node.body if isinstance(member, ast.FunctionDef)]
+    declared = {member.name for member in members}
+    for base in node.bases:
+        if isinstance(base, ast.Subscript):
+            base = base.value
+        if not isinstance(base, ast.Name):
+            continue
+        parent = next(
+            (
+                candidate
+                for candidate in stub.body
+                if isinstance(candidate, ast.ClassDef) and candidate.name == base.id
+            ),
+            None,
+        )
+        if parent is not None:
+            members.extend(
+                member
+                for member in stub_members(stub, parent)
+                if member.name not in declared
+            )
+            declared.update(member.name for member in members)
+    return members
+
+
 def test_engine_replacement_preserves_controls_and_validates_inputs(subtests):
     for name in pricing.__all__:
         if not name.endswith("Engine"):
@@ -217,12 +243,12 @@ def test_replacements_expose_declared_keyword_fields(subtests):
         (Path(kiyosi.__file__).parent / "_native.pyi").read_text(encoding="utf-8")
     )
     for node in stub.body:
-        if not isinstance(node, ast.ClassDef):
+        if not isinstance(node, ast.ClassDef) or node.name.startswith("_"):
             continue
         method = next(
             (
                 member
-                for member in node.body
+                for member in stub_members(stub, node)
                 if isinstance(member, ast.FunctionDef) and member.name == "replace"
             ),
             None,
@@ -298,15 +324,12 @@ def test_greek_methods_expose_declared_keyword_controls(subtests):
     stub = ast.parse(
         (Path(kiyosi.__file__).parent / "_native.pyi").read_text(encoding="utf-8")
     )
-    common = next(
-        node for node in stub.body if getattr(node, "name", None) == "_PricingMethods"
-    )
     for node in stub.body:
         if not isinstance(node, ast.ClassDef) or not node.name.endswith("Engine"):
             continue
         method = next(
             member
-            for member in [*node.body, *common.body]
+            for member in stub_members(stub, node)
             if isinstance(member, ast.FunctionDef)
             and member.name == "price_with_greeks"
         )
@@ -734,7 +757,7 @@ def test_engine_constructors_expose_keyword_only_signatures(subtests):
             continue
         constructor = next(
             member
-            for member in node.body
+            for member in stub_members(stub, node)
             if isinstance(member, ast.FunctionDef) and member.name == "__init__"
         )
         expected = tuple(arg.arg for arg in constructor.args.kwonlyargs)
@@ -826,9 +849,6 @@ def test_domain_rejections_preserve_native_conversion_exceptions(subtests):
 def test_stub_docstrings_match_native_api(subtests):
     package = Path(kiyosi.__file__).parent
     stub = ast.parse((package / "_native.pyi").read_text(encoding="utf-8"))
-    common = next(
-        node for node in stub.body if getattr(node, "name", None) == "_PricingMethods"
-    )
     documented = set()
     for node in stub.body:
         if not isinstance(node, (ast.ClassDef, ast.FunctionDef)):
@@ -838,28 +858,14 @@ def test_stub_docstrings_match_native_api(subtests):
         runtime = getattr(_native, node.name)
         declarations = [(node.name, node, runtime)]
         if isinstance(node, ast.ClassDef):
-            members = list(node.body)
-            if node.name.endswith("Engine"):
-                declared = {
-                    member.name
-                    for member in members
-                    if isinstance(member, ast.FunctionDef)
-                }
-                members.extend(
-                    member
-                    for member in common.body
-                    if isinstance(member, ast.FunctionDef)
-                    and member.name not in declared
-                )
             declarations.extend(
                 (
                     f"{node.name}.{member.name}",
                     member,
                     getattr(runtime, member.name),
                 )
-                for member in members
-                if isinstance(member, ast.FunctionDef)
-                and not member.name.startswith("_")
+                for member in stub_members(stub, node)
+                if not member.name.startswith("_")
             )
         for name, declaration, value in declarations:
             with subtests.test(symbol=name, line=declaration.lineno):
@@ -910,9 +916,8 @@ def test_installed_version_and_typed_exports():
     for name, node in declarations.items():
         if isinstance(node, ast.ClassDef) and not name.startswith("_"):
             runtime = getattr(_native, name)
-            for member in node.body:
-                if isinstance(member, ast.FunctionDef):
-                    assert hasattr(runtime, member.name), f"{name}.{member.name}"
+            for member in stub_members(stub, node):
+                assert hasattr(runtime, member.name), f"{name}.{member.name}"
     for name in (
         "InvalidInputError",
         "MissingHistoryError",

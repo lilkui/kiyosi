@@ -127,16 +127,25 @@ def engine_replacement_types() -> None:
     assert_type(engine.replace(path_count=...), MonteCarloVanillaEngine)
     engine.replace(path_count=None)  # ty: ignore[invalid-argument-type]
     engine.replace(unknown=1)  # ty: ignore[unknown-argument]
+    finite_difference = FiniteDifferenceVanillaEngine()
+    assert_type(
+        finite_difference.replace(asset_step_count=400), FiniteDifferenceVanillaEngine
+    )
+    assert_type(
+        finite_difference.replace(spot_shift=None), FiniteDifferenceVanillaEngine
+    )
+    finite_difference.replace(asset_step_count=None)  # ty: ignore[invalid-argument-type]
+    finite_difference.replace(unknown=1)  # ty: ignore[unknown-argument]
 
 
 def inherited_engine_instrument_types(
     vanilla: EuropeanOption, digital: CashOrNothingOption, context: PricingContext
 ) -> None:
-    engine = QuadratureVanillaEngine()
-    assert_type(engine.price(vanilla, context), float)
-    assert_type(engine.price_with_greeks(vanilla, context, "delta"), PricingResult)
-    engine.price(digital, context)  # ty: ignore[invalid-argument-type]
-    engine.price_with_greeks(digital, context, "delta")  # ty: ignore[invalid-argument-type]
-    engine.greek_method(digital, context)  # ty: ignore[invalid-argument-type]
-    engine.active_greek_controls(digital, context)  # ty: ignore[invalid-argument-type]
+    for engine in (QuadratureVanillaEngine(), FiniteDifferenceVanillaEngine()):
+        assert_type(engine.price(vanilla, context), float)
+        assert_type(engine.price_with_greeks(vanilla, context, "delta"), PricingResult)
+        engine.price(digital, context)  # ty: ignore[invalid-argument-type]
+        engine.price_with_greeks(digital, context, "delta")  # ty: ignore[invalid-argument-type]
+        engine.greek_method(digital, context)  # ty: ignore[invalid-argument-type]
+        engine.active_greek_controls(digital, context)  # ty: ignore[invalid-argument-type]
     BjerksundStenslandVanillaEngine().price(vanilla, context)  # ty: ignore[invalid-argument-type]

@@ -5,7 +5,7 @@ from inspect import Parameter, Signature, isbuiltin, isclass, signature
 from types import ModuleType
 from typing import Any
 
-from ._serialization import _RATE_FIELDS
+from ._serialization import _fields
 
 
 def _signature(callable: Any, defaults: dict[str, Any]) -> Signature:
@@ -73,13 +73,7 @@ def _replacement(factory: Any) -> Any:
         changes = {
             name: value for name, value in changes.items() if value is not Ellipsis
         }
-        controls = {
-            name: changes[name]
-            if name in changes
-            else getattr(self, _RATE_FIELDS.get(name, name))
-            for name in constructor.parameters
-        }
-        return factory(**controls)
+        return factory(**(_fields(self) | changes))
 
     replace.__dict__["__signature__"] = constructor.replace(
         parameters=[

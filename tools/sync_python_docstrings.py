@@ -27,8 +27,16 @@ def sync_docstrings(declarations, owner):
     for node in declarations:
         if not isinstance(node, (ast.ClassDef, ast.FunctionDef)):
             continue
-        if node.name == "_PricingMethods" and isinstance(node, ast.ClassDef):
-            sync_docstrings(node.body, _native.BjerksundStenslandVanillaEngine)
+        if isinstance(node, ast.ClassDef) and node.name in (
+            "_PricingMethods",
+            "_FiniteDifferenceMethods",
+        ):
+            owner_class = (
+                _native.FiniteDifferenceVanillaEngine
+                if node.name == "_FiniteDifferenceMethods"
+                else _native.BjerksundStenslandVanillaEngine
+            )
+            sync_docstrings(node.body, owner_class)
             continue
         if node.name.startswith("_"):
             continue

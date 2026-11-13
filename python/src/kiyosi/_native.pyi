@@ -2590,7 +2590,155 @@ class CoxRossRubinsteinDigitalEngine(
         configurable scalar differences.
         """
 
-class FiniteDifferenceAccumulatorEngine(_PricingMethods[Accumulator]):
+class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
+    """Shared finite-difference controls and pricing signatures."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __init__(
+        self,
+        *,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
+        asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real | None = ...,
+        rate_shift: _Real = ...,
+        time_shift: timedelta | None = None,
+    ) -> None: ...
+    def replace(
+        self,
+        *,
+        asset_step_count: SupportsIndex | EllipsisType = ...,
+        time_step_count: SupportsIndex | EllipsisType = ...,
+        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
+        asset_upper_boundary: _Real | None | EllipsisType = ...,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated copy with replacement fields.
+
+        The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
+
+        Returns
+        -------
+        object
+            Validated instance of the same class.
+
+        Raises
+        ------
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
+        """
+
+    @property
+    def asset_step_count(self) -> int:
+        """Return the configured number of spatial intervals."""
+
+    @property
+    def time_step_count(self) -> int:
+        """Return the configured base number of time intervals before event insertion."""
+
+    @property
+    def scheme(self) -> _pricing.FiniteDifferenceScheme:
+        """Return the configured time-marching choice string."""
+
+    @property
+    def asset_upper_boundary(self) -> float | None:
+        """Return the explicit upper spot boundary, or None for automatic selection."""
+
+    @property
+    def volatility_shift(self) -> float | None:
+        """Return the numerical volatility bump, or None for automatic selection."""
+
+    @property
+    def rate_shift(self) -> float:
+        """Return the numerical parallel rate bump in decimal units."""
+
+    @property
+    def time_shift(self) -> timedelta | None:
+        """Return the explicit time bump, or None for automatic selection."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Return the native Greek spot bump, or None for automatic selection."""
+
+    def price_with_greeks(
+        self,
+        instrument: Instrument,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> PricingResult:
+        """Return the price and selected sensitivities using engine estimators.
+
+        Parameters
+        ----------
+        instrument : object
+            Supported contract; see the engine class for accepted types.
+        context : PricingContext
+            Market snapshot and valuation instant.
+        greeks : str or iterable of str
+            Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
+            stencils; native estimators and engine/model Greek coverage are
+            preserved.
+
+        Returns
+        -------
+        PricingResult
+            Price and requested Greeks. Unsupported or undefined Greeks are None,
+            with time Greeks absent at expiry; other terminal Greeks follow the
+            payoff.
+
+        Raises
+        ------
+        KiyosiError
+            If controls are invalid, pricing fails or a feasible bumped valuation
+            fails.
+        ValueError
+            If a Greek name is unknown.
+        TypeError
+            If representations, Greek names or keyword arguments are invalid.
+
+        Notes
+        -----
+        Before expiry delta and gamma come from the spatial solution, except zero
+        BSM volatility uses scalar differences. Other BSM Greeks use numerical
+        differences with the configured shifts. Local volatility provides only
+        delta and gamma. At expiry vanilla Greeks use exact supported payoff
+        derivatives; other products use default terminal-payoff stencils. Use
+        numerical_greeks for configurable scalar differences under BSM.
+        """
+
+class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
     """Finite-difference pricing.
 
     Parameters
@@ -2652,152 +2800,7 @@ class FiniteDifferenceAccumulatorEngine(_PricingMethods[Accumulator]):
     domains require convergence checks.
     """
 
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        asset_step_count: SupportsIndex = ...,
-        time_step_count: SupportsIndex = ...,
-        scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        asset_step_count: SupportsIndex | EllipsisType = ...,
-        time_step_count: SupportsIndex | EllipsisType = ...,
-        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
-        asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-    @property
-    def asset_step_count(self) -> int:
-        """Return the configured number of spatial intervals."""
-
-    @property
-    def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
-
-    @property
-    def scheme(self) -> _pricing.FiniteDifferenceScheme:
-        """Return the configured time-marching choice string."""
-
-    @property
-    def asset_upper_boundary(self) -> float | None:
-        """Return the explicit upper spot boundary, or None for automatic selection."""
-
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price_with_greeks(
-        self,
-        instrument: Accumulator,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
-        delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
-        """
-
-class FiniteDifferenceBarrierEngine(_PricingMethods[BarrierOption]):
+class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):
     """Finite-difference pricing.
 
     Parameters
@@ -2859,152 +2862,9 @@ class FiniteDifferenceBarrierEngine(_PricingMethods[BarrierOption]):
     domains require convergence checks.
     """
 
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        asset_step_count: SupportsIndex = ...,
-        time_step_count: SupportsIndex = ...,
-        scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        asset_step_count: SupportsIndex | EllipsisType = ...,
-        time_step_count: SupportsIndex | EllipsisType = ...,
-        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
-        asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-    @property
-    def asset_step_count(self) -> int:
-        """Return the configured number of spatial intervals."""
-
-    @property
-    def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
-
-    @property
-    def scheme(self) -> _pricing.FiniteDifferenceScheme:
-        """Return the configured time-marching choice string."""
-
-    @property
-    def asset_upper_boundary(self) -> float | None:
-        """Return the explicit upper spot boundary, or None for automatic selection."""
-
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price_with_greeks(
-        self,
-        instrument: BarrierOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
-        delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
-        """
-
-class FiniteDifferenceDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
+class FiniteDifferenceDoubleBarrierEngine(
+    _FiniteDifferenceMethods[DoubleBarrierOption]
+):
     """Finite-difference pricing.
 
     Parameters
@@ -3066,153 +2926,8 @@ class FiniteDifferenceDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
     domains require convergence checks.
     """
 
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        asset_step_count: SupportsIndex = ...,
-        time_step_count: SupportsIndex = ...,
-        scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        asset_step_count: SupportsIndex | EllipsisType = ...,
-        time_step_count: SupportsIndex | EllipsisType = ...,
-        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
-        asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-    @property
-    def asset_step_count(self) -> int:
-        """Return the configured number of spatial intervals."""
-
-    @property
-    def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
-
-    @property
-    def scheme(self) -> _pricing.FiniteDifferenceScheme:
-        """Return the configured time-marching choice string."""
-
-    @property
-    def asset_upper_boundary(self) -> float | None:
-        """Return the explicit upper spot boundary, or None for automatic selection."""
-
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price_with_greeks(
-        self,
-        instrument: DoubleBarrierOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
-        delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
-        """
-
 class FiniteDifferenceAutocallableEngine(
-    _PricingMethods[
+    _FiniteDifferenceMethods[
         SnowballOption | BinarySnowballOption | TernarySnowballOption | PhoenixOption
     ]
 ):
@@ -3277,155 +2992,7 @@ class FiniteDifferenceAutocallableEngine(
     domains require convergence checks.
     """
 
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        asset_step_count: SupportsIndex = ...,
-        time_step_count: SupportsIndex = ...,
-        scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        asset_step_count: SupportsIndex | EllipsisType = ...,
-        time_step_count: SupportsIndex | EllipsisType = ...,
-        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
-        asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-    @property
-    def asset_step_count(self) -> int:
-        """Return the configured number of spatial intervals."""
-
-    @property
-    def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
-
-    @property
-    def scheme(self) -> _pricing.FiniteDifferenceScheme:
-        """Return the configured time-marching choice string."""
-
-    @property
-    def asset_upper_boundary(self) -> float | None:
-        """Return the explicit upper spot boundary, or None for automatic selection."""
-
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price_with_greeks(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
-        delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
-        """
-
-class FiniteDifferenceDoubleTouchEngine(_PricingMethods[DoubleTouchOption]):
+class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOption]):
     """Finite-difference pricing.
 
     Parameters
@@ -3487,153 +3054,8 @@ class FiniteDifferenceDoubleTouchEngine(_PricingMethods[DoubleTouchOption]):
     domains require convergence checks.
     """
 
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        asset_step_count: SupportsIndex = ...,
-        time_step_count: SupportsIndex = ...,
-        scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        asset_step_count: SupportsIndex | EllipsisType = ...,
-        time_step_count: SupportsIndex | EllipsisType = ...,
-        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
-        asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-    @property
-    def asset_step_count(self) -> int:
-        """Return the configured number of spatial intervals."""
-
-    @property
-    def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
-
-    @property
-    def scheme(self) -> _pricing.FiniteDifferenceScheme:
-        """Return the configured time-marching choice string."""
-
-    @property
-    def asset_upper_boundary(self) -> float | None:
-        """Return the explicit upper spot boundary, or None for automatic selection."""
-
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price_with_greeks(
-        self,
-        instrument: DoubleTouchOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
-        delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
-        """
-
 class FiniteDifferenceBinaryBarrierEngine(
-    _PricingMethods[BinaryBarrierOption | TouchOption]
+    _FiniteDifferenceMethods[BinaryBarrierOption | TouchOption]
 ):
     """Finite-difference pricing.
 
@@ -3695,151 +3117,6 @@ class FiniteDifferenceBinaryBarrierEngine(
     coverage follows required future discounting. Automatic local-volatility
     domains require convergence checks.
     """
-
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        asset_step_count: SupportsIndex = ...,
-        time_step_count: SupportsIndex = ...,
-        scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        asset_step_count: SupportsIndex | EllipsisType = ...,
-        time_step_count: SupportsIndex | EllipsisType = ...,
-        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
-        asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-    @property
-    def asset_step_count(self) -> int:
-        """Return the configured number of spatial intervals."""
-
-    @property
-    def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
-
-    @property
-    def scheme(self) -> _pricing.FiniteDifferenceScheme:
-        """Return the configured time-marching choice string."""
-
-    @property
-    def asset_upper_boundary(self) -> float | None:
-        """Return the explicit upper spot boundary, or None for automatic selection."""
-
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price_with_greeks(
-        self,
-        instrument: BinaryBarrierOption | TouchOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
-        delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
-        """
 
 class FiniteDifferenceHestonVanillaEngine(
     _PricingMethods[EuropeanOption | AmericanOption]
@@ -4036,7 +3313,9 @@ class FiniteDifferenceHestonVanillaEngine(
         validated but unused; numerical_greeks rejects Heston.
         """
 
-class FiniteDifferenceVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
+class FiniteDifferenceVanillaEngine(
+    _FiniteDifferenceMethods[EuropeanOption | AmericanOption]
+):
     """Finite-difference pricing.
 
     Parameters
@@ -4098,153 +3377,8 @@ class FiniteDifferenceVanillaEngine(_PricingMethods[EuropeanOption | AmericanOpt
     domains require convergence checks.
     """
 
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        asset_step_count: SupportsIndex = ...,
-        time_step_count: SupportsIndex = ...,
-        scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        asset_step_count: SupportsIndex | EllipsisType = ...,
-        time_step_count: SupportsIndex | EllipsisType = ...,
-        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
-        asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-    @property
-    def asset_step_count(self) -> int:
-        """Return the configured number of spatial intervals."""
-
-    @property
-    def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
-
-    @property
-    def scheme(self) -> _pricing.FiniteDifferenceScheme:
-        """Return the configured time-marching choice string."""
-
-    @property
-    def asset_upper_boundary(self) -> float | None:
-        """Return the explicit upper spot boundary, or None for automatic selection."""
-
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price_with_greeks(
-        self,
-        instrument: EuropeanOption | AmericanOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
-        delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
-        """
-
 class FiniteDifferenceDigitalEngine(
-    _PricingMethods[CashOrNothingOption | AssetOrNothingOption]
+    _FiniteDifferenceMethods[CashOrNothingOption | AssetOrNothingOption]
 ):
     """Finite-difference pricing.
 
@@ -4306,151 +3440,6 @@ class FiniteDifferenceDigitalEngine(
     coverage follows required future discounting. Automatic local-volatility
     domains require convergence checks.
     """
-
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        asset_step_count: SupportsIndex = ...,
-        time_step_count: SupportsIndex = ...,
-        scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        asset_step_count: SupportsIndex | EllipsisType = ...,
-        time_step_count: SupportsIndex | EllipsisType = ...,
-        scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
-        asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-    @property
-    def asset_step_count(self) -> int:
-        """Return the configured number of spatial intervals."""
-
-    @property
-    def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
-
-    @property
-    def scheme(self) -> _pricing.FiniteDifferenceScheme:
-        """Return the configured time-marching choice string."""
-
-    @property
-    def asset_upper_boundary(self) -> float | None:
-        """Return the explicit upper spot boundary, or None for automatic selection."""
-
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price_with_greeks(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
-        delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
-        """
 
 class MonteCarloVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     """Flat-rate Monte Carlo pricing for European and American vanilla options.
