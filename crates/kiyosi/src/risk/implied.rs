@@ -81,10 +81,6 @@ impl ImpliedVolatilitySettings {
 /// assert!((sigma - 0.2).abs() < 1e-7);
 /// # Ok(()) }
 /// ```
-#[expect(
-    clippy::float_cmp,
-    reason = "Exactly distinct residuals are required for nonzero inverse-quadratic denominators."
-)]
 pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     engine: &E,
     option: &I,
@@ -109,8 +105,25 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     super::validate_solver_bounds(s.lower_bound, s.upper_bound, s.max_iterations)?;
     engine.validate_solver_seed()?;
     if let Some(prepared) = engine.prepare_request()? {
-        return implied_volatility(prepared.as_ref(), option, context, observed_price, settings);
+        prepared.validate_applicability(context)?;
+        prepared.validate_solver_seed()?;
+        solve(prepared.as_ref(), option, context, observed_price, settings)
+    } else {
+        solve(engine, option, context, observed_price, settings)
     }
+}
+
+#[expect(
+    clippy::float_cmp,
+    reason = "Exactly distinct residuals are required for nonzero inverse-quadratic denominators."
+)]
+fn solve<I: OptionContract, E: PricingEngine<I> + ?Sized>(
+    engine: &E,
+    option: &I,
+    context: &PricingContext,
+    observed_price: f64,
+    s: ImpliedVolatilitySettings,
+) -> Result<f64> {
     let evaluate = |volatility| -> Result<f64> {
         crate::cancellation::check()?;
         let model = context
@@ -233,4 +246,74 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     Err(Error::NonConvergence(
         "implied-volatility solver did not converge".into(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Date, EuropeanOption, OptionType};
+
+    struct PreparedEngine(bool);
+
+    impl PricingEngine for PreparedEngine {
+        fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + '_>>> {
+            if self.0 {
+                return Err(Error::UnsupportedOperation(
+                    "request is already prepared".into(),
+                ));
+            }
+            Ok(Some(Box::new(Self(true))))
+        }
+
+        fn price(&self, _option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+            let volatility = context.model_parameters().as_bsm()?.volatility();
+            if !self.0 || volatility > 1.0 {
+                return Err(Error::UnsupportedOperation(
+                    "outside the prepared price curve".into(),
+                ));
+            }
+            Ok(volatility * volatility)
+        }
+
+        fn volatility_affects_price(
+            &self,
+            _option: &EuropeanOption,
+            _context: &PricingContext,
+        ) -> bool {
+            self.0
+        }
+
+        fn prepare_implied_volatility(
+            &self,
+            _option: &EuropeanOption,
+            _context: &PricingContext,
+            settings: ImpliedVolatilitySettings,
+        ) -> Result<ImpliedVolatilitySettings> {
+            Ok(ImpliedVolatilitySettings {
+                upper_bound: 1.0,
+                ..settings
+            })
+        }
+    }
+
+    #[test]
+    fn volatility_solver_retains_prepared_price_curve_and_hooks() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(365)?)?;
+        let context = PricingContext::new(
+            crate::BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+            100.0,
+            start,
+        )?;
+        let engine = PreparedEngine(false);
+        let volatility = implied_volatility(
+            &engine,
+            &option,
+            &context,
+            0.09,
+            ImpliedVolatilitySettings::new(0.0, 4.0),
+        )?;
+        assert!((volatility - 0.3).abs() < 1e-7);
+        Ok(())
+    }
 }

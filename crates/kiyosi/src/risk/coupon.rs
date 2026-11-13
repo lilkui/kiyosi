@@ -216,20 +216,16 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         }
     }
     engine.validate_solver_seed()?;
-    if let Some(prepared) = engine.prepare_request()? {
-        return solve(
-            prepared.as_ref(),
-            option,
-            context,
-            observed,
-            s,
-            minimum,
-            replace,
-        );
+    let prepared = engine.prepare_request()?;
+    if let Some(prepared) = &prepared {
+        prepared.validate_solver_seed()?;
     }
     let checked_price = |note: &I| {
         crate::cancellation::check()?;
-        let price = engine.price(note, context)?;
+        let price = match &prepared {
+            Some(prepared) => prepared.price(note, context)?,
+            None => engine.price(note, context)?,
+        };
         if !price.is_finite() {
             return Err(Error::ComputationFailure("non-finite coupon price".into()));
         }
@@ -309,4 +305,56 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     Err(Error::NonConvergence(
         "implied-coupon solver did not converge".into(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct PreparedEngine(bool);
+
+    impl PricingEngine<f64> for PreparedEngine {
+        fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<f64> + '_>>> {
+            if self.0 {
+                return Err(Error::UnsupportedOperation(
+                    "request is already prepared".into(),
+                ));
+            }
+            Ok(Some(Box::new(Self(true))))
+        }
+
+        fn price(&self, coupon: &f64, _context: &PricingContext) -> Result<f64> {
+            if !self.0 {
+                return Err(Error::UnsupportedOperation(
+                    "request is not prepared".into(),
+                ));
+            }
+            Ok(coupon * coupon)
+        }
+    }
+
+    #[test]
+    fn coupon_solver_retains_prepared_price_curve_across_iterations() -> Result<()> {
+        let context = PricingContext::new(
+            crate::BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+            100.0,
+            crate::Date::new(2025, 1, 1)?.start_of_day(),
+        )?;
+        let engine = PreparedEngine(false);
+        let coupon = solve(
+            &engine,
+            &0.2,
+            &context,
+            0.09,
+            ImpliedCouponSettings {
+                lower_bound: 0.1,
+                upper_bound: 0.5,
+                ..Default::default()
+            },
+            None,
+            &|_, coupon| Ok(coupon),
+        )?;
+        assert!((coupon - 0.3).abs() < 1e-7);
+        Ok(())
+    }
 }

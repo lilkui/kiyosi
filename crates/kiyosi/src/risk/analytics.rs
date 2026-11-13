@@ -726,8 +726,9 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// Prepares request-local state for numerical Greeks and implied-parameter solvers.
     ///
     /// Returns `None` when this engine already evaluates one consistent price
-    /// function, as deterministic engines do by default. A returned engine must
-    /// itself return `None` here. See [`crate::MonteCarloVanillaEngine::price_with_greeks`].
+    /// function, as deterministic engines do by default. Returned handles are used
+    /// directly for the request's evaluations without further preparation.
+    /// See [`crate::MonteCarloVanillaEngine::price_with_greeks`].
     /// Prepared handles support sequential use within the calling thread; they
     /// need not implement [`Send`] or [`Sync`]. Independent requests prepare their
     /// own handles, leaving the original engine's concurrency contract unchanged.
