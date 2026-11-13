@@ -1,7 +1,7 @@
 """Expose Rust-derived defaults through Python signature introspection."""
 
 from functools import wraps
-from inspect import Parameter, Signature, getdoc, isbuiltin, isclass, signature
+from inspect import Parameter, Signature, isbuiltin, isclass, signature
 from types import ModuleType
 from typing import Any
 
@@ -48,9 +48,26 @@ def _replacement(factory: Any) -> Any:
     def replace(self: Any, **changes: Any) -> Any:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
+
+        Returns
+        -------
+        object
+            Validated instance of the same class.
+
+        Raises
+        ------
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
         """
         constructor.bind_partial(**changes)
         changes = {
@@ -73,23 +90,6 @@ def _replacement(factory: Any) -> Any:
             ),
         ],
         return_annotation=factory,
-    )
-    parameters = (getdoc(factory) or "").partition("\nParameters\n----------\n")[2]
-    parameters = parameters.partition("\nRaises\n------")[0].strip()
-    parameters = "\n".join(
-        f"{line}, optional"
-        if " : " in line
-        and not line.startswith(" ")
-        and not line.endswith(", optional")
-        else line
-        for line in parameters.splitlines()
-    )
-    replace.__doc__ = (
-        f"{getdoc(replace)}\n\n"
-        + (f"Parameters\n----------\n{parameters}\n\n" if parameters else "")
-        + f"Returns\n-------\n{factory.__name__}\n    Validated value.\n\n"
-        "Raises\n------\nInvalidInputError\n    If fields fail constructor validation.\n"
-        "TypeError\n    If a field name or representation is invalid.\n"
     )
     return replace
 

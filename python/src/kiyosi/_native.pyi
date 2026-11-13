@@ -264,25 +264,19 @@ class EuropeanOption:
     ) -> EuropeanOption:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        option_type : {'call', 'put'}, optional
-            Call or put payoff direction.
-        strike : float, optional
-            Positive finite strike price.
-        effective_time : datetime.datetime, optional
-            Inclusive contract start.
-        expiry_time : datetime.datetime, optional
-            Inclusive expiry time.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        EuropeanOption
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -347,25 +341,19 @@ class AmericanOption:
     ) -> AmericanOption:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        option_type : {'call', 'put'}, optional
-            Call or put payoff direction.
-        strike : float, optional
-            Positive finite strike price.
-        effective_time : datetime.datetime, optional
-            Inclusive contract start.
-        expiry_time : datetime.datetime, optional
-            Inclusive expiry time.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AmericanOption
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -434,27 +422,19 @@ class CashOrNothingOption:
     ) -> CashOrNothingOption:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        option_type : {'call', 'put'}, optional
-            Call or put payoff direction.
-        strike : float, optional
-            Positive finite strike price.
-        payout : float, optional
-            Positive finite cash payment.
-        effective_time : datetime.datetime, optional
-            Inclusive contract start.
-        expiry_time : datetime.datetime, optional
-            Inclusive expiry time.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        CashOrNothingOption
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -523,25 +503,19 @@ class AssetOrNothingOption:
     ) -> AssetOrNothingOption:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        option_type : {'call', 'put'}, optional
-            Call or put payoff direction.
-        strike : float, optional
-            Positive finite strike price.
-        effective_time : datetime.datetime, optional
-            Inclusive contract start.
-        expiry_time : datetime.datetime, optional
-            Inclusive expiry time.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AssetOrNothingOption
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -818,24 +792,19 @@ class BlackScholesMertonParameters:
     ) -> BlackScholesMertonParameters:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        risk_free_rate : float or RateTermStructure, optional
-            Continuously compounded risk-free rate or owned rate curve.
-        dividend_yield : float or RateTermStructure, optional
-            Continuously compounded dividend yield or owned rate curve.
-        volatility : float, optional
-            Nonnegative finite annualized log-return volatility in decimal units.
-            Zero selects the exact deterministic path implied by the rate curves.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        BlackScholesMertonParameters
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -944,31 +913,19 @@ class HestonParameters:
     ) -> HestonParameters:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        risk_free_rate, dividend_yield : float or RateTermStructure, optional
-            Continuously compounded annual rates or owned deterministic curves.
-        initial_variance : float, optional
-            Variance at valuation; 20% initial volatility means 0.04 variance.
-        long_run_variance : float, optional
-            Long-run variance level theta.
-        mean_reversion_speed : float, optional
-            Mean-reversion coefficient kappa, with time measured in years.
-        vol_of_vol : float, optional
-            Volatility-of-volatility parameter xi in dv = kappa * (theta - v) dt +
-            xi * sqrt(v) dW.
-        correlation : float, optional
-            Correlation between the asset and variance Brownian motions in [-1, 1],
-            including endpoints.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        HestonParameters
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -1143,21 +1100,19 @@ class LocalVolatilityParameters:
     ) -> LocalVolatilityParameters:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        risk_free_rate, dividend_yield : float or RateTermStructure, optional
-            Finite continuously compounded rates or validated rate curves.
-        surface : LocalVolatilitySurface, optional
-            Validated surface in absolute time and price coordinates.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        LocalVolatilityParameters
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -1547,23 +1502,19 @@ class PricingContext:
     ) -> PricingContext:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        model_parameters : BlackScholesMertonParameters, LocalVolatilityParameters or HestonParameters, optional
-            Validated rates and the selected volatility or variance model.
-        spot_price : float, optional
-            Positive finite underlying spot price.
-        valuation_time : datetime.datetime, optional
-            Valuation time.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        PricingContext
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -1604,14 +1555,19 @@ class AnalyticEuropeanEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticEuropeanEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -1802,24 +1758,19 @@ class AnalyticHestonEuropeanEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        absolute_tolerance : float, optional
-            Finite nonnegative tolerance in price units; defaults to 1e-8.
-        relative_tolerance : float, optional
-            Finite nonnegative relative tolerance; defaults to 1e-8.
-        max_evaluations : int, optional
-            Positive request-wide characteristic-function budget; defaults to
-            10000.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticHestonEuropeanEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -2000,14 +1951,19 @@ class BjerksundStenslandVanillaEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        BjerksundStenslandVanillaEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -2162,14 +2118,19 @@ class AnalyticDigitalEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticDigitalEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -2348,19 +2309,19 @@ class CoxRossRubinsteinBarrierEngine:
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        step_count : int, optional
-            Number of tree time steps, from 1 through 1,000,000; defaults to 256.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        CoxRossRubinsteinBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -2545,23 +2506,19 @@ class QuadratureBarrierEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Base number of spatial intervals, at least 4; defaults to 512. Event
-            boundaries may add intervals; Simpson panels round up to even.
-        integration_standard_deviations : float, optional
-            Positive finite integration extent in standard deviations; defaults to
-            8.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        QuadratureBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -2757,23 +2714,19 @@ class QuadratureDigitalEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Base number of spatial intervals, at least 4; defaults to 512. Event
-            boundaries may add intervals; Simpson panels round up to even.
-        integration_standard_deviations : float, optional
-            Positive finite integration extent in standard deviations; defaults to
-            8.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        QuadratureDigitalEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -2983,25 +2936,19 @@ class QuadratureVanillaEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Base number of spatial intervals, at least 4; defaults to 512. Event
-            boundaries may add intervals; Simpson panels round up to even.
-        time_step_count : int, optional
-            American exercise intervals, at least 1; defaults to 200. Ignored for European pricing.
-        integration_standard_deviations : float, optional
-            Positive finite integration extent in standard deviations; defaults to
-            8.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        QuadratureVanillaEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -3179,19 +3126,19 @@ class CoxRossRubinsteinVanillaEngine:
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        step_count : int, optional
-            Number of tree time steps, from 1 through 1,000,000; defaults to 256.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        CoxRossRubinsteinVanillaEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -3369,19 +3316,19 @@ class CoxRossRubinsteinDigitalEngine:
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        step_count : int, optional
-            Number of tree time steps, from 1 through 1,000,000; defaults to 256.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        CoxRossRubinsteinDigitalEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -3625,46 +3572,19 @@ class FiniteDifferenceAccumulatorEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Number of spatial steps, at least 3; defaults to 800. Continuous
-            barrier grids use all steps between their actual domain edges.
-        time_step_count : int, optional
-            Positive base number of time intervals; event dates and curve knots are
-            added.
-            Read ``FiniteDifferenceAccumulatorEngine().time_step_count`` for the engine's default.
-        scheme : FiniteDifferenceScheme, optional
-            Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-            "crank_nicolson" uses standard Crank-Nicolson without time-step
-            damping.
-        asset_upper_boundary : float or None, optional
-            Finite positive upper spot boundary, or None (default) for the
-            automatic domain. Must exceed spot, strike and barriers at pricing.
-            Continuous up and double barriers fix their own upper grid edge; this
-            bound is inactive for that grid. Local-volatility knock-in vanilla
-            components and scheduled monitoring use the full domain.
-        spot_shift : float or None, optional
-            Positive absolute spot bump for native Greek availability and terminal
-            stencils. None selects the automatic bump; prices and grids are
-            unchanged.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump, or None (default) for the smaller of
-            0.0001 and half the current volatility. Native spatial delta and gamma
-            retain their estimator.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceAccumulatorEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -3930,46 +3850,19 @@ class FiniteDifferenceBarrierEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Number of spatial steps, at least 3; defaults to 800. Continuous
-            barrier grids use all steps between their actual domain edges.
-        time_step_count : int, optional
-            Positive base number of time intervals; event dates and curve knots are
-            added.
-            Read ``FiniteDifferenceBarrierEngine().time_step_count`` for the engine's default.
-        scheme : FiniteDifferenceScheme, optional
-            Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-            "crank_nicolson" uses standard Crank-Nicolson without time-step
-            damping.
-        asset_upper_boundary : float or None, optional
-            Finite positive upper spot boundary, or None (default) for the
-            automatic domain. Must exceed spot, strike and barriers at pricing.
-            Continuous up and double barriers fix their own upper grid edge; this
-            bound is inactive for that grid. Local-volatility knock-in vanilla
-            components and scheduled monitoring use the full domain.
-        spot_shift : float or None, optional
-            Positive absolute spot bump for native Greek availability and terminal
-            stencils. None selects the automatic bump; prices and grids are
-            unchanged.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump, or None (default) for the smaller of
-            0.0001 and half the current volatility. Native spatial delta and gamma
-            retain their estimator.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -4235,46 +4128,19 @@ class FiniteDifferenceDoubleBarrierEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Number of spatial steps, at least 3; defaults to 800. Continuous
-            barrier grids use all steps between their actual domain edges.
-        time_step_count : int, optional
-            Positive base number of time intervals; event dates and curve knots are
-            added.
-            Read ``FiniteDifferenceDoubleBarrierEngine().time_step_count`` for the engine's default.
-        scheme : FiniteDifferenceScheme, optional
-            Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-            "crank_nicolson" uses standard Crank-Nicolson without time-step
-            damping.
-        asset_upper_boundary : float or None, optional
-            Finite positive upper spot boundary, or None (default) for the
-            automatic domain. Must exceed spot, strike and barriers at pricing.
-            Continuous up and double barriers fix their own upper grid edge; this
-            bound is inactive for that grid. Local-volatility knock-in vanilla
-            components and scheduled monitoring use the full domain.
-        spot_shift : float or None, optional
-            Positive absolute spot bump for native Greek availability and terminal
-            stencils. None selects the automatic bump; prices and grids are
-            unchanged.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump, or None (default) for the smaller of
-            0.0001 and half the current volatility. Native spatial delta and gamma
-            retain their estimator.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceDoubleBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -4540,46 +4406,19 @@ class FiniteDifferenceAutocallableEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Number of spatial steps, at least 3; defaults to 800. Continuous
-            barrier grids use all steps between their actual domain edges.
-        time_step_count : int, optional
-            Positive base number of time intervals; event dates and curve knots are
-            added.
-            Read ``FiniteDifferenceAutocallableEngine().time_step_count`` for the engine's default.
-        scheme : FiniteDifferenceScheme, optional
-            Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-            "crank_nicolson" uses standard Crank-Nicolson without time-step
-            damping.
-        asset_upper_boundary : float or None, optional
-            Finite positive upper spot boundary, or None (default) for the
-            automatic domain. Must exceed spot, strike and barriers at pricing.
-            Continuous up and double barriers fix their own upper grid edge; this
-            bound is inactive for that grid. Local-volatility knock-in vanilla
-            components and scheduled monitoring use the full domain.
-        spot_shift : float or None, optional
-            Positive absolute spot bump for native Greek availability and terminal
-            stencils. None selects the automatic bump; prices and grids are
-            unchanged.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump, or None (default) for the smaller of
-            0.0001 and half the current volatility. Native spatial delta and gamma
-            retain their estimator.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceAutocallableEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -4865,46 +4704,19 @@ class FiniteDifferenceDoubleTouchEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Number of spatial steps, at least 3; defaults to 800. Continuous
-            barrier grids use all steps between their actual domain edges.
-        time_step_count : int, optional
-            Positive base number of time intervals; event dates and curve knots are
-            added.
-            Read ``FiniteDifferenceDoubleTouchEngine().time_step_count`` for the engine's default.
-        scheme : FiniteDifferenceScheme, optional
-            Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-            "crank_nicolson" uses standard Crank-Nicolson without time-step
-            damping.
-        asset_upper_boundary : float or None, optional
-            Finite positive upper spot boundary, or None (default) for the
-            automatic domain. Must exceed spot, strike and barriers at pricing.
-            Continuous up and double barriers fix their own upper grid edge; this
-            bound is inactive for that grid. Local-volatility knock-in vanilla
-            components and scheduled monitoring use the full domain.
-        spot_shift : float or None, optional
-            Positive absolute spot bump for native Greek availability and terminal
-            stencils. None selects the automatic bump; prices and grids are
-            unchanged.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump, or None (default) for the smaller of
-            0.0001 and half the current volatility. Native spatial delta and gamma
-            retain their estimator.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceDoubleTouchEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -5170,46 +4982,19 @@ class FiniteDifferenceBinaryBarrierEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Number of spatial steps, at least 3; defaults to 800. Continuous
-            barrier grids use all steps between their actual domain edges.
-        time_step_count : int, optional
-            Positive base number of time intervals; event dates and curve knots are
-            added.
-            Read ``FiniteDifferenceBinaryBarrierEngine().time_step_count`` for the engine's default.
-        scheme : FiniteDifferenceScheme, optional
-            Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-            "crank_nicolson" uses standard Crank-Nicolson without time-step
-            damping.
-        asset_upper_boundary : float or None, optional
-            Finite positive upper spot boundary, or None (default) for the
-            automatic domain. Must exceed spot, strike and barriers at pricing.
-            Continuous up and double barriers fix their own upper grid edge; this
-            bound is inactive for that grid. Local-volatility knock-in vanilla
-            components and scheduled monitoring use the full domain.
-        spot_shift : float or None, optional
-            Positive absolute spot bump for native Greek availability and terminal
-            stencils. None selects the automatic bump; prices and grids are
-            unchanged.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump, or None (default) for the smaller of
-            0.0001 and half the current volatility. Native spatial delta and gamma
-            retain their estimator.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceBinaryBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -5449,30 +5234,19 @@ class FiniteDifferenceHestonVanillaEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Asset intervals, at least 3; read the property for the Rust-defined
-            default.
-        variance_step_count : int, optional
-            Variance intervals, at least 3; read the property for the default.
-        time_step_count : int, optional
-            Base time intervals, at least 1; rate/dividend knots are added.
-        asset_upper_boundary : float or None, optional
-            Finite positive bound, or automatic selection. Must exceed spot and
-            strike when a numerical grid is needed.
-        variance_upper_boundary : float or None, optional
-            Finite positive bound, or automatic selection. Must exceed initial
-            variance when a variance grid is needed.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceHestonVanillaEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -5731,46 +5505,19 @@ class FiniteDifferenceVanillaEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Number of spatial steps, at least 3; defaults to 800. Continuous
-            barrier grids use all steps between their actual domain edges.
-        time_step_count : int, optional
-            Positive base number of time intervals; event dates and curve knots are
-            added.
-            Read ``FiniteDifferenceVanillaEngine().time_step_count`` for the engine's default.
-        scheme : FiniteDifferenceScheme, optional
-            Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-            "crank_nicolson" uses standard Crank-Nicolson without time-step
-            damping.
-        asset_upper_boundary : float or None, optional
-            Finite positive upper spot boundary, or None (default) for the
-            automatic domain. Must exceed spot, strike and barriers at pricing.
-            Continuous up and double barriers fix their own upper grid edge; this
-            bound is inactive for that grid. Local-volatility knock-in vanilla
-            components and scheduled monitoring use the full domain.
-        spot_shift : float or None, optional
-            Positive absolute spot bump for native Greek availability and terminal
-            stencils. None selects the automatic bump; prices and grids are
-            unchanged.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump, or None (default) for the smaller of
-            0.0001 and half the current volatility. Native spatial delta and gamma
-            retain their estimator.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceVanillaEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -6038,46 +5785,19 @@ class FiniteDifferenceDigitalEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Number of spatial steps, at least 3; defaults to 800. Continuous
-            barrier grids use all steps between their actual domain edges.
-        time_step_count : int, optional
-            Positive base number of time intervals; event dates and curve knots are
-            added.
-            Read ``FiniteDifferenceDigitalEngine().time_step_count`` for the engine's default.
-        scheme : FiniteDifferenceScheme, optional
-            Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
-            "crank_nicolson" uses standard Crank-Nicolson without time-step
-            damping.
-        asset_upper_boundary : float or None, optional
-            Finite positive upper spot boundary, or None (default) for the
-            automatic domain. Must exceed spot, strike and barriers at pricing.
-            Continuous up and double barriers fix their own upper grid edge; this
-            bound is inactive for that grid. Local-volatility knock-in vanilla
-            components and scheduled monitoring use the full domain.
-        spot_shift : float or None, optional
-            Positive absolute spot bump for native Greek availability and terminal
-            stencils. None selects the automatic bump; prices and grids are
-            unchanged.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump, or None (default) for the smaller of
-            0.0001 and half the current volatility. Native spatial delta and gamma
-            retain their estimator.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond time bump, or None for automatic selection.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        FiniteDifferenceDigitalEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -6341,34 +6061,19 @@ class MonteCarloVanillaEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        path_count : int, optional
-            Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-            sampling requires a power of two.
-        step_count : int, optional
-            Exercise intervals, 1 through 10,000; defaults to 50. Validated even
-            when unused; see Notes for product-specific use.
-        seed : int or None, optional
-            Unsigned 64-bit seed, or None (default) to use system entropy.
-        max_active_workers : int, optional
-            Nonnegative active worker cap per call: zero (default) is automatic,
-            one is serial. Does not bound thread creation; parallel calls share a
-            worker pool, bounded by configure_monte_carlo_pool().
-        sampling : MonteCarloSampling, optional
-            Sampling method; defaults to pseudo_random.
-        antithetic : bool, optional
-            Pair opposite normal draws; defaults to False. An odd path count leaves
-            one unpaired path.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        MonteCarloVanillaEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -6706,31 +6411,19 @@ class MonteCarloDigitalEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        path_count : int, optional
-            Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-            sampling requires a power of two.
-        seed : int or None, optional
-            Unsigned 64-bit seed, or None (default) to use system entropy.
-        max_active_workers : int, optional
-            Nonnegative active worker cap per call: zero (default) is automatic,
-            one is serial. Does not bound thread creation; parallel calls share a
-            worker pool, bounded by configure_monte_carlo_pool().
-        sampling : MonteCarloSampling, optional
-            Sampling method; defaults to pseudo_random.
-        antithetic : bool, optional
-            Pair opposite normal draws; defaults to False. An odd path count leaves
-            one unpaired path.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        MonteCarloDigitalEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -7047,31 +6740,19 @@ class MonteCarloBarrierEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        path_count : int, optional
-            Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-            sampling requires a power of two.
-        seed : int or None, optional
-            Unsigned 64-bit seed, or None (default) to use system entropy.
-        max_active_workers : int, optional
-            Nonnegative active worker cap per call: zero (default) is automatic,
-            one is serial. Does not bound thread creation; parallel calls share a
-            worker pool, bounded by configure_monte_carlo_pool().
-        sampling : MonteCarloSampling, optional
-            Sampling method; defaults to pseudo_random.
-        antithetic : bool, optional
-            Pair opposite normal draws; defaults to False. An odd path count leaves
-            one unpaired path.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        MonteCarloBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -7375,31 +7056,19 @@ class MonteCarloDoubleBarrierEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        path_count : int, optional
-            Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-            sampling requires a power of two.
-        seed : int or None, optional
-            Unsigned 64-bit seed, or None (default) to use system entropy.
-        max_active_workers : int, optional
-            Nonnegative active worker cap per call: zero (default) is automatic,
-            one is serial. Does not bound thread creation; parallel calls share a
-            worker pool, bounded by configure_monte_carlo_pool().
-        sampling : MonteCarloSampling, optional
-            Sampling method; defaults to pseudo_random.
-        antithetic : bool, optional
-            Pair opposite normal draws; defaults to False. An odd path count leaves
-            one unpaired path.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        MonteCarloDoubleBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -7705,31 +7374,19 @@ class MonteCarloAutocallableEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        path_count : int, optional
-            Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-            sampling requires a power of two.
-        seed : int or None, optional
-            Unsigned 64-bit seed, or None (default) to use system entropy.
-        max_active_workers : int, optional
-            Nonnegative active worker cap per call: zero (default) is automatic,
-            one is serial. Does not bound thread creation; parallel calls share a
-            worker pool, bounded by configure_monte_carlo_pool().
-        sampling : MonteCarloSampling, optional
-            Sampling method; defaults to pseudo_random.
-        antithetic : bool, optional
-            Pair opposite normal draws; defaults to False. An odd path count leaves
-            one unpaired path.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        MonteCarloAutocallableEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -8062,31 +7719,19 @@ class MonteCarloAccumulatorEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        path_count : int, optional
-            Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-            sampling requires a power of two.
-        seed : int or None, optional
-            Unsigned 64-bit seed, or None (default) to use system entropy.
-        max_active_workers : int, optional
-            Nonnegative active worker cap per call: zero (default) is automatic,
-            one is serial. Does not bound thread creation; parallel calls share a
-            worker pool, bounded by configure_monte_carlo_pool().
-        sampling : MonteCarloSampling, optional
-            Sampling method; defaults to pseudo_random.
-        antithetic : bool, optional
-            Pair opposite normal draws; defaults to False. An odd path count leaves
-            one unpaired path.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        MonteCarloAccumulatorEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -8397,34 +8042,19 @@ class MonteCarloAsianEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        path_count : int, optional
-            Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-            sampling requires a power of two.
-        step_count : int, optional
-            Grid size, 2 through 10,000; defaults to 50. Validated even when
-            unused; see Notes for product-specific use.
-        seed : int or None, optional
-            Unsigned 64-bit seed, or None (default) to use system entropy.
-        max_active_workers : int, optional
-            Nonnegative active worker cap per call: zero (default) is automatic,
-            one is serial. Does not bound thread creation; parallel calls share a
-            worker pool, bounded by configure_monte_carlo_pool().
-        sampling : MonteCarloSampling, optional
-            Sampling method; defaults to pseudo_random.
-        antithetic : bool, optional
-            Pair opposite normal draws; defaults to False. An odd path count leaves
-            one unpaired path.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        MonteCarloAsianEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -9329,32 +8959,19 @@ class GeometricAveragePriceOption:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        option_type : {'call', 'put'}, optional
-            Call or put payoff direction.
-        strike : float, optional
-            Positive finite strike price.
-        effective_time : datetime.datetime, optional
-            Inclusive contract start.
-        averaging_start_time : datetime.datetime, optional
-            First averaging timestamp, within the contract life.
-        expiry_time : datetime.datetime, optional
-            Inclusive expiry time.
-        realized_average : float or None, optional
-            Positive finite prior average; defaults to None (unknown). Must be None
-            at or before averaging starts, and supplied strictly after it; time
-            consistency is checked at pricing. History covers averaging strictly
-            before valuation; callers supply the applicable average.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        GeometricAveragePriceOption
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -9413,14 +9030,19 @@ class AnalyticGeometricAveragePriceEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticGeometricAveragePriceEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -9603,32 +9225,19 @@ class ArithmeticAveragePriceOption:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        option_type : {'call', 'put'}, optional
-            Call or put payoff direction.
-        strike : float, optional
-            Positive finite strike price.
-        effective_time : datetime.datetime, optional
-            Inclusive contract start.
-        averaging_start_time : datetime.datetime, optional
-            First averaging timestamp, within the contract life.
-        expiry_time : datetime.datetime, optional
-            Inclusive expiry time.
-        realized_average : float or None, optional
-            Positive finite prior average; defaults to None (unknown). Must be None
-            at or before averaging starts, and supplied strictly after it; time
-            consistency is checked at pricing. History covers averaging strictly
-            before valuation; callers supply the applicable average.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        ArithmeticAveragePriceOption
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -9688,14 +9297,19 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        TurnbullWakemanArithmeticAveragePriceEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -10026,14 +9640,19 @@ class AnalyticBarrierEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -10508,14 +10127,19 @@ class AnalyticRangeAccrualEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticRangeAccrualEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -10672,14 +10296,19 @@ class AnalyticDoubleBarrierEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticDoubleBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -10846,14 +10475,19 @@ class AnalyticDoubleTouchEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticDoubleTouchEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -11729,14 +11363,19 @@ class AnalyticBinaryBarrierEngine:
     def replace(self) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        AnalyticBinaryBarrierEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -12192,23 +11831,19 @@ class QuadratureAutocallableEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Base number of spatial intervals, at least 4; defaults to 512. Event
-            boundaries may add intervals; Simpson panels round up to even.
-        integration_standard_deviations : float, optional
-            Positive finite integration extent in standard deviations; defaults to
-            8.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        QuadratureAutocallableEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
@@ -14322,23 +13957,19 @@ class QuadratureAccumulatorEngine:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field; None clears nullable fields.
-        Parameter defaults below describe construction, not replacement.
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        asset_step_count : int, optional
-            Base number of spatial intervals, at least 4; defaults to 512. Event
-            boundaries may add intervals; Simpson panels round up to even.
-        integration_standard_deviations : float, optional
-            Positive finite integration extent in standard deviations; defaults to
-            8.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        QuadratureAccumulatorEngine
-            Validated value.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
