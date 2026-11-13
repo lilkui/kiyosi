@@ -1210,24 +1210,9 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         if self.view().daily_knock_in()
             && self.barrier_state() != Some(AutocallableBarrierState::KnockedIn)
             && self.knock_in_affects_payoff()
+            && self.has_daily_observation(before, after).unwrap_or(true)
         {
-            let mut date = before.date();
-            loop {
-                let Some(clock) = self.observation_clock_time() else {
-                    return false;
-                };
-                let event = date.at_time(clock);
-                if before <= event && event <= after && self.daily_time(event, self.calendar()) {
-                    return false;
-                }
-                if date == after.date() {
-                    break;
-                }
-                let Ok(next) = date.add_days(1) else {
-                    return false;
-                };
-                date = next;
-            }
+            return false;
         }
         true
     }
