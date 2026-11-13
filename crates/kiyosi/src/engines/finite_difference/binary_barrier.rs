@@ -270,11 +270,6 @@ fn native(
     }
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "Barrier positions intentionally round and saturate to nonnegative indices before capping at the grid size."
-)]
 fn native_with_diffusion<D: Diffusion>(
     contract: &Contract<'_>,
     context: &PricingContext,
@@ -522,42 +517,15 @@ fn native_with_diffusion<D: Diffusion>(
         [value(space.asset(0)), value(space.upper)]
     };
     let observe = |values: &mut [f64], current| {
-        let projected: Vec<_> = levels
-            .iter()
-            .map(|level| {
-                let cut = ((level / space.spacing).round() as usize).min(space.count);
-                // Project both boundaries from the same continuation, including shared cells.
-                let value = super::barrier::project(&space, &breaks, cut, |asset| {
-                    if upper_barrier.is_some() {
-                        if knocked(asset) {
-                            hit(asset, current, current)
-                        } else {
-                            space.linear(values, asset)
-                        }
-                    } else if knocked(asset) {
-                        hit(asset, current, current) - space.linear(values, asset)
-                    } else {
-                        0.0
-                    }
-                });
-                (
-                    cut,
-                    if upper_barrier.is_some() {
-                        value
-                    } else {
-                        values[cut] + value
-                    },
-                )
-            })
-            .collect();
-        for (i, value) in values.iter_mut().enumerate() {
-            if knocked(space.asset(i)) {
-                *value = hit(space.asset(i), current, current);
-            }
-        }
-        for (cut, value) in projected {
-            values[cut] = value;
-        }
+        super::barrier::project_event(
+            &space,
+            &breaks,
+            &levels,
+            values,
+            upper_barrier.is_none(),
+            |asset| knocked(asset).then(|| hit(asset, current, current)),
+            |values, asset| space.linear(values, asset),
+        );
     };
     let march = |events: bool| -> Result<Vec<f64>> {
         let values: Vec<_> = (0..=space.count)
@@ -636,11 +604,6 @@ fn native_with_diffusion<D: Diffusion>(
     clippy::too_many_arguments,
     reason = "shared grids, diffusion and event inputs"
 )]
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "Barrier positions intentionally round and saturate to nonnegative indices before capping at the grid size."
-)]
 fn local_digital_knock_in<D: Diffusion>(
     contract: &Contract<'_>,
     settings: FiniteDifferenceSettings,
@@ -704,21 +667,15 @@ fn local_digital_knock_in<D: Diffusion>(
         [value(space.asset(0)), value(space.upper)]
     };
     let observe = |values: &mut [f64], continuation: &[f64], _| {
-        let cut = ((level / space.spacing).round() as usize).min(space.count);
-        let projected = values[cut]
-            + super::barrier::project(space, &breaks, cut, |asset| {
-                if knocked(asset) {
-                    full.linear(continuation, asset) - space.linear(values, asset)
-                } else {
-                    0.0
-                }
-            });
-        for (i, value) in values.iter_mut().enumerate() {
-            if knocked(space.asset(i)) {
-                *value = full.linear(continuation, space.asset(i));
-            }
-        }
-        values[cut] = projected;
+        super::barrier::project_event(
+            space,
+            &breaks,
+            &[level],
+            values,
+            true,
+            |asset| knocked(asset).then(|| full.linear(continuation, asset)),
+            |values, asset| space.linear(values, asset),
+        );
     };
     step::march_with_continuation(
         values,

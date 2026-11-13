@@ -388,11 +388,6 @@ fn local_resolved(
     Ok(None)
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "Barrier positions intentionally round and saturate to nonnegative indices before capping at the grid size."
-)]
 fn native_with_model<D: Diffusion>(
     option: &impl Contract,
     context: &PricingContext,
@@ -560,46 +555,23 @@ fn native_with_model<D: Diffusion>(
         .chain(upper_barrier)
         .collect();
     let breaks: Vec<_> = levels.iter().copied().chain([terms.strike()]).collect();
-    let observe = |values: &mut [f64], current, terminal| {
+    let observe = |values: &mut [f64], current, terminal: bool| {
         let event = rebate_at(current);
-        let projected: Vec<_> = levels
-            .iter()
-            .map(|level| {
-                let cut = ((level / space.spacing).round() as usize).min(space.count);
-                // Project both boundaries from the same continuation, including shared cells.
-                let value = project(&space, &breaks, cut, |asset| {
-                    if terminal || upper_barrier.is_some() {
-                        if knocked(asset) {
-                            event
-                        } else if terminal {
-                            payoff(asset)
-                        } else {
-                            space.linear(values, asset)
-                        }
-                    } else if knocked(asset) {
-                        event - space.linear(values, asset)
-                    } else {
-                        0.0
-                    }
-                });
-                (
-                    cut,
-                    if terminal || upper_barrier.is_some() {
-                        value
-                    } else {
-                        values[cut] + value
-                    },
-                )
-            })
-            .collect();
-        for (i, value) in values.iter_mut().enumerate() {
-            if knocked(space.asset(i)) {
-                *value = event;
-            }
-        }
-        for (cut, value) in projected {
-            values[cut] = value;
-        }
+        project_event(
+            &space,
+            &breaks,
+            &levels,
+            values,
+            !terminal && upper_barrier.is_none(),
+            |asset| knocked(asset).then_some(event),
+            |values, asset| {
+                if terminal {
+                    payoff(asset)
+                } else {
+                    space.linear(values, asset)
+                }
+            },
+        );
     };
     let march = |mut values: Vec<f64>, events: bool| -> Result<Vec<f64>> {
         if events && (!scheduled || observations.contains(&time)) {
@@ -649,41 +621,15 @@ fn native_with_model<D: Diffusion>(
             .collect();
         let mut unactivated = vec![terms.rebate(); space.count + 1];
         let observe_in = |values: &mut [f64], vanilla: &[f64], _: f64| {
-            let projected: Vec<_> = levels
-                .iter()
-                .map(|level| {
-                    let cut = ((level / space.spacing).round() as usize).min(space.count);
-                    let average = project(&space, &breaks, cut, |asset| {
-                        if upper_barrier.is_some() {
-                            if knocked(asset) {
-                                full_space.linear(vanilla, asset)
-                            } else {
-                                space.linear(values, asset)
-                            }
-                        } else if knocked(asset) {
-                            full_space.linear(vanilla, asset) - space.linear(values, asset)
-                        } else {
-                            0.0
-                        }
-                    });
-                    (
-                        cut,
-                        if upper_barrier.is_some() {
-                            average
-                        } else {
-                            values[cut] + average
-                        },
-                    )
-                })
-                .collect();
-            for (i, value) in values.iter_mut().enumerate() {
-                if knocked(space.asset(i)) {
-                    *value = full_space.linear(vanilla, space.asset(i));
-                }
-            }
-            for (cut, value) in projected {
-                values[cut] = value;
-            }
+            project_event(
+                &space,
+                &breaks,
+                &levels,
+                values,
+                upper_barrier.is_none(),
+                |asset| knocked(asset).then(|| full_space.linear(vanilla, asset)),
+                |values, asset| space.linear(values, asset),
+            );
         };
         if scheduled && observations.contains(&time) {
             observe_in(&mut unactivated, &continuation, time);
@@ -757,6 +703,44 @@ fn native_with_model<D: Diffusion>(
         }
     }
     Ok(result)
+}
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "Barrier positions intentionally round and saturate to nonnegative indices before capping at the grid size."
+)]
+pub(super) fn project_event(
+    space: &SpatialGrid,
+    breaks: &[f64],
+    levels: &[f64],
+    values: &mut [f64],
+    additive: bool,
+    event: impl Fn(f64) -> Option<f64>,
+    continuation: impl Fn(&[f64], f64) -> f64,
+) {
+    // Project all boundaries from the same continuation, including shared cells.
+    let projected: Vec<_> = levels
+        .iter()
+        .map(|level| {
+            let cut = ((level / space.spacing).round() as usize).min(space.count);
+            let value = project(space, breaks, cut, |asset| match (event(asset), additive) {
+                (Some(value), true) => value - continuation(values, asset),
+                (Some(value), false) => value,
+                (None, true) => 0.0,
+                (None, false) => continuation(values, asset),
+            });
+            (cut, if additive { values[cut] + value } else { value })
+        })
+        .collect();
+    for (i, value) in values.iter_mut().enumerate() {
+        if let Some(replacement) = event(space.asset(i)) {
+            *value = replacement;
+        }
+    }
+    for (cut, value) in projected {
+        values[cut] = value;
+    }
 }
 
 pub(super) fn project(
