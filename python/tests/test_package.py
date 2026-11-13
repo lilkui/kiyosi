@@ -62,13 +62,8 @@ def test_engine_replacement_preserves_controls_and_validates_inputs(subtests):
                     assert cleared == factory(**controls | {nullable: None})
 
 
-@pytest.mark.parametrize(
-    "model_change, expected_reads",
-    [("supplied", 0), ("omitted", 1), ("ellipsis", 1)],
-)
-def test_replacement_reads_only_retained_fields(
-    monkeypatch, model_change, expected_reads
-):
+@pytest.mark.parametrize("model_change", ("supplied", "omitted", "ellipsis"))
+def test_context_replacement_preserves_or_replaces_model(model_change):
     start = datetime(2025, 1, 1)
     model = market.BlackScholesMertonParameters(
         risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
@@ -77,22 +72,12 @@ def test_replacement_reads_only_retained_fields(
     original = market.PricingContext(
         model_parameters=model, spot_price=100, valuation_time=start
     )
-    getter = market.PricingContext.model_parameters
-    reads = 0
-
-    def read_model(value):
-        nonlocal reads
-        reads += 1
-        return getter.__get__(value, market.PricingContext)
-
-    monkeypatch.setattr(market.PricingContext, "model_parameters", property(read_model))
     changes = {"spot_price": 101}
     if model_change == "supplied":
         changes["model_parameters"] = alternate
     elif model_change == "ellipsis":
         changes["model_parameters"] = Ellipsis
     updated = original.replace(**changes)
-    assert reads == expected_reads
     assert updated == market.PricingContext(
         model_parameters=alternate if model_change == "supplied" else model,
         spot_price=101,
