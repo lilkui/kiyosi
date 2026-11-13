@@ -184,13 +184,7 @@ impl Accumulator {
                 .map(crate::conversions::real)
                 .transpose()?,
             accumulated_quantity: accumulated_quantity
-                .map(|value| {
-                    if value.is_none() {
-                        Ok(None)
-                    } else {
-                        crate::conversions::real(value).map(Some)
-                    }
-                })
+                .map(crate::conversions::optional_real)
                 .transpose()?,
             effective_time: effective_time
                 .map(crate::conversions::timestamp)
@@ -200,13 +194,7 @@ impl Accumulator {
                 .map(crate::conversions::clock_time)
                 .transpose()?,
             knock_out_observation_times: knock_out_observation_times
-                .map(|value| {
-                    if value.is_none() {
-                        Ok(None)
-                    } else {
-                        crate::conversions::timestamps(value).map(Some)
-                    }
-                })
+                .map(crate::conversions::optional_timestamps)
                 .transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))

@@ -130,15 +130,7 @@ impl RangeAccrualOption {
             observation_clock_time: observation_clock_time
                 .map(crate::conversions::clock_time)
                 .transpose()?,
-            realized_hit_count: realized_hit_count
-                .map(|value| {
-                    if value.is_none() {
-                        Ok(None)
-                    } else {
-                        crate::conversions::integer(value).map(Some)
-                    }
-                })
-                .transpose()?,
+            realized_hit_count: realized_hit_count.map(history).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
