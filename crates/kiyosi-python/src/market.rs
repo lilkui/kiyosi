@@ -358,19 +358,10 @@ rate_properties!(
     },
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
         let value = slf.borrow();
-        let py = slf.py();
-        crate::representation::format(
+        crate::representation::model(
             slf.as_any(),
-            [
-                (
-                    "risk_free_rate",
-                    Some(crate::representation::curve(py, value.0.risk_free_curve())?),
-                ),
-                (
-                    "dividend_yield",
-                    Some(crate::representation::curve(py, value.0.dividend_curve())?),
-                ),
-            ],
+            value.0.risk_free_curve(),
+            value.0.dividend_curve(),
         )
     },
     #[new]

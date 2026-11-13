@@ -52,6 +52,21 @@ pub(crate) fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResu
     ))
 }
 
+pub(crate) fn model(
+    value: &Bound<'_, PyAny>,
+    risk_free: &kiyosi::RateTermStructure,
+    dividend: &kiyosi::RateTermStructure,
+) -> PyResult<String> {
+    let py = value.py();
+    format(
+        value,
+        [
+            ("risk_free_rate", Some(curve(py, risk_free)?)),
+            ("dividend_yield", Some(curve(py, dividend)?)),
+        ],
+    )
+}
+
 pub(crate) fn surface(py: Python<'_>, value: &kiyosi::LocalVolatilitySurface) -> PyResult<String> {
     Ok(format!(
         "LocalVolatilitySurface(times={}, spots={}, values={})",
