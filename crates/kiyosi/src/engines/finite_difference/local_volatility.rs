@@ -1,7 +1,4 @@
-use super::{
-    Error, FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, OptionContract, Payoff,
-    PricingContext, PricingResult, Result,
-};
+use super::{Error, Greek, GreeksRequest, OptionContract, PricingContext, Result};
 use crate::{GreekMethod, LocalVolatilityParameters, ModelParameters};
 
 pub(super) fn greek_method(
@@ -43,33 +40,6 @@ pub(super) fn validate_model(context: &PricingContext) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-pub(super) fn price(
-    option: &impl OptionContract,
-    payoff: Payoff,
-    context: &PricingContext,
-    model: &LocalVolatilityParameters,
-    settings: FiniteDifferenceSettings,
-    request: GreeksRequest,
-) -> Result<PricingResult> {
-    let original_request = request;
-    let request = validate_request(context, request)?;
-    Ok(super::native_model(
-        option,
-        payoff,
-        context,
-        settings,
-        request,
-        Default::default(),
-        settings.asset_upper_boundary.is_none(),
-        LocalDiffusion::new(context, model.surface()),
-    )?
-    .0
-    .with_request(
-        original_request,
-        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-    ))
 }
 
 pub(super) fn local_model(context: &PricingContext) -> Option<&LocalVolatilityParameters> {

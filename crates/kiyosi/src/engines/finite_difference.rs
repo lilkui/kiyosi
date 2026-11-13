@@ -980,23 +980,6 @@ macro_rules! vanilla_pricing {
                         result,
                     );
                 }
-                if let Some(model) = local_volatility::local_model(context) {
-                    let result = local_volatility::price(
-                        option,
-                        Payoff::vanilla(option.option_type(), option.strike(), $american),
-                        context,
-                        model,
-                        self.settings,
-                        request,
-                    )?;
-                    return crate::risk::numerical::expiry_greeks(
-                        option,
-                        context,
-                        shifts,
-                        result,
-                        |context| self.price(option, context),
-                    );
-                }
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
                 analysis(
                     option,
