@@ -39,6 +39,38 @@ fn replace_payoff(
     payoff(kind, amount).map(Some)
 }
 
+// Keep base and monitoring conversion separate to preserve payoff-error precedence.
+fn touch_terms(
+    effective_time: &Bound<'_, PyAny>,
+    expiry_time: &Bound<'_, PyAny>,
+    barrier_level: &Bound<'_, PyAny>,
+    barrier_type: &Bound<'_, PyAny>,
+) -> PyResult<kiyosi::TouchOptionTerms> {
+    Ok(kiyosi::TouchOptionTerms::new(
+        timestamp(effective_time)?,
+        timestamp(expiry_time)?,
+        real(barrier_level)?,
+        barrier::kind(barrier_type)?,
+    ))
+}
+
+fn touch_monitoring(
+    mut terms: kiyosi::TouchOptionTerms,
+    settlement_timing: kiyosi::SettlementTiming,
+    observation_times: Option<&Bound<'_, PyAny>>,
+    touch_state: Option<kiyosi::BarrierTouchState>,
+    calendar: Option<&Bound<'_, PyAny>>,
+) -> PyResult<kiyosi::TouchOptionTerms> {
+    terms.settlement_timing = settlement_timing;
+    terms.observation_times = observation_times
+        .map(crate::conversions::timestamps)
+        .transpose()?;
+    terms.touch_state = touch_state;
+    terms.calendar =
+        crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
+    Ok(terms)
+}
+
 /// Cash-or-nothing or asset-or-nothing option with barrier monitoring.
 ///
 /// Parameters
@@ -323,20 +355,15 @@ binary_properties!(
         #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let mut terms = kiyosi::TouchOptionTerms::new(
-            timestamp(effective_time)?,
-            timestamp(expiry_time)?,
-            real(barrier_level)?,
-            barrier::kind(barrier_type)?,
-        );
+        let terms = touch_terms(effective_time, expiry_time, barrier_level, barrier_type)?;
         let payoff = payoff(payoff_type, payout.map(real).transpose()?)?;
-        terms.settlement_timing = settlement_timing;
-        terms.observation_times = observation_times
-            .map(crate::conversions::timestamps)
-            .transpose()?;
-        terms.touch_state = touch_state;
-        terms.calendar =
-            crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
+        let terms = touch_monitoring(
+            terms,
+            settlement_timing,
+            observation_times,
+            touch_state,
+            calendar,
+        )?;
         Ok(Self(domain(match payoff {
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::TouchOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::TouchOption::asset(terms),
@@ -646,14 +673,8 @@ macro_rules! touch_factory {
             #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
         ) -> PyResult<TouchOption> {
-            let mut terms = kiyosi::TouchOptionTerms::new(
-                timestamp(effective_time)?, timestamp(expiry_time)?, real(barrier_level)?,
-                barrier::kind(barrier_type)?,
-            );
-            terms.settlement_timing = settlement_timing;
-            terms.observation_times = observation_times.map(crate::conversions::timestamps).transpose()?;
-            terms.touch_state = touch_state;
-            terms.calendar = crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
+            let terms = touch_terms(effective_time, expiry_time, barrier_level, barrier_type)?;
+            let terms = touch_monitoring(terms, settlement_timing, observation_times, touch_state, calendar)?;
             Ok(TouchOption(domain(kiyosi::TouchOption::$constructor(terms $(, real($payout)?)?))?))
         }
     };

@@ -188,7 +188,7 @@ fn automatic_upper(
     dividend: &Curve,
 ) -> Result<f64> {
     let relevant = context.spot_price().max(payoff.strike);
-    if !payoff.american {
+    if !payoff.is_american() {
         return Ok(4.0 * relevant);
     }
     diffusion_upper(relevant, context, time, risk, dividend)
@@ -323,11 +323,15 @@ fn native_model<D: Diffusion>(
     let mut space = SpatialGrid::new(
         settings,
         upper,
-        if payoff.american { payoff.strike } else { 0.0 },
+        if payoff.is_american() {
+            payoff.strike
+        } else {
+            0.0
+        },
         spot.max(payoff.strike),
     )?;
-    if !payoff.american
-        && (!payoff.digital || D::LOCAL)
+    if !payoff.is_american()
+        && (!payoff.is_digital() || D::LOCAL)
         && concentrate
         && settings.scheme != FiniteDifferenceScheme::ExplicitEuler
     {
@@ -350,7 +354,7 @@ fn native_model<D: Diffusion>(
             &space,
             diffusion.sigma(0.0, 0.0),
             theta,
-            !payoff.american,
+            !payoff.is_american(),
             &risk,
             &dividend,
         )?;
@@ -363,7 +367,7 @@ fn native_model<D: Diffusion>(
                 })[0];
             }
             let asset = space.asset(i);
-            if !payoff.digital {
+            if !payoff.is_digital() {
                 return payoff.value(asset);
             }
             let low = asset - 0.5 * space.spacing;
@@ -381,11 +385,12 @@ fn native_model<D: Diffusion>(
             if left >= right {
                 0.0
             } else {
-                (right - left) / space.spacing * payoff.payout.unwrap_or(f64::midpoint(left, right))
+                (right - left) / space.spacing
+                    * payoff.payout().unwrap_or(f64::midpoint(left, right))
             }
         })
         .collect();
-    let can_exercise = payoff.american
+    let can_exercise = payoff.is_american()
         && (model.risk_free_curve().exact_flat_rate().is_none()
             || model.dividend_curve().exact_flat_rate().is_none()
             || payoff.sign < 0.0
@@ -406,12 +411,12 @@ fn native_model<D: Diffusion>(
     for step in (0..time_grid.widths.len()).rev() {
         crate::cancellation::check()?;
         for (current, dt, weight) in time_grid.substeps(step, settings.scheme, &mut damping) {
-            let carry = if payoff.payout.is_some() {
+            let carry = if payoff.payout().is_some() {
                 risk.rate(if D::LOCAL { current + 0.5 * dt } else { 0.0 })
             } else {
                 dividend.rate(if D::LOCAL { current + 0.5 * dt } else { 0.0 })
             };
-            if payoff.digital && theta == 0.5 && (weight != 0.5 || carry < 0.0) {
+            if payoff.is_digital() && theta == 0.5 && (weight != 0.5 || carry < 0.0) {
                 let exponent = carry * dt;
                 let implicit = weight * exponent;
                 let explicit = -(1.0 - weight) * exponent;
@@ -428,11 +433,11 @@ fn native_model<D: Diffusion>(
             let risk_log = risk.log_factor(time - tau, time);
             let dividend_log = dividend.log_factor(time - tau, time);
             let high = if D::LOCAL {
-                let continuation = if payoff.digital {
+                let continuation = if payoff.is_digital() {
                     if payoff.sign > 0.0 {
                         scaled(
-                            payoff.payout.unwrap_or(upper),
-                            if payoff.payout.is_some() {
+                            payoff.payout().unwrap_or(upper),
+                            if payoff.payout().is_some() {
                                 risk_log
                             } else {
                                 dividend_log
@@ -445,7 +450,7 @@ fn native_model<D: Diffusion>(
                     (payoff.sign * (scaled(upper, dividend_log) - scaled(payoff.strike, risk_log)))
                         .max(0.0)
                 };
-                if payoff.american {
+                if payoff.is_american() {
                     continuation.max(payoff.value(upper))
                 } else {
                     continuation
@@ -458,8 +463,8 @@ fn native_model<D: Diffusion>(
                     diffusion.sigma(0.0, 0.0),
                     tau.sqrt(),
                 );
-                if payoff.digital {
-                    if let Some(amount) = payoff.payout {
+                if payoff.is_digital() {
+                    if let Some(amount) = payoff.payout() {
                         weighted_cdf(amount, risk_log, payoff.sign * d2)
                     } else {
                         weighted_cdf(upper, dividend_log, payoff.sign * d1)
@@ -468,16 +473,16 @@ fn native_model<D: Diffusion>(
                     let continuation = payoff.sign
                         * (weighted_cdf(upper, dividend_log, payoff.sign * d1)
                             - weighted_cdf(payoff.strike, risk_log, payoff.sign * d2));
-                    if payoff.american {
+                    if payoff.is_american() {
                         continuation.max(payoff.value(upper))
                     } else {
                         continuation
                     }
                 }
             };
-            let low = if payoff.sign > 0.0 || (payoff.digital && payoff.payout.is_none()) {
+            let low = if payoff.sign > 0.0 || (payoff.is_digital() && payoff.payout().is_none()) {
                 0.0
-            } else if payoff.american {
+            } else if payoff.is_american() {
                 put_boundary = payoff.strike.max(scaled(
                     put_boundary,
                     risk.log_factor(current, previous_boundary_time),
@@ -485,7 +490,7 @@ fn native_model<D: Diffusion>(
                 previous_boundary_time = current;
                 put_boundary
             } else {
-                scaled(payoff.payout.unwrap_or(payoff.strike), risk_log)
+                scaled(payoff.payout().unwrap_or(payoff.strike), risk_log)
             };
             diffusion.advance(
                 &mut stepper,
@@ -515,19 +520,19 @@ fn native_model<D: Diffusion>(
         if !value.is_finite() {
             return Err(unstable());
         }
-        if !payoff.digital {
+        if !payoff.is_digital() {
             let scale = scaled(s, dividend.log_factor(0.0, time))
                 .max(scaled(payoff.strike, risk.log_factor(0.0, time)));
             let value = crate::numerics::checked_with_scale(value, scale)?;
-            return Ok(value.max(if payoff.american {
+            return Ok(value.max(if payoff.is_american() {
                 payoff.value(s)
             } else {
                 0.0
             }));
         }
         let bound = scaled(
-            payoff.payout.unwrap_or(s),
-            if payoff.payout.is_some() {
+            payoff.payout().unwrap_or(s),
+            if payoff.payout().is_some() {
                 risk.log_factor(0.0, time)
             } else {
                 dividend.log_factor(0.0, time)

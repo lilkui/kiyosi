@@ -1,6 +1,6 @@
 use crate::{
-    DigitalOption, Greek, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
-    PricingContext, PricingEngine, PricingResult, Result,
+    BinaryPayoff, DigitalOption, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 
 pub(crate) mod analytic;
@@ -41,9 +41,14 @@ fn greeks<I: OptionContract>(
 struct Payoff {
     strike: f64,
     sign: f64,
-    american: bool,
-    digital: bool,
-    payout: Option<f64>,
+    kind: PayoffKind,
+}
+
+#[derive(Clone, Copy)]
+enum PayoffKind {
+    European,
+    American,
+    Digital(BinaryPayoff),
 }
 
 impl Payoff {
@@ -55,29 +60,55 @@ impl Payoff {
             } else {
                 -1.0
             },
-            american,
-            digital: false,
-            payout: None,
+            kind: if american {
+                PayoffKind::American
+            } else {
+                PayoffKind::European
+            },
         }
     }
 
     fn digital(option: &DigitalOption) -> Self {
         Self {
-            digital: true,
-            payout: option.payout(),
+            kind: PayoffKind::Digital(
+                option
+                    .payout()
+                    .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash),
+            ),
             ..Self::vanilla(option.option_type(), option.strike(), false)
         }
     }
 
+    fn is_american(self) -> bool {
+        matches!(self.kind, PayoffKind::American)
+    }
+
+    fn is_digital(self) -> bool {
+        matches!(self.kind, PayoffKind::Digital(_))
+    }
+
+    fn payout(self) -> Option<f64> {
+        match self.kind {
+            PayoffKind::Digital(BinaryPayoff::Cash(amount)) => Some(amount),
+            _ => None,
+        }
+    }
+
     fn value(self, spot: f64) -> f64 {
-        if self.digital {
-            if self.sign * (spot - self.strike) > 0.0 {
-                self.payout.unwrap_or(spot)
-            } else {
-                0.0
+        match self.kind {
+            PayoffKind::Digital(payment) => {
+                if self.sign * (spot - self.strike) > 0.0 {
+                    match payment {
+                        BinaryPayoff::Cash(amount) => amount,
+                        BinaryPayoff::Asset => spot,
+                    }
+                } else {
+                    0.0
+                }
             }
-        } else {
-            (self.sign * (spot - self.strike)).max(0.0)
+            PayoffKind::European | PayoffKind::American => {
+                (self.sign * (spot - self.strike)).max(0.0)
+            }
         }
     }
 }

@@ -349,10 +349,10 @@ fn native(
         if !node_spot.is_finite() {
             return Err(unstable());
         }
-        values.push(if payoff.digital {
+        values.push(if payoff.is_digital() {
             // Log coordinates keep exact equality at the central strike node out of the money.
             if payoff.sign * (log_moneyness + (2.0 * node as f64 - steps as f64) * width) > 0.0 {
-                payoff.payout.unwrap_or(node_spot)
+                payoff.payout().unwrap_or(node_spot)
             } else {
                 0.0
             }
@@ -364,7 +364,7 @@ fn native(
     let mut first = [0.0; 2];
     let mut second = [0.0; 3];
     let no_early_exercise =
-        !payoff.american || (payoff.sign > 0.0 && dividend <= 0.0 && rate >= 0.0);
+        !payoff.is_american() || (payoff.sign > 0.0 && dividend <= 0.0 && rate >= 0.0);
     let direct = no_early_exercise
         && steps >= 256
         && scaled(
@@ -388,7 +388,11 @@ fn native(
         } else {
             [nodes[0], nodes[1]]
         };
-        values[0] = price.max(if payoff.american { exercise(spot) } else { 0.0 });
+        values[0] = price.max(if payoff.is_american() {
+            exercise(spot)
+        } else {
+            0.0
+        });
     } else {
         node_spot = spot * down.powi(settings.step_count - 1);
         for level in (0..steps).rev() {
@@ -402,7 +406,7 @@ fn native(
             if level < steps - 1 {
                 node_spot *= up;
             }
-            if payoff.american && level == 0 {
+            if payoff.is_american() && level == 0 {
                 let continuation = discount * ((1.0 - p) * values[0] + p * values[1]);
                 if exercise(spot) > 0.0 && exercise(spot) > continuation {
                     let mut result = PricingResult::new(exercise(spot))?;
@@ -414,7 +418,7 @@ fn native(
             let mut asset = node_spot;
             for index in 0..=level {
                 let continuation = discount * ((1.0 - p) * values[index] + p * values[index + 1]);
-                values[index] = if payoff.american {
+                values[index] = if payoff.is_american() {
                     continuation.max(exercise(asset))
                 } else {
                     continuation

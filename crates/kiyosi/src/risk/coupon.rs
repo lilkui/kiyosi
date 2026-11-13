@@ -206,16 +206,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     crate::error::finite(s.upper_bound, false, "upper_bound")?;
     crate::error::finite(s.price_tolerance, true, "price_tolerance")?;
     crate::error::finite(s.parameter_tolerance, true, "parameter_tolerance")?;
-    if s.lower_bound >= s.upper_bound {
-        return Err(Error::InvalidInput(
-            "upper_bound must exceed lower_bound".into(),
-        ));
-    }
-    if s.max_iterations <= 0 {
-        return Err(Error::InvalidInput(
-            "max_iterations must be positive".into(),
-        ));
-    }
+    super::validate_solver_bounds(s.lower_bound, s.upper_bound, s.max_iterations)?;
     if let Some(minimum) = minimum {
         s.lower_bound = s.lower_bound.max(minimum);
         if s.lower_bound >= s.upper_bound {

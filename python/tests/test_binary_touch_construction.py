@@ -9,6 +9,68 @@ from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
 
 
+@pytest.mark.parametrize(
+    "factory,fields",
+    (
+        pytest.param(
+            ins.TouchOption, {"payoff_type": "cash", "payout": 10}, id="class-cash"
+        ),
+        pytest.param(ins.TouchOption, {"payoff_type": "asset"}, id="class-asset"),
+        pytest.param(ins.cash_touch_option, {"payout": 10}, id="cash-touch"),
+        pytest.param(ins.asset_touch_option, {}, id="asset-touch"),
+        pytest.param(ins.cash_no_touch_option, {"payout": 10}, id="cash-no-touch"),
+        pytest.param(ins.asset_no_touch_option, {}, id="asset-no-touch"),
+    ),
+)
+def test_touch_construction_inherits_schedule_calendar_and_honors_overrides(
+    factory, fields
+):
+    start, end = datetime(2025, 1, 3), datetime(2025, 1, 4)
+    calendar = market.all_days_calendar()
+    schedule = market.ObservationSchedule(
+        times=[end], start_time=start, end_time=end, calendar=calendar
+    )
+    terms = {
+        "effective_time": start,
+        "expiry_time": end,
+        "barrier_level": 120,
+        "barrier_type": "up_and_out"
+        if factory in (ins.cash_no_touch_option, ins.asset_no_touch_option)
+        else "up_and_in",
+        "observation_times": schedule,
+        "touch_state": "untouched",
+        **fields,
+    }
+    option = factory(**terms)
+    assert option.calendar == calendar
+    assert option.observation_times == (end,)
+    assert option.touch_state == "untouched"
+    with pytest.raises(InvalidInputError):
+        factory(**terms, calendar=market.weekdays_calendar())
+
+
+@pytest.mark.parametrize(
+    "factory,fields,error",
+    (
+        pytest.param(ins.TouchOption, {"payoff_type": "cash"}, ValueError, id="class"),
+        pytest.param(ins.cash_touch_option, {}, TypeError, id="factory"),
+    ),
+)
+def test_touch_construction_preserves_payoff_and_monitoring_conversion_order(
+    factory, fields, error
+):
+    with pytest.raises(error):
+        factory(
+            effective_time=datetime(2025, 1, 3),
+            expiry_time=datetime(2025, 1, 6),
+            barrier_level=120,
+            barrier_type="up_and_in",
+            payout=2**53 + 1,
+            observation_times=[object()],
+            **fields,
+        )
+
+
 @pytest.mark.parametrize("direction,level", (("up", 120), ("down", 80)))
 @pytest.mark.parametrize(
     "factory,condition,payout,expected",

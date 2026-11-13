@@ -70,15 +70,17 @@ pub enum AutocallableObservationKind {
 /// [`Self::snowball`], [`Self::phoenix`] and [`Self::replace`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AutocallableObservation {
-    kind: AutocallableObservationKind,
     /// Sets the exact observation time.
     time: Timestamp,
     /// Sets the positive inclusive knock-out threshold.
     knock_out_level: f64,
-    /// Sets the finite annual snowball knock-out coupon; must be zero for Phoenix.
-    coupon_rate: f64,
-    /// Sets the inclusive nonnegative Phoenix coupon threshold; must be zero for snowballs.
-    coupon_barrier_level: f64,
+    coupon: ObservationCoupon,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ObservationCoupon {
+    Snowball(f64),
+    Phoenix(f64),
 }
 /// Selects observation replacements; absent fields retain their values.
 ///
@@ -105,12 +107,10 @@ impl AutocallableObservation {
     /// Returns [`Error::InvalidInput`] for a nonpositive or non-finite knock-out level
     /// or a non-finite coupon rate. See [`Self::phoenix`] for a usage example.
     pub fn snowball(time: Timestamp, knock_out_level: f64, coupon_rate: f64) -> Result<Self> {
-        Self::with_coupons(
-            AutocallableObservationKind::Snowball,
+        Self::new(
             time,
             knock_out_level,
-            coupon_rate,
-            0.0,
+            ObservationCoupon::Snowball(coupon_rate),
         )
     }
 
@@ -142,28 +142,18 @@ impl AutocallableObservation {
         knock_out_level: f64,
         coupon_barrier_level: f64,
     ) -> Result<Self> {
-        Self::with_coupons(
-            AutocallableObservationKind::Phoenix,
+        Self::new(
             time,
             knock_out_level,
-            0.0,
-            coupon_barrier_level,
+            ObservationCoupon::Phoenix(coupon_barrier_level),
         )
     }
 
-    fn with_coupons(
-        kind: AutocallableObservationKind,
-        time: Timestamp,
-        knock_out_level: f64,
-        coupon_rate: f64,
-        coupon_barrier_level: f64,
-    ) -> Result<Self> {
+    fn new(time: Timestamp, knock_out_level: f64, coupon: ObservationCoupon) -> Result<Self> {
         let record = Self {
-            kind,
             time,
             knock_out_level,
-            coupon_rate,
-            coupon_barrier_level,
+            coupon,
         };
         record.validate()?;
         Ok(record)
@@ -191,28 +181,32 @@ impl AutocallableObservation {
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: AutocallableObservationChanges) -> Result<Self> {
-        if (self.kind == AutocallableObservationKind::Phoenix && changes.coupon_rate.is_some())
-            || (self.kind == AutocallableObservationKind::Snowball
-                && changes.coupon_barrier_level.is_some())
-        {
-            return Err(Error::InvalidInput(
-                "coupon field does not belong to this observation kind".into(),
-            ));
-        }
-        Self::with_coupons(
-            self.kind,
+        let coupon = match self.coupon {
+            ObservationCoupon::Snowball(rate) if changes.coupon_barrier_level.is_none() => {
+                ObservationCoupon::Snowball(changes.coupon_rate.unwrap_or(rate))
+            }
+            ObservationCoupon::Phoenix(barrier) if changes.coupon_rate.is_none() => {
+                ObservationCoupon::Phoenix(changes.coupon_barrier_level.unwrap_or(barrier))
+            }
+            _ => {
+                return Err(Error::InvalidInput(
+                    "coupon field does not belong to this observation kind".into(),
+                ));
+            }
+        };
+        Self::new(
             changes.time.unwrap_or(self.time),
             changes.knock_out_level.unwrap_or(self.knock_out_level),
-            changes.coupon_rate.unwrap_or(self.coupon_rate),
-            changes
-                .coupon_barrier_level
-                .unwrap_or(self.coupon_barrier_level),
+            coupon,
         )
     }
 
     /// Returns the product kind, independently of coupon values; see [`Self::phoenix`].
     pub fn kind(&self) -> AutocallableObservationKind {
-        self.kind
+        match self.coupon {
+            ObservationCoupon::Snowball(_) => AutocallableObservationKind::Snowball,
+            ObservationCoupon::Phoenix(_) => AutocallableObservationKind::Phoenix,
+        }
     }
 
     /// Returns the exact timestamp; see [`Self::phoenix`].
@@ -227,29 +221,31 @@ impl AutocallableObservation {
     ///
     /// A zero snowball rate is `Some(0.0)`; see [`Self::phoenix`] for inspection.
     pub fn coupon_rate(&self) -> Option<f64> {
-        (self.kind == AutocallableObservationKind::Snowball).then_some(self.coupon_rate)
+        match self.coupon {
+            ObservationCoupon::Snowball(rate) => Some(rate),
+            ObservationCoupon::Phoenix(_) => None,
+        }
     }
     /// Returns the Phoenix coupon threshold, or `None` for snowball observations.
     ///
     /// An unconditional Phoenix coupon is `Some(0.0)`; see [`Self::phoenix`].
     pub fn coupon_barrier_level(&self) -> Option<f64> {
-        (self.kind == AutocallableObservationKind::Phoenix).then_some(self.coupon_barrier_level)
+        match self.coupon {
+            ObservationCoupon::Phoenix(barrier) => Some(barrier),
+            ObservationCoupon::Snowball(_) => None,
+        }
     }
 
     fn validate(&self) -> Result<()> {
         finite(self.knock_out_level, true, "knock_out_level")?;
-        finite(self.coupon_rate, false, "coupon_rate")?;
-        finite(self.coupon_barrier_level, false, "coupon_barrier_level")?;
-        if self.coupon_barrier_level < 0.0 {
-            return Err(Error::InvalidInput("negative coupon barrier".into()));
-        }
-        if (self.kind == AutocallableObservationKind::Phoenix && self.coupon_rate != 0.0)
-            || (self.kind == AutocallableObservationKind::Snowball
-                && self.coupon_barrier_level != 0.0)
-        {
-            return Err(Error::InvalidInput(
-                "coupon_rate and coupon_barrier_level belong to different products".into(),
-            ));
+        match self.coupon {
+            ObservationCoupon::Snowball(rate) => finite(rate, false, "coupon_rate")?,
+            ObservationCoupon::Phoenix(barrier) => {
+                finite(barrier, false, "coupon_barrier_level")?;
+                if barrier < 0.0 {
+                    return Err(Error::InvalidInput("negative coupon barrier".into()));
+                }
+            }
         }
         Ok(())
     }
@@ -288,15 +284,17 @@ pub fn autocallable_observations(
     coupons: Option<&[f64]>,
     coupon_barriers: Option<&[f64]>,
 ) -> Result<Vec<AutocallableObservation>> {
-    if coupons.is_some() == coupon_barriers.is_some() {
-        return Err(Error::InvalidInput(
-            "supply exactly one of coupons and coupon_barriers".into(),
-        ));
-    }
-    if times.len() != levels.len()
-        || coupons.is_some_and(|v| v.len() != times.len())
-        || coupon_barriers.is_some_and(|v| v.len() != times.len())
+    let (values, coupon): (&[f64], fn(f64) -> ObservationCoupon) = match (coupons, coupon_barriers)
     {
+        (Some(values), None) => (values, ObservationCoupon::Snowball),
+        (None, Some(values)) => (values, ObservationCoupon::Phoenix),
+        _ => {
+            return Err(Error::InvalidInput(
+                "supply exactly one of coupons and coupon_barriers".into(),
+            ));
+        }
+    };
+    if times.len() != levels.len() || values.len() != times.len() {
         return Err(Error::InvalidInput(
             "observation sequence lengths differ".into(),
         ));
@@ -304,20 +302,8 @@ pub fn autocallable_observations(
     times
         .iter()
         .zip(levels)
-        .enumerate()
-        .map(|(i, (&time, &level))| {
-            AutocallableObservation::with_coupons(
-                if coupons.is_some() {
-                    AutocallableObservationKind::Snowball
-                } else {
-                    AutocallableObservationKind::Phoenix
-                },
-                time,
-                level,
-                coupons.map_or(0.0, |values| values[i]),
-                coupon_barriers.map_or(0.0, |values| values[i]),
-            )
-        })
+        .zip(values)
+        .map(|((&time, &level), &value)| AutocallableObservation::new(time, level, coupon(value)))
         .collect()
 }
 
@@ -609,9 +595,11 @@ macro_rules! snowball_coupon {
         impl sealed::SnowballCoupon for $terms {
             fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
                 let mut terms = self.clone();
-                let shift = coupon - terms.autocall_observations.first().map_or(0.0, |record| record.coupon_rate);
+                let shift = coupon - terms.autocall_observations.first().map_or(0.0, |record| record.coupon_rate().unwrap_or_default());
                 for record in &mut terms.autocall_observations {
-                    record.coupon_rate += shift;
+                    if let ObservationCoupon::Snowball(rate) = &mut record.coupon {
+                        *rate += shift;
+                    }
                 }
                 if convention == crate::CouponQuoteConvention::ShiftMaturityCoupon {
                     terms.maturity_coupon_rate += shift;
@@ -635,7 +623,9 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         let Redemption::FixedCoupon(minimum) = terms.knock_in?.redemption else {
             return None;
         };
-        let anchor = terms.autocall_observations[0].coupon_rate;
+        let anchor = terms.autocall_observations[0]
+            .coupon_rate()
+            .unwrap_or_default();
         let maturity = terms.maturity_coupon_rate();
         // Round both inverse operations into the domain used by with_coupon.
         let shift = minimum - maturity;
@@ -1011,7 +1001,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         self.0.view()
     }
     pub(crate) fn observation_coupon(&self, record: &AutocallableObservation, spot: f64) -> f64 {
-        if spot < record.coupon_barrier_level {
+        if spot < record.coupon_barrier_level().unwrap_or_default() {
             0.0
         } else {
             self.period_coupon()
@@ -1097,7 +1087,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             + if matches!(t.coupon, Coupon::Phoenix(_)) {
                 0.0
             } else {
-                record.coupon_rate
+                record.coupon_rate().unwrap_or_default()
             } * self.effective_time().years_until(record.time)
     }
 }
@@ -1128,7 +1118,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
                         && self.period_coupon() != 0.0
                         && context.deterministic_crosses(
                             record.time,
-                            record.coupon_barrier_level,
+                            record.coupon_barrier_level().unwrap_or_default(),
                             radius,
                         )
                 {
@@ -1194,8 +1184,8 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         {
             if matches!(self.view().coupon, Coupon::Phoenix(_))
                 && self.period_coupon() != 0.0
-                && record.coupon_barrier_level > 0.0
-                && crosses(record.coupon_barrier_level)
+                && record.coupon_barrier_level().unwrap_or_default() > 0.0
+                && crosses(record.coupon_barrier_level().unwrap_or_default())
             {
                 return true;
             }
@@ -1410,7 +1400,7 @@ impl sealed::View<'_> {
         if let Coupon::Phoenix(coupon) = terms.coupon {
             finite(coupon, false, "coupon_per_period")?;
             for r in terms.autocall_observations {
-                if r.kind != AutocallableObservationKind::Phoenix {
+                if r.kind() != AutocallableObservationKind::Phoenix {
                     return Err(Error::InvalidInput(
                         "Phoenix notes require Phoenix observations; set the note coupon".into(),
                     ));
@@ -1419,7 +1409,7 @@ impl sealed::View<'_> {
         } else if terms
             .autocall_observations
             .iter()
-            .any(|r| r.kind != AutocallableObservationKind::Snowball)
+            .any(|r| r.kind() != AutocallableObservationKind::Snowball)
         {
             return Err(Error::InvalidInput(
                 "snowball notes require snowball observations".into(),

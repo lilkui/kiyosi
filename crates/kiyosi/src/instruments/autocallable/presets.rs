@@ -1,7 +1,7 @@
 use super::{
-    AutocallableBarrierState, AutocallableObservation, AutocallableObservationKind,
-    DEFAULT_PHOENIX_LOCKOUT_PERIODS, DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation,
-    PhoenixOption, PhoenixTerms, SnowballOption, SnowballTerms,
+    AutocallableBarrierState, AutocallableObservation, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
+    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation, ObservationCoupon, PhoenixOption,
+    PhoenixTerms, SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
 use crate::error::finite;
@@ -193,11 +193,9 @@ impl SnowballPresetTerms {
             .autocall_times
             .into_iter()
             .map(|date| AutocallableObservation {
-                kind: AutocallableObservationKind::Snowball,
                 time: date,
                 knock_out_level: self.knock_out_level,
-                coupon_rate: self.coupon_rate,
-                coupon_barrier_level: 0.0,
+                coupon: ObservationCoupon::Snowball(self.coupon_rate),
             })
             .collect();
         let mut terms = SnowballTerms::new(
@@ -229,12 +227,14 @@ impl SnowballPresetTerms {
             } => {
                 for (i, r) in terms.autocall_observations.iter_mut().enumerate() {
                     r.knock_out_level -= i as f64 * knock_out_level_decrement;
-                    r.coupon_rate -= i as f64 * coupon_rate_decrement;
+                    if let ObservationCoupon::Snowball(rate) = &mut r.coupon {
+                        *rate -= i as f64 * coupon_rate_decrement;
+                    }
                 }
                 terms.maturity_coupon_rate = terms
                     .autocall_observations
                     .last()
-                    .map_or(0.0, |r| r.coupon_rate);
+                    .map_or(0.0, |r| r.coupon_rate().unwrap_or_default());
             }
             SnowballPreset::DualCoupon {
                 maturity_coupon_rate,
@@ -292,10 +292,12 @@ fn staged_coupons(
         }
     }
     for record in &mut terms.autocall_observations {
-        record.coupon_rate = stages
-            .iter()
-            .find(|(end, _)| record.time <= *end)
-            .map_or(final_rate, |(_, rate)| *rate);
+        record.coupon = ObservationCoupon::Snowball(
+            stages
+                .iter()
+                .find(|(end, _)| record.time <= *end)
+                .map_or(final_rate, |(_, rate)| *rate),
+        );
     }
     terms.maturity_coupon_rate = final_rate;
     Ok(())
@@ -473,9 +475,7 @@ impl PhoenixPresetTerms {
                 time: date,
                 knock_out_level: self.knock_out_level
                     - i.saturating_sub(self.lockout_periods) as f64 * decrement,
-                coupon_rate: 0.0,
-                coupon_barrier_level: coupon_barrier,
-                kind: AutocallableObservationKind::Phoenix,
+                coupon: ObservationCoupon::Phoenix(coupon_barrier),
             })
             .collect();
         let mut terms = PhoenixTerms::new(

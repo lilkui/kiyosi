@@ -106,16 +106,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
             "lower_bound must be nonnegative".into(),
         ));
     }
-    if s.lower_bound >= s.upper_bound {
-        return Err(Error::InvalidInput(
-            "upper_bound must exceed lower_bound".into(),
-        ));
-    }
-    if s.max_iterations <= 0 {
-        return Err(Error::InvalidInput(
-            "max_iterations must be positive".into(),
-        ));
-    }
+    super::validate_solver_bounds(s.lower_bound, s.upper_bound, s.max_iterations)?;
     engine.validate_solver_seed()?;
     if let Some(prepared) = engine.prepare_request()? {
         return implied_volatility(prepared.as_ref(), option, context, observed_price, settings);

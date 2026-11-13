@@ -437,7 +437,7 @@ fn price(
             predictor[k] += dt * (0.5 * cross[k] + (along_asset[k] + along_variance[k]) / 6.0);
         }
         op.solve(&mut predictor, &first, &second, theta, edges)?;
-        if payoff.american {
+        if payoff.is_american() {
             for k in 0..length {
                 let raw = predictor[k];
                 predictor[k] = (raw - dt * multiplier[k]).max(intrinsic[k % nx]);

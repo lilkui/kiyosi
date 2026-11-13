@@ -159,7 +159,7 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
         }
         if matches!(t.coupon, Coupon::Phoenix(_)) {
             let coupon = note.period_coupon();
-            if coupon != 0.0 && record.coupon_barrier_level != 0.0 {
+            if coupon != 0.0 && record.coupon_barrier_level().unwrap_or_default() != 0.0 {
                 return None;
             }
             coupons += coupon * discount;

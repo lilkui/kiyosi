@@ -39,13 +39,13 @@ pub(super) fn vanilla(
     let risk = Curve::new(model.risk_free_curve(), start, end)?;
     let dividend = Curve::new(model.dividend_curve(), start, end)?;
     let time = start.years_until(end);
-    if payoff.digital {
+    if payoff.is_digital() {
         let r = model.risk_free_curve().log_factor(start, end)?;
         let q = model.dividend_curve().log_factor(start, end)?;
         let forward = log_ratio(context.spot_price(), payoff.strike) + q - r;
         return checked(if payoff.sign * forward <= 0.0 {
             0.0
-        } else if let Some(payout) = payoff.payout {
+        } else if let Some(payout) = payoff.payout() {
             scaled_cash(payout, r)
         } else {
             scaled_cash(context.spot_price(), q)
@@ -97,7 +97,7 @@ pub(super) fn exercise_value(
         };
         checked_with_scale(price, 0.0)
     };
-    if !payoff.american {
+    if !payoff.is_american() {
         return value(end);
     }
     let mut knots: Vec<_> = risk
