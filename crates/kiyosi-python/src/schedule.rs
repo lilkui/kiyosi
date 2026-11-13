@@ -28,9 +28,9 @@ use pyo3::types::{PyBool, PySlice, PyTuple};
 /// Construct from explicit times, or use fixed_interval_schedule or
 /// monthly_schedule. Bounds and calendar validate the input; the schedule owns
 /// its times and calendar. Empty schedules are valid. The times property returns a
-/// copy; iteration retains the schedule owner. Integer indexing accepts
+/// copy; forward and reverse iteration retrieve timestamps lazily and retain
+/// the schedule owner. Integer indexing accepts
 /// negative indices, rejects bool, and raises IndexError outside the sequence.
-/// reversed(schedule) iterates over an owned copy of the timestamps.
 /// Slices return independent schedules with the same calendar. Decreasing
 /// selections raise InvalidInputError. Slice bounds and steps accept integers
 /// excluding bool; a zero step raises ValueError. len(schedule) counts observations.
@@ -82,9 +82,11 @@ impl ObservationSchedule {
     fn __len__(&self) -> usize {
         self.0.len()
     }
-    fn __reversed__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        py.import("builtins")?
-            .call_method1("reversed", (self.times(py)?,))
+    fn __reversed__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+        let builtins = slf.py().import("builtins")?;
+        let indices = builtins.call_method1("range", (slf.borrow().0.len(),))?;
+        let indices = builtins.call_method1("reversed", (indices,))?;
+        builtins.call_method1("map", (slf.getattr("__getitem__")?, indices))
     }
     fn __getitem__<'py>(
         &self,

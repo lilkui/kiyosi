@@ -1340,9 +1340,9 @@ class ObservationSchedule:
     Construct from explicit times, or use fixed_interval_schedule or
     monthly_schedule. Bounds and calendar validate the input; the schedule owns
     its times and calendar. Empty schedules are valid. The times property returns a
-    copy; iteration retains the schedule owner. Integer indexing accepts
+    copy; forward and reverse iteration retrieve timestamps lazily and retain
+    the schedule owner. Integer indexing accepts
     negative indices, rejects bool, and raises IndexError outside the sequence.
-    reversed(schedule) iterates over an owned copy of the timestamps.
     Slices return independent schedules with the same calendar. Decreasing
     selections raise InvalidInputError. Slice bounds and steps accept integers
     excluding bool; a zero step raises ValueError. len(schedule) counts observations.

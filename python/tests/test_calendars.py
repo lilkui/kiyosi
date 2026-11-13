@@ -393,6 +393,27 @@ def test_schedule_reverse_iteration_preserves_order_and_owns_timestamps(subtests
                 next(reverse)
 
 
+def test_schedule_reverse_iteration_uses_bounded_memory():
+    import tracemalloc
+
+    start = datetime(2025, 1, 1)
+    end = start + timedelta(minutes=49_999)
+    schedule = ObservationSchedule(
+        times=(start + timedelta(minutes=n) for n in range(50_000)),
+        start_time=start,
+        end_time=end,
+        calendar=all_days_calendar(),
+    )
+    tracemalloc.start()
+    try:
+        reverse = reversed(schedule)
+        assert next(reverse) == end
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 256 * 1024
+
+
 def test_schedule_indices_reject_booleans_and_nonintegers(subtests):
     schedule = fixed_interval_schedule(
         observation_clock_time=clock_time(),
