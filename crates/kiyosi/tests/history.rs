@@ -233,11 +233,21 @@ fn undated_daily_history_survives_calendar_edits() -> Result<()> {
 
     let range = RangeAccrualOption::new(range)?;
     assert_eq!(
-        range.replace_calendar(future.clone())?.realized_hit_count(),
+        range
+            .replace(RangeAccrualOptionChanges {
+                calendar: Some(future.clone()),
+                ..Default::default()
+            })?
+            .realized_hit_count(),
         Some(1)
     );
     assert_eq!(
-        range.replace_calendar(past.clone())?.realized_hit_count(),
+        range
+            .replace(RangeAccrualOptionChanges {
+                calendar: Some(past.clone()),
+                ..Default::default()
+            })?
+            .realized_hit_count(),
         Some(1)
     );
     let mut terms = AccumulatorTerms::new(
@@ -255,11 +265,21 @@ fn undated_daily_history_survives_calendar_edits() -> Result<()> {
 
     let accumulator = Accumulator::new(terms)?;
     assert_eq!(
-        accumulator.replace_calendar(future)?.accumulated_quantity(),
+        accumulator
+            .replace(AccumulatorChanges {
+                calendar: Some(future),
+                ..Default::default()
+            })?
+            .accumulated_quantity(),
         Some(2.0)
     );
     assert_eq!(
-        accumulator.replace_calendar(past)?.accumulated_quantity(),
+        accumulator
+            .replace(AccumulatorChanges {
+                calendar: Some(past),
+                ..Default::default()
+            })?
+            .accumulated_quantity(),
         Some(2.0)
     );
     Ok(())

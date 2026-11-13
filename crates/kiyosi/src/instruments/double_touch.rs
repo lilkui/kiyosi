@@ -62,28 +62,7 @@ pub struct DoubleTouchOption {
     settlement_timing: SettlementTiming,
 }
 impl DoubleTouchOption {
-    /// Replaces the owned observation calendar; see [`Self::cash`] for construction.
-    ///
-    /// Defaults to weekdays. Construction and replacement validate scheduled observations against
-    /// this calendar. Other terms remain unchanged.
-    ///
-    /// Set [`DoubleTouchOptionTerms::calendar`] before calling [`Self::cash`] for
-    /// scheduled observations on dates closed by the default weekday calendar.
-    /// Continuous monitoring is independent of trading days; expiry need not be open.
-    /// The original contract remains unchanged on success and failure.
-    /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] if scheduled observations fall on closed dates.
-    pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        self.replace(DoubleTouchOptionChanges {
-            calendar: Some(calendar),
-            ..Default::default()
-        })
-    }
-
-    /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
+    /// Borrows the contract's observation calendar; see [`Self::replace`].
     pub fn calendar(&self) -> &TradingCalendar {
         self.monitoring.calendar()
     }
@@ -250,7 +229,7 @@ impl OptionContract for DoubleTouchOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleTouchOptionChanges {
-    /// Replaces the owned observation calendar; see [`DoubleTouchOption::replace_calendar`].
+    /// Replaces the owned observation calendar; see [`DoubleTouchOption::replace`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`effective_time`](DoubleTouchOptionTerms::effective_time).
     pub effective_time: Option<Timestamp>,

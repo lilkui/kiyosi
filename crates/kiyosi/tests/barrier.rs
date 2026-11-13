@@ -772,7 +772,10 @@ fn contract_calendars_reject_closed_observations_on_construction_and_replacement
     let option = BarrierOption::new(t.clone()).unwrap();
     let closed = TradingCalendar::new(|_| false, 365).unwrap();
     assert!(matches!(
-        option.replace_calendar(closed),
+        option.replace(BarrierOptionChanges {
+            calendar: Some(closed),
+            ..Default::default()
+        }),
         Err(Error::InvalidInput(_))
     ));
     t.observation_times = Some(vec![Date::new(2025, 1, 4).unwrap().start_of_day()]);

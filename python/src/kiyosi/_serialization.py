@@ -3,11 +3,17 @@
 import copyreg
 import reprlib
 from datetime import datetime
-from inspect import Parameter, isclass, signature
+from functools import cache
+from inspect import Parameter, Signature, isclass, signature
 from types import ModuleType
 from typing import Any, get_args
 
 from . import _native
+
+
+@cache
+def _constructor(factory: Any) -> Signature:
+    return signature(factory)
 
 
 def _copy(value: Any) -> Any:
@@ -145,7 +151,7 @@ def _reduce(
         name: _Preview(previews[name])
         if previews and name in previews
         else getattr(value, rate_fields.get(name, name))
-        for name in signature(factory).parameters
+        for name in _constructor(factory).parameters
     }
     return _restore, (factory, fields)
 
@@ -162,7 +168,7 @@ def _repr(value: Any) -> str:
     name = type(value).__name__
     fields = fields.copy()
     if fields.get("calendar") == _native.weekdays_calendar():
-        if signature(type(value)).parameters["calendar"].default is Parameter.empty:
+        if _constructor(type(value)).parameters["calendar"].default is Parameter.empty:
             fields["calendar"] = _Preview("weekdays_calendar()")
         else:
             fields.pop("calendar")

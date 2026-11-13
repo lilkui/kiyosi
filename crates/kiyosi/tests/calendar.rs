@@ -30,7 +30,10 @@ fn schedules_retain_calendars_for_contract_composition() -> kiyosi::Result<()> {
     terms.observation_times = Some(schedule.times().to_vec());
     terms.calendar = schedule.calendar().clone();
     let option = BarrierOption::new(terms)?;
-    let updated = option.replace_calendar(TradingCalendar::all_days())?;
+    let updated = option.replace(kiyosi::BarrierOptionChanges {
+        calendar: Some(TradingCalendar::all_days()),
+        ..Default::default()
+    })?;
     assert_eq!(
         updated.observation_schedule().unwrap().calendar(),
         updated.calendar()

@@ -545,7 +545,10 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     };
     let engine = MonteCarloAccumulatorEngine::new(sampling)?;
     let daily = accumulator
-        .replace_calendar(TradingCalendar::all_days())
+        .replace(AccumulatorChanges {
+            calendar: Some(TradingCalendar::all_days()),
+            ..Default::default()
+        })
         .unwrap();
     assert!((engine.price(&daily, &context)? - 40.0).abs() < 1e-7);
     assert_eq!(
@@ -1637,10 +1640,6 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         }),
         Err(Error::InvalidInput(_))
     ));
-    assert!(matches!(
-        option.replace_calendar(TradingCalendar::weekdays()),
-        Err(Error::InvalidInput(_))
-    ));
     assert_eq!(option.calendar(), &TradingCalendar::all_days());
     assert_eq!(
         option
@@ -1714,21 +1713,27 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         Err(Error::InvalidInput(_))
     ));
     macro_rules! unchanged {
-        ($option:ident) => {
+        ($option:ident, $changes:ident) => {
             assert!(matches!(
-                $option.replace_calendar(TradingCalendar::weekdays()),
+                $option.replace($changes {
+                    calendar: Some(TradingCalendar::weekdays()),
+                    ..Default::default()
+                }),
                 Err(Error::InvalidInput(_))
             ));
             assert_eq!(
-                $option.replace_calendar(TradingCalendar::all_days())?,
+                $option.replace($changes {
+                    calendar: Some(TradingCalendar::all_days()),
+                    ..Default::default()
+                })?,
                 $option
             );
             assert_eq!($option.calendar(), &TradingCalendar::all_days());
         };
     }
-    unchanged!(accumulator);
-    unchanged!(note);
-    unchanged!(range);
+    unchanged!(accumulator, AccumulatorChanges);
+    unchanged!(note, BinarySnowballOptionChanges);
+    unchanged!(range, RangeAccrualOptionChanges);
     Ok(())
 }
 

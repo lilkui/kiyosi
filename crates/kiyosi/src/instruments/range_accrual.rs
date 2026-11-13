@@ -143,46 +143,7 @@ impl RangeAccrualOption {
         Ok(Self { terms, schedule })
     }
 
-    /// Replaces the owned observation calendar; see [`Self::new`] for construction.
-    ///
-    /// Defaults to weekdays. Construction and replacement require a nonempty observation schedule.
-    /// Settlement may fall on a closed date. Other terms remain unchanged.
-    ///
-    /// Amends an already validated contract; this is not an initial-construction builder.
-    /// Set [`RangeAccrualTerms::calendar`] before calling [`Self::new`] when the
-    /// terms require a custom calendar, such as weekend observations.
-    /// The original contract remains unchanged on success and failure.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] if the resulting daily observation schedule is empty
-    /// or cannot accommodate the retained history strictly before expiry.
-    ///
-    /// # Examples
-    ///
-    /// Settles on Saturday while observing only on open dates:
-    ///
-    /// ```rust
-    /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualTerms, TradingCalendar};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 2)?.start_of_day();
-    /// let expiry = Date::new(2025, 1, 4)?.start_of_day();
-    /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 80.0, 120.0, start, expiry, kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
-    /// let option = RangeAccrualOption::new(terms)?;
-    /// assert_eq!(option.observation_schedule().times(), &[start.add_days(1)?]);
-    /// let daily = option.replace_calendar(TradingCalendar::all_days())?;
-    /// assert_eq!(daily.observation_schedule().len(), 2);
-    /// assert_eq!(daily.expiry_time(), expiry);
-    /// # Ok(()) }
-    /// ```
-    pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        self.replace(RangeAccrualOptionChanges {
-            calendar: Some(calendar),
-            ..Default::default()
-        })
-    }
-
-    /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
+    /// Borrows the contract's observation calendar; see [`Self::replace`].
     pub fn calendar(&self) -> &TradingCalendar {
         &self.terms.calendar
     }
@@ -296,7 +257,7 @@ impl OptionContract for RangeAccrualOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct RangeAccrualOptionChanges {
-    /// Replaces the owned observation calendar; see [`RangeAccrualOption::replace_calendar`].
+    /// Replaces the owned observation calendar; see [`RangeAccrualOption::replace`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`notional`](RangeAccrualTerms::notional).
     pub notional: Option<f64>,
@@ -326,6 +287,26 @@ impl RangeAccrualOption {
     ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
+    ///
+    /// # Examples
+    ///
+    /// Settles on Saturday while observing only on open dates:
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualOptionChanges, RangeAccrualTerms, TradingCalendar};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 2)?.start_of_day();
+    /// let expiry = Date::new(2025, 1, 4)?.start_of_day();
+    /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 80.0, 120.0, start, expiry, kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
+    /// let option = RangeAccrualOption::new(terms)?;
+    /// assert_eq!(option.observation_schedule().times(), &[start.add_days(1)?]);
+    /// let daily = option.replace(RangeAccrualOptionChanges {
+    ///     calendar: Some(TradingCalendar::all_days()), ..Default::default()
+    /// })?;
+    /// assert_eq!(daily.observation_schedule().len(), 2);
+    /// assert_eq!(daily.expiry_time(), expiry);
+    /// # Ok(()) }
+    /// ```
     pub fn replace(&self, changes: RangeAccrualOptionChanges) -> Result<Self> {
         Self::new(RangeAccrualTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),

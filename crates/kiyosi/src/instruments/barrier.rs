@@ -126,28 +126,7 @@ pub struct BarrierOption {
     rebate_timing: RebateTiming,
 }
 impl BarrierOption {
-    /// Replaces the owned observation calendar, leaving other terms unchanged.
-    ///
-    /// Defaults to weekdays. Construction and replacement check scheduled observations against this
-    /// calendar; see [`Self::new`].
-    ///
-    /// Set [`BarrierOptionTerms::calendar`] before calling [`Self::new`] for
-    /// scheduled observations on dates closed by the default weekday calendar.
-    /// Continuous monitoring is independent of trading days; expiry need not be open.
-    /// The original contract remains unchanged on success and failure.
-    /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] if scheduled observations fall on closed dates.
-    pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        self.replace(BarrierOptionChanges {
-            calendar: Some(calendar),
-            ..Default::default()
-        })
-    }
-
-    /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
+    /// Borrows the contract's observation calendar; see [`Self::replace`].
     pub fn calendar(&self) -> &TradingCalendar {
         self.monitoring.calendar()
     }
@@ -321,7 +300,7 @@ impl OptionContract for BarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BarrierOptionChanges {
-    /// Replaces the owned observation calendar; see [`BarrierOption::replace_calendar`].
+    /// Replaces the owned observation calendar; see [`BarrierOption::replace`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](BarrierOptionTerms::option_type).
     pub option_type: Option<OptionType>,

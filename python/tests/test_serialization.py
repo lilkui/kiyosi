@@ -340,6 +340,37 @@ def test_repr_exposes_terms_settings_and_results(subtests):
     assert repr(pickle.loads(pickle.dumps(estimate))) == repr(estimate)
 
 
+def test_repr_and_pickle_reuse_constructor_metadata(monkeypatch):
+    from kiyosi import _serialization
+
+    objects = (
+        p.AnalyticEuropeanEngine(),
+        i.EuropeanOption(
+            option_type="call", strike=100, effective_time=START, expiry_time=END
+        ),
+        i.BinarySnowballOption(
+            maturity_coupon_rate=0.1,
+            autocall_observations=[
+                i.AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
+            ],
+            effective_time=START,
+            expiry_time=END,
+            calendar=m.weekdays_calendar(),
+        ),
+    )
+    representations = [repr(value) for value in objects]
+
+    def unexpected_signature(_factory):
+        pytest.fail("constructor metadata was already resolved")
+
+    monkeypatch.setattr(_serialization, "signature", unexpected_signature)
+    for value, expected in zip(objects, representations, strict=True):
+        assert repr(value) == expected
+        restored = pickle.loads(pickle.dumps(value))
+        assert restored == value
+        assert repr(restored) == expected
+
+
 def test_range_accrual_repr_identifies_observation_clock():
     morning = i.RangeAccrualOption(
         notional=1000,

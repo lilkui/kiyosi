@@ -52,6 +52,23 @@ struct Factors {
     inverse: Vec<f64>,
 }
 
+impl Factors {
+    fn factor_row(&mut self, i: usize, dt: f64, theta: f64) -> Result<()> {
+        let [a, b, c] = self.coefficients[i];
+        self.upper[i] = -theta * dt * c;
+        self.diagonal[i] = 1.0 - theta * dt * b;
+        if i > 0 {
+            self.multipliers[i] = -theta * dt * a / self.diagonal[i - 1];
+            self.diagonal[i] -= self.multipliers[i] * self.upper[i - 1];
+        }
+        if !self.diagonal[i].is_finite() || self.diagonal[i] == 0.0 {
+            return Err(unstable());
+        }
+        self.inverse[i] = 1.0 / self.diagonal[i];
+        Ok(())
+    }
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "two domains share diffusion, time grid and event rules"
@@ -160,16 +177,7 @@ impl Stepper {
             }
             factors.coefficients[i] = [a, b, c];
             if theta != 0.0 {
-                factors.upper[i] = -theta * dt * c;
-                factors.diagonal[i] = 1.0 - theta * dt * b;
-                if i > 0 {
-                    factors.multipliers[i] = -theta * dt * a / factors.diagonal[i - 1];
-                    factors.diagonal[i] -= factors.multipliers[i] * factors.upper[i - 1];
-                }
-                if !factors.diagonal[i].is_finite() || factors.diagonal[i] == 0.0 {
-                    return Err(unstable());
-                }
-                factors.inverse[i] = 1.0 / factors.diagonal[i];
+                factors.factor_row(i, dt, theta)?;
             }
         }
         self.apply(old, next, dt, theta, boundaries, 0)
@@ -207,18 +215,7 @@ impl Stepper {
             };
             if theta != 0.0 {
                 for i in 0..size {
-                    let [a, b, c] = factors.coefficients[i];
-                    factors.upper[i] = -theta * dt * c;
-                    factors.diagonal[i] = 1.0 - theta * dt * b;
-                    if i > 0 {
-                        let pivot = factors.diagonal[i - 1];
-                        factors.multipliers[i] = -theta * dt * a / pivot;
-                        factors.diagonal[i] -= factors.multipliers[i] * factors.upper[i - 1];
-                    }
-                    if !factors.diagonal[i].is_finite() || factors.diagonal[i] == 0.0 {
-                        return Err(unstable());
-                    }
-                    factors.inverse[i] = 1.0 / factors.diagonal[i];
+                    factors.factor_row(i, dt, theta)?;
                 }
             }
             if self.factors.len() < 3 {

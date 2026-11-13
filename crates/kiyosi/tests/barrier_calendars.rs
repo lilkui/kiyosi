@@ -52,15 +52,8 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     macro_rules! check {
         ($option:expr, $engine:expr, $changes:expr) => {{
             let option = $option;
-            assert!(matches!(
-                option.replace_calendar(TradingCalendar::weekdays()),
-                Err(Error::InvalidInput(_))
-            ));
-            assert_eq!(
-                option.replace_calendar(TradingCalendar::all_days())?,
-                option
-            );
             let owned = option.replace($changes)?;
+            assert_eq!(owned, option);
             assert_eq!(owned.calendar(), &TradingCalendar::all_days());
             assert_eq!(owned.replace(Default::default())?, owned);
             assert_eq!(option.calendar(), &TradingCalendar::all_days());

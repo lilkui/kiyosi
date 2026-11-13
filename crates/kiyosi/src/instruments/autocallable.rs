@@ -862,7 +862,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Set [`SnowballTerms::calendar`] before calling [`Self::new`] when the
     /// terms require a custom calendar, such as weekend observations.
     /// The original contract remains unchanged on success and failure.
-    /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
+    /// See [`crate::RangeAccrualOption::replace`] for an initial-calendar example.
     ///
     /// # Errors
     ///

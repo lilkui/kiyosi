@@ -81,28 +81,7 @@ pub struct DoubleBarrierOption {
     upper: f64,
 }
 impl DoubleBarrierOption {
-    /// Replaces the owned observation calendar; see [`Self::new`] for construction.
-    ///
-    /// Defaults to weekdays. Construction and replacement validate scheduled observations against
-    /// this calendar. Other terms remain unchanged.
-    ///
-    /// Set [`DoubleBarrierOptionTerms::calendar`] before calling [`Self::new`] for
-    /// scheduled observations on dates closed by the default weekday calendar.
-    /// Continuous monitoring is independent of trading days; expiry need not be open.
-    /// The original contract remains unchanged on success and failure.
-    /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] if scheduled observations fall on closed dates.
-    pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        self.replace(DoubleBarrierOptionChanges {
-            calendar: Some(calendar),
-            ..Default::default()
-        })
-    }
-
-    /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
+    /// Borrows the contract's observation calendar; see [`Self::replace`].
     pub fn calendar(&self) -> &TradingCalendar {
         self.lower.calendar()
     }
@@ -283,7 +262,7 @@ impl OptionContract for DoubleBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleBarrierOptionChanges {
-    /// Replaces the owned observation calendar; see [`DoubleBarrierOption::replace_calendar`].
+    /// Replaces the owned observation calendar; see [`DoubleBarrierOption::replace`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](DoubleBarrierOptionTerms::option_type).
     pub option_type: Option<OptionType>,

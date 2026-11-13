@@ -170,28 +170,7 @@ impl Accumulator {
         Ok(Self { terms })
     }
 
-    /// Replaces the owned accumulation calendar; see [`Self::new`] for construction.
-    ///
-    /// Defaults to weekdays. Construction and replacement check explicit observations against
-    /// this calendar. Other terms are retained.
-    ///
-    /// Amends an already validated contract; this is not an initial-construction builder.
-    /// Set [`AccumulatorTerms::calendar`] before calling [`Self::new`] when the
-    /// terms require a custom calendar, such as weekend observations.
-    /// The original contract remains unchanged on success and failure.
-    /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] if explicit observations fall on closed dates.
-    pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        self.replace(AccumulatorChanges {
-            calendar: Some(calendar),
-            ..Default::default()
-        })
-    }
-
-    /// Borrows the contract's accumulation calendar; see [`Self::replace_calendar`].
+    /// Borrows the contract's accumulation calendar; see [`Self::replace`].
     pub fn calendar(&self) -> &TradingCalendar {
         &self.terms.calendar
     }
@@ -568,7 +547,7 @@ impl OptionContract for Accumulator {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct AccumulatorChanges {
-    /// Replaces the owned accumulation calendar; see [`Accumulator::replace_calendar`].
+    /// Replaces the owned accumulation calendar; see [`Accumulator::replace`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](AccumulatorTerms::option_type).
     pub option_type: Option<OptionType>,

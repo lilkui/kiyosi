@@ -34,7 +34,10 @@ fn observation_schedules_retain_valid_storage_across_contract_replacements() -> 
     let schedule = option.observation_schedule();
     let closed = schedule.times()[0].date();
     let calendar = TradingCalendar::custom(option.calendar().clone(), vec![closed], vec![], None)?;
-    let updated = option.replace_calendar(calendar.clone())?;
+    let updated = option.replace(RangeAccrualOptionChanges {
+        calendar: Some(calendar.clone()),
+        ..Default::default()
+    })?;
     assert_eq!(
         updated.observation_schedule().times(),
         &schedule.times()[1..]
@@ -378,7 +381,10 @@ fn numerical_greeks_match_independent_payoff_reference() {
             })
             .unwrap();
         let option = option
-            .replace_calendar(TradingCalendar::weekdays())
+            .replace(RangeAccrualOptionChanges {
+                calendar: Some(TradingCalendar::weekdays()),
+                ..Default::default()
+            })
             .unwrap();
         let shifts = NumericalShiftSettings {
             spot_shift: Some(0.1),
