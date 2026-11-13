@@ -203,40 +203,29 @@ fn dispatch_coupon(
     quote_convention: Option<&Bound<'_, PyAny>>,
     controls: kiyosi::ImpliedCouponSettings,
 ) -> PyResult<Py<PyAny>> {
+    macro_rules! solve {
+        ($engine:expr) => {
+            solve_coupon(
+                py,
+                $engine,
+                instrument,
+                context,
+                observed_price,
+                quote_convention,
+                controls,
+            )
+        };
+    }
     if let Ok(engine) = engine.extract::<PyRef<'_, QuadratureAutocallableEngine>>() {
-        return solve_coupon(
-            py,
-            engine.0,
-            instrument,
-            context,
-            observed_price,
-            quote_convention,
-            controls,
-        );
+        return solve!(engine.0);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAutocallableEngine>>() {
-        return solve_coupon(
-            py,
-            engine.0,
-            instrument,
-            context,
-            observed_price,
-            quote_convention,
-            controls,
-        );
+        return solve!(engine.0);
     }
     let engine = crate::conversions::engine::<
         PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>,
     >(engine)?;
-    solve_coupon(
-        py,
-        engine.0,
-        instrument,
-        context,
-        observed_price,
-        quote_convention,
-        controls,
-    )
+    solve!(engine.0)
 }
 
 #[expect(
