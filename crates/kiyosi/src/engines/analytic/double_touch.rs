@@ -126,10 +126,7 @@ impl AnalyticDoubleTouchEngine {
 
 impl PricingEngine<DoubleTouchOption> for AnalyticDoubleTouchEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        let model = context.bsm_parameters()?;
-        model.flat_risk_free_rate()?;
-        model.flat_dividend_yield()?;
-        Ok(())
+        crate::engines::flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)

@@ -277,7 +277,6 @@ impl MonteCarloAsianEngine {
         };
         let weight = if single { 1.0 } else { future / o.period() };
         let sigma = model.volatility();
-        let variance_time = if single { tau } else { lead + future / 3.0 };
         let flat =
             model.risk_free_curve().nodes().is_empty() && model.dividend_curve().nodes().is_empty();
         let (rate, dividend) = if flat {
@@ -324,36 +323,30 @@ impl MonteCarloAsianEngine {
             };
             return Ok((result([price, first, 0.0], request)?, known_error, None));
         }
-        let drift = if single && !flat {
-            carry_between(0.0, tau) - 0.5 * sigma * sigma * tau
-        } else {
-            weight * drift_rate * if single { tau } else { lead + future / 2.0 }
-        };
-        let mut p = Parameters {
-            spot: context.spot_price(),
-            strike: o.terms.strike(),
-            realized: o.realized.unwrap_or(0.0),
-            weight,
-            log_discount,
-            drift,
-            width: sigma * (weight * variance_time.sqrt()),
-            log_width: sigma.ln() + weight.ln() + 0.5 * variance_time.ln(),
-            log_base_width: sigma.ln() + 0.5 * variance_time.ln(),
-            initial_moneyness: weight * log_ratio(context.spot_price(), o.terms.strike())
-                + if valuation > start {
-                    (1.0 - weight) * log_ratio(o.realized.unwrap_or(0.0), o.terms.strike())
-                } else {
-                    0.0
-                },
-            sign: o.sign(),
-            step_count: self.step_count,
-            lead_drift: drift_rate * lead,
-            lead_width: sigma * lead.sqrt(),
-            lead_width_ratio: 0.0,
-            interval_forward: 0.0,
-        };
         let (means, standard_error, seed) = if geometric || single {
-            if !drift.is_finite() || !p.width.is_finite() {
+            let variance_time = if single { tau } else { lead + future / 3.0 };
+            let p = GeometricParameters {
+                spot: context.spot_price(),
+                strike: o.terms.strike(),
+                weight,
+                log_discount,
+                drift: if single && !flat {
+                    carry_between(0.0, tau) - 0.5 * sigma * sigma * tau
+                } else {
+                    weight * drift_rate * if single { tau } else { lead + future / 2.0 }
+                },
+                width: sigma * (weight * variance_time.sqrt()),
+                log_width: sigma.ln() + weight.ln() + 0.5 * variance_time.ln(),
+                log_base_width: sigma.ln() + 0.5 * variance_time.ln(),
+                initial_moneyness: weight * log_ratio(context.spot_price(), o.terms.strike())
+                    + if valuation > start {
+                        (1.0 - weight) * log_ratio(o.realized.unwrap_or(0.0), o.terms.strike())
+                    } else {
+                        0.0
+                    },
+                sign: o.sign(),
+            };
+            if !p.drift.is_finite() || !p.width.is_finite() {
                 return Err(crate::engines::monte_carlo::unstable());
             }
             crate::engines::monte_carlo::path_means(self.settings, 1, statistics, |normals| {
@@ -361,19 +354,13 @@ impl MonteCarloAsianEngine {
             })?
         } else {
             let dt = future / f64::from(self.step_count);
-            p.drift = drift_rate * dt;
-            p.width = sigma * dt.sqrt();
-            p.log_width = sigma.ln() + 0.5 * dt.ln();
-            p.lead_width_ratio = (lead / dt).sqrt();
-            p.interval_forward = if flat {
+            let interval_forward = if flat {
                 carry * dt
             } else {
                 carry_between(lead, lead + dt)
             };
             let mut interval_drifts = Vec::new();
             if !flat {
-                p.drift = p.interval_forward - 0.5 * sigma * sigma * dt;
-                p.lead_drift = carry_between(0.0, lead) - 0.5 * sigma * sigma * lead;
                 for step in 2..=self.step_count {
                     let from = lead + future * f64::from(step - 1) / f64::from(self.step_count);
                     let to = if step == self.step_count {
@@ -384,6 +371,30 @@ impl MonteCarloAsianEngine {
                     interval_drifts.push(carry_between(from, to) - 0.5 * sigma * sigma * dt);
                 }
             }
+            let p = ArithmeticParameters {
+                spot: context.spot_price(),
+                strike: o.terms.strike(),
+                realized: o.realized.unwrap_or(0.0),
+                weight,
+                log_discount,
+                drift: if flat {
+                    drift_rate * dt
+                } else {
+                    interval_forward - 0.5 * sigma * sigma * dt
+                },
+                width: sigma * dt.sqrt(),
+                log_width: sigma.ln() + 0.5 * dt.ln(),
+                sign: o.sign(),
+                step_count: self.step_count,
+                lead_drift: if flat {
+                    drift_rate * lead
+                } else {
+                    carry_between(0.0, lead) - 0.5 * sigma * sigma * lead
+                },
+                lead_width: sigma * lead.sqrt(),
+                lead_width_ratio: (lead / dt).sqrt(),
+                interval_forward,
+            };
             if [
                 p.drift,
                 p.width,
@@ -413,10 +424,9 @@ impl MonteCarloAsianEngine {
     }
 }
 
-struct Parameters {
+struct GeometricParameters {
     spot: f64,
     strike: f64,
-    realized: f64,
     weight: f64,
     log_discount: f64,
     drift: f64,
@@ -425,14 +435,9 @@ struct Parameters {
     log_base_width: f64,
     initial_moneyness: f64,
     sign: f64,
-    step_count: i32,
-    lead_drift: f64,
-    lead_width: f64,
-    lead_width_ratio: f64,
-    interval_forward: f64,
 }
 
-impl Parameters {
+impl GeometricParameters {
     fn geometric(&self, normal: f64, request: GreeksRequest) -> Result<[f64; 3]> {
         let distance = self.initial_moneyness + self.drift + self.width * normal;
         let center = if self.width == 0.0 {
@@ -717,7 +722,24 @@ fn positive_difference(a: f64, b: f64) -> f64 {
     }
 }
 
-impl Parameters {
+struct ArithmeticParameters {
+    spot: f64,
+    strike: f64,
+    realized: f64,
+    weight: f64,
+    log_discount: f64,
+    drift: f64,
+    width: f64,
+    log_width: f64,
+    sign: f64,
+    step_count: i32,
+    lead_drift: f64,
+    lead_width: f64,
+    lead_width_ratio: f64,
+    interval_forward: f64,
+}
+
+impl ArithmeticParameters {
     #[expect(
         clippy::cast_sign_loss,
         reason = "The constructor validates positive step counts before comparing them to path indices."

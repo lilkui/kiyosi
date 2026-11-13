@@ -97,7 +97,6 @@ impl QuadratureAccumulatorEngine {
 }
 impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
@@ -123,7 +122,6 @@ struct Request {
 }
 impl PricingEngine<Accumulator> for Request {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
@@ -197,16 +195,7 @@ fn price(
     let knocks_out = |point: f64| sign * point >= sign * knock_out;
     let sigma = context.bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
-    let transition = |time: f64| -> Result<(f64, f64, f64)> {
-        let drift = drift_rate * time;
-        let deviation = sigma * time.sqrt();
-        if !drift.is_finite() || !deviation.is_finite() || deviation <= 0.0 {
-            return Err(Error::ComputationFailure(
-                "quadrature transition is not representable".into(),
-            ));
-        }
-        Ok((drift, deviation, -rate * time))
-    };
+    let transition = |time| super::transition(time, drift_rate, sigma, rate);
     let count = if option.accrues(context) { 2 } else { 1 };
     let mut layers: [Layer; 2] = Default::default();
     layers[0].exact.push(TerminalPiece {

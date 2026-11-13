@@ -10,7 +10,7 @@ fn phoenix_lockout(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 }
 
 macro_rules! autocallable_properties {
-    ($name:ident, $changes:ident, $($extra:item),* $(,)?) => {
+    ($name:ident, $($extra:item),* $(,)?) => {
         #[pymethods]
         impl $name {
             $($extra)*
@@ -76,10 +76,9 @@ macro_rules! autocallable_properties {
 }
 
 macro_rules! snowball_properties {
-    ($name:ident, $changes:ident, $($extra:item),* $(,)?) => {
+    ($name:ident, $($extra:item),* $(,)?) => {
         autocallable_properties! {
             $name,
-            $changes,
             $($extra,)*
             /// Return a note with the quoted first coupon and preserved coupon spreads.
             ///
@@ -805,7 +804,6 @@ times, stages may have no autocall_observations, and rates need not decrease."
 pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
 snowball_properties! {
     SnowballOption,
-    SnowballOptionChanges,
     /// Return a validated replacement.
     ///
     /// Omission or Ellipsis retains a field. The original value is unchanged.
@@ -991,7 +989,6 @@ snowball_properties! {
 pub(crate) struct BinarySnowballOption(pub kiyosi::BinarySnowballOption);
 snowball_properties! {
     BinarySnowballOption,
-    BinarySnowballOptionChanges,
     /// Return a validated replacement.
     ///
     /// Omission or Ellipsis retains a field. The original value is unchanged.
@@ -1131,7 +1128,6 @@ snowball_properties! {
 pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
 snowball_properties! {
     TernarySnowballOption,
-    TernarySnowballOptionChanges,
     /// Return a validated replacement.
     ///
     /// Omission or Ellipsis retains a field. The original value is unchanged.
@@ -1322,7 +1318,6 @@ snowball_properties! {
 pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
-    PhoenixOptionChanges,
     /// Return the number of initial observations excluded from knock-out.
     #[getter]
     fn lockout_periods(&self) -> usize { self.0.lockout_periods() },

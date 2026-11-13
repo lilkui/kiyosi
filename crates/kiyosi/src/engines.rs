@@ -11,6 +11,11 @@ pub(crate) mod finite_difference;
 pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
 
+fn flat_rates(context: &PricingContext) -> Result<(f64, f64)> {
+    let model = context.bsm_parameters()?;
+    Ok((model.flat_risk_free_rate()?, model.flat_dividend_yield()?))
+}
+
 fn greeks<I: OptionContract>(
     engine: &impl PricingEngine<I>,
     option: &I,

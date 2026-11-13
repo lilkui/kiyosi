@@ -281,12 +281,6 @@ fn bjerksund_call(
 pub struct BjerksundStenslandVanillaEngine;
 
 impl BjerksundStenslandVanillaEngine {
-    fn require_flat(context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?.flat_risk_free_rate()?;
-        context.bsm_parameters()?.flat_dividend_yield()?;
-        Ok(())
-    }
-
     /// Returns the approximation, bounded below by intrinsic and European values.
     ///
     /// At expiry returns intrinsic value, including under negative rates.
@@ -316,7 +310,7 @@ impl BjerksundStenslandVanillaEngine {
     /// ```
     pub fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
-        Self::require_flat(context)?;
+        crate::engines::flat_rates(context)?;
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::vanilla(
                 option,
@@ -406,14 +400,14 @@ impl BjerksundStenslandVanillaEngine {
     ) -> Result<PricingResult> {
         let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
-        Self::require_flat(context)?;
+        crate::engines::flat_rates(context)?;
         numerical_greeks(self, option, context, request, settings)
     }
 }
 
 impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        Self::require_flat(context)
+        crate::engines::flat_rates(context).map(|_| ())
     }
 
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {

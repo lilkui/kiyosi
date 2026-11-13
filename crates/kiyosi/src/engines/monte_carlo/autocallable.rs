@@ -324,10 +324,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         self.price_with_statistics(option, context)
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        let model = context.bsm_parameters()?;
-        model.flat_risk_free_rate()?;
-        model.flat_dividend_yield()?;
-        Ok(())
+        crate::engines::flat_rates(context).map(|_| ())
     }
     fn validate_solver_seed(&self) -> Result<()> {
         self.sampling_settings().validate_solver_seed()

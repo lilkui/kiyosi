@@ -89,10 +89,7 @@ impl AnalyticDoubleBarrierEngine {
 }
 impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        let model = context.bsm_parameters()?;
-        model.flat_risk_free_rate()?;
-        model.flat_dividend_yield()?;
-        Ok(())
+        crate::engines::flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)

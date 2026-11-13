@@ -1,5 +1,5 @@
 macro_rules! monitoring_properties {
-    ($name:ident, $changes:ident, $($extra:item),* $(,)?) => {
+    ($name:ident, $($extra:item),* $(,)?) => {
         #[pyo3::pymethods]
         impl $name {
             $($extra)*

@@ -111,7 +111,6 @@ impl QuadratureAutocallableEngine {
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAutocallableEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
@@ -137,7 +136,6 @@ struct Request<T: AutocallableTerms> {
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
@@ -400,16 +398,7 @@ fn price<T: AutocallableTerms>(
     let sigma = context.bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let horizon = context.valuation_time().years_until(note.expiry_time());
-    let transition = |time: f64| -> Result<(f64, f64, f64)> {
-        let drift = drift_rate * time;
-        let deviation = sigma * time.sqrt();
-        if !drift.is_finite() || !deviation.is_finite() || deviation <= 0.0 {
-            return Err(Error::ComputationFailure(
-                "quadrature transition is not representable".into(),
-            ));
-        }
-        Ok((drift, deviation, -rate * time))
-    };
+    let transition = |time| super::transition(time, drift_rate, sigma, rate);
     let terminal = terminal(
         note,
         event(note, note.expiry_time()),

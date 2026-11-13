@@ -10,11 +10,18 @@ pub use digital::QuadratureDigitalEngine;
 mod vanilla;
 pub use vanilla::{QuadratureVanillaEngine, QuadratureVanillaSettings};
 
-use crate::{PricingContext, Result};
+use super::flat_rates;
+use crate::{Error, Result};
 
-fn flat_rates(context: &PricingContext) -> Result<(f64, f64)> {
-    let model = context.bsm_parameters()?;
-    Ok((model.flat_risk_free_rate()?, model.flat_dividend_yield()?))
+fn transition(time: f64, drift_rate: f64, sigma: f64, rate: f64) -> Result<(f64, f64, f64)> {
+    let drift = drift_rate * time;
+    let deviation = sigma * time.sqrt();
+    if !drift.is_finite() || !deviation.is_finite() || deviation <= 0.0 {
+        return Err(Error::ComputationFailure(
+            "quadrature transition is not representable".into(),
+        ));
+    }
+    Ok((drift, deviation, -rate * time))
 }
 
 #[expect(

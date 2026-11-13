@@ -138,10 +138,7 @@ pub(super) fn resolved_price_with_state(
 }
 impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        let model = context.bsm_parameters()?;
-        model.flat_risk_free_rate()?;
-        model.flat_dividend_yield()?;
-        Ok(())
+        crate::engines::flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)

@@ -246,10 +246,7 @@ macro_rules! pricing_engine {
     ($contract:ty) => {
         impl PricingEngine<$contract> for AnalyticBinaryBarrierEngine {
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-                context.bsm_parameters()?;
-                context.bsm_parameters()?.flat_risk_free_rate()?;
-                context.bsm_parameters()?.flat_dividend_yield()?;
-                Ok(())
+                crate::engines::flat_rates(context).map(|_| ())
             }
             fn price(&self, option: &$contract, context: &PricingContext) -> Result<f64> {
                 context.bsm_parameters()?;

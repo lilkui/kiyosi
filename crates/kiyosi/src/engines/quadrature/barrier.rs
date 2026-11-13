@@ -145,7 +145,6 @@ impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {
         })))
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
@@ -185,7 +184,6 @@ struct BarrierPricer {
 }
 impl PricingEngine<BarrierOption> for BarrierPricer {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {

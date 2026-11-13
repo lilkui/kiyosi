@@ -73,7 +73,6 @@ pub(crate) struct BarrierOption(pub kiyosi::BarrierOption);
 
 monitoring_properties!(
     BarrierOption,
-    BarrierOptionChanges,
     /// Return a validated replacement.
     ///
     /// Omission or Ellipsis retains a field. The original value is unchanged.

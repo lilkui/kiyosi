@@ -1,4 +1,4 @@
-use super::Payoff;
+use super::{Payoff, flat_rates};
 
 mod barrier;
 pub use barrier::CoxRossRubinsteinBarrierEngine;
@@ -145,11 +145,6 @@ impl CoxRossRubinsteinVanillaEngine {
             self.greek_settings(option),
         )
     }
-}
-
-fn flat_rates(context: &PricingContext) -> Result<(f64, f64)> {
-    let model = context.bsm_parameters()?;
-    Ok((model.flat_risk_free_rate()?, model.flat_dividend_yield()?))
 }
 
 fn time_step(
