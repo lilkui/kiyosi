@@ -111,10 +111,6 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         <Self as PricingEngine<BarrierOption>>::validate_applicability(self, context)?;
         analysis(option, context, self.settings, request, shifts)
     }
-
-    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
 }
 
 trait Contract: OptionContract {
@@ -280,14 +276,6 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
     ) -> Result<PricingResult> {
         <Self as PricingEngine<DoubleBarrierOption>>::validate_applicability(self, context)?;
         analysis(option, context, self.settings, request, shifts)
-    }
-
-    fn volatility_affects_price(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-    ) -> bool {
-        option.volatility_affects_price(context)
     }
 }
 

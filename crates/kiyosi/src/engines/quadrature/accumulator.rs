@@ -106,9 +106,6 @@ impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {
             curve: std::cell::RefCell::new(None),
         })))
     }
-    fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
 }
 fn checked(value: f64) -> Result<f64> {
     Ok(PricingResult::new(value)?.price())
@@ -125,9 +122,6 @@ impl PricingEngine<Accumulator> for Request {
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, Some(&mut curve))
-    }
-    fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
     }
 }
 

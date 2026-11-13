@@ -5,7 +5,7 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{
-    fixed_value, future_event_times, initial, validate, volatility_affects_price,
+    fixed_value, future_event_times, initial, validate,
 };
 use crate::numerics::{log_ratio, scaled_signed_cash};
 use crate::{
@@ -120,13 +120,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAuto
             curve: std::cell::RefCell::new(None),
         })))
     }
-    fn volatility_affects_price(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> bool {
-        volatility_affects_price(option, context)
-    }
 }
 struct Request<T: AutocallableTerms> {
     settings: QuadratureSettings,
@@ -139,13 +132,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, Some(&mut curve))
-    }
-    fn volatility_affects_price(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> bool {
-        volatility_affects_price(option, context)
     }
 }
 

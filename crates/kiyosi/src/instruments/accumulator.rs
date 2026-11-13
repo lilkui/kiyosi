@@ -439,12 +439,13 @@ impl Accumulator {
         }
         (quantity, None)
     }
-
+}
+impl OptionContract for Accumulator {
     #[expect(
         clippy::float_cmp,
         reason = "An acceleration factor of exactly one removes payoff dependence on the strike."
     )]
-    pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+    fn volatility_affects_price(&self, context: &PricingContext) -> bool {
         if self.knock_out_settled() == Some(true) {
             return false;
         }
@@ -480,8 +481,6 @@ impl Accumulator {
             && (model.risk_free_curve().exact_flat_rate() != Some(0.0)
                 || model.dividend_curve().exact_flat_rate() != Some(0.0))
     }
-}
-impl OptionContract for Accumulator {
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }

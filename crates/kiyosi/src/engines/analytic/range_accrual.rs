@@ -160,16 +160,4 @@ impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
     fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)
     }
-    fn volatility_affects_price(
-        &self,
-        option: &RangeAccrualOption,
-        context: &PricingContext,
-    ) -> bool {
-        option.annual_coupon_rate() != 0.0
-            && option
-                .observation_schedule()
-                .times()
-                .iter()
-                .any(|&time| time > context.valuation_time())
-    }
 }

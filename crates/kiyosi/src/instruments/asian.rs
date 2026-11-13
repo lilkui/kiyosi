@@ -285,6 +285,13 @@ macro_rules! average_option {
             }
         }
         impl OptionContract for $name {
+            fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+                $geometric
+                    || self
+                        .0
+                        .adjusted_strike(context.valuation_time().years_until(self.expiry_time()))
+                        > 0.0
+            }
             fn effective_time(&self) -> Timestamp {
                 self.effective_time()
             }

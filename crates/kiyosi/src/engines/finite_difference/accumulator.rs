@@ -104,10 +104,6 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         <Self as PricingEngine<Accumulator>>::validate_applicability(self, context)?;
         analysis(option, context, self.settings, request, shifts, native)
     }
-
-    fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
 }
 
 fn default_upper(

@@ -15,6 +15,67 @@ fn market() -> (EuropeanOption, PricingContext) {
 }
 
 #[test]
+fn implied_volatility_inherits_contract_rules_and_keeps_engine_overrides() -> Result<()> {
+    struct BarrierEngine;
+    impl PricingEngine<BarrierOption> for BarrierEngine {
+        fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+            AnalyticBarrierEngine.price(option, context)
+        }
+    }
+    struct FixedPriceEngine;
+    impl PricingEngine for FixedPriceEngine {
+        fn price(&self, _: &EuropeanOption, _: &PricingContext) -> Result<f64> {
+            Ok(7.0)
+        }
+        fn volatility_affects_price(&self, _: &EuropeanOption, _: &PricingContext) -> bool {
+            false
+        }
+    }
+
+    let (vanilla, context) = market();
+    let context = context.replace(PricingContextChanges {
+        valuation_time: Some(context.valuation_time().add_days(1)?),
+        ..Default::default()
+    })?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        vanilla.effective_time(),
+        vanilla.expiry_time(),
+        80.0,
+        BarrierType::DownAndOut,
+    );
+    terms.touch_state = Some(BarrierTouchState::Touched);
+    let settled = BarrierOption::new(terms)?;
+    let engine: &dyn PricingEngine<BarrierOption> = &BarrierEngine;
+    let settings = ImpliedVolatilitySettings::new(0.1, 0.4);
+    assert!(matches!(
+        implied_volatility(engine, &settled, &context, 0.0, settings),
+        Err(Error::UnsupportedOperation(_))
+    ));
+
+    let active = settled.replace(BarrierOptionChanges {
+        touch_state: Some(Some(BarrierTouchState::Untouched)),
+        ..Default::default()
+    })?;
+    let quote = engine.price(&active, &context)?;
+    assert!((implied_volatility(engine, &active, &context, quote, settings)? - 0.2).abs() < 1e-7);
+    let unknown = active.replace(BarrierOptionChanges {
+        touch_state: Some(None),
+        ..Default::default()
+    })?;
+    assert!(matches!(
+        implied_volatility(engine, &unknown, &context, 0.0, settings),
+        Err(Error::MissingHistory(_))
+    ));
+    assert!(matches!(
+        implied_volatility(&FixedPriceEngine, &vanilla, &context, 7.0, settings),
+        Err(Error::UnsupportedOperation(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn generic_greek_requests_preserve_native_methods_and_configured_shifts() -> Result<()> {
     fn evaluate<E: PricingEngine + ?Sized>(
         engine: &E,

@@ -253,7 +253,13 @@ impl BarrierOption {
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         self.monitoring.state(context, None)
     }
-    pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+    pub(crate) fn payoff_requires_touch(&self) -> bool {
+        self.monitoring
+            .payoff_requires_touch(self.option_type(), self.strike())
+    }
+}
+impl OptionContract for BarrierOption {
+    fn volatility_affects_price(&self, context: &PricingContext) -> bool {
         let Ok((_, touched, finished)) = self.state(context) else {
             return false;
         };
@@ -262,12 +268,6 @@ impl BarrierOption {
             || !touched && finished && knock_in
             || !knock_in && self.payoff_requires_touch() && self.rebate() == 0.0)
     }
-    pub(crate) fn payoff_requires_touch(&self) -> bool {
-        self.monitoring
-            .payoff_requires_touch(self.option_type(), self.strike())
-    }
-}
-impl OptionContract for BarrierOption {
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }

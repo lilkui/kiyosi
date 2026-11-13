@@ -314,7 +314,4 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
 }

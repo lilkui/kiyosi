@@ -143,9 +143,6 @@ impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
 }
 fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f64> {
     let t = context.valuation_time().years_until(option.expiry_time());

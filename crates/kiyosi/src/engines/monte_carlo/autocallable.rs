@@ -1,7 +1,7 @@
 use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
 use super::{estimate, path_samples, scaled_value, unstable};
 use crate::instruments::autocallable::pricing::{
-    fixed_value, future_event_times, initial, validate, volatility_affects_price,
+    fixed_value, future_event_times, initial, validate,
 };
 use crate::numerics::log_ratio;
 use crate::{
@@ -338,12 +338,5 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
-    }
-    fn volatility_affects_price(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> bool {
-        volatility_affects_price(option, context)
     }
 }

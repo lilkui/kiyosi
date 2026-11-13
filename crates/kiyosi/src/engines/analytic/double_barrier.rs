@@ -95,13 +95,6 @@ impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn volatility_affects_price(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-    ) -> bool {
-        option.volatility_affects_price(context)
-    }
 }
 
 pub(crate) fn resolved_price(

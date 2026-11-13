@@ -142,6 +142,16 @@ pub trait OptionContract {
         Some(self.effective_time())
     }
 
+    /// Reports whether volatility affects a validated contract's remaining payoff.
+    ///
+    /// Defaults to `true`. Implementations account for settled history and
+    /// volatility-independent cash flows. The implied-volatility solver calls this
+    /// after endpoint pricing, preserving life, history and applicability errors;
+    /// it checks expiry separately. See [`crate::implied_volatility`] for solving usage.
+    fn volatility_affects_price(&self, _context: &PricingContext) -> bool {
+        true
+    }
+
     /// Reports whether every Greek is unavailable at a pre-expiry spot discontinuity.
     ///
     /// Defaults to deterministic BSM discontinuities from [`Self::at_spot_discontinuity`]

@@ -93,15 +93,6 @@ pub(crate) fn validate<T: AutocallableTerms>(
     Ok(())
 }
 
-/// Reports whether volatility affects a validated note's remaining payoff.
-pub(crate) fn volatility_affects_price<T: AutocallableTerms>(
-    note: &AutocallableNote<T>,
-    context: &PricingContext,
-) -> bool {
-    let state = initial(note, context);
-    state.settlement.is_none() && fixed_value(note, context, state.knocked_in).is_none()
-}
-
 #[expect(
     clippy::float_cmp,
     reason = "Exact payoff terms and exactly recoverable discounted payments determine whether valuation is constant."

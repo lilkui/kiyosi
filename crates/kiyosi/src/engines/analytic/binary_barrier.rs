@@ -252,13 +252,6 @@ macro_rules! pricing_engine {
                 context.bsm_parameters()?;
                 option.contract().price(context)
             }
-            fn volatility_affects_price(
-                &self,
-                option: &$contract,
-                context: &PricingContext,
-            ) -> bool {
-                option.contract().volatility_affects_price(context)
-            }
         }
     };
 }

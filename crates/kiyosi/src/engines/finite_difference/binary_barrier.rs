@@ -145,10 +145,6 @@ macro_rules! binary_pricing {
                     },
                 )
             }
-
-            fn volatility_affects_price(&self, option: &$option, context: &PricingContext) -> bool {
-                option.contract().volatility_affects_price(context)
-            }
         }
     };
 }

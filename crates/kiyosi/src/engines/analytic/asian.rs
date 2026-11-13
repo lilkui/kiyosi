@@ -381,12 +381,4 @@ impl PricingEngine<ArithmeticAveragePriceOption> for TurnbullWakemanArithmeticAv
     ) -> Result<f64> {
         Self::price(self, option, context)
     }
-    fn volatility_affects_price(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-    ) -> bool {
-        let tau = context.valuation_time().years_until(option.expiry_time());
-        option.0.adjusted_strike(tau) > 0.0
-    }
 }

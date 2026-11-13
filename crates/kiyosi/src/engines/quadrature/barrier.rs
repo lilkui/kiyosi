@@ -148,9 +148,6 @@ impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
 }
 
 fn price(
@@ -186,9 +183,6 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         let mut prepared = self.prepared.borrow_mut();
         price(option, context, self.settings, Some(&mut prepared))
-    }
-    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
     }
 }
 

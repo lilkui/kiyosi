@@ -626,7 +626,4 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
     ) -> Result<PricingResult> {
         self.greeks_with_settings(option, context, request, settings)
     }
-    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
 }

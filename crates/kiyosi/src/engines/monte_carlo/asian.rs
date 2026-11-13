@@ -58,7 +58,7 @@ impl MonteCarloAsianEngine {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for steps outside 2..=10,000,
-    /// then propagates [`MonteCarloSettings::validate`] errors. Inputs are consumed on failure.
+    /// then propagates [`crate::MonteCarloSettings::validate`] errors. Inputs are consumed on failure.
     pub fn new(settings: super::MonteCarloGridSettings) -> Result<Self> {
         super::validate_step_count(settings.step_count, 2)?;
         settings.sampling.validate()?;
@@ -632,14 +632,6 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
             self.native(&option.0, context, false, request, false)
                 .map(|result| result.0)
         })
-    }
-    fn volatility_affects_price(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-    ) -> bool {
-        let tau = context.valuation_time().years_until(option.expiry_time());
-        option.0.adjusted_strike(tau) > 0.0
     }
 }
 

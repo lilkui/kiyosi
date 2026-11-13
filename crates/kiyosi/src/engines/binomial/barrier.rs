@@ -325,7 +325,4 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
     ) -> Result<ImpliedVolatilitySettings> {
         prepare_implied(option, context, self.settings, settings)
     }
-    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-    }
 }

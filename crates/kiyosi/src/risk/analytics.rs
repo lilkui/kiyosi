@@ -783,11 +783,15 @@ pub trait PricingEngine<I = EuropeanOption> {
 
     /// Reports whether volatility affects a validated contract's remaining payoff.
     ///
-    /// Defaults to `true`. The solver checks this after endpoint pricing so that
-    /// life, history and applicability errors take precedence. See
+    /// Defaults to [`crate::OptionContract::volatility_affects_price`]. Engines may
+    /// override it for engine-specific behavior. The solver checks this after endpoint
+    /// pricing so that life, history and applicability errors take precedence. See
     /// [`crate::TurnbullWakemanArithmeticAveragePriceEngine::price`].
-    fn volatility_affects_price(&self, _option: &I, _context: &PricingContext) -> bool {
-        true
+    fn volatility_affects_price(&self, option: &I, context: &PricingContext) -> bool
+    where
+        I: crate::OptionContract,
+    {
+        option.volatility_affects_price(context)
     }
 
     /// Restricts a validated solver bracket to the engine's supported domain.

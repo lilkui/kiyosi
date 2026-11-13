@@ -444,6 +444,9 @@ macro_rules! monitoring_accessors {
             }
         }
         impl OptionContract for $contract {
+            fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+                self.contract().volatility_affects_price(context)
+            }
             fn effective_time(&self) -> Timestamp {
                 self.effective_time()
             }

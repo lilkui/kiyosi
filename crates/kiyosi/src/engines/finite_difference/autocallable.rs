@@ -5,9 +5,7 @@ use super::{
     analysis, diffusion, diffusion_upper, local_volatility,
 };
 use crate::instruments::autocallable::Coupon;
-use crate::instruments::autocallable::pricing::{
-    fixed_value, initial, validate, volatility_affects_price,
-};
+use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
 use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms};
 
 impl FiniteDifferenceAutocallableEngine {
@@ -115,14 +113,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     ) -> Result<PricingResult> {
         <Self as PricingEngine<AutocallableNote<T>>>::validate_applicability(self, context)?;
         analysis(option, context, self.settings, request, shifts, native)
-    }
-
-    fn volatility_affects_price(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> bool {
-        volatility_affects_price(option, context)
     }
 }
 

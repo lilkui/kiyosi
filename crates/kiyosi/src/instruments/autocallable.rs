@@ -1064,6 +1064,11 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
 }
 impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
+    fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+        let state = pricing::initial(self, context);
+        state.settlement.is_none()
+            && pricing::fixed_value(self, context, state.knocked_in).is_none()
+    }
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
     }

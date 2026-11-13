@@ -131,11 +131,4 @@ impl PricingEngine<DoubleTouchOption> for AnalyticDoubleTouchEngine {
     fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn volatility_affects_price(
-        &self,
-        option: &DoubleTouchOption,
-        context: &PricingContext,
-    ) -> bool {
-        option.contract().volatility_affects_price(context)
-    }
 }
