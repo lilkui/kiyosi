@@ -47,6 +47,7 @@ jobs:
           test -L crates/kiyosi/THIRD_PARTY_NOTICES.txt
           cargo package -p kiyosi --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test -p kiyosi-python --lib --release --locked
 
   python-style:
     runs-on: ubuntu-26.04

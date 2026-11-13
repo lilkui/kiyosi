@@ -6,6 +6,14 @@ use crate::market::PricingContext;
 use pyo3::prelude::*;
 
 macro_rules! quadrature_engine {
+    (@short QuadratureVanillaEngine, $engine:expr, $instrument:expr, $context:expr) => {
+        short_vanilla(
+            matches!($instrument, VanillaInstrument::European(_)),
+            $engine.0.settings(),
+            &$context.0,
+        )
+    };
+    (@short $name:ident, $engine:expr, $instrument:expr, $context:expr) => { false };
     ($(#[$doc:meta])* $name:ident, $instrument:ty $(,)?) => {
         quadrature_engine!($(#[$doc])* $name, $instrument, with_contract);
     };
@@ -93,10 +101,28 @@ macro_rules! quadrature_engine {
                 context: &PricingContext,
                 request: impl crate::engines::PricingRequest<R>,
             ) -> PyResult<R> {
-                $with!(&instrument, option, crate::engines::evaluate(py, &self.0, option, context, request))
+                let short = quadrature_engine!(@short $name, self, instrument, context);
+                $with!(&instrument, option, domain(request.run(
+                    py,
+                    short || kiyosi::OptionContract::expiry_time(option) == context.0.valuation_time(),
+                    || request.evaluate(&self.0, option, &context.0),
+                )?))
             }
         }
     };
+}
+
+fn short_vanilla(
+    european: bool,
+    settings: kiyosi::QuadratureVanillaSettings,
+    context: &kiyosi::PricingContext,
+) -> bool {
+    european
+        && settings.asset_step_count
+            <= kiyosi::QuadratureVanillaSettings::default().asset_step_count
+        && context.model_parameters().as_bsm().is_ok_and(|model| {
+            model.risk_free_curve().nodes().is_empty() && model.dividend_curve().nodes().is_empty()
+        })
 }
 
 quadrature_engine!(
@@ -175,3 +201,45 @@ quadrature_engine!(
     autocallable::AutocallableInstrument<'_>,
     autocallable::with_note,
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_bounded_european_quadrature_uses_short_calls() -> kiyosi::Result<()> {
+        let start = kiyosi::Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(365)?;
+        let model = kiyosi::BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
+        let context = kiyosi::PricingContext::new(model.clone(), 100.0, start)?;
+        let settings = kiyosi::QuadratureVanillaSettings::default();
+        assert!(short_vanilla(true, settings, &context));
+        assert!(!short_vanilla(false, settings, &context));
+        assert!(!short_vanilla(
+            true,
+            kiyosi::QuadratureVanillaSettings {
+                asset_step_count: settings.asset_step_count + 1,
+                ..settings
+            },
+            &context,
+        ));
+        let curve = kiyosi::RateTermStructure::new(start, vec![end], vec![1.0])?;
+        for changes in [
+            kiyosi::BlackScholesMertonParameterChanges {
+                risk_free_rate: Some(curve.clone().into()),
+                ..Default::default()
+            },
+            kiyosi::BlackScholesMertonParameterChanges {
+                dividend_yield: Some(curve.into()),
+                ..Default::default()
+            },
+        ] {
+            let context = context.replace(kiyosi::PricingContextChanges {
+                model_parameters: Some(model.replace(changes)?.into()),
+                ..Default::default()
+            })?;
+            assert!(!short_vanilla(true, settings, &context));
+        }
+        Ok(())
+    }
+}

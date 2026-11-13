@@ -41,7 +41,7 @@ states are known history where supported. Numerical time sensitivities hold
 supplied history fixed. See ``kiyosi.instruments`` for product conventions.
 
 Shared and distinct instances support concurrent reads and pricing. Long calls
-release the GIL; short analytic calls may retain it. Parallel Monte Carlo calls
+release the GIL; short calls may retain it. Parallel Monte Carlo calls
 share a library-owned worker pool, sized on first use, with per-call buffers and
 worker caps. Set its process-wide size cap with
 ``kiyosi.pricing.configure_monte_carlo_pool(max_workers=...)`` before the first
