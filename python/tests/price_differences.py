@@ -1,6 +1,6 @@
 """Independent scalar-price references for tests with feasible stencils."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from functools import cache
 from types import SimpleNamespace
 
@@ -43,8 +43,8 @@ def price_differences(
     r = (rate + rate_shift) - rate
     q = (parameters.flat_dividend_yield + rate_shift) - parameters.flat_dividend_yield
     time = context.valuation_time
-    start = datetime.combine(option.effective_time, datetime.min.time())
-    end = datetime.combine(option.expiry_time, datetime.min.time())
+    start = option.effective_time
+    end = option.expiry_time
     step = time_shift
     if start < time < end and not isinstance(option, EuropeanOption):
         step = min(step, time - start, end - time)
