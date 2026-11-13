@@ -32,9 +32,14 @@ use pyo3::prelude::*;
 pub(crate) struct EuropeanOption(pub(crate) kiyosi::EuropeanOption);
 
 macro_rules! vanilla_option_methods {
-    ($name:ident) => {
-        #[pymethods]
-        impl $name {
+    ($name:ident, $changes:ident) => {
+        value_methods!($name, $changes,
+            [option_type, strike, effective_time, expiry_time], {
+                option_type: option_type.map(crate::conversions::direction).transpose()?,
+                strike: strike.map(crate::conversions::real).transpose()?,
+                effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+                expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
+            }, {
             #[new]
             #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time))]
             fn new(
@@ -72,9 +77,9 @@ macro_rules! vanilla_option_methods {
             fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
                 python_timestamp(py, self.0.expiry_time())
             }
-        }
+        });
     };
 }
 pub(super) use vanilla_option_methods;
 
-vanilla_option_methods!(EuropeanOption);
+vanilla_option_methods!(EuropeanOption, EuropeanOptionChanges);

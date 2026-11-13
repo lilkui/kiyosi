@@ -44,6 +44,16 @@ pub(crate) struct HestonParameters(pub(crate) kiyosi::HestonParameters);
 
 rate_properties!(
     HestonParameters,
+    @replace HestonParameterChanges [risk_free_rate, dividend_yield, initial_variance,
+        long_run_variance, mean_reversion_speed, vol_of_vol, correlation] {
+        risk_free_rate: risk_free_rate.map(rate).transpose()?,
+        dividend_yield: dividend_yield.map(rate).transpose()?,
+        initial_variance: initial_variance.map(real).transpose()?,
+        long_run_variance: long_run_variance.map(real).transpose()?,
+        mean_reversion_speed: mean_reversion_speed.map(real).transpose()?,
+        vol_of_vol: vol_of_vol.map(real).transpose()?,
+        correlation: correlation.map(real).transpose()?,
+    },
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
         let value = slf.borrow();
         let py = slf.py();

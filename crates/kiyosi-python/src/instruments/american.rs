@@ -26,4 +26,4 @@ use pyo3::prelude::*;
 #[derive(Clone, PartialEq)]
 pub(crate) struct AmericanOption(pub(crate) kiyosi::AmericanOption);
 
-vanilla_option_methods!(AmericanOption);
+vanilla_option_methods!(AmericanOption, AmericanOptionChanges);

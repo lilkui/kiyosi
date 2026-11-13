@@ -134,6 +134,12 @@ pub(crate) struct LocalVolatilityParameters(pub(crate) kiyosi::LocalVolatilityPa
 
 rate_properties!(
     LocalVolatilityParameters,
+    @replace LocalVolatilityParameterChanges [risk_free_rate, dividend_yield, surface] {
+        risk_free_rate: risk_free_rate.map(rate).transpose()?,
+        dividend_yield: dividend_yield.map(rate).transpose()?,
+        surface: surface.map(|value| value.extract::<PyRef<'_, LocalVolatilitySurface>>()
+            .map(|value| value.0.clone())).transpose()?,
+    },
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         Ok(format!(
             "LocalVolatilityParameters(risk_free_rate={}, dividend_yield={}, surface={})",

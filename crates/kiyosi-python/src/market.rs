@@ -4,9 +4,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyTuple};
 
 macro_rules! rate_properties {
-    ($name:ident, $($extra:item),* $(,)?) => {
-        #[pyo3::pymethods]
-        impl $name {
+    ($name:ident, @replace $changes:ident [$($parameter:ident),+]
+     {$($field:ident: $value:expr),+ $(,)?}, $($extra:item),* $(,)?) => {
+        value_methods!($name, $changes, [$($parameter),+], {$($field: $value),+}, {
             $($extra)*
 
             /// Return the scalar rate for dated or undated constant curves.
@@ -47,7 +47,7 @@ macro_rules! rate_properties {
             fn dividend_curve(&self) -> $crate::market::RateTermStructure {
                 $crate::market::RateTermStructure(self.0.dividend_curve().clone())
             }
-        }
+        });
     };
 }
 pub(crate) use rate_properties;
@@ -351,6 +351,11 @@ pub(crate) struct BlackScholesMertonParameters(pub(crate) kiyosi::BlackScholesMe
 
 rate_properties!(
     BlackScholesMertonParameters,
+    @replace BlackScholesMertonParameterChanges [risk_free_rate, dividend_yield, volatility] {
+        risk_free_rate: risk_free_rate.map(rate).transpose()?,
+        dividend_yield: dividend_yield.map(rate).transpose()?,
+        volatility: volatility.map(real).transpose()?,
+    },
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
         let value = slf.borrow();
         let py = slf.py();
@@ -410,8 +415,12 @@ rate_properties!(
 #[derive(Clone, PartialEq)]
 pub(crate) struct PricingContext(pub(crate) kiyosi::PricingContext);
 
-#[pymethods]
-impl PricingContext {
+value_methods!(PricingContext, PricingContextChanges,
+    [model_parameters, spot_price, valuation_time], {
+        model_parameters: model_parameters.map(model_parameters_value).transpose()?,
+        spot_price: spot_price.map(real).transpose()?,
+        valuation_time: valuation_time.map(timestamp).transpose()?,
+    }, {
     #[new]
     #[pyo3(signature = (*, model_parameters, spot_price, valuation_time))]
     fn new(
@@ -458,7 +467,7 @@ impl PricingContext {
     fn valuation_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         python_timestamp(py, self.0.valuation_time())
     }
-}
+});
 
 fn model_parameters_value(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::ModelParameters> {
     if let Ok(m) = value.extract::<PyRef<'_, crate::heston::HestonParameters>>() {

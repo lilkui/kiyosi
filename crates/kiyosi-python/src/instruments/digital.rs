@@ -3,14 +3,22 @@ use crate::error::domain;
 use pyo3::prelude::*;
 
 macro_rules! digital_option {
+    (@payout) => { None };
+    (@payout $payout:ident) => { $payout.map(crate::conversions::real).transpose()? };
     ($name:ident, $constructor:ident $(, $payout:ident)?, $doc:literal) => {
         #[doc = $doc]
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(Clone, PartialEq)]
         pub(crate) struct $name(pub kiyosi::DigitalOption);
 
-        #[pymethods]
-        impl $name {
+        value_methods!($name, DigitalOptionChanges,
+            [option_type, strike, $($payout,)? effective_time, expiry_time], {
+                option_type: option_type.map(crate::conversions::direction).transpose()?,
+                strike: strike.map(crate::conversions::real).transpose()?,
+                payout: digital_option!(@payout $($payout)?),
+                effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+                expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
+            }, {
             #[new]
             #[pyo3(signature = (*, option_type, strike, $($payout,)? effective_time, expiry_time))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
@@ -45,7 +53,7 @@ macro_rules! digital_option {
                 #[getter]
                 fn $payout(&self) -> Option<f64> { self.0.payout() }
             )?
-        }
+        });
     };
 }
 

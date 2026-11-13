@@ -34,8 +34,15 @@ macro_rules! average_option {
         #[derive(Clone, PartialEq)]
         pub(crate) struct $name(pub kiyosi::$name);
 
-        #[pymethods]
-        impl $name {
+        value_methods!($name, AveragePriceOptionChanges,
+            [option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average], {
+                option_type: option_type.map(crate::conversions::direction).transpose()?,
+                strike: strike.map(crate::conversions::real).transpose()?,
+                effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+                averaging_start_time: averaging_start_time.map(crate::conversions::timestamp).transpose()?,
+                expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
+                realized_average: realized_average.map(crate::conversions::optional_real).transpose()?,
+            }, {
 
 
             #[new]
@@ -67,7 +74,7 @@ macro_rules! average_option {
             /// Return inclusive expiry time.
             #[getter]
             fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> { python_timestamp(py, self.0.expiry_time()) }
-        }
+        });
     };
 }
 average_option!(GeometricAveragePriceOption);

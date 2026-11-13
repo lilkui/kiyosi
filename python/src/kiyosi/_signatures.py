@@ -114,19 +114,7 @@ def install(native: ModuleType) -> None:
             resolved = _signature(value, constructor_defaults)
             if resolved != original:
                 value.__signature__ = resolved
-            if (name.endswith("Engine") and resolved.parameters) or name in (
-                "EuropeanOption",
-                "AmericanOption",
-                "CashOrNothingOption",
-                "AssetOrNothingOption",
-                "GeometricAveragePriceOption",
-                "ArithmeticAveragePriceOption",
-                "RangeAccrualOption",
-                "BlackScholesMertonParameters",
-                "HestonParameters",
-                "LocalVolatilityParameters",
-                "PricingContext",
-            ):
+            if name.endswith("Engine") and resolved.parameters:
                 value.replace = _replacement(value)
         elif isbuiltin(value) and name != "numerical_greeks":
             setattr(native, name, _wrap(value, solvers.get(name, defaults)))

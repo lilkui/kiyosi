@@ -56,8 +56,19 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 #[derive(Clone, PartialEq)]
 pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
 
-#[pymethods]
-impl RangeAccrualOption {
+value_methods!(RangeAccrualOption, RangeAccrualOptionChanges,
+    [notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time,
+     observation_clock_time, realized_hit_count, calendar], {
+        notional: notional.map(real).transpose()?,
+        annual_coupon_rate: annual_coupon_rate.map(real).transpose()?,
+        lower_bound: lower_bound.map(real).transpose()?,
+        upper_bound: upper_bound.map(real).transpose()?,
+        effective_time: effective_time.map(timestamp).transpose()?,
+        expiry_time: expiry_time.map(timestamp).transpose()?,
+        observation_clock_time: observation_clock_time.map(crate::conversions::clock_time).transpose()?,
+        realized_hit_count: realized_hit_count.map(history).transpose()?,
+        calendar: calendar.map(|value| value.extract::<TradingCalendar>().map(|value| value.0)).transpose()?,
+    }, {
     #[new]
     #[expect(clippy::too_many_arguments, reason = "explicit Python contract terms")]
     #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time, observation_clock_time, realized_hit_count=None, calendar=TradingCalendar::default()))]
@@ -146,4 +157,4 @@ impl RangeAccrualOption {
     fn realized_hit_count(&self) -> Option<i32> {
         self.0.realized_hit_count()
     }
-}
+});
