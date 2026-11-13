@@ -27,6 +27,9 @@ def sync_docstrings(declarations, owner):
     for node in declarations:
         if not isinstance(node, (ast.ClassDef, ast.FunctionDef)):
             continue
+        if node.name == "_PricingMethods" and isinstance(node, ast.ClassDef):
+            sync_docstrings(node.body, _native.BjerksundStenslandVanillaEngine)
+            continue
         if node.name.startswith("_"):
             continue
         if node.name in documented:
@@ -48,7 +51,10 @@ def sync_docstrings(declarations, owner):
                 and node.body[0].value.value is Ellipsis
             ):
                 node.body.clear()
-            node.body.insert(0, ast.Expr(value=ast.Constant(value=doc)))
+            node.body.insert(
+                0,
+                ast.Expr(value=ast.Constant(value=doc + "\n" if "\n" in doc else doc)),
+            )
         if isinstance(node, ast.ClassDef):
             sync_docstrings(node.body, value)
 

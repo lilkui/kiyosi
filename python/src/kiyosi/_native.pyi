@@ -1540,7 +1540,141 @@ class PricingContext:
     def valuation_time(self) -> datetime:
         """Return valuation time."""
 
-class AnalyticEuropeanEngine:
+class _PricingMethods[Instrument]:
+    """Shared pricing signatures; concrete engines specify supported contracts."""
+
+    def greek_method(
+        self, instrument: Instrument, context: PricingContext
+    ) -> _pricing.GreekMethod:
+        """Return the Greek estimation method.
+
+        Checks model applicability; pricing validates life and history.
+
+        Parameters
+        ----------
+        instrument : object
+            Contract supported by this engine.
+        context : PricingContext
+            Market snapshot.
+
+        Returns
+        -------
+        str
+            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
+            or "unsupported".
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
+        """
+
+    def active_greek_controls(
+        self, instrument: Instrument, context: PricingContext
+    ) -> list[_pricing.GreekControl]:
+        """Return shift controls used by the Greek estimation method.
+
+        Parameters
+        ----------
+        instrument : object
+            Contract supported by this engine.
+        context : PricingContext
+            Market snapshot.
+
+        Returns
+        -------
+        list of str
+            Potentially active controls: spot_shift, volatility_shift, rate_shift,
+            and time_shift. Individual requests may use fewer controls.
+
+        Raises
+        ------
+        KiyosiError
+            If the model is unsupported by this engine.
+        """
+
+    def price(self, instrument: Instrument, context: PricingContext) -> float:
+        """Return the price.
+
+        Parameters
+        ----------
+        instrument : object
+            Supported contract; see the engine class for accepted types.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        float
+            Present value of remaining contractual payments.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or numerical pricing fails.
+        """
+
+    def price_with_greeks(
+        self,
+        instrument: Instrument,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> PricingResult:
+        """Return the price and selected sensitivities using engine estimators.
+
+        Parameters
+        ----------
+        instrument : object
+            Supported contract; see the engine class for accepted types.
+        context : PricingContext
+            Market snapshot and valuation instant.
+        greeks : str or iterable of str
+            Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
+            stencils; native estimators and engine/model Greek coverage are
+            preserved.
+
+        Returns
+        -------
+        PricingResult
+            Price and requested Greeks. Unsupported or undefined Greeks are None,
+            with time Greeks absent at expiry; other terminal Greeks follow the
+            payoff.
+
+        Raises
+        ------
+        KiyosiError
+            If controls are invalid, pricing fails or a feasible bumped valuation
+            fails.
+        ValueError
+            If a Greek name is unknown.
+        TypeError
+            If representations, Greek names or keyword arguments are invalid.
+
+        Notes
+        -----
+        Before expiry, requested Greeks use scalar numerical differences with
+        the request's shift controls. Omitted controls use engine defaults.
+        """
+
+class AnalyticEuropeanEngine(_PricingMethods[EuropeanOption]):
     """Analytic European vanilla pricing with deterministic rate curves.
 
     See Also
@@ -1573,77 +1707,6 @@ class AnalyticEuropeanEngine:
             If fields fail constructor validation.
         TypeError
             If a field name or representation is invalid.
-        """
-
-    def greek_method(
-        self, instrument: EuropeanOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: EuropeanOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
         """
 
     def price_with_greeks(
@@ -1708,7 +1771,7 @@ class AnalyticEuropeanEngine:
         time Greeks are absent. Use numerical_greeks for scalar differences.
         """
 
-class AnalyticHestonEuropeanEngine:
+class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
     """Price European calls and puts under Heston by adaptive Fourier integration.
 
     Parameters
@@ -1789,56 +1852,6 @@ class AnalyticHestonEuropeanEngine:
     @property
     def max_evaluations(self) -> int:
         """Return the total characteristic-function budget per price request."""
-
-    def greek_method(
-        self, instrument: EuropeanOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: EuropeanOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
         """Return the price.
@@ -1928,7 +1941,7 @@ class AnalyticHestonEuropeanEngine:
         validated but unused; numerical_greeks rejects Heston.
         """
 
-class BjerksundStenslandVanillaEngine:
+class BjerksundStenslandVanillaEngine(_PricingMethods[AmericanOption]):
     """Bjerksund-Stensland 2002 American approximation with flat rates.
 
     See Also
@@ -1971,138 +1984,9 @@ class BjerksundStenslandVanillaEngine:
             If a field name or representation is invalid.
         """
 
-    def greek_method(
-        self, instrument: AmericanOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: AmericanOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: AmericanOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: AmericanOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
-        """
-
-class AnalyticDigitalEngine:
+class AnalyticDigitalEngine(
+    _PricingMethods[CashOrNothingOption | AssetOrNothingOption]
+):
     """Analytic European digital pricing with deterministic rate curves.
 
     See Also
@@ -2136,85 +2020,6 @@ class AnalyticDigitalEngine:
             If fields fail constructor validation.
         TypeError
             If a field name or representation is invalid.
-        """
-
-    def greek_method(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
         """
 
     def price_with_greeks(
@@ -2280,7 +2085,7 @@ class AnalyticDigitalEngine:
         differences.
         """
 
-class CoxRossRubinsteinBarrierEngine:
+class CoxRossRubinsteinBarrierEngine(_PricingMethods[BarrierOption]):
     """Flat-rate Cox-Ross-Rubinstein tree pricing.
 
     Parameters
@@ -2332,77 +2137,6 @@ class CoxRossRubinsteinBarrierEngine:
     @property
     def step_count(self) -> int:
         """Return the configured number of binomial time steps."""
-
-    def greek_method(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -2466,7 +2200,7 @@ class CoxRossRubinsteinBarrierEngine:
         configurable scalar differences.
         """
 
-class QuadratureBarrierEngine:
+class QuadratureBarrierEngine(_PricingMethods[BarrierOption]):
     """Flat-rate quadrature pricing.
 
     Parameters
@@ -2534,138 +2268,9 @@ class QuadratureBarrierEngine:
     def integration_standard_deviations(self) -> float:
         """Return the integration extent in standard deviations."""
 
-    def greek_method(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: BarrierOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
-        """
-
-class QuadratureDigitalEngine:
+class QuadratureDigitalEngine(
+    _PricingMethods[CashOrNothingOption | AssetOrNothingOption]
+):
     """Flat-rate quadrature pricing.
 
     Parameters
@@ -2742,146 +2347,7 @@ class QuadratureDigitalEngine:
     def integration_standard_deviations(self) -> float:
         """Return the integration extent in standard deviations."""
 
-    def greek_method(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
-        """
-
-class QuadratureVanillaEngine:
+class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     """Flat-rate quadrature pricing.
 
     Parameters
@@ -2968,140 +2434,7 @@ class QuadratureVanillaEngine:
     def integration_standard_deviations(self) -> float:
         """Return the integration extent in standard deviations."""
 
-    def greek_method(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: EuropeanOption | AmericanOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
-        """
-
-class CoxRossRubinsteinVanillaEngine:
+class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     """Flat-rate Cox-Ross-Rubinstein tree pricing.
 
     Parameters
@@ -3149,79 +2482,6 @@ class CoxRossRubinsteinVanillaEngine:
     @property
     def step_count(self) -> int:
         """Return the configured number of binomial time steps."""
-
-    def greek_method(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -3286,7 +2546,9 @@ class CoxRossRubinsteinVanillaEngine:
         scalar differences.
         """
 
-class CoxRossRubinsteinDigitalEngine:
+class CoxRossRubinsteinDigitalEngine(
+    _PricingMethods[CashOrNothingOption | AssetOrNothingOption]
+):
     """Flat-rate Cox-Ross-Rubinstein tree pricing.
 
     Parameters
@@ -3339,85 +2601,6 @@ class CoxRossRubinsteinDigitalEngine:
     @property
     def step_count(self) -> int:
         """Return the configured number of binomial time steps."""
-
-    def greek_method(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -3481,7 +2664,7 @@ class CoxRossRubinsteinDigitalEngine:
         configurable scalar differences.
         """
 
-class FiniteDifferenceAccumulatorEngine:
+class FiniteDifferenceAccumulatorEngine(_PricingMethods[Accumulator]):
     """Finite-difference pricing.
 
     Parameters
@@ -3620,80 +2803,9 @@ class FiniteDifferenceAccumulatorEngine:
     def time_shift(self) -> timedelta | None:
         """Return the explicit time bump, or None for automatic selection."""
 
-    def greek_method(
-        self, instrument: Accumulator, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: Accumulator, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     @property
     def spot_shift(self) -> float | None:
         """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price(self, instrument: Accumulator, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -3759,7 +2871,7 @@ class FiniteDifferenceAccumulatorEngine:
         numerical_greeks for configurable scalar differences under BSM.
         """
 
-class FiniteDifferenceBarrierEngine:
+class FiniteDifferenceBarrierEngine(_PricingMethods[BarrierOption]):
     """Finite-difference pricing.
 
     Parameters
@@ -3898,80 +3010,9 @@ class FiniteDifferenceBarrierEngine:
     def time_shift(self) -> timedelta | None:
         """Return the explicit time bump, or None for automatic selection."""
 
-    def greek_method(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     @property
     def spot_shift(self) -> float | None:
         """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -4037,7 +3078,7 @@ class FiniteDifferenceBarrierEngine:
         numerical_greeks for configurable scalar differences under BSM.
         """
 
-class FiniteDifferenceDoubleBarrierEngine:
+class FiniteDifferenceDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
     """Finite-difference pricing.
 
     Parameters
@@ -4176,80 +3217,9 @@ class FiniteDifferenceDoubleBarrierEngine:
     def time_shift(self) -> timedelta | None:
         """Return the explicit time bump, or None for automatic selection."""
 
-    def greek_method(
-        self, instrument: DoubleBarrierOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: DoubleBarrierOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     @property
     def spot_shift(self) -> float | None:
         """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -4315,7 +3285,11 @@ class FiniteDifferenceDoubleBarrierEngine:
         numerical_greeks for configurable scalar differences under BSM.
         """
 
-class FiniteDifferenceAutocallableEngine:
+class FiniteDifferenceAutocallableEngine(
+    _PricingMethods[
+        SnowballOption | BinarySnowballOption | TernarySnowballOption | PhoenixOption
+    ]
+):
     """Finite-difference pricing.
 
     Parameters
@@ -4454,97 +3428,9 @@ class FiniteDifferenceAutocallableEngine:
     def time_shift(self) -> timedelta | None:
         """Return the explicit time bump, or None for automatic selection."""
 
-    def greek_method(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     @property
     def spot_shift(self) -> float | None:
         """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -4613,7 +3499,7 @@ class FiniteDifferenceAutocallableEngine:
         numerical_greeks for configurable scalar differences under BSM.
         """
 
-class FiniteDifferenceDoubleTouchEngine:
+class FiniteDifferenceDoubleTouchEngine(_PricingMethods[DoubleTouchOption]):
     """Finite-difference pricing.
 
     Parameters
@@ -4752,80 +3638,9 @@ class FiniteDifferenceDoubleTouchEngine:
     def time_shift(self) -> timedelta | None:
         """Return the explicit time bump, or None for automatic selection."""
 
-    def greek_method(
-        self, instrument: DoubleTouchOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: DoubleTouchOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     @property
     def spot_shift(self) -> float | None:
         """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -4891,7 +3706,9 @@ class FiniteDifferenceDoubleTouchEngine:
         numerical_greeks for configurable scalar differences under BSM.
         """
 
-class FiniteDifferenceBinaryBarrierEngine:
+class FiniteDifferenceBinaryBarrierEngine(
+    _PricingMethods[BinaryBarrierOption | TouchOption]
+):
     """Finite-difference pricing.
 
     Parameters
@@ -5030,82 +3847,9 @@ class FiniteDifferenceBinaryBarrierEngine:
     def time_shift(self) -> timedelta | None:
         """Return the explicit time bump, or None for automatic selection."""
 
-    def greek_method(
-        self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     @property
     def spot_shift(self) -> float | None:
         """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price(
-        self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -5171,7 +3915,9 @@ class FiniteDifferenceBinaryBarrierEngine:
         numerical_greeks for configurable scalar differences under BSM.
         """
 
-class FiniteDifferenceHestonVanillaEngine:
+class FiniteDifferenceHestonVanillaEngine(
+    _PricingMethods[EuropeanOption | AmericanOption]
+):
     """Finite-difference prices for European and American options under Heston.
 
     Parameters
@@ -5274,56 +4020,6 @@ class FiniteDifferenceHestonVanillaEngine:
     def variance_upper_boundary(self) -> float | None:
         """Return the explicit variance upper bound, or None."""
 
-    def greek_method(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
     ) -> float:
@@ -5414,7 +4110,7 @@ class FiniteDifferenceHestonVanillaEngine:
         validated but unused; numerical_greeks rejects Heston.
         """
 
-class FiniteDifferenceVanillaEngine:
+class FiniteDifferenceVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     """Finite-difference pricing.
 
     Parameters
@@ -5553,82 +4249,9 @@ class FiniteDifferenceVanillaEngine:
     def time_shift(self) -> timedelta | None:
         """Return the explicit time bump, or None for automatic selection."""
 
-    def greek_method(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     @property
     def spot_shift(self) -> float | None:
         """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -5694,7 +4317,9 @@ class FiniteDifferenceVanillaEngine:
         numerical_greeks for configurable scalar differences under BSM.
         """
 
-class FiniteDifferenceDigitalEngine:
+class FiniteDifferenceDigitalEngine(
+    _PricingMethods[CashOrNothingOption | AssetOrNothingOption]
+):
     """Finite-difference pricing.
 
     Parameters
@@ -5833,88 +4458,9 @@ class FiniteDifferenceDigitalEngine:
     def time_shift(self) -> timedelta | None:
         """Return the explicit time bump, or None for automatic selection."""
 
-    def greek_method(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
     @property
     def spot_shift(self) -> float | None:
         """Return the native Greek spot bump, or None for automatic selection."""
-
-    def price(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
 
     def price_with_greeks(
         self,
@@ -5980,7 +4526,7 @@ class FiniteDifferenceDigitalEngine:
         numerical_greeks for configurable scalar differences under BSM.
         """
 
-class MonteCarloVanillaEngine:
+class MonteCarloVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     """Flat-rate Monte Carlo pricing for European and American vanilla options.
 
     Parameters
@@ -6109,56 +4655,6 @@ class MonteCarloVanillaEngine:
     @property
     def antithetic(self) -> bool:
         """Return whether opposite normal draws are paired."""
-
-    def greek_method(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
 
     def price_with_seed(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -6339,7 +4835,9 @@ class MonteCarloEstimate:
     def confidence_interval(self) -> tuple[float, float] | None:
         """Return the asymptotic 95% confidence interval, or None when unavailable."""
 
-class MonteCarloDigitalEngine:
+class MonteCarloDigitalEngine(
+    _PricingMethods[CashOrNothingOption | AssetOrNothingOption]
+):
     """Flat-rate CPU Monte Carlo pricing for European digitals.
 
     Parameters
@@ -6455,60 +4953,6 @@ class MonteCarloDigitalEngine:
     @property
     def antithetic(self) -> bool:
         """Return whether opposite normal draws are paired."""
-
-    def greek_method(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
 
     def price_with_seed(
         self,
@@ -6668,7 +5112,7 @@ class MonteCarloDigitalEngine:
         configurable scalar differences.
         """
 
-class MonteCarloBarrierEngine:
+class MonteCarloBarrierEngine(_PricingMethods[BarrierOption]):
     """Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.
 
     Parameters
@@ -6784,56 +5228,6 @@ class MonteCarloBarrierEngine:
     @property
     def antithetic(self) -> bool:
         """Return whether opposite normal draws are paired."""
-
-    def greek_method(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
 
     def price_with_seed(
         self, instrument: BarrierOption, context: PricingContext
@@ -6986,7 +5380,7 @@ class MonteCarloBarrierEngine:
         bump calculations on supported BSM pairs.
         """
 
-class MonteCarloDoubleBarrierEngine:
+class MonteCarloDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
     """Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
 
     Parameters
@@ -7102,56 +5496,6 @@ class MonteCarloDoubleBarrierEngine:
     @property
     def antithetic(self) -> bool:
         """Return whether opposite normal draws are paired."""
-
-    def greek_method(
-        self, instrument: DoubleBarrierOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: DoubleBarrierOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
 
     def price_with_seed(
         self, instrument: DoubleBarrierOption, context: PricingContext
@@ -7304,7 +5648,11 @@ class MonteCarloDoubleBarrierEngine:
         bump calculations on supported BSM pairs.
         """
 
-class MonteCarloAutocallableEngine:
+class MonteCarloAutocallableEngine(
+    _PricingMethods[
+        SnowballOption | BinarySnowballOption | TernarySnowballOption | PhoenixOption
+    ]
+):
     """Flat-rate CPU Monte Carlo pricing for snowball and Phoenix notes.
 
     Parameters
@@ -7422,66 +5770,6 @@ class MonteCarloAutocallableEngine:
     @property
     def antithetic(self) -> bool:
         """Return whether opposite normal draws are paired."""
-
-    def greek_method(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
 
     def price_with_seed(
         self,
@@ -7654,7 +5942,7 @@ class MonteCarloAutocallableEngine:
         bump calculations on supported BSM pairs.
         """
 
-class MonteCarloAccumulatorEngine:
+class MonteCarloAccumulatorEngine(_PricingMethods[Accumulator]):
     """Flat-rate CPU Monte Carlo pricing for accumulators.
 
     Parameters
@@ -7769,56 +6057,6 @@ class MonteCarloAccumulatorEngine:
     @property
     def antithetic(self) -> bool:
         """Return whether opposite normal draws are paired."""
-
-    def greek_method(
-        self, instrument: Accumulator, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: Accumulator, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
 
     def price_with_seed(
         self, instrument: Accumulator, context: PricingContext
@@ -7971,7 +6209,9 @@ class MonteCarloAccumulatorEngine:
         bump calculations on supported BSM pairs.
         """
 
-class MonteCarloAsianEngine:
+class MonteCarloAsianEngine(
+    _PricingMethods[GeometricAveragePriceOption | ArithmeticAveragePriceOption]
+):
     """Flat-rate CPU Monte Carlo pricing for continuous average-price options.
 
     Parameters
@@ -8098,60 +6338,6 @@ class MonteCarloAsianEngine:
     @property
     def antithetic(self) -> bool:
         """Return whether opposite normal draws are paired."""
-
-    def greek_method(
-        self,
-        instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
 
     def price_with_seed(
         self,
@@ -9021,7 +7207,7 @@ class GeometricAveragePriceOption:
     def realized_average(self) -> float | None:
         """Return the supplied historical average, or None if unknown."""
 
-class AnalyticGeometricAveragePriceEngine:
+class AnalyticGeometricAveragePriceEngine(_PricingMethods[GeometricAveragePriceOption]):
     """Prices continuously monitored geometric average-price Asian options.
 
     Supports deterministic risk-free-rate and dividend-yield curves.
@@ -9056,139 +7242,6 @@ class AnalyticGeometricAveragePriceEngine:
             If fields fail constructor validation.
         TypeError
             If a field name or representation is invalid.
-        """
-
-    def greek_method(
-        self, instrument: GeometricAveragePriceOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: GeometricAveragePriceOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self, instrument: GeometricAveragePriceOption, context: PricingContext
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: GeometricAveragePriceOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class ArithmeticAveragePriceOption:
@@ -9287,7 +7340,9 @@ class ArithmeticAveragePriceOption:
     def realized_average(self) -> float | None:
         """Return the supplied historical average, or None if unknown."""
 
-class TurnbullWakemanArithmeticAveragePriceEngine:
+class TurnbullWakemanArithmeticAveragePriceEngine(
+    _PricingMethods[ArithmeticAveragePriceOption]
+):
     """Continuous arithmetic average-price Asian approximation.
 
     Requires flat rates before expiry. Uses the Turnbull-Wakeman
@@ -9323,139 +7378,6 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
             If fields fail constructor validation.
         TypeError
             If a field name or representation is invalid.
-        """
-
-    def greek_method(
-        self, instrument: ArithmeticAveragePriceOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: ArithmeticAveragePriceOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self, instrument: ArithmeticAveragePriceOption, context: PricingContext
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: ArithmeticAveragePriceOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class BarrierOption:
@@ -9630,7 +7552,7 @@ class BarrierOption:
     def touch_state(self) -> Literal["untouched", "touched"] | None:
         """Return strictly prior touch history, or None if unknown."""
 
-class AnalyticBarrierEngine:
+class AnalyticBarrierEngine(_PricingMethods[BarrierOption]):
     """Analytic single-barrier pricing with flat rates.
 
     Scheduled monitoring uses the Broadie-Glasserman-Kou (BGK) continuity
@@ -9666,137 +7588,6 @@ class AnalyticBarrierEngine:
             If fields fail constructor validation.
         TypeError
             If a field name or representation is invalid.
-        """
-
-    def greek_method(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: BarrierOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class DoubleBarrierOption:
@@ -10111,7 +7902,7 @@ class RangeAccrualOption:
     def calendar(self) -> TradingCalendar:
         """Return an owned copy of the contract's observation calendar."""
 
-class AnalyticRangeAccrualEngine:
+class AnalyticRangeAccrualEngine(_PricingMethods[RangeAccrualOption]):
     """Exact BSM range-coupon marginals with deterministic rate curves.
 
     See Also
@@ -10146,138 +7937,7 @@ class AnalyticRangeAccrualEngine:
             If a field name or representation is invalid.
         """
 
-    def greek_method(
-        self, instrument: RangeAccrualOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: RangeAccrualOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: RangeAccrualOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: RangeAccrualOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
-        """
-
-class AnalyticDoubleBarrierEngine:
+class AnalyticDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
     """Flat-rate continuous double-barrier analytics.
 
     Zero-volatility BSM paths are evaluated exactly, including scheduled
@@ -10315,138 +7975,7 @@ class AnalyticDoubleBarrierEngine:
             If a field name or representation is invalid.
         """
 
-    def greek_method(
-        self, instrument: DoubleBarrierOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: DoubleBarrierOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: DoubleBarrierOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
-        """
-
-class AnalyticDoubleTouchEngine:
+class AnalyticDoubleTouchEngine(_PricingMethods[DoubleTouchOption]):
     """Flat-rate continuous cash double-touch and double-no-touch pricing.
 
     Either inclusive barrier triggers a touch. Supports expiry payments and
@@ -10490,137 +8019,6 @@ class AnalyticDoubleTouchEngine:
             If fields fail constructor validation.
         TypeError
             If a field name or representation is invalid.
-        """
-
-    def greek_method(
-        self, instrument: DoubleTouchOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: DoubleTouchOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: DoubleTouchOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class BinaryBarrierOption:
@@ -11002,7 +8400,7 @@ class TouchOption:
     def settlement_timing(self) -> Literal["at_hit", "at_expiry"]:
         """Return at-hit or expiry payment; no-touch contracts settle only at expiry."""
 
-class AnalyticBinaryBarrierEngine:
+class AnalyticBinaryBarrierEngine(_PricingMethods[BinaryBarrierOption | TouchOption]):
     """Flat-rate binary-barrier and single-touch analytics.
 
     See Also
@@ -11036,139 +8434,6 @@ class AnalyticBinaryBarrierEngine:
             If fields fail constructor validation.
         TypeError
             If a field name or representation is invalid.
-        """
-
-    def greek_method(
-        self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: BinaryBarrierOption | TouchOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
         """
 
 class DoubleTouchOption:
@@ -11328,7 +8593,11 @@ class DoubleTouchOption:
     def touch_state(self) -> Literal["untouched", "touched"] | None:
         """Return strictly prior touch history, or None if unknown."""
 
-class QuadratureAutocallableEngine:
+class QuadratureAutocallableEngine(
+    _PricingMethods[
+        SnowballOption | BinarySnowballOption | TernarySnowballOption | PhoenixOption
+    ]
+):
     """Flat-rate quadrature pricing.
 
     Parameters
@@ -11403,157 +8672,6 @@ class QuadratureAutocallableEngine:
     @property
     def integration_standard_deviations(self) -> float:
         """Return the integration extent in standard deviations."""
-
-    def greek_method(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
-        """
 
 class KnockInObservation:
     """Knock-in observation rule with an owned daily clock when applicable.
@@ -13462,7 +10580,7 @@ class Accumulator:
     def calendar(self) -> TradingCalendar:
         """Return an owned copy of the contract's observation calendar."""
 
-class QuadratureAccumulatorEngine:
+class QuadratureAccumulatorEngine(_PricingMethods[Accumulator]):
     """Flat-rate quadrature pricing.
 
     Parameters
@@ -13529,137 +10647,6 @@ class QuadratureAccumulatorEngine:
     @property
     def integration_standard_deviations(self) -> float:
         """Return the integration extent in standard deviations."""
-
-    def greek_method(
-        self, instrument: Accumulator, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
-
-        Checks model applicability; pricing validates life and history.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: Accumulator, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def price(self, instrument: Accumulator, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: Accumulator,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-
-        Notes
-        -----
-        Before expiry, requested Greeks use scalar numerical differences with
-        the request's shift controls. Omitted controls use engine defaults.
-        """
 
 def standard_phoenix(
     *,

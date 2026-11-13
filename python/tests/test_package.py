@@ -296,12 +296,15 @@ def test_greek_methods_expose_declared_keyword_controls(subtests):
     stub = ast.parse(
         (Path(kiyosi.__file__).parent / "_native.pyi").read_text(encoding="utf-8")
     )
+    common = next(
+        node for node in stub.body if getattr(node, "name", None) == "_PricingMethods"
+    )
     for node in stub.body:
         if not isinstance(node, ast.ClassDef) or not node.name.endswith("Engine"):
             continue
         method = next(
             member
-            for member in node.body
+            for member in [*node.body, *common.body]
             if isinstance(member, ast.FunctionDef)
             and member.name == "price_with_greeks"
         )
@@ -821,6 +824,9 @@ def test_domain_rejections_preserve_native_conversion_exceptions(subtests):
 def test_stub_docstrings_match_native_api(subtests):
     package = Path(kiyosi.__file__).parent
     stub = ast.parse((package / "_native.pyi").read_text(encoding="utf-8"))
+    common = next(
+        node for node in stub.body if getattr(node, "name", None) == "_PricingMethods"
+    )
     documented = set()
     for node in stub.body:
         if not isinstance(node, (ast.ClassDef, ast.FunctionDef)):
@@ -830,13 +836,26 @@ def test_stub_docstrings_match_native_api(subtests):
         runtime = getattr(_native, node.name)
         declarations = [(node.name, node, runtime)]
         if isinstance(node, ast.ClassDef):
+            members = list(node.body)
+            if node.name.endswith("Engine"):
+                declared = {
+                    member.name
+                    for member in members
+                    if isinstance(member, ast.FunctionDef)
+                }
+                members.extend(
+                    member
+                    for member in common.body
+                    if isinstance(member, ast.FunctionDef)
+                    and member.name not in declared
+                )
             declarations.extend(
                 (
                     f"{node.name}.{member.name}",
                     member,
                     getattr(runtime, member.name),
                 )
-                for member in node.body
+                for member in members
                 if isinstance(member, ast.FunctionDef)
                 and not member.name.startswith("_")
             )
@@ -887,7 +906,7 @@ def test_installed_version_and_typed_exports():
                 assert name in declarations
                 assert getattr(module, name) is getattr(_native, name)
     for name, node in declarations.items():
-        if isinstance(node, ast.ClassDef):
+        if isinstance(node, ast.ClassDef) and not name.startswith("_"):
             runtime = getattr(_native, name)
             for member in node.body:
                 if isinstance(member, ast.FunctionDef):
