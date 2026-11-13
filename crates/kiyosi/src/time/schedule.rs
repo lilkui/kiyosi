@@ -68,6 +68,25 @@ impl ObservationSchedule {
         include_start: bool,
         observation_clock_time: TimeOfDay,
     ) -> Result<Self> {
+        Ok(Self {
+            times: Self::daily_times(
+                start_time,
+                end_time,
+                calendar,
+                include_start,
+                observation_clock_time,
+            )?,
+            calendar: calendar.clone(),
+        })
+    }
+
+    pub(crate) fn daily_times(
+        start_time: Timestamp,
+        end_time: Timestamp,
+        calendar: &TradingCalendar,
+        include_start: bool,
+        observation_clock_time: TimeOfDay,
+    ) -> Result<Vec<Timestamp>> {
         validate_range(start_time, end_time)?;
         let mut times = Vec::new();
         let mut date = start_time.date();
@@ -85,10 +104,7 @@ impl ObservationSchedule {
             }
             date = date.add_days(1)?;
         }
-        Ok(Self {
-            times,
-            calendar: calendar.clone(),
-        })
+        Ok(times)
     }
 
     pub(crate) fn any_daily(

@@ -273,6 +273,8 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     let time = context.valuation_time().years_until(expiry);
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
+    let event_times =
+        crate::instruments::autocallable::pricing::future_event_times(note, context, daily)?;
     let mut observations: Vec<_> = note
         .autocall_observations()
         .iter()
@@ -282,20 +284,15 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     let mut trading = Vec::new();
     if daily && (layered || settings.scheme == FiniteDifferenceScheme::ExplicitEuler) {
         trading.extend(
-            note.daily_observation_schedule()?
-                .times()
+            event_times
                 .iter()
                 .copied()
-                .filter(|&time| time > context.valuation_time())
+                .filter(|&time| note.daily_time(time, note.calendar()))
                 .map(|time| context.valuation_time().years_until(time)),
         );
     }
     observations.extend_from_slice(&trading);
-    diffusion::validate_event_resolution(
-        context.valuation_time(),
-        expiry,
-        &crate::instruments::autocallable::pricing::future_event_times(note, context, daily)?,
-    )?;
+    diffusion::validate_event_resolution(context.valuation_time(), expiry, &event_times)?;
     let mut grid = diffusion::time_grid(
         context,
         expiry,

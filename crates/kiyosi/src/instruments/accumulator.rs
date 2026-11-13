@@ -332,7 +332,16 @@ impl Accumulator {
         &self,
         context: &PricingContext,
     ) -> Result<Vec<Timestamp>> {
-        let mut times = self.accumulation_schedule()?.times().to_vec();
+        let mut times = ObservationSchedule::daily_times(
+            context
+                .valuation_time()
+                .max(self.effective_time())
+                .min(self.expiry_time()),
+            self.expiry_time(),
+            self.calendar(),
+            context.valuation_time() < self.effective_time(),
+            self.observation_clock_time(),
+        )?;
         times.extend(self.knock_out_observation_times().unwrap_or(&[]));
         times.push(self.expiry_time());
         times.retain(|&time| time > context.valuation_time());
@@ -609,5 +618,50 @@ impl Accumulator {
                     .map(<[Timestamp]>::to_vec)
             }),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{BlackScholesMertonParameters, Date};
+
+    #[test]
+    fn future_observations_preserve_daily_knock_out_and_expiry_boundaries() -> Result<()> {
+        let clock = TimeOfDay::new(15, 0, 0, 123_456)?;
+        let start = Date::new(2025, 1, 3)?.at_time(clock);
+        let sunday = start.add_days(2)?;
+        let monday = start.add_days(3)?;
+        let tuesday = start.add_days(4)?;
+        let knock_out = sunday.add_micros(1)?;
+        let expiry = tuesday.add_micros(1)?;
+        let option = Accumulator::new(AccumulatorTerms {
+            calendar: TradingCalendar::custom(
+                TradingCalendar::weekdays(),
+                vec![monday.date()],
+                vec![sunday.date()],
+                None,
+            )?,
+            knock_out_observation_times: Some(vec![knock_out]),
+            ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, expiry, clock)
+        })?;
+        for (valuation, expected) in [
+            (
+                start.add_micros(-1)?,
+                vec![start, sunday, knock_out, tuesday, expiry],
+            ),
+            (start, vec![sunday, knock_out, tuesday, expiry]),
+            (sunday, vec![knock_out, tuesday, expiry]),
+            (expiry, vec![]),
+            (expiry.add_micros(1)?, vec![]),
+        ] {
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+                100.0,
+                valuation,
+            )?;
+            assert_eq!(option.future_observation_times(&context)?, expected);
+        }
+        Ok(())
     }
 }

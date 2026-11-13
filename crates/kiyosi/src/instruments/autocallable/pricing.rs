@@ -64,14 +64,14 @@ pub(crate) fn future_event_times<T: AutocallableTerms>(
         .map(|r| r.time)
         .filter(|&time| time > context.valuation_time())
         .collect();
-    if daily {
-        times.extend(
-            note.daily_observation_schedule()?
-                .times()
-                .iter()
-                .copied()
-                .filter(|&time| time > context.valuation_time()),
-        );
+    if let Some(clock) = note.observation_clock_time().filter(|_| daily) {
+        times.extend(crate::ObservationSchedule::daily_times(
+            context.valuation_time(),
+            note.expiry_time(),
+            note.calendar(),
+            false,
+            clock,
+        )?);
     }
     times.push(note.expiry_time());
     times.sort_unstable();
@@ -161,4 +161,68 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
     }
     let discount = discount(note.expiry_time())?;
     discount.is_normal().then_some(value + coupons)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        AutocallableObservation, BlackScholesMertonParameters, Date, KnockInObservation,
+        SnowballOption, SnowballTerms, TimeOfDay, TradingCalendar,
+    };
+
+    #[test]
+    fn future_events_merge_exact_daily_autocall_and_expiry_times() -> Result<()> {
+        let clock = TimeOfDay::new(15, 0, 0, 123_456)?;
+        let now = Date::new(2025, 1, 3)?.at_time(clock);
+        let sunday = now.add_days(2)?;
+        let monday = now.add_days(3)?;
+        let tuesday = now.add_days(4)?;
+        let expiry = tuesday.add_micros(1)?;
+        let calendar = TradingCalendar::custom(
+            TradingCalendar::weekdays(),
+            vec![monday.date()],
+            vec![sunday.date()],
+            None,
+        )?;
+        let note = SnowballOption::new(SnowballTerms::new(
+            0.1,
+            100.0,
+            80.0,
+            100.0,
+            0.0,
+            Date::new(2020, 1, 1)?.start_of_day(),
+            expiry,
+            [now, sunday, expiry]
+                .map(|at| AutocallableObservation::snowball(at, 110.0, 0.1))
+                .into_iter()
+                .collect::<Result<_>>()?,
+            KnockInObservation::EveryTradingDay {
+                observation_clock_time: clock,
+            },
+            calendar,
+        ))?;
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+            100.0,
+            now,
+        )?;
+        assert_eq!(
+            future_event_times(&note, &context, true)?,
+            [sunday, tuesday, expiry]
+        );
+        assert_eq!(
+            future_event_times(&note, &context, false)?,
+            [sunday, expiry]
+        );
+        let before = context.replace(crate::PricingContextChanges {
+            valuation_time: Some(now.add_micros(-1)?),
+            ..Default::default()
+        })?;
+        assert_eq!(
+            future_event_times(&note, &before, true)?,
+            [now, sunday, tuesday, expiry]
+        );
+        Ok(())
+    }
 }

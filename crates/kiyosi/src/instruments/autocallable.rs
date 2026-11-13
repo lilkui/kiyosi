@@ -1104,12 +1104,18 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
             }
             if self.knock_in_affects_payoff() {
                 if let Some(ki) = self.view().knock_in {
-                    let times = if self.view().daily_knock_in() {
-                        self.daily_observation_schedule()
-                            .map(|schedule| schedule.times().to_vec())
-                            .unwrap_or_default()
-                    } else {
-                        vec![self.expiry_time()]
+                    let times = match ki.observation {
+                        KnockInObservation::EveryTradingDay {
+                            observation_clock_time,
+                        } => crate::ObservationSchedule::daily_times(
+                            context.valuation_time().max(self.effective_time()),
+                            self.expiry_time(),
+                            self.calendar(),
+                            true,
+                            observation_clock_time,
+                        )
+                        .unwrap_or_default(),
+                        KnockInObservation::AtExpiry => vec![self.expiry_time()],
                     };
                     let mut knocked_in =
                         self.barrier_state() == Some(AutocallableBarrierState::KnockedIn);
