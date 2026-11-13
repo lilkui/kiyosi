@@ -1,6 +1,6 @@
 use crate::conversions::{python_timestamps, real, reals, timestamp, timestamps};
 use crate::error::domain;
-use crate::market::{RateTermStructure, rate};
+use crate::market::{rate, rate_properties};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
@@ -128,8 +128,8 @@ impl LocalVolatilitySurface {
 #[derive(Clone, PartialEq)]
 pub(crate) struct LocalVolatilityParameters(pub(crate) kiyosi::LocalVolatilityParameters);
 
-#[pymethods]
-impl LocalVolatilityParameters {
+rate_properties!(
+    LocalVolatilityParameters,
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, surface))]
     fn new(
@@ -142,49 +142,10 @@ impl LocalVolatilityParameters {
             rate(dividend_yield)?,
             surface.0.clone(),
         ))?))
-    }
-
+    },
     /// Return an owned copy of the fixed surface.
     #[getter]
     fn surface(&self) -> LocalVolatilitySurface {
         LocalVolatilitySurface(self.0.surface().clone())
-    }
-    /// Return an owned copy of the risk-free curve.
-    #[getter]
-    fn risk_free_curve(&self) -> RateTermStructure {
-        RateTermStructure(self.0.risk_free_curve().clone())
-    }
-    /// Return an owned copy of the dividend curve.
-    #[getter]
-    fn dividend_curve(&self) -> RateTermStructure {
-        RateTermStructure(self.0.dividend_curve().clone())
-    }
-    /// Return the scalar rate for dated or undated constant curves.
-    ///
-    /// Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
-    /// or replacements.
-    ///
-    /// Raises
-    /// ------
-    /// UnsupportedOperationError
-    ///     If the curve is nonconstant.
-    ///
-    #[getter]
-    fn flat_risk_free_rate(&self) -> PyResult<f64> {
-        domain(self.0.flat_risk_free_rate())
-    }
-    /// Return the scalar yield for dated or undated constant curves.
-    ///
-    /// Use ``dividend_curve`` to preserve coverage when passing yields to constructors
-    /// or replacements.
-    ///
-    /// Raises
-    /// ------
-    /// UnsupportedOperationError
-    ///     If the curve is nonconstant.
-    ///
-    #[getter]
-    fn flat_dividend_yield(&self) -> PyResult<f64> {
-        domain(self.0.flat_dividend_yield())
-    }
-}
+    },
+);

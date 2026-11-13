@@ -1,6 +1,6 @@
 use crate::conversions::real;
 use crate::error::domain;
-use crate::market::{RateTermStructure, rate};
+use crate::market::{rate, rate_properties};
 use pyo3::prelude::*;
 
 /// Heston stochastic-volatility parameters under the risk-neutral measure.
@@ -42,8 +42,8 @@ use pyo3::prelude::*;
 #[derive(Clone, PartialEq)]
 pub(crate) struct HestonParameters(pub(crate) kiyosi::HestonParameters);
 
-#[pymethods]
-impl HestonParameters {
+rate_properties!(
+    HestonParameters,
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation))]
     fn new(
@@ -66,69 +66,30 @@ impl HestonParameters {
                 correlation: real(correlation)?,
             },
         ))?))
-    }
-
-    /// Return the scalar rate for dated or undated constant curves.
-    ///
-    /// Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
-    /// or replacements.
-    ///
-    /// Raises
-    /// ------
-    /// UnsupportedOperationError
-    ///     If the curve is nonconstant.
-    ///
-    #[getter]
-    fn flat_risk_free_rate(&self) -> PyResult<f64> {
-        domain(self.0.flat_risk_free_rate())
-    }
-    /// Return the scalar yield for dated or undated constant curves.
-    ///
-    /// Use ``dividend_curve`` to preserve coverage when passing yields to constructors
-    /// or replacements.
-    ///
-    /// Raises
-    /// ------
-    /// UnsupportedOperationError
-    ///     If the curve is nonconstant.
-    ///
-    #[getter]
-    fn flat_dividend_yield(&self) -> PyResult<f64> {
-        domain(self.0.flat_dividend_yield())
-    }
-    /// Return an owned copy of the risk-free curve.
-    #[getter]
-    fn risk_free_curve(&self) -> RateTermStructure {
-        RateTermStructure(self.0.risk_free_curve().clone())
-    }
-    /// Return an owned copy of the dividend curve.
-    #[getter]
-    fn dividend_curve(&self) -> RateTermStructure {
-        RateTermStructure(self.0.dividend_curve().clone())
-    }
+    },
     /// Return instantaneous variance at valuation.
     #[getter]
     fn initial_variance(&self) -> f64 {
         self.0.initial_variance()
-    }
+    },
     /// Return the long-run variance level.
     #[getter]
     fn long_run_variance(&self) -> f64 {
         self.0.long_run_variance()
-    }
+    },
     /// Return mean-reversion speed per year.
     #[getter]
     fn mean_reversion_speed(&self) -> f64 {
         self.0.mean_reversion_speed()
-    }
+    },
     /// Return the volatility-of-volatility parameter xi.
     #[getter]
     fn vol_of_vol(&self) -> f64 {
         self.0.vol_of_vol()
-    }
+    },
     /// Return the correlation between the asset and variance Brownian motions.
     #[getter]
     fn correlation(&self) -> f64 {
         self.0.correlation()
-    }
-}
+    },
+);

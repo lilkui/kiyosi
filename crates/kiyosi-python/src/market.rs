@@ -3,6 +3,55 @@ use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyTuple};
 
+macro_rules! rate_properties {
+    ($name:ident, $($extra:item),* $(,)?) => {
+        #[pyo3::pymethods]
+        impl $name {
+            $($extra)*
+
+            /// Return the scalar rate for dated or undated constant curves.
+            ///
+            /// Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
+            /// or replacements.
+            ///
+            /// Raises
+            /// ------
+            /// UnsupportedOperationError
+            ///     If the curve is nonconstant.
+            ///
+            #[getter]
+            fn flat_risk_free_rate(&self) -> pyo3::PyResult<f64> {
+                $crate::error::domain(self.0.flat_risk_free_rate())
+            }
+            /// Return the scalar yield for dated or undated constant curves.
+            ///
+            /// Use ``dividend_curve`` to preserve coverage when passing yields to constructors
+            /// or replacements.
+            ///
+            /// Raises
+            /// ------
+            /// UnsupportedOperationError
+            ///     If the curve is nonconstant.
+            ///
+            #[getter]
+            fn flat_dividend_yield(&self) -> pyo3::PyResult<f64> {
+                $crate::error::domain(self.0.flat_dividend_yield())
+            }
+            /// Return an owned copy of the risk-free curve.
+            #[getter]
+            fn risk_free_curve(&self) -> $crate::market::RateTermStructure {
+                $crate::market::RateTermStructure(self.0.risk_free_curve().clone())
+            }
+            /// Return an owned copy of the dividend curve.
+            #[getter]
+            fn dividend_curve(&self) -> $crate::market::RateTermStructure {
+                $crate::market::RateTermStructure(self.0.dividend_curve().clone())
+            }
+        }
+    };
+}
+pub(crate) use rate_properties;
+
 /// Rate term structure with log-linear discount factors.
 ///
 /// Parameters
@@ -296,8 +345,8 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
 #[derive(Clone, PartialEq)]
 pub(crate) struct BlackScholesMertonParameters(pub(crate) kiyosi::BlackScholesMertonParameters);
 
-#[pymethods]
-impl BlackScholesMertonParameters {
+rate_properties!(
+    BlackScholesMertonParameters,
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, volatility))]
     fn new(
@@ -310,52 +359,13 @@ impl BlackScholesMertonParameters {
             rate(dividend_yield)?,
             real(volatility)?,
         ))?))
-    }
-
-    /// Return the scalar rate for dated or undated constant curves.
-    ///
-    /// Use ``risk_free_curve`` to preserve coverage when passing rates to constructors
-    /// or replacements.
-    ///
-    /// Raises
-    /// ------
-    /// UnsupportedOperationError
-    ///     If the curve is nonconstant.
-    ///
-    #[getter]
-    fn flat_risk_free_rate(&self) -> PyResult<f64> {
-        domain(self.0.flat_risk_free_rate())
-    }
-    /// Return the scalar yield for dated or undated constant curves.
-    ///
-    /// Use ``dividend_curve`` to preserve coverage when passing yields to constructors
-    /// or replacements.
-    ///
-    /// Raises
-    /// ------
-    /// UnsupportedOperationError
-    ///     If the curve is nonconstant.
-    ///
-    #[getter]
-    fn flat_dividend_yield(&self) -> PyResult<f64> {
-        domain(self.0.flat_dividend_yield())
-    }
-    /// Return an owned copy of the risk-free curve.
-    #[getter]
-    fn risk_free_curve(&self) -> RateTermStructure {
-        RateTermStructure(self.0.risk_free_curve().clone())
-    }
-    /// Return an owned copy of the dividend curve.
-    #[getter]
-    fn dividend_curve(&self) -> RateTermStructure {
-        RateTermStructure(self.0.dividend_curve().clone())
-    }
+    },
     /// Return nonnegative finite annualized volatility in decimal units.
     #[getter]
     fn volatility(&self) -> f64 {
         self.0.volatility()
-    }
-}
+    },
+);
 
 /// Market snapshot for one valuation instant.
 ///
