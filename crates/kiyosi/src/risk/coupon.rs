@@ -281,11 +281,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     }
     for _ in 0..s.max_iterations {
         crate::cancellation::check()?;
-        let mid = if (lo < 0.0) == (hi < 0.0) {
-            lo + 0.5 * (hi - lo)
-        } else {
-            0.5 * lo + 0.5 * hi
-        };
+        let mid = lo.midpoint(hi);
         let value = residual(price(mid)?)?;
         if value.abs() <= s.price_tolerance {
             return Ok(mid);
