@@ -40,11 +40,13 @@ def test_engine_replacement_preserves_controls_and_validates_inputs(subtests):
             controls[field] = alternate
         configured = factory(**controls)
         with subtests.test(engine=name):
+            if not controls:
+                with pytest.raises(AttributeError, match="replace"):
+                    configured.replace()
+                continue
             assert configured.replace() == configured
             with pytest.raises(TypeError):
                 configured.replace(unknown=Ellipsis)
-            if not controls:
-                continue
             field = next(iter(controls))
             assert configured.replace(**{field: Ellipsis}) == configured
             updated = configured.replace(**{field: getattr(original, field)})

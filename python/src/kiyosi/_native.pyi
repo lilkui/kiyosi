@@ -1684,31 +1684,6 @@ class AnalyticEuropeanEngine(_PricingMethods[EuropeanOption]):
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
     def price_with_greeks(
         self,
         instrument: EuropeanOption,
@@ -1959,30 +1934,6 @@ class BjerksundStenslandVanillaEngine(_PricingMethods[AmericanOption]):
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
 
 class AnalyticDigitalEngine(
     _PricingMethods[CashOrNothingOption | AssetOrNothingOption]
@@ -1997,31 +1948,6 @@ class AnalyticDigitalEngine(
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
     def price_with_greeks(
         self,
         instrument: CashOrNothingOption | AssetOrNothingOption,
@@ -7219,30 +7145,6 @@ class AnalyticGeometricAveragePriceEngine(_PricingMethods[GeometricAveragePriceO
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
 
 class ArithmeticAveragePriceOption:
     """Continuously monitored average-price Asian option.
@@ -7355,30 +7257,6 @@ class TurnbullWakemanArithmeticAveragePriceEngine(
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
 
 class BarrierOption:
     """Single-barrier vanilla option with inclusive barrier touches.
@@ -7565,30 +7443,6 @@ class AnalyticBarrierEngine(_PricingMethods[BarrierOption]):
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
 
 class DoubleBarrierOption:
     """Vanilla option activated or terminated by either inclusive boundary.
@@ -7912,30 +7766,6 @@ class AnalyticRangeAccrualEngine(_PricingMethods[RangeAccrualOption]):
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
 
 class AnalyticDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
     """Flat-rate continuous double-barrier analytics.
@@ -7950,30 +7780,6 @@ class AnalyticDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
 
 class AnalyticDoubleTouchEngine(_PricingMethods[DoubleTouchOption]):
     """Flat-rate continuous cash double-touch and double-no-touch pricing.
@@ -7996,30 +7802,6 @@ class AnalyticDoubleTouchEngine(_PricingMethods[DoubleTouchOption]):
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
 
 class BinaryBarrierOption:
     """Cash-or-nothing or asset-or-nothing option with barrier monitoring.
@@ -8411,30 +8193,6 @@ class AnalyticBinaryBarrierEngine(_PricingMethods[BinaryBarrierOption | TouchOpt
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self) -> None: ...
-    def replace(self) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
 
 class DoubleTouchOption:
     """Cash double one-touch or double no-touch option with inclusive barriers.

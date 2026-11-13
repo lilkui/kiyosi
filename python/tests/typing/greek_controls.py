@@ -120,6 +120,7 @@ def mixed_digital_shifts(option: CashOrNothingOption, context: PricingContext) -
 
 
 def engine_replacement_types() -> None:
+    AnalyticEuropeanEngine().replace()  # ty: ignore[unresolved-attribute]
     engine = MonteCarloVanillaEngine(seed=42)
     assert_type(engine.replace(path_count=4096), MonteCarloVanillaEngine)
     assert_type(engine.replace(seed=None), MonteCarloVanillaEngine)

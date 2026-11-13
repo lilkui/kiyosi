@@ -120,7 +120,7 @@ def install(native: ModuleType) -> None:
             resolved = _signature(value, constructor_defaults)
             if resolved != original:
                 value.__signature__ = resolved
-            if name.endswith("Engine") or name in (
+            if (name.endswith("Engine") and resolved.parameters) or name in (
                 "EuropeanOption",
                 "AmericanOption",
                 "CashOrNothingOption",
