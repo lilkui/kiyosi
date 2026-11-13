@@ -61,32 +61,6 @@ fn surface(py: Python<'_>, value: &kiyosi::LocalVolatilitySurface) -> PyResult<S
     ))
 }
 
-fn model(py: Python<'_>, value: &kiyosi::ModelParameters) -> PyResult<String> {
-    let rates = format!(
-        "risk_free_rate={}, dividend_yield={}",
-        curve(py, value.risk_free_curve())?,
-        curve(py, value.dividend_curve())?
-    );
-    Ok(match value {
-        kiyosi::ModelParameters::BlackScholesMerton(m) => format!(
-            "BlackScholesMertonParameters({rates}, volatility={:?})",
-            m.volatility()
-        ),
-        kiyosi::ModelParameters::LocalVolatility(m) => format!(
-            "LocalVolatilityParameters({rates}, surface={})",
-            surface(py, m.surface())?
-        ),
-        kiyosi::ModelParameters::Heston(m) => format!(
-            "HestonParameters({rates}, initial_variance={:?}, long_run_variance={:?}, mean_reversion_speed={:?}, vol_of_vol={:?}, correlation={:?})",
-            m.initial_variance(),
-            m.long_run_variance(),
-            m.mean_reversion_speed(),
-            m.vol_of_vol(),
-            m.correlation()
-        ),
-    })
-}
-
 pub(crate) fn calendar(py: Python<'_>, value: &kiyosi::TradingCalendar) -> PyResult<String> {
     if let Some((base, closed, open)) = value.overrides() {
         let dates = |values: &[kiyosi::Date]| {
@@ -139,19 +113,6 @@ pub(crate) fn _repr_previews<'py>(
             calendar(py, v.calendar())?
         ))
     );
-    // Borrow model storage; constructing temporary model wrappers would clone entire surfaces.
-    if let Ok(v) = value.extract::<PyRef<'_, crate::market::PricingContext>>() {
-        result.set_item(
-            "__repr__",
-            format!(
-                "PricingContext(model_parameters={}, spot_price={:?}, valuation_time={})",
-                model(py, v.0.model_parameters())?,
-                v.0.spot_price(),
-                python_timestamp(py, v.0.valuation_time())?.repr()?
-            ),
-        )?;
-        return Ok(result);
-    }
     macro_rules! rates {
         ($class:ty) => {
             if let Ok(v) = value.extract::<PyRef<'_, $class>>() {
