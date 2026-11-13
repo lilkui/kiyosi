@@ -5,7 +5,7 @@ from inspect import Parameter, Signature, getdoc, isbuiltin, isclass, signature
 from types import ModuleType
 from typing import Any
 
-from ._serialization import _fields
+from ._serialization import _RATE_FIELDS
 
 
 def _signature(callable: Any, defaults: dict[str, Any]) -> Signature:
@@ -53,10 +53,15 @@ def _replacement(factory: Any) -> Any:
         The original value is unchanged on success and failure.
         """
         constructor.bind_partial(**changes)
-        controls = _fields(self)
-        controls.update(
-            (name, value) for name, value in changes.items() if value is not Ellipsis
-        )
+        changes = {
+            name: value for name, value in changes.items() if value is not Ellipsis
+        }
+        controls = {
+            name: changes[name]
+            if name in changes
+            else getattr(self, _RATE_FIELDS.get(name, name))
+            for name in constructor.parameters
+        }
         return factory(**controls)
 
     replace.__dict__["__signature__"] = constructor.replace(

@@ -10,6 +10,11 @@ from typing import Any, get_args
 
 from . import _native
 
+_RATE_FIELDS = {
+    "risk_free_rate": "risk_free_curve",
+    "dividend_yield": "dividend_curve",
+}
+
 
 @cache
 def _constructor(factory: Any) -> Signature:
@@ -141,14 +146,10 @@ def _fields(value: Any, previews: dict[str, str] | None = None) -> dict[str, Any
             "uncertainty_status": value.uncertainty_status,
             "seed": value.seed,
         }
-    rate_fields = {
-        "risk_free_rate": "risk_free_curve",
-        "dividend_yield": "dividend_curve",
-    }
     return {
         name: _Preview(previews[name])
         if previews and name in previews
-        else getattr(value, rate_fields.get(name, name))
+        else getattr(value, _RATE_FIELDS.get(name, name))
         for name in _constructor(type(value)).parameters
     }
 
