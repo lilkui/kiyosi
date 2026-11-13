@@ -15,5 +15,8 @@ analytic_engine!(
     ///
     AnalyticDoubleBarrierEngine,
     PyRef<'_, DoubleBarrierOption>,
-    with_contract
+    with_contract,
+    |option, context| option.0.touch_state() == Some(kiyosi::BarrierTouchState::Touched)
+        && matches!(context.model_parameters(), kiyosi::ModelParameters::BlackScholesMerton(model)
+            if model.volatility() > 0.0)
 );
