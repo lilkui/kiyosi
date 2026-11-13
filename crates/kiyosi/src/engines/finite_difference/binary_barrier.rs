@@ -125,13 +125,7 @@ fn native_with_diffusion<D: Diffusion>(
     let spot = context.spot_price();
     let terminal = |asset| {
         if let Some(digital) = contract.digital {
-            if (digital.option_type() == OptionType::Call && asset > digital.strike())
-                || (digital.option_type() == OptionType::Put && asset < digital.strike())
-            {
-                contract.payout.unwrap_or(asset)
-            } else {
-                0.0
-            }
+            Payoff::digital(digital).value(asset)
         } else {
             contract.payout.unwrap_or(asset)
         }

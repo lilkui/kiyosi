@@ -103,13 +103,7 @@ impl PricingEngine<DigitalOption> for QuadratureDigitalEngine {
         let call = option.option_type() == OptionType::Call;
         let time = context.valuation_time().years_until(option.expiry_time());
         if time == 0.0 {
-            return Ok(
-                if (call && spot > option.strike()) || (!call && spot < option.strike()) {
-                    option.payout().unwrap_or(spot)
-                } else {
-                    0.0
-                },
-            );
+            return Ok(crate::engines::Payoff::digital(option).value(spot));
         }
         let sigma = context.bsm_parameters()?.volatility();
         let root = time.sqrt();
