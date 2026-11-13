@@ -2009,7 +2009,10 @@ fn spot_shift_fallback_is_distinct_from_engine_resolution() -> Result<()> {
     assert_eq!(engine.default_spot_shift(&european, &context), 0.01);
     assert_eq!(engine.default_spot_shift(&american, &context), 8.0);
     let fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
-        spot_shift: Some(0.5),
+        greek_shifts: NumericalShiftSettings {
+            spot_shift: Some(0.5),
+            ..Default::default()
+        },
         ..Default::default()
     })?;
     assert_eq!(fd.default_spot_shift(&european, &context), 0.01);
@@ -2814,9 +2817,12 @@ fn fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates() -> Result<(
         .price_with_greeks(&option, &context, request)?;
     assert_eq!(base.status(Greek::Vega), GreekStatus::Available);
     let configured = FiniteDifferenceSettings {
-        volatility_shift: Some(0.000_01),
-        rate_shift: 0.000_2,
-        time_shift: Some(std::time::Duration::from_secs(60)),
+        greek_shifts: NumericalShiftSettings {
+            volatility_shift: Some(0.000_01),
+            rate_shift: 0.000_2,
+            time_shift: Some(std::time::Duration::from_secs(60)),
+            ..settings.greek_shifts
+        },
         ..settings
     };
     let engine = FiniteDifferenceVanillaEngine::new(configured)?;
@@ -2845,36 +2851,37 @@ fn fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates() -> Result<(
     let measures = [Greek::Rho, Greek::DividendRho, Greek::Theta];
     let request = GreeksRequest::new(measures);
     let configured_result = engine.price_with_greeks(&option, &regular, request)?;
-    let scalar = numerical_greeks(
-        &engine,
-        &option,
-        &regular,
-        request,
-        NumericalShiftSettings {
-            volatility_shift: configured.volatility_shift,
-            rate_shift: configured.rate_shift,
-            time_shift: configured.time_shift,
-            ..Default::default()
-        },
-    )?;
+    let scalar = numerical_greeks(&engine, &option, &regular, request, configured.greek_shifts)?;
     for greek in measures {
         assert!((configured_result.require(greek)? - scalar.require(greek)?).abs() < 1e-10);
     }
     for invalid in [
         FiniteDifferenceSettings {
-            volatility_shift: Some(0.0),
+            greek_shifts: NumericalShiftSettings {
+                volatility_shift: Some(0.0),
+                ..settings.greek_shifts
+            },
             ..settings
         },
         FiniteDifferenceSettings {
-            rate_shift: f64::NAN,
+            greek_shifts: NumericalShiftSettings {
+                rate_shift: f64::NAN,
+                ..settings.greek_shifts
+            },
             ..settings
         },
         FiniteDifferenceSettings {
-            time_shift: Some(std::time::Duration::ZERO),
+            greek_shifts: NumericalShiftSettings {
+                time_shift: Some(std::time::Duration::ZERO),
+                ..settings.greek_shifts
+            },
             ..settings
         },
         FiniteDifferenceSettings {
-            time_shift: Some(std::time::Duration::from_nanos(1)),
+            greek_shifts: NumericalShiftSettings {
+                time_shift: Some(std::time::Duration::from_nanos(1)),
+                ..settings.greek_shifts
+            },
             ..settings
         },
     ] {

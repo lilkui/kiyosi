@@ -194,10 +194,7 @@ monitoring_properties!(
     /// Return knock_in for one-touch or knock_out for no-touch payment.
     #[getter]
     fn barrier_type(&self) -> &'static str {
-        match self.0.barrier_type() {
-            kiyosi::DoubleBarrierType::KnockIn => "knock_in",
-            kiyosi::DoubleBarrierType::KnockOut => "knock_out",
-        }
+        crate::conversions::double_barrier_type_name(self.0.barrier_type())
     },
     /// Return whether touching activates payment.
     #[getter]
@@ -207,10 +204,7 @@ monitoring_properties!(
     /// Return at-hit or expiry payment; no-touch contracts settle only at expiry.
     #[getter]
     fn settlement_timing(&self) -> &'static str {
-        match self.0.settlement_timing() {
-            kiyosi::SettlementTiming::AtHit => "at_hit",
-            kiyosi::SettlementTiming::AtExpiry => "at_expiry",
-        }
+        crate::conversions::settlement_timing_name(self.0.settlement_timing())
     }
 );
 

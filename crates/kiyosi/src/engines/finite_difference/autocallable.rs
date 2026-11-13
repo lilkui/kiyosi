@@ -82,7 +82,7 @@ impl FiniteDifferenceAutocallableEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = self.settings.greek_shifts();
+        let shifts = self.settings.greek_shifts;
         analysis(option, context, self.settings, request, shifts, native)
     }
 }
@@ -104,7 +104,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         self.price(option, context)
     }
     fn greek_settings(&self, _option: &AutocallableNote<T>) -> crate::NumericalShiftSettings {
-        self.settings.greek_shifts()
+        self.settings.greek_shifts
     }
     fn price_with_greeks_with_settings(
         &self,

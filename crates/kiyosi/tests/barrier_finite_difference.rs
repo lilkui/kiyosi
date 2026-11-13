@@ -424,7 +424,6 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
         .into_iter()
         .map(|(scheme, steps)| {
             FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
-                spot_shift: None,
                 asset_step_count: 200,
                 time_step_count: steps,
                 scheme,
@@ -456,7 +455,6 @@ fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     t.observation_times = Some(vec![t.expiry_time]);
     let option = BarrierOption::new(t).unwrap();
     let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
-        spot_shift: None,
         asset_step_count: 200,
         time_step_count: 1600,
         scheme: FiniteDifferenceScheme::ExplicitEuler,

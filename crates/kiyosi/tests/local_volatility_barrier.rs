@@ -64,7 +64,10 @@ fn native_spot_bump_recovers_local_barrier_greeks_without_changing_price() -> Re
         GreekStatus::StencilUnavailable
     );
     let controlled = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
-        spot_shift: Some(0.001),
+        greek_shifts: NumericalShiftSettings {
+            spot_shift: Some(0.001),
+            ..settings.greek_shifts
+        },
         ..settings
     })?;
     let result = controlled.price_with_greeks(&option, &context, request())?;
@@ -93,7 +96,10 @@ fn native_spot_bump_recovers_local_barrier_greeks_without_changing_price() -> Re
     for shift in [0.0, -0.001, f64::NAN, f64::INFINITY] {
         assert!(matches!(
             FiniteDifferenceSettings {
-                spot_shift: Some(shift),
+                greek_shifts: NumericalShiftSettings {
+                    spot_shift: Some(shift),
+                    ..settings.greek_shifts
+                },
                 ..settings
             }
             .validate(),

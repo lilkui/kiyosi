@@ -261,10 +261,7 @@ impl Accumulator {
     /// Return call for purchases or put for sales.
     #[getter]
     fn option_type(&self) -> &'static str {
-        match self.0.option_type() {
-            kiyosi::OptionType::Call => "call",
-            kiyosi::OptionType::Put => "put",
-        }
+        crate::conversions::direction_name(self.0.option_type())
     }
     /// Return owned knock-out times, or None for at the daily accumulation time.
     #[getter]

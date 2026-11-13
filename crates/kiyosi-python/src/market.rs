@@ -44,14 +44,8 @@ impl RateTermStructure {
         factors: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let reference = timestamp(reference_time)?;
-        let nodes = times
-            .try_iter()?
-            .map(|item| timestamp(&item?))
-            .collect::<PyResult<Vec<_>>>()?;
-        let factors = factors
-            .try_iter()?
-            .map(|item| real(&item?))
-            .collect::<PyResult<Vec<_>>>()?;
+        let nodes = crate::conversions::timestamps(times)?;
+        let factors = crate::conversions::reals(factors)?;
         Ok(Self(domain(kiyosi::RateTermStructure::new(
             reference, nodes, factors,
         ))?))

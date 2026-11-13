@@ -59,9 +59,7 @@ class _Preview:
         return self.text
 
 
-def _reduce(
-    value: Any, previews: dict[str, str] | None = None
-) -> tuple[Any, tuple[Any, ...]]:
+def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
     factory = type(value)
     if isinstance(value, _native.TradingCalendar):
         kind, base, closed, opened, basis = _native._calendar_parts(value)
@@ -93,37 +91,6 @@ def _reduce(
             value.base_factors,
             value.parallel_shift,
         )
-    if isinstance(value, _native.PricingResult):
-        values = {name: getattr(value, name) for name in get_args(_native.Greek)}
-        return _restore, (
-            _native._pricing_result,
-            {
-                "price": value.price,
-                "seed": value.seed,
-                "requested": value.requested,
-                "supported": value.supported,
-                "unavailable_stencils": [
-                    name
-                    for name in value.requested
-                    if value.status(name) == "stencil_unavailable"
-                ],
-                "greeks": {
-                    name: result
-                    for name, result in values.items()
-                    if result is not None
-                },
-            },
-        )
-    if isinstance(value, _native.MonteCarloEstimate):
-        return _restore, (
-            _native._monte_carlo_estimate,
-            {
-                "price": value.price,
-                "standard_error": value.standard_error,
-                "uncertainty_status": value.uncertainty_status,
-                "seed": value.seed,
-            },
-        )
     if isinstance(value, _native.KnockInObservation):
         factory = getattr(_native.KnockInObservation, value.kind)
         fields = (
@@ -143,17 +110,47 @@ def _reduce(
                 field: getattr(value, field),
             },
         )
+    if isinstance(value, _native.PricingResult):
+        factory = _native._pricing_result
+    elif isinstance(value, _native.MonteCarloEstimate):
+        factory = _native._monte_carlo_estimate
+    return _restore, (factory, _fields(value))
+
+
+def _fields(value: Any, previews: dict[str, str] | None = None) -> dict[str, Any]:
+    if isinstance(value, _native.PricingResult):
+        values = {name: getattr(value, name) for name in get_args(_native.Greek)}
+        return {
+            "price": value.price,
+            "seed": value.seed,
+            "requested": value.requested,
+            "supported": value.supported,
+            "unavailable_stencils": [
+                name
+                for name in value.requested
+                if value.status(name) == "stencil_unavailable"
+            ],
+            "greeks": {
+                name: result for name, result in values.items() if result is not None
+            },
+        }
+    if isinstance(value, _native.MonteCarloEstimate):
+        return {
+            "price": value.price,
+            "standard_error": value.standard_error,
+            "uncertainty_status": value.uncertainty_status,
+            "seed": value.seed,
+        }
     rate_fields = {
         "risk_free_rate": "risk_free_curve",
         "dividend_yield": "dividend_curve",
     }
-    fields = {
+    return {
         name: _Preview(previews[name])
         if previews and name in previews
         else getattr(value, rate_fields.get(name, name))
-        for name in _constructor(factory).parameters
+        for name in _constructor(type(value)).parameters
     }
-    return _restore, (factory, fields)
 
 
 _repr_formatter = reprlib.Repr()
@@ -164,9 +161,8 @@ def _repr(value: Any) -> str:
     previews = _native._repr_previews(value)
     if "__repr__" in previews:
         return previews["__repr__"]
-    _, (_, fields) = _reduce(value, previews)
+    fields = _fields(value, previews)
     name = type(value).__name__
-    fields = fields.copy()
     if fields.get("calendar") == _native.weekdays_calendar():
         if _constructor(type(value)).parameters["calendar"].default is Parameter.empty:
             fields["calendar"] = _Preview("weekdays_calendar()")

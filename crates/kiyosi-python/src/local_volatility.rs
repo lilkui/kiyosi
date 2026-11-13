@@ -1,4 +1,4 @@
-use crate::conversions::{python_timestamps, real, supplied, timestamp};
+use crate::conversions::{python_timestamps, real, reals, supplied, timestamp, timestamps};
 use crate::error::domain;
 use crate::market::{RateTermStructure, rate};
 use pyo3::prelude::*;
@@ -42,21 +42,11 @@ impl LocalVolatilitySurface {
         spots: &Bound<'_, PyAny>,
         values: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let times = times
-            .try_iter()?
-            .map(|v| timestamp(&v?))
-            .collect::<PyResult<Vec<_>>>()?;
-        let spots = spots
-            .try_iter()?
-            .map(|v| real(&v?))
-            .collect::<PyResult<Vec<_>>>()?;
+        let times = timestamps(times)?;
+        let spots = reals(spots)?;
         let values = values
             .try_iter()?
-            .map(|row| {
-                row?.try_iter()?
-                    .map(|v| real(&v?))
-                    .collect::<PyResult<Vec<_>>>()
-            })
+            .map(|row| reals(&row?))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self(domain(kiyosi::LocalVolatilitySurface::new(
             times, spots, values,

@@ -72,38 +72,23 @@ pub struct FiniteDifferenceSettings {
     /// double barrier makes this bound inactive for the barrier grid. Local-volatility
     /// knock-in vanilla components and scheduled monitoring use the full domain.
     pub asset_upper_boundary: Option<f64>,
-    /// Sets a positive absolute spot bump for native Greek availability and terminal stencils.
+    /// Sets Greek bump controls, validated at engine construction.
     ///
-    /// `None` uses the shared automatic bump. Prices and spatial grids are unchanged.
-    /// See [`FiniteDifferenceBarrierEngine::price_with_greeks`] for usage.
-    pub spot_shift: Option<f64>,
-    /// Sets a positive absolute volatility bump, or `None` for automatic selection.
-    ///
-    /// Uses [`NumericalShiftSettings::volatility_shift`]'s automatic cap by default.
-    /// Native spot Greeks retain their spatial estimator. See [`Self::validate`] for configuration.
-    pub volatility_shift: Option<f64>,
-    /// Sets the positive parallel risk-free and dividend-rate bump; defaults to 0.0001.
-    ///
-    /// See [`Self::validate`] for configuration.
-    pub rate_shift: f64,
-    /// Sets a positive whole-microsecond time bump, or `None` for automatic selection.
-    ///
-    /// See [`NumericalShiftSettings::time_shift`] for automatic bounds and [`Self::validate`] for configuration.
-    pub time_shift: Option<std::time::Duration>,
+    /// Uses [`NumericalShiftSettings`] defaults. Spot shifts control native Greek
+    /// availability and terminal stencils without changing prices or spatial grids.
+    /// Other shifts tune numerical completion; native spatial estimators are preserved.
+    /// See [`FiniteDifferenceBarrierEngine::price_with_greeks`] for configuration.
+    pub greek_shifts: NumericalShiftSettings,
 }
 
 impl Default for FiniteDifferenceSettings {
     fn default() -> Self {
-        let shifts = NumericalShiftSettings::default();
         Self {
             asset_step_count: 800,
             time_step_count: 400,
             scheme: Default::default(),
             asset_upper_boundary: None,
-            spot_shift: shifts.spot_shift,
-            volatility_shift: shifts.volatility_shift,
-            rate_shift: shifts.rate_shift,
-            time_shift: shifts.time_shift,
+            greek_shifts: NumericalShiftSettings::default(),
         }
     }
 }
@@ -137,17 +122,8 @@ impl FiniteDifferenceSettings {
         if let Some(boundary) = self.asset_upper_boundary {
             crate::error::finite(boundary, true, "asset_upper_boundary")?;
         }
-        self.greek_shifts().validate()?;
+        self.greek_shifts.validate()?;
         Ok(())
-    }
-
-    fn greek_shifts(self) -> NumericalShiftSettings {
-        NumericalShiftSettings {
-            spot_shift: self.spot_shift,
-            volatility_shift: self.volatility_shift,
-            rate_shift: self.rate_shift,
-            time_shift: self.time_shift,
-        }
     }
 }
 
@@ -888,7 +864,7 @@ macro_rules! vanilla_pricing {
                 .price())
             }
             fn greek_settings(&self, _option: &$option) -> crate::NumericalShiftSettings {
-                self.settings.greek_shifts()
+                self.settings.greek_shifts
             }
             fn price_with_greeks_with_settings(
                 &self,
@@ -1022,7 +998,7 @@ impl FiniteDifferenceDigitalEngine {
             option,
             context,
             request,
-            self.settings.greek_shifts(),
+            self.settings.greek_shifts,
         )
     }
 }
@@ -1057,7 +1033,7 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
         Self::price(self, option, context)
     }
     fn greek_settings(&self, _option: &DigitalOption) -> crate::NumericalShiftSettings {
-        self.settings.greek_shifts()
+        self.settings.greek_shifts
     }
     fn price_with_greeks_with_settings(
         &self,

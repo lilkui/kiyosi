@@ -95,10 +95,7 @@ macro_rules! vanilla_option_methods {
             /// Return call or put payoff direction.
             #[getter]
             fn option_type(&self) -> &'static str {
-                match self.0.option_type() {
-                    kiyosi::OptionType::Call => "call",
-                    kiyosi::OptionType::Put => "put",
-                }
+                crate::conversions::direction_name(self.0.option_type())
             }
             /// Return the strike price in underlying price units.
             #[getter]

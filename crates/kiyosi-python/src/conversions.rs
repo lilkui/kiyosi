@@ -142,6 +142,47 @@ pub(crate) fn optional_real(value: &Bound<'_, PyAny>) -> PyResult<Option<f64>> {
     }
 }
 
+pub(crate) fn reals(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+    value.try_iter()?.map(|item| real(&item?)).collect()
+}
+
+pub(crate) fn direction_name(value: kiyosi::OptionType) -> &'static str {
+    match value {
+        kiyosi::OptionType::Call => "call",
+        kiyosi::OptionType::Put => "put",
+    }
+}
+
+pub(crate) fn barrier_type_name(value: kiyosi::BarrierType) -> &'static str {
+    match value {
+        kiyosi::BarrierType::UpAndIn => "up_and_in",
+        kiyosi::BarrierType::UpAndOut => "up_and_out",
+        kiyosi::BarrierType::DownAndIn => "down_and_in",
+        kiyosi::BarrierType::DownAndOut => "down_and_out",
+    }
+}
+
+pub(crate) fn double_barrier_type_name(value: kiyosi::DoubleBarrierType) -> &'static str {
+    match value {
+        kiyosi::DoubleBarrierType::KnockIn => "knock_in",
+        kiyosi::DoubleBarrierType::KnockOut => "knock_out",
+    }
+}
+
+pub(crate) fn rebate_timing_name(value: kiyosi::RebateTiming) -> &'static str {
+    match value {
+        kiyosi::RebateTiming::AtHit => "at_hit",
+        kiyosi::RebateTiming::AtExpiry => "at_expiry",
+    }
+}
+
+pub(crate) fn settlement_timing_name(value: kiyosi::SettlementTiming) -> &'static str {
+    match value {
+        kiyosi::SettlementTiming::AtHit => "at_hit",
+        kiyosi::SettlementTiming::AtExpiry => "at_expiry",
+    }
+}
+
 pub(crate) fn direction(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::OptionType> {
     match value.extract::<&str>()? {
         "call" => Ok(kiyosi::OptionType::Call),

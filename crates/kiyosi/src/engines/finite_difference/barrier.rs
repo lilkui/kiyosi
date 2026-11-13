@@ -62,7 +62,8 @@ impl FiniteDifferenceBarrierEngine {
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
     /// let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
-    ///     spot_shift: Some(0.001), ..Default::default()
+    ///     greek_shifts: NumericalShiftSettings { spot_shift: Some(0.001), ..Default::default() },
+    ///     ..Default::default()
     /// })?;
     /// assert_eq!(engine.settings().asset_step_count, 800);
     /// let result = engine.price_with_greeks(&option, &context,
@@ -77,7 +78,7 @@ impl FiniteDifferenceBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = self.settings.greek_shifts();
+        let shifts = self.settings.greek_shifts;
         analysis(option, context, self.settings, request, shifts)
     }
 }
@@ -98,7 +99,7 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         self.price(option, context)
     }
     fn greek_settings(&self, _option: &BarrierOption) -> crate::NumericalShiftSettings {
-        self.settings.greek_shifts()
+        self.settings.greek_shifts
     }
     fn price_with_greeks_with_settings(
         &self,
@@ -248,7 +249,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = self.settings.greek_shifts();
+        let shifts = self.settings.greek_shifts;
         analysis(option, context, self.settings, request, shifts)
     }
 }
@@ -268,7 +269,7 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         self.price(option, context)
     }
     fn greek_settings(&self, _option: &DoubleBarrierOption) -> crate::NumericalShiftSettings {
-        self.settings.greek_shifts()
+        self.settings.greek_shifts
     }
     fn price_with_greeks_with_settings(
         &self,

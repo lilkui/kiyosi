@@ -504,7 +504,6 @@ fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
     )
     .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
-        spot_shift: None,
         asset_step_count: 11,
         time_step_count: 10,
         scheme: FiniteDifferenceScheme::ExplicitEuler,

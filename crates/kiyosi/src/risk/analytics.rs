@@ -386,7 +386,7 @@ pub(crate) fn vanilla_expiry_greeks(
 /// [`PricingEngine::price_with_greeks_with_settings`] accepts explicit shifts while
 /// retaining native estimators. [`PricingEngine::greek_settings`] supplies engine defaults.
 /// See [`crate::numerical_greeks`] for usage.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NumericalShiftSettings {
     /// Sets a positive absolute spot bump, or `None` (default) for the engine default.
     ///

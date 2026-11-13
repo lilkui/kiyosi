@@ -1,5 +1,5 @@
 use crate::calendar::TradingCalendar;
-use crate::conversions::{python_timestamp, real, supplied, timestamp, timestamps};
+use crate::conversions::{python_timestamp, real, reals, supplied, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -230,9 +230,6 @@ pub(crate) fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Autocal
         .try_iter()?
         .map(|item| Ok(item?.extract::<PyRef<'_, AutocallableObservation>>()?.0))
         .collect()
-}
-fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
-    values.try_iter()?.map(|item| real(&item?)).collect()
 }
 
 /// Knock-out and coupon observation with validated numeric terms.

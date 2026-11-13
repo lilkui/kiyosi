@@ -128,10 +128,12 @@ macro_rules! fd_engine {
                         time_step_count,
                         scheme,
                         asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
-                        spot_shift: spot_shift.map(real).transpose()?,
-                        volatility_shift,
-                        rate_shift,
-                        time_shift: time_shift.map(crate::conversions::duration).transpose()?,
+                        greek_shifts: kiyosi::NumericalShiftSettings {
+                            spot_shift: spot_shift.map(real).transpose()?,
+                            volatility_shift,
+                            rate_shift,
+                            time_shift: time_shift.map(crate::conversions::duration).transpose()?,
+                        },
                     }))?))
                 },
                 /// Return the configured number of spatial intervals.
@@ -162,22 +164,22 @@ macro_rules! fd_engine {
                 /// Return the native Greek spot bump, or None for automatic selection.
                 #[getter]
                 fn spot_shift(&self) -> Option<f64> {
-                    self.0.settings().spot_shift
+                    self.0.settings().greek_shifts.spot_shift
                 },
                 /// Return the numerical volatility bump, or None for automatic selection.
                 #[getter]
                 fn volatility_shift(&self) -> Option<f64> {
-                    self.0.settings().volatility_shift
+                    self.0.settings().greek_shifts.volatility_shift
                 },
                 /// Return the numerical parallel rate bump in decimal units.
                 #[getter]
                 fn rate_shift(&self) -> f64 {
-                    self.0.settings().rate_shift
+                    self.0.settings().greek_shifts.rate_shift
                 },
                 /// Return the explicit time bump, or None for automatic selection.
                 #[getter]
                 fn time_shift<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, pyo3::types::PyDelta>>> {
-                    self.0.settings().time_shift.map(|value| crate::conversions::python_duration(py, value)).transpose()
+                    self.0.settings().greek_shifts.time_shift.map(|value| crate::conversions::python_duration(py, value)).transpose()
                 },
                 /// Return the price.
                 ///

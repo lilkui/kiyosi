@@ -210,11 +210,7 @@ monitoring_properties!(
     /// Return call or put payoff direction.
     #[getter]
     fn option_type(&self) -> &'static str {
-        if self.0.option_type() == kiyosi::OptionType::Call {
-            "call"
-        } else {
-            "put"
-        }
+        crate::conversions::direction_name(self.0.option_type())
     },
     /// Return the strike price in underlying price units.
     #[getter]
@@ -229,12 +225,7 @@ monitoring_properties!(
     /// Return trigger direction and knock-in or knock-out behavior.
     #[getter]
     fn barrier_type(&self) -> &'static str {
-        match self.0.barrier_type() {
-            kiyosi::BarrierType::UpAndIn => "up_and_in",
-            kiyosi::BarrierType::UpAndOut => "up_and_out",
-            kiyosi::BarrierType::DownAndIn => "down_and_in",
-            kiyosi::BarrierType::DownAndOut => "down_and_out",
-        }
+        crate::conversions::barrier_type_name(self.0.barrier_type())
     },
     /// Return nonnegative finite cash rebate; defaults to zero.
     #[getter]
@@ -244,10 +235,7 @@ monitoring_properties!(
     /// Return payment timing; at-hit rebates are valid only for knock-outs.
     #[getter]
     fn rebate_timing(&self) -> &'static str {
-        match self.0.rebate_timing() {
-            kiyosi::RebateTiming::AtHit => "at_hit",
-            kiyosi::RebateTiming::AtExpiry => "at_expiry",
-        }
+        crate::conversions::rebate_timing_name(self.0.rebate_timing())
     },
     /// Return mean fixing spacing in Actual/365 Fixed years.
     #[getter]

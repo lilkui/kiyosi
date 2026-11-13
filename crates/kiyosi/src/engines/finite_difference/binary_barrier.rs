@@ -112,7 +112,7 @@ macro_rules! binary_pricing {
                 .price())
             }
             fn greek_settings(&self, _option: &$option) -> crate::NumericalShiftSettings {
-                self.settings.greek_shifts()
+                self.settings.greek_shifts
             }
             fn price_with_greeks_with_settings(
                 &self,

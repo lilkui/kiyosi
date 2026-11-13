@@ -20,24 +20,15 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     defaults.set_item("rebate", kiyosi::BarrierOptionTerms::DEFAULT_REBATE)?;
     defaults.set_item(
         "rebate_timing",
-        match kiyosi::RebateTiming::default() {
-            kiyosi::RebateTiming::AtHit => "at_hit",
-            kiyosi::RebateTiming::AtExpiry => "at_expiry",
-        },
+        crate::conversions::rebate_timing_name(kiyosi::RebateTiming::default()),
     )?;
     defaults.set_item(
         "settlement_timing",
-        match kiyosi::SettlementTiming::default() {
-            kiyosi::SettlementTiming::AtHit => "at_hit",
-            kiyosi::SettlementTiming::AtExpiry => "at_expiry",
-        },
+        crate::conversions::settlement_timing_name(kiyosi::SettlementTiming::default()),
     )?;
     defaults.set_item(
         "option_type",
-        match kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE {
-            kiyosi::OptionType::Call => "call",
-            kiyosi::OptionType::Put => "put",
-        },
+        crate::conversions::direction_name(kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE),
     )?;
     module.add("_signature_defaults", defaults)?;
     let solvers = PyDict::new(py);

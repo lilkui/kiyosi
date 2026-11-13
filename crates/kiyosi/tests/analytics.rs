@@ -31,7 +31,10 @@ fn generic_greek_requests_preserve_native_methods_and_configured_shifts() -> Res
     let fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
         asset_step_count: 100,
         time_step_count: 100,
-        rate_shift: 0.1,
+        greek_shifts: NumericalShiftSettings {
+            rate_shift: 0.1,
+            ..Default::default()
+        },
         ..Default::default()
     })?;
     for (engine, expected) in [
@@ -47,7 +50,7 @@ fn generic_greek_requests_preserve_native_methods_and_configured_shifts() -> Res
         assert_eq!(evaluate(engine, &option, &context, request)?, expected);
     }
     let default_fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
-        rate_shift: NumericalShiftSettings::default().rate_shift,
+        greek_shifts: NumericalShiftSettings::default(),
         ..fd.settings()
     })?;
     let tuned = evaluate(&fd, &option, &context, request)?.require(Greek::Rho)?;

@@ -595,7 +595,6 @@ fn every_fd_engine_keeps_schemes_coverage_and_explicit_stability_contracts() {
                 FiniteDifferenceScheme::Rannacher,
             ] {
                 let engine = <$engine>::new(FiniteDifferenceSettings {
-                    spot_shift: None,
                     asset_step_count: 80,
                     time_step_count: 16000,
                     scheme,
@@ -817,7 +816,6 @@ fn all_existing_schemes_support_local_volatility() {
         FiniteDifferenceScheme::Rannacher,
     ] {
         let e = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
-            spot_shift: None,
             asset_step_count: 200,
             time_step_count: 4000,
             scheme,
