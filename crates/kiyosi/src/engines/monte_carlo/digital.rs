@@ -199,16 +199,7 @@ impl MonteCarloDigitalEngine {
         let call = option.option_type() == OptionType::Call;
         let time = valuation.years_until(expiry);
         if time == 0.0 {
-            let pays = if call {
-                spot > option.strike()
-            } else {
-                spot < option.strike()
-            };
-            let result = PricingResult::new(if pays {
-                option.payout().unwrap_or(spot)
-            } else {
-                0.0
-            })?;
+            let result = PricingResult::new(crate::engines::Payoff::digital(option).value(spot))?;
             let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
                 .then_some(0.0);
             return Ok((result, error));

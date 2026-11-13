@@ -145,11 +145,7 @@ impl AnalyticDigitalEngine {
         };
         let time = valuation.years_until(expiry);
         if time == 0.0 {
-            return PricingResult::new(if sign * (spot - option.strike()) > 0.0 {
-                option.payout().unwrap_or(spot)
-            } else {
-                0.0
-            });
+            return PricingResult::new(crate::engines::Payoff::digital(option).value(spot));
         }
         let model = context.bsm_parameters()?;
         model
