@@ -50,7 +50,7 @@ impl AnalyticDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        self.price_with_greeks_with_settings(option, context, request, Default::default())
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 
     /// Returns analytic delta/gamma with configurable numerical fallback Greeks.
@@ -245,8 +245,6 @@ impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
-        settings.validate()?;
         Self::price_with_greeks_with_settings(self, option, context, request, settings)
     }
 }

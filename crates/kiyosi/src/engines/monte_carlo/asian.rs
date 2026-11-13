@@ -196,14 +196,7 @@ impl MonteCarloAsianEngine {
     where
         Self: PricingEngine<I>,
     {
-        context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_greeks_with_settings(
-            self,
-            option,
-            context,
-            request,
-            self.greek_settings(option),
-        )
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 
     #[expect(
