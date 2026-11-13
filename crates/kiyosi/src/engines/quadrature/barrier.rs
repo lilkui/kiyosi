@@ -112,7 +112,6 @@ impl QuadratureBarrierEngine {
     /// transitions or results return [`Error::ComputationFailure`].
     /// Exhausted at-hit rebate integration returns [`Error::NonConvergence`].
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         price(option, context, self.settings, None)
     }
 
@@ -133,7 +132,6 @@ impl QuadratureBarrierEngine {
         request: GreeksRequest,
     ) -> Result<PricingResult> {
         let settings = crate::NumericalShiftSettings::default();
-        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
@@ -161,7 +159,6 @@ fn price(
     settings: QuadratureSettings,
     prepared: Option<&mut Option<PreparedCurve>>,
 ) -> Result<f64> {
-    context.bsm_parameters()?;
     flat_rates(context)?;
     if crate::engines::deterministic::enabled(context) {
         return crate::engines::deterministic::barrier(option, context);
@@ -187,7 +184,6 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         let mut prepared = self.prepared.borrow_mut();
         price(option, context, self.settings, Some(&mut prepared))
     }

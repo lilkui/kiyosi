@@ -70,7 +70,6 @@ impl QuadratureAccumulatorEngine {
     /// curve coverage ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
     /// and transitions return [`Error::ComputationFailure`].
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         price(option, context, self.settings, None)
     }
     /// Computes requested scalar Greeks with shared core bump defaults; see [`Self::new`].
@@ -91,7 +90,6 @@ impl QuadratureAccumulatorEngine {
         request: GreeksRequest,
     ) -> Result<PricingResult> {
         let shifts = crate::NumericalShiftSettings::default();
-        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }
@@ -125,7 +123,6 @@ impl PricingEngine<Accumulator> for Request {
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, Some(&mut curve))
     }
@@ -154,7 +151,6 @@ fn price(
     settings: QuadratureSettings,
     prepared: Option<&mut Option<PreparedCurve>>,
 ) -> Result<f64> {
-    context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
     if crate::engines::deterministic::enabled(context) {
         return crate::engines::deterministic::accumulator(option, context);

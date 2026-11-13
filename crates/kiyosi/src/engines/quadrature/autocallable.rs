@@ -85,7 +85,6 @@ impl QuadratureAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
-        context.bsm_parameters()?;
         price(option, context, self.settings, None)
     }
     /// Computes requested scalar sensitivities using shared core bump defaults.
@@ -105,7 +104,6 @@ impl QuadratureAutocallableEngine {
         request: GreeksRequest,
     ) -> Result<PricingResult> {
         let shifts = crate::NumericalShiftSettings::default();
-        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }
@@ -139,7 +137,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, Some(&mut curve))
     }
@@ -288,7 +285,6 @@ fn price<T: AutocallableTerms>(
     settings: QuadratureSettings,
     prepared: Option<&mut Option<PreparedCurve<T>>>,
 ) -> Result<f64> {
-    context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
     if crate::engines::deterministic::enabled(context) {
         return crate::engines::deterministic::autocallable(note, context);
