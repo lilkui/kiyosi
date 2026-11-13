@@ -134,26 +134,13 @@ pub(crate) struct LocalVolatilityParameters(pub(crate) kiyosi::LocalVolatilityPa
 
 rate_properties!(
     LocalVolatilityParameters,
-    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
-        let value = slf.borrow();
-        let py = slf.py();
-        crate::representation::format(
-            slf.as_any(),
-            [
-                (
-                    "risk_free_rate",
-                    Some(crate::representation::curve(py, value.0.risk_free_curve())?),
-                ),
-                (
-                    "dividend_yield",
-                    Some(crate::representation::curve(py, value.0.dividend_curve())?),
-                ),
-                (
-                    "surface",
-                    Some(crate::representation::surface(py, value.0.surface())?),
-                ),
-            ],
-        )
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        Ok(format!(
+            "LocalVolatilityParameters(risk_free_rate={}, dividend_yield={}, surface={})",
+            crate::representation::curve(py, self.0.risk_free_curve())?,
+            crate::representation::curve(py, self.0.dividend_curve())?,
+            crate::representation::surface(py, self.0.surface())?,
+        ))
     },
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, surface))]
