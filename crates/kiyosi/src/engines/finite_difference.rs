@@ -940,17 +940,6 @@ macro_rules! vanilla_pricing {
                 local_volatility::validate_model(context)
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
-                if let Some(model) = local_volatility::local_model(context) {
-                    return Ok(local_volatility::price(
-                        option,
-                        Payoff::vanilla(option.option_type(), option.strike(), $american),
-                        context,
-                        model,
-                        self.settings,
-                        GreeksRequest::new([]),
-                    )?
-                    .price());
-                }
                 Ok(native(
                     option,
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
