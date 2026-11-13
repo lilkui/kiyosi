@@ -1,6 +1,6 @@
 use super::gaussian::{
-    CubicInterpolation, Polynomial, TerminalPiece, TransitionCache, integrate_curve,
-    integrate_terminal, integration_nodes,
+    CubicInterpolation, Layer, TerminalPiece, TransitionCache, integrate_terminal,
+    integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::Coupon;
@@ -156,47 +156,13 @@ fn checked(value: f64) -> Result<f64> {
     Ok(PricingResult::new(value)?.price())
 }
 
-struct Curve {
-    cells: Vec<Polynomial>,
-    low: [f64; 2],
-    high: f64,
-}
-impl Curve {
-    fn evaluate(
-        &self,
-        nodes: &[f64],
-        mean: f64,
-        anchor: f64,
-        deviation: f64,
-        discount: f64,
-    ) -> f64 {
-        integrate_curve(&self.cells, nodes, mean, deviation, discount)
-            + integrate_terminal(&self.tails(nodes), mean, anchor, 0.0, deviation, discount)
-    }
-    fn tails(&self, nodes: &[f64]) -> [TerminalPiece; 2] {
-        [
-            TerminalPiece {
-                lower: f64::NEG_INFINITY,
-                upper: nodes[0],
-                cash: self.low[0],
-                asset: self.low[1],
-            },
-            TerminalPiece {
-                lower: nodes[nodes.len() - 1],
-                upper: f64::INFINITY,
-                cash: self.high,
-                asset: 0.0,
-            },
-        ]
-    }
-}
 struct PreparedCurve<T: AutocallableTerms> {
     option: AutocallableNote<T>,
     model: BlackScholesMertonParameters,
     valuation: Timestamp,
     knocked_in: bool,
     nodes: Vec<f64>,
-    curve: Curve,
+    curve: Layer,
     drift: f64,
     deviation: f64,
     discount: f64,
@@ -277,8 +243,8 @@ fn apply_event<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     date: Timestamp,
     nodes: &[f64],
-    alive: &mut Curve,
-    knocked: Option<&Curve>,
+    alive: &mut Layer,
+    knocked: Option<&Layer>,
 ) {
     let t = note.view();
     let anchor = t.reference_spot();
@@ -293,13 +259,14 @@ fn apply_event<T: AutocallableTerms>(
             .map_or(0.0, |_| amount)
     };
     if let Some(r) = record.filter(|r| note.knock_out_enabled(r)) {
-        alive.high = note.knock_out_payment(r);
+        alive.exact[1].cash = note.knock_out_payment(r);
     }
-    alive.high += coupon(f64::INFINITY);
+    alive.exact[1].cash += coupon(f64::INFINITY);
     if let Some(knocked) = knocked {
-        alive.low = knocked.low;
+        alive.exact[0].cash = knocked.exact[0].cash;
+        alive.exact[0].asset = knocked.exact[0].asset;
     }
-    alive.low[0] += coupon(f64::NEG_INFINITY);
+    alive.exact[0].cash += coupon(f64::NEG_INFINITY);
     for (i, cell) in alive.cells.iter_mut().enumerate() {
         let point = nodes[i].midpoint(nodes[i + 1]);
         if let Some(r) = record
@@ -346,11 +313,12 @@ fn price<T: AutocallableTerms>(
         note.view().daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
     let t = note.view();
     let anchor = t.reference_spot();
-    let evaluate = |nodes: &[f64], curve: &Curve, drift, deviation, discount| {
+    let evaluate = |nodes: &[f64], curve: &Layer, drift, deviation, discount| {
         let value = checked(curve.evaluate(
             nodes,
-            log_ratio(context.spot_price(), anchor) + drift,
+            log_ratio(context.spot_price(), anchor),
             anchor,
+            drift,
             deviation,
             discount,
         ))?;
@@ -431,16 +399,25 @@ fn price<T: AutocallableTerms>(
     } else {
         Vec::new()
     };
-    let mut alive = Curve {
+    let layer = |pieces: &[TerminalPiece]| Layer {
         cells: Vec::new(),
-        low: [terminal[0].cash, terminal[0].asset],
-        high: terminal[terminal.len() - 1].cash,
+        exact: vec![
+            TerminalPiece {
+                lower: f64::NEG_INFINITY,
+                upper: nodes[0],
+                cash: pieces.first().map_or(0.0, |p| p.cash),
+                asset: pieces.first().map_or(0.0, |p| p.asset),
+            },
+            TerminalPiece {
+                lower: nodes[nodes.len() - 1],
+                upper: f64::INFINITY,
+                cash: pieces.last().map_or(0.0, |p| p.cash),
+                asset: 0.0,
+            },
+        ],
     };
-    let mut knocked = Curve {
-        cells: Vec::new(),
-        low: terminal_in.first().map_or([0.0; 2], |p| [p.cash, p.asset]),
-        high: terminal_in.last().map_or(0.0, |p| p.cash),
-    };
+    let mut alive = layer(&terminal);
+    let mut knocked = layer(&terminal_in);
     let mut transitions = TransitionCache::default();
     for index in (0..dates.len()).rev() {
         crate::cancellation::check()?;
@@ -496,13 +473,18 @@ fn price<T: AutocallableTerms>(
             if layers {
                 transition.integrate(&knocked.cells, discount, &mut values_in)?;
             }
-            let tails = alive.tails(&nodes);
-            let tails_in = knocked.tails(&nodes);
             for (i, &node) in nodes.iter().enumerate() {
-                values[i] += integrate_terminal(&tails, node, anchor, drift, deviation, discount);
+                values[i] +=
+                    integrate_terminal(&alive.exact, node, anchor, drift, deviation, discount);
                 if layers {
-                    values_in[i] +=
-                        integrate_terminal(&tails_in, node, anchor, drift, deviation, discount);
+                    values_in[i] += integrate_terminal(
+                        &knocked.exact,
+                        node,
+                        anchor,
+                        drift,
+                        deviation,
+                        discount,
+                    );
                 }
             }
         }
@@ -511,23 +493,15 @@ fn price<T: AutocallableTerms>(
                 "quadrature continuation is non-finite".into(),
             ));
         }
-        alive = Curve {
-            cells: interpolation.interpolate(&values),
-            low: [
-                scaled_signed_cash(alive.low[0], discount),
-                scaled_signed_cash(alive.low[1], -dividend * time),
-            ],
-            high: scaled_signed_cash(alive.high, discount),
-        };
+        alive.cells = interpolation.interpolate(&values);
         if layers {
-            knocked = Curve {
-                cells: interpolation.interpolate(&values_in),
-                low: [
-                    scaled_signed_cash(knocked.low[0], discount),
-                    scaled_signed_cash(knocked.low[1], -dividend * time),
-                ],
-                high: scaled_signed_cash(knocked.high, discount),
-            };
+            knocked.cells = interpolation.interpolate(&values_in);
+        }
+        for layer in std::iter::once(&mut alive).chain(layers.then_some(&mut knocked)) {
+            for piece in &mut layer.exact {
+                piece.cash = scaled_signed_cash(piece.cash, discount);
+                piece.asset = scaled_signed_cash(piece.asset, -dividend * time);
+            }
         }
     }
     Err(Error::ComputationFailure(
