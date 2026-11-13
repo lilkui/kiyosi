@@ -15,8 +15,6 @@ Rebuild the extension in an editable install, then synchronize its docs::
 
 import ast
 import inspect
-import io
-import tokenize
 from pathlib import Path
 
 from kiyosi import _native
@@ -59,11 +57,4 @@ if __name__ == "__main__":
     stub = ast.parse(STUB.read_text(encoding="utf-8"))
     sync_docstrings(stub.body, _native)
     source = ast.unparse(stub) + "\n"
-    for token in tokenize.generate_tokens(io.StringIO(source).readline):
-        if token.type == tokenize.STRING and "\n" in token.string:
-            source = source.replace(
-                token.string,
-                token.string[:-3] + "\n" + " " * token.start[1] + token.string[-3:],
-                1,
-            )
     STUB.write_text(source, encoding="utf-8")
