@@ -81,7 +81,8 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
             },
         )
     if isinstance(value, _native.RateTermStructure):
-        if not value.nodes:
+        nodes = value.nodes
+        if not nodes:
             fields = {
                 "rate": value.forward_rate(value.reference_time or datetime(1, 1, 1)),
                 "reference_time": value.reference_time,
@@ -92,7 +93,7 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
             return _restore, (_native.RateTermStructure.flat, fields)
         return _curve, (
             value.reference_time,
-            value.nodes,
+            nodes,
             value.base_factors,
             value.parallel_shift,
         )
