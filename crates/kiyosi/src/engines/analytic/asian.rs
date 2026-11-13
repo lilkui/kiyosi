@@ -337,9 +337,7 @@ macro_rules! asian_analytics {
                 context: &PricingContext,
                 request: GreeksRequest,
             ) -> Result<PricingResult> {
-                let settings = crate::NumericalShiftSettings::default();
-                context.bsm_parameters()?;
-                crate::numerical_greeks(self, option, context, request, settings)
+                PricingEngine::price_with_greeks(self, option, context, request)
             }
         }
     };

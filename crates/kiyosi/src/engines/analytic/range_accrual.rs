@@ -25,9 +25,7 @@ impl AnalyticRangeAccrualEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
-        context.bsm_parameters()?;
-        crate::numerical_greeks(self, option, context, request, settings)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
     /// Prices the coupon, using spot for a current observation and explicit prior hit history.
     ///

@@ -276,9 +276,7 @@ impl MonteCarloAccumulatorEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = crate::NumericalShiftSettings::default();
-        context.bsm_parameters()?;
-        crate::numerical_greeks(self, option, context, request, shifts)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 

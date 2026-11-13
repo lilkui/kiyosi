@@ -4,7 +4,7 @@ use std::sync::LazyLock;
 use crate::numerics::log_normal_cdf;
 use crate::{
     AmericanOption, AnalyticEuropeanEngine, Error, GreeksRequest, OptionType, PricingContext,
-    PricingEngine, PricingResult, Result, numerical_greeks,
+    PricingEngine, PricingResult, Result,
 };
 
 fn exponential_cdf(weight: f64, argument: f64) -> f64 {
@@ -375,7 +375,7 @@ impl BjerksundStenslandVanillaEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] and [`numerical_greeks`] errors.
+    /// [`Self::price`] and [`crate::numerical_greeks`] errors.
     ///
     /// # Examples
     ///
@@ -398,10 +398,7 @@ impl BjerksundStenslandVanillaEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let settings = crate::NumericalShiftSettings::default();
-        context.bsm_parameters()?;
-        crate::engines::flat_rates(context)?;
-        numerical_greeks(self, option, context, request, settings)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 
