@@ -406,17 +406,8 @@ fn native_with_diffusion<D: Diffusion>(
             upper_barrier.unwrap_or(if up { option.barrier_level() } else { upper }),
         )?;
     }
-    let observations: Vec<_> = option
-        .observation_times()
-        .iter()
-        .filter(|&&date| date > context.valuation_time())
-        .map(|&date| context.valuation_time().years_until(date))
-        .collect();
-    diffusion::validate_event_resolution(
-        context.valuation_time(),
-        expiry,
-        option.observation_times(),
-    )?;
+    let observations =
+        diffusion::observation_times(context.valuation_time(), expiry, option.observation_times())?;
     let grid = diffusion::time_grid(
         context,
         horizon,

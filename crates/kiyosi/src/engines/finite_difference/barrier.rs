@@ -465,14 +465,7 @@ fn native_with_model<D: Diffusion>(
             )?;
         }
     }
-    let observations: Vec<_> = terms
-        .observation_times()
-        .unwrap_or(&[])
-        .iter()
-        .filter(|&&date| date > context.valuation_time())
-        .map(|&date| context.valuation_time().years_until(date))
-        .collect();
-    diffusion::validate_event_resolution(
+    let observations = diffusion::observation_times(
         context.valuation_time(),
         expiry,
         terms.observation_times().unwrap_or(&[]),

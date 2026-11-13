@@ -194,11 +194,7 @@ fn native_with_diffusion<D: Diffusion>(
             .max(option.knock_out_level()),
     )?;
     let dates = option.future_observation_times(context)?;
-    let trading: Vec<_> = dates
-        .iter()
-        .map(|date| context.valuation_time().years_until(*date))
-        .collect();
-    diffusion::validate_event_resolution(context.valuation_time(), expiry, &dates)?;
+    let trading = diffusion::observation_times(context.valuation_time(), expiry, &dates)?;
     let grid = diffusion::time_grid(
         context,
         expiry,

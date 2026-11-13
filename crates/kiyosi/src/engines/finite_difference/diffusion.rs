@@ -94,6 +94,19 @@ pub(super) fn time_grid(
     }
 }
 
+pub(super) fn observation_times(
+    valuation: Timestamp,
+    expiry: Timestamp,
+    events: &[Timestamp],
+) -> Result<Vec<f64>> {
+    validate_event_resolution(valuation, expiry, events)?;
+    Ok(events
+        .iter()
+        .filter(|&&time| time > valuation)
+        .map(|&time| valuation.years_until(time))
+        .collect())
+}
+
 pub(super) fn validate_event_resolution(
     valuation: Timestamp,
     expiry: Timestamp,
