@@ -4,6 +4,15 @@ macro_rules! monitoring_properties {
         impl $name {
             $($extra)*
 
+            fn __repr__(slf: &pyo3::Bound<'_, Self>) -> pyo3::PyResult<String> {
+                let value = slf.borrow();
+                let py = slf.py();
+                crate::representation::format(slf.as_any(), [
+                    ("calendar", crate::representation::calendar_preview(py, value.0.calendar())?),
+                    ("observation_times", value.0.observation_times().map(|times| crate::representation::times(py, times)).transpose()?),
+                ])
+            }
+
             /// Return an owned copy of the contract's observation calendar.
             #[getter]
             fn calendar(&self) -> $crate::calendar::TradingCalendar {

@@ -18,7 +18,7 @@ fn preview<T>(
     Ok(format!("[{}]", values.join(", ")))
 }
 
-fn times(py: Python<'_>, items: &[kiyosi::Timestamp]) -> PyResult<String> {
+pub(crate) fn times(py: Python<'_>, items: &[kiyosi::Timestamp]) -> PyResult<String> {
     preview(items, |&time| {
         Ok(python_timestamp(py, time)?.repr()?.to_string())
     })
@@ -28,7 +28,7 @@ fn numbers(items: &[f64]) -> PyResult<String> {
     preview(items, |value| Ok(format!("{value:?}")))
 }
 
-fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResult<String> {
+pub(crate) fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResult<String> {
     let reference = value.reference_time().map_or_else(
         || Ok("None".into()),
         |time| Ok::<_, PyErr>(python_timestamp(py, time)?.repr()?.to_string()),
@@ -52,7 +52,7 @@ fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResult<String> 
     ))
 }
 
-fn surface(py: Python<'_>, value: &kiyosi::LocalVolatilitySurface) -> PyResult<String> {
+pub(crate) fn surface(py: Python<'_>, value: &kiyosi::LocalVolatilitySurface) -> PyResult<String> {
     Ok(format!(
         "LocalVolatilitySurface(times={}, spots={}, values={})",
         times(py, value.times())?,
@@ -85,98 +85,56 @@ pub(crate) fn calendar(py: Python<'_>, value: &kiyosi::TradingCalendar) -> PyRes
     ))
 }
 
-#[pyfunction]
-pub(crate) fn _repr_previews<'py>(
-    py: Python<'py>,
-    value: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyDict>> {
-    let result = PyDict::new(py);
-    macro_rules! direct {
-        ($class:ty, $render:expr) => {
-            if let Ok(v) = value.extract::<PyRef<'_, $class>>() {
-                result.set_item("__repr__", $render(&v.0)?)?;
-                return Ok(result);
-            }
-        };
+pub(crate) fn calendar_preview(
+    py: Python<'_>,
+    value: &kiyosi::TradingCalendar,
+) -> PyResult<Option<String>> {
+    if value == &kiyosi::TradingCalendar::default() {
+        Ok(None)
+    } else {
+        calendar(py, value).map(Some)
     }
-    direct!(
-        crate::local_volatility::LocalVolatilitySurface,
-        |v| surface(py, v)
-    );
-    direct!(crate::market::RateTermStructure, |v| curve(py, v));
-    direct!(crate::calendar::TradingCalendar, |v| calendar(py, v));
-    direct!(
-        crate::schedule::ObservationSchedule,
-        |v: &kiyosi::ObservationSchedule| Ok::<_, PyErr>(format!(
-            "ObservationSchedule(times={}, calendar={})",
-            times(py, v.times())?,
-            calendar(py, v.calendar())?
+}
+
+pub(crate) fn observations(
+    py: Python<'_>,
+    values: &[kiyosi::AutocallableObservation],
+) -> PyResult<String> {
+    preview(values, |r| {
+        Ok(format!(
+            "AutocallableObservation.{}({}, {:?}, {}={:?})",
+            if r.kind() == kiyosi::AutocallableObservationKind::Snowball {
+                "snowball"
+            } else {
+                "phoenix"
+            },
+            python_timestamp(py, r.time())?.repr()?,
+            r.knock_out_level(),
+            if r.kind() == kiyosi::AutocallableObservationKind::Snowball {
+                "coupon_rate"
+            } else {
+                "coupon_barrier_level"
+            },
+            r.coupon_rate()
+                .or(r.coupon_barrier_level())
+                .unwrap_or_default()
         ))
-    );
-    macro_rules! rates {
-        ($class:ty) => {
-            if let Ok(v) = value.extract::<PyRef<'_, $class>>() {
-                result.set_item("risk_free_rate", curve(py, v.0.risk_free_curve())?)?;
-                result.set_item("dividend_yield", curve(py, v.0.dividend_curve())?)?;
-            }
-        };
-    }
-    rates!(crate::market::BlackScholesMertonParameters);
-    rates!(crate::heston::HestonParameters);
-    rates!(crate::local_volatility::LocalVolatilityParameters);
-    if let Ok(v) = value.extract::<PyRef<'_, crate::local_volatility::LocalVolatilityParameters>>()
-    {
-        result.set_item("surface", surface(py, v.0.surface())?)?;
-    }
-    macro_rules! monitoring {
-        ($($class:ty),+ $(,)?) => {$(
-            if let Ok(v) = value.extract::<PyRef<'_, $class>>() {
-                if v.0.calendar() != &kiyosi::TradingCalendar::default() {
-                    result.set_item("calendar", calendar(py, v.0.calendar())?)?;
-                }
-                if let Some(observations) = v.0.observation_times() {
-                    result.set_item("observation_times", times(py, observations)?)?;
-                }
-            }
-        )+};
-    }
-    monitoring!(
-        crate::instruments::barrier::BarrierOption,
-        crate::instruments::double_barrier::DoubleBarrierOption,
-        crate::instruments::binary_barrier::BinaryBarrierOption,
-        crate::instruments::binary_barrier::TouchOption,
-        crate::instruments::double_touch::DoubleTouchOption
-    );
-    if let Ok(v) = value.extract::<PyRef<'_, crate::instruments::accumulator::Accumulator>>() {
-        if v.0.calendar() != &kiyosi::TradingCalendar::default() {
-            result.set_item("calendar", calendar(py, v.0.calendar())?)?;
+    })
+}
+
+pub(crate) fn format(
+    value: &Bound<'_, PyAny>,
+    fields: impl IntoIterator<Item = (&'static str, Option<String>)>,
+) -> PyResult<String> {
+    let py = value.py();
+    let previews = PyDict::new(py);
+    for (name, preview) in fields {
+        if let Some(preview) = preview {
+            previews.set_item(name, preview)?;
         }
-        result.set_item(
-            "knock_out_observation_times",
-            v.0.knock_out_observation_times()
-                .map_or_else(|| Ok("None".into()), |v| times(py, v))?,
-        )?;
     }
-    macro_rules! notes {
-        ($($class:ty),+ $(,)?) => {$(
-            if let Ok(v) = value.extract::<PyRef<'_, $class>>() {
-                if v.0.calendar() != &kiyosi::TradingCalendar::default() {
-                    result.set_item("calendar", calendar(py, v.0.calendar())?)?;
-                }
-                result.set_item("autocall_observations", preview(v.0.autocall_observations(), |r| Ok(format!(
-                    "AutocallableObservation.{}({}, {:?}, {}={:?})",
-                    if r.kind() == kiyosi::AutocallableObservationKind::Snowball { "snowball" } else { "phoenix" },
-                    python_timestamp(py, r.time())?.repr()?, r.knock_out_level(),
-                    if r.kind() == kiyosi::AutocallableObservationKind::Snowball { "coupon_rate" } else { "coupon_barrier_level" },
-                    r.coupon_rate().or(r.coupon_barrier_level()).unwrap_or_default())))?)?;
-            }
-        )+};
-    }
-    notes!(
-        crate::instruments::autocallable::SnowballOption,
-        crate::instruments::autocallable::BinarySnowballOption,
-        crate::instruments::autocallable::TernarySnowballOption,
-        crate::instruments::autocallable::PhoenixOption
-    );
-    Ok(result)
+    PyModule::import(py, "kiyosi._serialization")?
+        .getattr("_repr")?
+        .call1((value, previews))?
+        .extract()
 }

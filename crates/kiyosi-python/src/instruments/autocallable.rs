@@ -15,6 +15,15 @@ macro_rules! autocallable_properties {
         impl $name {
             $($extra)*
 
+            fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+                let value = slf.borrow();
+                let py = slf.py();
+                crate::representation::format(slf.as_any(), [
+                    ("calendar", crate::representation::calendar_preview(py, value.0.calendar())?),
+                    ("autocall_observations", Some(crate::representation::observations(py, value.0.autocall_observations())?)),
+                ])
+            }
+
             /// Return an owned copy of the contract's monitoring calendar.
             #[getter]
             fn calendar(&self) -> TradingCalendar { TradingCalendar(self.0.calendar().clone()) }

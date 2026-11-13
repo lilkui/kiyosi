@@ -99,10 +99,6 @@ pricing_classes!(
 );
 
 pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(
-        crate::representation::_repr_previews,
-        module
-    )?)?;
     register_instruments(module)?;
     register_engines(module)?;
     module.add("__version__", kiyosi::VERSION)?;

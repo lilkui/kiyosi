@@ -158,10 +158,7 @@ _repr_formatter = reprlib.Repr()
 _repr_formatter.maxother = 160
 
 
-def _repr(value: Any) -> str:
-    previews = _native._repr_previews(value)
-    if "__repr__" in previews:
-        return previews["__repr__"]
+def _repr(value: Any, previews: dict[str, str] | None = None) -> str:
     fields = _fields(value, previews)
     name = type(value).__name__
     if fields.get("calendar") == _native.weekdays_calendar():

@@ -34,6 +34,10 @@ pub(crate) struct TradingCalendar(pub(crate) kiyosi::TradingCalendar);
 
 #[pymethods]
 impl TradingCalendar {
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        crate::representation::calendar(slf.py(), &slf.borrow().0)
+    }
+
     /// Return the positive calendar annualization basis.
     #[getter]
     fn trading_days_per_year(&self) -> i32 {

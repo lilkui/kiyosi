@@ -12,8 +12,6 @@ from . import pricing as _pricing
 type _Real = float | _RealNumber | _Decimal
 __version__: str
 
-def _repr_previews(value: object) -> dict[str, str]: ...
-
 class KiyosiError(Exception):
     """Base exception for structured domain failures."""
 

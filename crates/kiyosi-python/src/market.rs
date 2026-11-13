@@ -83,6 +83,10 @@ pub(crate) struct RateTermStructure(pub(crate) kiyosi::RateTermStructure);
 
 #[pymethods]
 impl RateTermStructure {
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        crate::representation::curve(slf.py(), &slf.borrow().0)
+    }
+
     #[new]
     #[pyo3(signature = (*, reference_time, times, factors))]
     fn new(
@@ -347,6 +351,23 @@ pub(crate) struct BlackScholesMertonParameters(pub(crate) kiyosi::BlackScholesMe
 
 rate_properties!(
     BlackScholesMertonParameters,
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let value = slf.borrow();
+        let py = slf.py();
+        crate::representation::format(
+            slf.as_any(),
+            [
+                (
+                    "risk_free_rate",
+                    Some(crate::representation::curve(py, value.0.risk_free_curve())?),
+                ),
+                (
+                    "dividend_yield",
+                    Some(crate::representation::curve(py, value.0.dividend_curve())?),
+                ),
+            ],
+        )
+    },
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, volatility))]
     fn new(

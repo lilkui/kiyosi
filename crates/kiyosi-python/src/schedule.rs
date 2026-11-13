@@ -41,6 +41,17 @@ pub(crate) struct ObservationSchedule(pub(crate) kiyosi::ObservationSchedule);
 
 #[pymethods]
 impl ObservationSchedule {
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        {
+            let value = slf.borrow();
+            Ok(format!(
+                "ObservationSchedule(times={}, calendar={})",
+                crate::representation::times(slf.py(), value.0.times())?,
+                crate::representation::calendar(slf.py(), value.0.calendar())?
+            ))
+        }
+    }
+
     #[new]
     #[pyo3(signature = (*, times, start_time, end_time, calendar=crate::conversions::OMITTED))]
     fn new(

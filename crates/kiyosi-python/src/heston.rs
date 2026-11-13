@@ -44,6 +44,23 @@ pub(crate) struct HestonParameters(pub(crate) kiyosi::HestonParameters);
 
 rate_properties!(
     HestonParameters,
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let value = slf.borrow();
+        let py = slf.py();
+        crate::representation::format(
+            slf.as_any(),
+            [
+                (
+                    "risk_free_rate",
+                    Some(crate::representation::curve(py, value.0.risk_free_curve())?),
+                ),
+                (
+                    "dividend_yield",
+                    Some(crate::representation::curve(py, value.0.dividend_curve())?),
+                ),
+            ],
+        )
+    },
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation))]
     fn new(

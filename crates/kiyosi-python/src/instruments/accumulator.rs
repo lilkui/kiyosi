@@ -78,6 +78,27 @@ pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 
 #[pymethods]
 impl Accumulator {
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let value = slf.borrow();
+        let py = slf.py();
+        crate::representation::format(
+            slf.as_any(),
+            [
+                (
+                    "calendar",
+                    crate::representation::calendar_preview(py, value.0.calendar())?,
+                ),
+                (
+                    "knock_out_observation_times",
+                    Some(value.0.knock_out_observation_times().map_or_else(
+                        || Ok("None".into()),
+                        |times| crate::representation::times(py, times),
+                    )?),
+                ),
+            ],
+        )
+    }
+
     /// Return a validated replacement.
     ///
     /// Omission or Ellipsis retains a field. The original value is unchanged.
