@@ -127,6 +127,7 @@ def install(native: ModuleType) -> None:
                 "AssetOrNothingOption",
                 "GeometricAveragePriceOption",
                 "ArithmeticAveragePriceOption",
+                "RangeAccrualOption",
                 "BlackScholesMertonParameters",
                 "HestonParameters",
                 "LocalVolatilityParameters",

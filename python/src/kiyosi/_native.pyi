@@ -10035,37 +10035,28 @@ class RangeAccrualOption:
         realized_hit_count: SupportsIndex | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement.
+        """Return a validated copy with replacement fields.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        notional, annual_coupon_rate, lower_bound, upper_bound : float, optional
-            Notional, annual coupon rate, and inclusive accrual band bounds.
-        effective_time, expiry_time : datetime.datetime, optional
-            Inclusive contract start and expiry timestamps.
-        observation_clock_time : datetime.time, optional
-            Daily observation clock, without timezone information.
-        realized_hit_count : int | None, optional
-            Hits strictly before valuation; None clears to unknown.
-            Omission or Ellipsis retains the current field.
-            Cannot exceed the resulting observations strictly before expiry.
-        calendar : TradingCalendar, optional
-            Owned contractual observation calendar; omission retains it.
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
 
         Returns
         -------
-        RangeAccrualOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+        object
+            Validated instance of the same class.
 
         Raises
         ------
-        KiyosiError
-            If the resulting contract fails core validation.
+        InvalidInputError
+            If fields fail constructor validation.
         TypeError
-            If a representation or field name is invalid.
+            If a field name or representation is invalid.
         """
 
     def __init__(
