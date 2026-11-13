@@ -606,6 +606,74 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
 }
 
 #[test]
+fn history_must_fit_observations_strictly_before_expiry() -> Result<()> {
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
+    let first = day(2).date().at_time(clock);
+    let last = day(3).date().at_time(clock);
+    for (expiry, maximum) in [(last, 1), (last.add_micros(1)?, 2)] {
+        let input = RangeAccrualTerms {
+            effective_time: day(2),
+            expiry_time: expiry,
+            observation_clock_time: clock,
+            ..terms()
+        };
+        for hits in [None, Some(0), Some(maximum)] {
+            let option = RangeAccrualOption::new(RangeAccrualTerms {
+                realized_hit_count: hits,
+                ..input.clone()
+            })?;
+            assert_eq!(option.realized_hit_count(), hits);
+        }
+        assert!(matches!(
+            RangeAccrualOption::new(RangeAccrualTerms {
+                realized_hit_count: Some(maximum + 1),
+                ..input.clone()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+        let option = RangeAccrualOption::new(RangeAccrualTerms {
+            realized_hit_count: Some(maximum),
+            ..input
+        })?;
+        for changes in [
+            RangeAccrualOptionChanges {
+                realized_hit_count: Some(Some(maximum + 1)),
+                ..Default::default()
+            },
+            RangeAccrualOptionChanges {
+                expiry_time: Some(first),
+                ..Default::default()
+            },
+            RangeAccrualOptionChanges {
+                calendar: Some(TradingCalendar::custom(
+                    option.calendar().clone(),
+                    vec![first.date()],
+                    vec![],
+                    None,
+                )?),
+                ..Default::default()
+            },
+        ] {
+            assert!(matches!(
+                option.replace(changes),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+        assert_eq!(option.realized_hit_count(), Some(maximum));
+        assert_eq!(option.expiry_time(), expiry);
+        assert_eq!(option.observation_schedule().times(), &[first, last]);
+        let shortened = option.replace(RangeAccrualOptionChanges {
+            expiry_time: Some(first),
+            realized_hit_count: Some(Some(0)),
+            ..Default::default()
+        })?;
+        assert_eq!(shortened.realized_hit_count(), Some(0));
+        assert_eq!(shortened.observation_schedule().times(), &[first]);
+    }
+    Ok(())
+}
+
+#[test]
 fn history_is_strictly_prior_within_contract_life() {
     let option = RangeAccrualOption::new(RangeAccrualTerms {
         calendar: TradingCalendar::all_days(),

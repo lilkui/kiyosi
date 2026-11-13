@@ -10215,6 +10215,7 @@ class RangeAccrualOption:
         Required daily observation time, without timezone information.
     realized_hit_count : int or None, optional
         Hits strictly before valuation, or None for unknown history.
+        Cannot exceed the number of observations strictly before expiry.
     calendar : TradingCalendar, optional
         Owned observation calendar; defaults to weekdays, independently of
         PricingContext.
@@ -10278,6 +10279,7 @@ class RangeAccrualOption:
         realized_hit_count : int | None, optional
             Hits strictly before valuation; None clears to unknown.
             Omission or Ellipsis retains the current field.
+            Cannot exceed the resulting observations strictly before expiry.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 

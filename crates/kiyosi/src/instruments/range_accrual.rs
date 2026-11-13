@@ -53,7 +53,8 @@ impl RangeAccrualTerms {
 /// Observes at the specified observation clock time on trading dates in `(effective_time, expiry_time]`.
 /// Pays `notional * annual_coupon_rate * ACT/365 * hits / observations` at expiry.
 /// Settlement may fall on a closed date without adding an observation.
-/// Calendar compatibility is checked on construction; history consistency is checked during pricing. Shared reads are safe.
+/// Construction checks calendar compatibility and history against observations strictly before expiry.
+/// Pricing checks history against observations strictly before valuation. Shared reads are safe.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RangeAccrualOption {
@@ -67,7 +68,8 @@ impl RangeAccrualOption {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
-    /// history, then for nonpositive contract life or an empty daily observation schedule.
+    /// history, then for nonpositive contract life, an empty daily observation schedule,
+    /// or history exceeding the number of observations strictly before expiry.
     /// History relative to valuation is validated by [`crate::AnalyticRangeAccrualEngine::price`].
     ///
     /// # Examples
@@ -127,6 +129,17 @@ impl RangeAccrualOption {
                 "range accrual requires at least one observation".into(),
             ));
         }
+        let maximum_hits = schedule
+            .times()
+            .partition_point(|&time| time < terms.expiry_time);
+        if terms
+            .realized_hit_count
+            .is_some_and(|hits| usize::try_from(hits).map_or(true, |hits| hits > maximum_hits))
+        {
+            return Err(Error::InvalidInput(
+                "realized_hit_count exceeds observations strictly before expiry".into(),
+            ));
+        }
         Ok(Self { terms, schedule })
     }
 
@@ -142,7 +155,8 @@ impl RangeAccrualOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] if the resulting daily observation schedule is empty.
+    /// Returns [`crate::Error::InvalidInput`] if the resulting daily observation schedule is empty
+    /// or cannot accommodate the retained history strictly before expiry.
     ///
     /// # Examples
     ///

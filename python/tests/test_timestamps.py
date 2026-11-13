@@ -482,12 +482,7 @@ def test_range_accrual_observes_same_day_and_excludes_only_the_effective_instant
         market(time(6, 15, 1), 100),
     ) == pytest.approx(120 / 365, rel=0, abs=1e-14)
     with pytest.raises(InvalidInputError):
-        engine.price(
-            option.replace(
-                realized_hit_count=1,
-            ),
-            market(time(6, 15, 1), 100),
-        )
+        option.replace(realized_hit_count=1)
 
 
 def test_daily_history_uses_observation_clock_and_inclusive_start(subtests):

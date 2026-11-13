@@ -467,6 +467,46 @@ def test_closed_bounds_and_expiry_coupon(subtests):
             assert_terminal_greeks(result, None)
 
 
+@pytest.mark.parametrize(
+    ("expiry_offset", "maximum"),
+    [(timedelta(), 1), (timedelta(microseconds=1), 2)],
+    ids=["at_observation", "after_observation"],
+)
+def test_history_must_fit_observations_strictly_before_expiry(expiry_offset, maximum):
+    start = datetime(2025, 1, 2)
+    first = start.replace(hour=15)
+    last = first + timedelta(days=1)
+    fields = {
+        "notional": 1000,
+        "annual_coupon_rate": 0.12,
+        "lower_bound": 95,
+        "upper_bound": 110,
+        "effective_time": start,
+        "expiry_time": last + expiry_offset,
+        "observation_clock_time": time(15),
+    }
+    for hits in (None, 0, maximum):
+        option = RangeAccrualOption(**fields, realized_hit_count=hits)
+        assert option.realized_hit_count == hits
+    with pytest.raises(InvalidInputError):
+        RangeAccrualOption(**fields, realized_hit_count=maximum + 1)
+    option = RangeAccrualOption(**fields, realized_hit_count=maximum)
+    closed = custom_calendar(base=option.calendar, closed_dates=[first.date()])
+    for changes in (
+        {"realized_hit_count": maximum + 1},
+        {"expiry_time": first},
+        {"calendar": closed},
+    ):
+        with pytest.raises(InvalidInputError):
+            option.replace(**changes)
+    assert option.realized_hit_count == maximum
+    assert option.expiry_time == fields["expiry_time"]
+    assert option.observation_schedule.times == (first, last)
+    shortened = option.replace(expiry_time=first, realized_hit_count=0)
+    assert shortened.realized_hit_count == 0
+    assert shortened.observation_schedule.times == (first,)
+
+
 def test_history_midnight_and_intraday_within_contract_life(subtests):
     engine = AnalyticRangeAccrualEngine()
     for valuation, hits in (
@@ -499,12 +539,7 @@ def test_history_midnight_and_intraday_within_contract_life(subtests):
         contract(),
         market(START + timedelta(days=2)),
     )
-    assert_rejection(
-        InvalidInputError,
-        engine.price,
-        contract(realized_hit_count=16),
-        market(START + timedelta(days=16)),
-    )
+    assert_rejection(InvalidInputError, contract, realized_hit_count=16)
 
 
 def test_weekend_calendar_full_term_and_zero_coupon():

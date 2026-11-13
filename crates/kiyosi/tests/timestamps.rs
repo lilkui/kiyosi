@@ -384,15 +384,10 @@ fn range_accrual_observes_same_day_and_excludes_only_the_effective_instant() {
             < 1e-14
     );
     assert!(matches!(
-        AnalyticRangeAccrualEngine.price(
-            &option
-                .replace(RangeAccrualOptionChanges {
-                    realized_hit_count: Some(Some(1)),
-                    ..Default::default()
-                })
-                .unwrap(),
-            &market(time(6, 15, 1), 100.0)
-        ),
+        option.replace(RangeAccrualOptionChanges {
+            realized_hit_count: Some(Some(1)),
+            ..Default::default()
+        }),
         Err(Error::InvalidInput(_))
     ));
 }
