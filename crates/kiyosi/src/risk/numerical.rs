@@ -1,6 +1,7 @@
 use crate::{
     BlackScholesMertonParameterChanges, Greek, GreeksRequest, NumericalShiftSettings,
     OptionContract, PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result,
+    Timestamp,
 };
 
 #[expect(
@@ -202,6 +203,56 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         native,
     )
     .map(|result| result.with_seed(seed.get()))
+}
+
+fn time_stencil(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    settings: NumericalShiftSettings,
+) -> Result<Option<(Timestamp, Timestamp)>> {
+    let time = context.valuation_time();
+    let model = context.bsm_parameters()?;
+    let mut lower = option
+        .valuation_start()
+        .unwrap_or(crate::Date::new(-32767, 1, 1)?.start_of_day());
+    let mut upper = option.expiry_time();
+    for curve in [model.risk_free_curve(), model.dividend_curve()] {
+        if let Some(reference) = curve.reference_time() {
+            lower = lower.max(reference);
+        }
+        if let Some(last) = curve.max_time() {
+            upper = upper.min(last);
+        }
+        for &knot in curve.nodes() {
+            if knot <= time {
+                lower = lower.max(knot);
+            } else {
+                upper = upper.min(knot);
+            }
+        }
+    }
+    let before_width = lower.micros_until(time);
+    let after_width = time.micros_until(upper);
+    let mut shift = settings
+        .time_shift_micros()?
+        .min(lower.micros_until(upper).max(0));
+    if before_width > 0 && after_width > 0 {
+        shift = shift.min(before_width).min(after_width);
+    }
+    let mut before = time.add_micros(-shift.min(before_width))?;
+    let mut after = time.add_micros(shift.min(after_width))?;
+    while settings.time_shift.is_none()
+        && shift > 1
+        && !option.time_stencil_available(context, before, after)
+    {
+        shift /= 2;
+        before = time.add_micros(-shift.min(before_width))?;
+        after = time.add_micros(shift.min(after_width))?;
+    }
+    Ok(
+        (before != after && option.time_stencil_available(context, before, after))
+            .then_some((before, after)),
+    )
 }
 
 #[expect(
@@ -452,44 +503,7 @@ pub(crate) fn complete_greeks(
         }
     }
     if want(Greek::Theta) || want(Greek::Charm) || want(Greek::Color) {
-        let mut lower = option
-            .valuation_start()
-            .unwrap_or(crate::Date::new(-32767, 1, 1)?.start_of_day());
-        let mut upper = option.expiry_time();
-        for curve in [model.risk_free_curve(), model.dividend_curve()] {
-            if let Some(reference) = curve.reference_time() {
-                lower = lower.max(reference);
-            }
-            if let Some(last) = curve.max_time() {
-                upper = upper.min(last);
-            }
-            for &knot in curve.nodes() {
-                if knot <= time {
-                    lower = lower.max(knot);
-                } else {
-                    upper = upper.min(knot);
-                }
-            }
-        }
-        let before_width = lower.micros_until(time);
-        let after_width = time.micros_until(upper);
-        let mut shift = settings
-            .time_shift_micros()?
-            .min(lower.micros_until(upper).max(0));
-        if before_width > 0 && after_width > 0 {
-            shift = shift.min(before_width).min(after_width);
-        }
-        let mut before = time.add_micros(-shift.min(before_width))?;
-        let mut after = time.add_micros(shift.min(after_width))?;
-        while settings.time_shift.is_none()
-            && shift > 1
-            && !option.time_stencil_available(context, before, after)
-        {
-            shift /= 2;
-            before = time.add_micros(-shift.min(before_width))?;
-            after = time.add_micros(shift.min(after_width))?;
-        }
-        if before != after && option.time_stencil_available(context, before, after) {
+        if let Some((before, after)) = time_stencil(option, context, settings)? {
             let years = before.years_until(after);
             let measures =
                 spot_request(spot_ok && want(Greek::Charm), spot_ok && want(Greek::Color));
