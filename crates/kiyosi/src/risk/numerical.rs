@@ -353,8 +353,10 @@ pub(crate) fn complete_greeks(
         Ok(((deltas.0, gammas.0), (deltas.1, gammas.1)))
     };
     if spot_ok && (want(Greek::Delta) || want(Greek::Gamma) || (want(Greek::Speed) && speed_ok)) {
-        let up = price(spot + h, vol, 0.0, time)?;
-        let down = price(spot - h, vol, 0.0, time)?;
+        let measures = spot_request(false, want(Greek::Speed) && speed_ok);
+        let high = native(&shifted(spot + h, vol, 0.0, time)?, measures)?;
+        let low = native(&shifted(spot - h, vol, 0.0, time)?, measures)?;
+        let (up, down) = (high.price(), low.price());
         let (delta, gamma) = derivatives((up, p0, down));
         if want(Greek::Delta) {
             result.set(request, Greek::Delta, delta)?;
@@ -363,17 +365,6 @@ pub(crate) fn complete_greeks(
             result.set(request, Greek::Gamma, gamma)?;
         }
         if want(Greek::Speed) && speed_ok {
-            let gamma_request = GreeksRequest::new([Greek::Gamma]);
-            let high = if native_spot_greeks {
-                native(&shifted(spot + h, vol, 0.0, time)?, gamma_request)?
-            } else {
-                PricingResult::new(up)?
-            };
-            let low = if native_spot_greeks {
-                native(&shifted(spot - h, vol, 0.0, time)?, gamma_request)?
-            } else {
-                PricingResult::new(down)?
-            };
             let speed =
                 if let (Some(high), Some(low)) = (high.get(Greek::Gamma), low.get(Greek::Gamma)) {
                     Some((high - low) / h / 2.0)
@@ -691,27 +682,49 @@ mod tests {
     }
 
     #[test]
-    fn scalar_speed_matches_cubic_derivative() {
+    fn speed_reuses_bumped_prices_with_native_gamma_and_scalar_fallbacks() {
         let (option, context) = inputs();
         let request = GreeksRequest::new([Greek::Speed]);
         let shifts = NumericalShiftSettings {
             spot_shift: Some(0.25),
             ..Default::default()
         };
-        let result = complete_greeks(
-            &option,
-            &context,
-            request,
-            shifts,
-            false,
-            PricingResult::new(8.0).unwrap(),
-            |context, _| PricingResult::new(context.spot_price().powi(3)),
-        )
-        .unwrap();
-        assert_eq!(result.price(), 8.0);
-        assert_eq!(result.require(Greek::Speed).unwrap(), 6.0);
-        assert_eq!(result.get(Greek::Delta), None);
-        assert_eq!(result.get(Greek::Gamma), None);
+        for native_spot_greeks in [false, true] {
+            for available_legs in [0, 1, 2] {
+                let calls = std::cell::Cell::new(0);
+                let result = complete_greeks(
+                    &option,
+                    &context,
+                    request,
+                    shifts,
+                    native_spot_greeks,
+                    PricingResult::new(8.0).unwrap(),
+                    |bumped, measures| {
+                        calls.set(calls.get() + 1);
+                        let spot = bumped.spot_price();
+                        let mut result = PricingResult::new(spot.powi(3))?;
+                        if available_legs == 2 || available_legs == 1 && spot > context.spot_price()
+                        {
+                            result.set(measures, Greek::Gamma, 6.0 * spot)?;
+                        }
+                        Ok(result)
+                    },
+                )
+                .unwrap();
+                assert_eq!(
+                    calls.get(),
+                    if native_spot_greeks && available_legs == 2 {
+                        2
+                    } else {
+                        4
+                    }
+                );
+                assert_eq!(result.price(), 8.0);
+                assert_eq!(result.require(Greek::Speed).unwrap(), 6.0);
+                assert_eq!(result.get(Greek::Delta), None);
+                assert_eq!(result.get(Greek::Gamma), None);
+            }
+        }
     }
 
     #[test]
