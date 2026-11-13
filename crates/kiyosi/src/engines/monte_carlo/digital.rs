@@ -101,13 +101,13 @@ impl MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (result, standard_error, seed) =
+        let (result, standard_error) =
             self.native(option, context, GreeksRequest::new([]), true)?;
         MonteCarloEstimate::from_sampling(
             result.price(),
             standard_error,
             self.sampling_settings(),
-            seed,
+            result.seed(),
         )
     }
 
@@ -178,7 +178,7 @@ impl MonteCarloDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
         statistics: bool,
-    ) -> Result<(PricingResult, Option<f64>, Option<u64>)> {
+    ) -> Result<(PricingResult, Option<f64>)> {
         self.validate_applicability(context)?;
         if crate::engines::deterministic::enabled(context) {
             let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
@@ -190,7 +190,6 @@ impl MonteCarloDigitalEngine {
                     context,
                 )?)?,
                 error,
-                None,
             ));
         }
         let valuation = context.valuation_time();
@@ -212,7 +211,7 @@ impl MonteCarloDigitalEngine {
             })?;
             let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
                 .then_some(0.0);
-            return Ok((result, error, None));
+            return Ok((result, error));
         }
         let model = context.bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;
@@ -278,7 +277,7 @@ impl MonteCarloDigitalEngine {
         if request.has(Greek::Gamma) {
             result.set(request, Greek::Gamma, means[2])?;
         }
-        Ok((result.with_seed(Some(seed)), standard_error, Some(seed)))
+        Ok((result.with_seed(Some(seed)), standard_error))
     }
 }
 
@@ -289,8 +288,8 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         context: &PricingContext,
     ) -> Result<(f64, Option<u64>)> {
         context.bsm_parameters()?;
-        let (result, _, seed) = self.native(option, context, GreeksRequest::new([]), false)?;
-        Ok((result.price(), seed))
+        let (result, _) = self.native(option, context, GreeksRequest::new([]), false)?;
+        Ok((result.price(), result.seed()))
     }
     fn greek_method(
         &self,

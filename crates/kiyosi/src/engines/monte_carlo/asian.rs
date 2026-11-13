@@ -235,17 +235,13 @@ impl MonteCarloAsianEngine {
         geometric: bool,
         request: GreeksRequest,
         statistics: bool,
-    ) -> Result<(PricingResult, Option<f64>, Option<u64>)> {
+    ) -> Result<(PricingResult, Option<f64>)> {
         let tau = o.validate(context)?;
         let known_error = (statistics
             && self.settings.sampling == MonteCarloSampling::PseudoRandom)
             .then_some(0.0);
         if tau == 0.0 {
-            return Ok((
-                PricingResult::new(o.settlement(context)?)?,
-                known_error,
-                None,
-            ));
+            return Ok((PricingResult::new(o.settlement(context)?)?, known_error));
         }
         let model = context.bsm_parameters()?;
         if geometric {
@@ -258,7 +254,6 @@ impl MonteCarloAsianEngine {
                     o, context, geometric,
                 )?)?,
                 known_error,
-                None,
             ));
         }
         let valuation = context.valuation_time();
@@ -321,7 +316,7 @@ impl MonteCarloAsianEngine {
             } else {
                 0.0
             };
-            return Ok((result([price, first, 0.0], request)?, known_error, None));
+            return Ok((result([price, first, 0.0], request)?, known_error));
         }
         let (means, standard_error, seed) = if geometric || single {
             let variance_time = if single { tau } else { lead + future / 3.0 };
@@ -419,7 +414,6 @@ impl MonteCarloAsianEngine {
         Ok((
             result(means, request)?.with_seed(Some(seed)),
             standard_error,
-            Some(seed),
         ))
     }
 }
@@ -505,9 +499,8 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context: &PricingContext,
     ) -> Result<(f64, Option<u64>)> {
         context.bsm_parameters()?;
-        let (result, _, seed) =
-            self.native(&option.0, context, true, GreeksRequest::new([]), false)?;
-        Ok((result.price(), seed))
+        let (result, _) = self.native(&option.0, context, true, GreeksRequest::new([]), false)?;
+        Ok((result.price(), result.seed()))
     }
     fn greek_method(
         &self,
@@ -537,9 +530,9 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
         context.bsm_parameters()?;
-        let (result, error, seed) =
+        let (result, error) =
             self.native(&option.0, context, true, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.settings, seed)
+        MonteCarloEstimate::from_sampling(result.price(), error, self.settings, result.seed())
     }
     fn validate_solver_seed(&self) -> Result<()> {
         self.settings.validate_solver_seed()
@@ -582,9 +575,8 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context: &PricingContext,
     ) -> Result<(f64, Option<u64>)> {
         context.bsm_parameters()?;
-        let (result, _, seed) =
-            self.native(&option.0, context, false, GreeksRequest::new([]), false)?;
-        Ok((result.price(), seed))
+        let (result, _) = self.native(&option.0, context, false, GreeksRequest::new([]), false)?;
+        Ok((result.price(), result.seed()))
     }
     fn greek_method(
         &self,
@@ -611,9 +603,9 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
         context.bsm_parameters()?;
-        let (result, error, seed) =
+        let (result, error) =
             self.native(&option.0, context, false, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.settings, seed)
+        MonteCarloEstimate::from_sampling(result.price(), error, self.settings, result.seed())
     }
     fn validate_solver_seed(&self) -> Result<()> {
         self.settings.validate_solver_seed()
