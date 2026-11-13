@@ -103,7 +103,7 @@ pub(crate) fn scaled_cash(amount: f64, exponent: f64) -> f64 {
     }
     let discount = exponent.exp();
     let value = amount * discount;
-    if discount.is_normal() && value.is_finite() {
+    if discount.is_normal() && value.is_normal() {
         value
     } else {
         (amount.ln() + exponent).exp()
@@ -262,6 +262,15 @@ mod price_validation_tests {
                 ((-700.0_f64).exp(), 1000.0, 300.0_f64.exp()),
                 (700.0_f64.exp(), -1000.0, (-300.0_f64).exp()),
                 (f64::MAX, 0.0, f64::MAX),
+                (
+                    f64::MIN_POSITIVE,
+                    -std::f64::consts::LN_2,
+                    f64::MIN_POSITIVE / 2.0,
+                ),
+                (f64::from_bits(1), std::f64::consts::LN_2, f64::from_bits(2)),
+                // References rounded from high-precision exponential arithmetic.
+                (f64::from_bits(1), 1000.0, 9.733_444_573_000_164e110),
+                (f64::MAX, -1454.0, f64::from_bits(1)),
             ] {
                 let actual = scaled_signed_cash(sign * amount, exponent);
                 assert!((actual / (sign * expected) - 1.0).abs() < 1e-13);
@@ -270,6 +279,10 @@ mod price_validation_tests {
                 let zero = sign * 0.0_f64;
                 assert_eq!(scaled_signed_cash(zero, exponent).to_bits(), zero.to_bits());
             }
+            assert_eq!(
+                scaled_signed_cash(sign * f64::from_bits(1), -1.0).to_bits(),
+                (sign * 0.0_f64).to_bits()
+            );
         }
     }
 

@@ -1,4 +1,5 @@
 use super::{Payoff, flat_rates};
+use crate::numerics::scaled_cash as scaled;
 
 mod barrier;
 pub use barrier::CoxRossRubinsteinBarrierEngine;
@@ -185,18 +186,6 @@ fn prepare_implied(
 
 fn unstable() -> Error {
     Error::ComputationFailure("binomial tree produced unstable parameters, nodes or values".into())
-}
-
-fn scaled(value: f64, exponent: f64) -> f64 {
-    let factor = exponent.exp();
-    let result = value * factor;
-    if value == 0.0 {
-        0.0
-    } else if factor.is_normal() && result.is_normal() {
-        result
-    } else {
-        (value.ln() + exponent).exp()
-    }
 }
 
 // Relative binomial weights start at the mode, preserving underflowed tail probabilities.
