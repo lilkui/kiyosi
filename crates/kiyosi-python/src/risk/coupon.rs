@@ -4,10 +4,31 @@ use crate::engines::monte_carlo;
 use crate::engines::quadrature::QuadratureAutocallableEngine;
 use crate::error::UnsupportedOperationError;
 use crate::error::domain;
-use crate::instruments::autocallable::{AutocallableInstrument, coupon_convention};
+use crate::instruments::autocallable::{AutocallableInstrument, PhoenixOption, coupon_convention};
 use crate::market::PricingContext;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+
+macro_rules! with_coupon_engine {
+    ($value:expr, |$engine:ident| $solve:expr) => {{
+        if let Ok(engine) = $value.extract::<PyRef<'_, QuadratureAutocallableEngine>>() {
+            let $engine = engine.0;
+            $solve
+        } else if let Ok(engine) =
+            $value.extract::<PyRef<'_, monte_carlo::MonteCarloAutocallableEngine>>()
+        {
+            let $engine = engine.0;
+            $solve
+        } else {
+            let engine = crate::conversions::engine::<
+                PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>,
+            >($value)?;
+            let $engine = engine.0;
+            $solve
+        }
+    }};
+}
+
 /// Solve the annual snowball coupon that reproduces an observed price.
 ///
 /// Parameters
@@ -98,15 +119,15 @@ pub(crate) fn implied_snowball_coupon(
         parameter_tolerance,
         max_iterations,
     };
-    dispatch_coupon(
+    with_coupon_engine!(engine, |engine| solve_snowball_coupon(
         py,
-        engine,
+        &engine,
         instrument,
         context,
         observed_price,
-        Some(quote_convention),
+        quote_convention,
         controls,
-    )
+    ))
 }
 
 /// Solve a Phoenix coupon in absolute periodic rate units.
@@ -177,91 +198,50 @@ pub(crate) fn implied_phoenix_coupon(
     #[pyo3(from_py_with = real)] parameter_tolerance: f64,
     #[pyo3(from_py_with = integer)] max_iterations: i32,
 ) -> PyResult<Py<PyAny>> {
-    dispatch_coupon(
-        py,
-        engine,
-        instrument,
-        context,
-        observed_price,
-        None,
-        kiyosi::ImpliedCouponSettings {
-            lower_bound,
-            upper_bound,
-            price_tolerance,
-            parameter_tolerance,
-            max_iterations,
-        },
-    )
+    let controls = kiyosi::ImpliedCouponSettings {
+        lower_bound,
+        upper_bound,
+        price_tolerance,
+        parameter_tolerance,
+        max_iterations,
+    };
+    with_coupon_engine!(engine, |engine| {
+        let note = crate::conversions::instrument::<PyRef<'_, PhoenixOption>>(instrument)?;
+        let note = &note.0;
+        let context = &context.0;
+        let coupon = domain(crate::cancellation::run(py, || {
+            kiyosi::implied_phoenix_coupon(&engine, note, context, observed_price, controls)
+        })?)?;
+        let quote = PyDict::new(py);
+        quote.set_item("coupon_per_period", coupon)?;
+        Ok(quote.into_any().unbind())
+    })
 }
 
-fn dispatch_coupon(
+fn solve_snowball_coupon<E>(
     py: Python<'_>,
-    engine: &Bound<'_, PyAny>,
-    instrument: &Bound<'_, PyAny>,
-    context: &PricingContext,
-    observed_price: f64,
-    quote_convention: Option<&Bound<'_, PyAny>>,
-    controls: kiyosi::ImpliedCouponSettings,
-) -> PyResult<Py<PyAny>> {
-    macro_rules! solve {
-        ($engine:expr) => {
-            solve_coupon(
-                py,
-                $engine,
-                instrument,
-                context,
-                observed_price,
-                quote_convention,
-                controls,
-            )
-        };
-    }
-    if let Ok(engine) = engine.extract::<PyRef<'_, QuadratureAutocallableEngine>>() {
-        return solve!(engine.0);
-    }
-    if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAutocallableEngine>>() {
-        return solve!(engine.0);
-    }
-    let engine = crate::conversions::engine::<
-        PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>,
-    >(engine)?;
-    solve!(engine.0)
-}
-
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "own the engine snapshot for the detached solve"
-)]
-fn solve_coupon<E>(
-    py: Python<'_>,
-    engine: E,
+    engine: &E,
     instrument: &Bound<'_, PyAny>,
     context: &PricingContext,
     observed: f64,
-    convention: Option<&Bound<'_, PyAny>>,
+    convention: &Bound<'_, PyAny>,
     controls: kiyosi::ImpliedCouponSettings,
 ) -> PyResult<Py<PyAny>>
 where
     E: kiyosi::PricingEngine<kiyosi::SnowballOption>
         + kiyosi::PricingEngine<kiyosi::BinarySnowballOption>
         + kiyosi::PricingEngine<kiyosi::TernarySnowballOption>
-        + kiyosi::PricingEngine<kiyosi::PhoenixOption>
         + Sync,
 {
     let context = &context.0;
     let instrument = crate::conversions::instrument::<AutocallableInstrument<'_>>(instrument)?;
     macro_rules! solve {
         ($note:expr) => {{
-            let quote_convention = convention.ok_or_else(|| {
-                UnsupportedOperationError::new_err(
-                    "Phoenix coupon solving requires a PhoenixOption",
-                )
-            })?;
-            let convention = coupon_convention(quote_convention)?;
+            let convention = coupon_convention(convention)?;
             let note = &$note.0;
             let coupon = domain(crate::cancellation::run(py, || {
                 kiyosi::implied_snowball_coupon(
-                    &engine, note, context, observed, convention, controls,
+                    engine, note, context, observed, convention, controls,
                 )
             })?)?;
             let quote = PyDict::new(py);
@@ -279,20 +259,9 @@ where
         }};
     }
     match instrument {
-        AutocallableInstrument::Phoenix(note) => {
-            if convention.is_some() {
-                return Err(UnsupportedOperationError::new_err(
-                    "snowball coupon solving requires a snowball contract",
-                ));
-            }
-            let note = &note.0;
-            let coupon = domain(crate::cancellation::run(py, || {
-                kiyosi::implied_phoenix_coupon(&engine, note, context, observed, controls)
-            })?)?;
-            let quote = PyDict::new(py);
-            quote.set_item("coupon_per_period", coupon)?;
-            Ok(quote.into_any().unbind())
-        }
+        AutocallableInstrument::Phoenix(_) => Err(UnsupportedOperationError::new_err(
+            "snowball coupon solving requires a snowball contract",
+        )),
         AutocallableInstrument::Binary(note) => solve!(note),
         AutocallableInstrument::Ternary(note) => solve!(note),
         AutocallableInstrument::Snowball(note) => solve!(note),
