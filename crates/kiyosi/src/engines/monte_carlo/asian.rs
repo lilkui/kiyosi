@@ -2,10 +2,9 @@ use crate::engines::curve::Curve;
 use crate::instruments::asian::AverageTerms;
 use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
-    ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, GreeksRequest,
+    ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, Greek, GreeksRequest,
     MonteCarloEstimate, MonteCarloSampling, PricingContext, PricingEngine, PricingResult, Result,
 };
-use crate::{Greek, MonteCarloSettings};
 use crate::{OptionContract, Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
 
 /// Prices geometric and arithmetic continuous averages using CPU Monte Carlo.
@@ -16,19 +15,9 @@ use crate::{OptionContract, Timestamp, TurnbullWakemanArithmeticAveragePriceEngi
 /// Sampling, exact path counts, thread caps and reproducibility follow
 /// [`crate::MonteCarloVanillaEngine`]. Shared and distinct engines support concurrent
 /// calls with request-owned buffers and shared workers. See [`Self::price`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloAsianEngine {
-    settings: MonteCarloSettings,
-    step_count: i32,
-}
-
-impl Default for MonteCarloAsianEngine {
-    fn default() -> Self {
-        Self {
-            settings: MonteCarloSettings::default(),
-            step_count: super::DEFAULT_STEP_COUNT,
-        }
-    }
+    settings: super::MonteCarloGridSettings,
 }
 
 impl MonteCarloAsianEngine {
@@ -55,10 +44,9 @@ impl MonteCarloAsianEngine {
     ///
     /// Returns [`crate::Error::Io`] if system entropy is unavailable.
     pub fn with_resolved_seed(&self) -> crate::Result<Self> {
-        Ok(Self {
-            settings: self.settings.with_resolved_seed()?,
-            ..*self
-        })
+        let mut engine = *self;
+        engine.settings.sampling = engine.settings.sampling.with_resolved_seed()?;
+        Ok(engine)
     }
 
     /// Creates an engine from complete sampling and grid settings.
@@ -74,10 +62,7 @@ impl MonteCarloAsianEngine {
     pub fn new(settings: super::MonteCarloGridSettings) -> Result<Self> {
         super::validate_step_count(settings.step_count, 2)?;
         settings.sampling.validate()?;
-        Ok(Self {
-            settings: settings.sampling,
-            step_count: settings.step_count,
-        })
+        Ok(Self { settings })
     }
 
     /// Returns complete sampling and integration-grid settings.
@@ -85,15 +70,12 @@ impl MonteCarloAsianEngine {
     /// Reconstruct with [`Self::new`] without losing the grid. See
     /// [`crate::MonteCarloVanillaEngine::settings`] for an example.
     pub fn settings(&self) -> super::MonteCarloGridSettings {
-        super::MonteCarloGridSettings {
-            sampling: self.settings,
-            step_count: self.step_count,
-        }
+        self.settings
     }
 
     /// Returns the arithmetic-average integration interval count; see [`Self::settings`].
     pub fn step_count(&self) -> i32 {
-        self.step_count
+        self.settings.step_count
     }
 
     /// Returns a discounted average-payoff estimate, or realized settlement at expiry.
@@ -236,10 +218,11 @@ impl MonteCarloAsianEngine {
         request: GreeksRequest,
         statistics: bool,
     ) -> Result<(PricingResult, Option<f64>)> {
+        let settings = self.settings.sampling;
+        let step_count = self.settings.step_count;
         let tau = o.validate(context)?;
-        let known_error = (statistics
-            && self.settings.sampling == MonteCarloSampling::PseudoRandom)
-            .then_some(0.0);
+        let known_error =
+            (statistics && settings.sampling == MonteCarloSampling::PseudoRandom).then_some(0.0);
         if tau == 0.0 {
             return Ok((PricingResult::new(o.settlement(context)?)?, known_error));
         }
@@ -344,11 +327,11 @@ impl MonteCarloAsianEngine {
             if !p.drift.is_finite() || !p.width.is_finite() {
                 return Err(crate::engines::monte_carlo::unstable());
             }
-            crate::engines::monte_carlo::path_means(self.settings, 1, statistics, |normals| {
+            crate::engines::monte_carlo::path_means(settings, 1, statistics, |normals| {
                 p.geometric(normals[0], request)
             })?
         } else {
-            let dt = future / f64::from(self.step_count);
+            let dt = future / f64::from(step_count);
             let interval_forward = if flat {
                 carry * dt
             } else {
@@ -356,12 +339,12 @@ impl MonteCarloAsianEngine {
             };
             let mut interval_drifts = Vec::new();
             if !flat {
-                for step in 2..=self.step_count {
-                    let from = lead + future * f64::from(step - 1) / f64::from(self.step_count);
-                    let to = if step == self.step_count {
+                for step in 2..=step_count {
+                    let from = lead + future * f64::from(step - 1) / f64::from(step_count);
+                    let to = if step == step_count {
                         tau
                     } else {
-                        lead + future * f64::from(step) / f64::from(self.step_count)
+                        lead + future * f64::from(step) / f64::from(step_count)
                     };
                     interval_drifts.push(carry_between(from, to) - 0.5 * sigma * sigma * dt);
                 }
@@ -380,7 +363,7 @@ impl MonteCarloAsianEngine {
                 width: sigma * dt.sqrt(),
                 log_width: sigma.ln() + 0.5 * dt.ln(),
                 sign: o.sign(),
-                step_count: self.step_count,
+                step_count,
                 lead_drift: if flat {
                     drift_rate * lead
                 } else {
@@ -403,13 +386,10 @@ impl MonteCarloAsianEngine {
             {
                 return Err(crate::engines::monte_carlo::unstable());
             }
-            let dimensions = self.step_count as usize - 1 + usize::from(lead > 0.0);
-            crate::engines::monte_carlo::path_means(
-                self.settings,
-                dimensions,
-                statistics,
-                |normals| p.arithmetic(normals, lead > 0.0, &interval_drifts, request),
-            )?
+            let dimensions = step_count as usize - 1 + usize::from(lead > 0.0);
+            crate::engines::monte_carlo::path_means(settings, dimensions, statistics, |normals| {
+                p.arithmetic(normals, lead > 0.0, &interval_drifts, request)
+            })?
         };
         Ok((
             result(means, request)?.with_seed(Some(seed)),
@@ -532,16 +512,21 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         let (result, error) =
             self.native(&option.0, context, true, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.settings, result.seed())
+        MonteCarloEstimate::from_sampling(
+            result.price(),
+            error,
+            self.settings.sampling,
+            result.seed(),
+        )
     }
     fn validate_solver_seed(&self) -> Result<()> {
-        self.settings.validate_solver_seed()
+        self.settings.sampling.validate_solver_seed()
     }
 
     fn prepare_request(
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<GeometricAveragePriceOption> + '_>>> {
-        if self.settings.seed.is_some() {
+        if self.settings.sampling.seed.is_some() {
             return Ok(None);
         }
         Ok(Some(Box::new(self.with_resolved_seed()?)))
@@ -605,16 +590,21 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         let (result, error) =
             self.native(&option.0, context, false, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.settings, result.seed())
+        MonteCarloEstimate::from_sampling(
+            result.price(),
+            error,
+            self.settings.sampling,
+            result.seed(),
+        )
     }
     fn validate_solver_seed(&self) -> Result<()> {
-        self.settings.validate_solver_seed()
+        self.settings.sampling.validate_solver_seed()
     }
 
     fn prepare_request(
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<ArithmeticAveragePriceOption> + '_>>> {
-        if self.settings.seed.is_some() {
+        if self.settings.sampling.seed.is_some() {
             return Ok(None);
         }
         Ok(Some(Box::new(self.with_resolved_seed()?)))

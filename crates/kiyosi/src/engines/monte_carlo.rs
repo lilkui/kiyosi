@@ -538,19 +538,9 @@ mod tests {
 /// Forking after pool initialization does not preserve usable workers in the child;
 /// use a fresh process, such as Python's `spawn` multiprocessing start method.
 /// See [`Self::price`] for an example.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloVanillaEngine {
-    settings: MonteCarloSettings,
-    step_count: i32,
-}
-
-impl Default for MonteCarloVanillaEngine {
-    fn default() -> Self {
-        Self {
-            settings: MonteCarloSettings::default(),
-            step_count: DEFAULT_STEP_COUNT,
-        }
-    }
+    settings: MonteCarloGridSettings,
 }
 
 fn validate_step_count(step_count: i32, minimum: i32) -> Result<()> {
@@ -729,10 +719,9 @@ impl MonteCarloVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn with_resolved_seed(&self) -> crate::Result<Self> {
-        Ok(Self {
-            settings: self.settings.with_resolved_seed()?,
-            ..*self
-        })
+        let mut engine = *self;
+        engine.settings.sampling = engine.settings.sampling.with_resolved_seed()?;
+        Ok(engine)
     }
 
     /// Creates an engine from complete sampling and grid settings.
@@ -772,10 +761,7 @@ impl MonteCarloVanillaEngine {
     pub fn new(settings: MonteCarloGridSettings) -> Result<Self> {
         validate_step_count(settings.step_count, 1)?;
         settings.sampling.validate()?;
-        Ok(Self {
-            settings: settings.sampling,
-            step_count: settings.step_count,
-        })
+        Ok(Self { settings })
     }
 
     /// Returns complete sampling and exercise-grid settings.
@@ -796,15 +782,12 @@ impl MonteCarloVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn settings(&self) -> MonteCarloGridSettings {
-        MonteCarloGridSettings {
-            sampling: self.settings,
-            step_count: self.step_count,
-        }
+        self.settings
     }
 
     /// Returns the American exercise interval count; see [`Self::settings`].
     pub fn step_count(&self) -> i32 {
-        self.step_count
+        self.settings.step_count
     }
 
     /// Returns finite-difference Greeks using shared normal samples.
@@ -949,7 +932,7 @@ impl MonteCarloVanillaEngine {
     ) -> Result<MonteCarloEstimate> {
         let (sample, pairs, log_discount, seed) = self.sample(option, context, true)?;
         estimate(
-            self.settings,
+            self.settings.sampling,
             sample,
             pairs,
             log_discount,
@@ -1005,20 +988,21 @@ impl MonteCarloVanillaEngine {
             return Err(unstable());
         }
         let moneyness = log_ratio(context.spot_price(), option.strike());
-        let (total, pairs, seed) = terminal_samples(self.settings, statistics, |normal| {
-            let increment = diffusion.mul_add(normal, drift);
-            let terminal = context.spot_price() * increment.exp();
-            if !terminal.is_finite() || terminal <= 0.0 {
-                return Err(unstable());
-            }
-            let distance = moneyness + increment;
-            let payoff = if distance.abs() < 0.5 {
-                option.strike() * distance.exp_m1()
-            } else {
-                terminal - option.strike()
-            };
-            Ok([(sign * payoff).max(0.0)])
-        })?;
+        let (total, pairs, seed) =
+            terminal_samples(self.settings.sampling, statistics, |normal| {
+                let increment = diffusion.mul_add(normal, drift);
+                let terminal = context.spot_price() * increment.exp();
+                if !terminal.is_finite() || terminal <= 0.0 {
+                    return Err(unstable());
+                }
+                let distance = moneyness + increment;
+                let payoff = if distance.abs() < 0.5 {
+                    option.strike() * distance.exp_m1()
+                } else {
+                    terminal - option.strike()
+                };
+                Ok([(sign * payoff).max(0.0)])
+            })?;
         let [total] = total;
         let [pairs] = pairs;
         Ok((total, pairs, -rate * time, Some(seed)))
@@ -1045,11 +1029,11 @@ impl PricingEngine for MonteCarloVanillaEngine {
         crate::engines::flat_rates(context).map(|_| ())
     }
     fn validate_solver_seed(&self) -> Result<()> {
-        self.settings.validate_solver_seed()
+        self.settings.sampling.validate_solver_seed()
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + '_>>> {
-        if self.settings.seed.is_some() {
+        if self.settings.sampling.seed.is_some() {
             return Ok(None);
         }
         Ok(Some(Box::new(self.with_resolved_seed()?)))

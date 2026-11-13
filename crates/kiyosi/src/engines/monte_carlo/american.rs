@@ -48,6 +48,8 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
         terminal_only: bool,
     ) -> Result<(f64, Option<u64>)> {
+        let settings = self.settings.sampling;
+        let step_count = self.settings.step_count;
         let model = context.bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;
         let rate = model.flat_risk_free_rate()?;
@@ -78,7 +80,7 @@ impl MonteCarloVanillaEngine {
         if time == 0.0 {
             return Ok((immediate, None));
         }
-        if self.step_count < 2 {
+        if step_count < 2 {
             return Err(Error::InvalidInput(
                 "American Monte Carlo requires at least two exercise intervals".into(),
             ));
@@ -95,14 +97,14 @@ impl MonteCarloVanillaEngine {
             )?;
             return Ok((price.max(immediate), seed));
         }
-        let intervals = self.step_count as usize;
-        let paths = self.settings.path_count as usize;
-        let samples = if self.settings.antithetic {
+        let intervals = step_count as usize;
+        let paths = settings.path_count as usize;
+        let samples = if settings.antithetic {
             paths.div_ceil(2)
         } else {
             paths
         };
-        let reserved_paths = samples * if self.settings.antithetic { 2 } else { 1 };
+        let reserved_paths = samples * if settings.antithetic { 2 } else { 1 };
         if reserved_paths
             .checked_mul(intervals)
             .is_none_or(|count| count > MAX_PATH_VALUES)
@@ -120,8 +122,8 @@ impl MonteCarloVanillaEngine {
         if !drift.is_finite() || !diffusion.is_finite() || !discount.is_finite() {
             return Err(unstable());
         }
-        let seed = self.settings.resolved_seed()?;
-        let sobol = if self.settings.sampling == MonteCarloSampling::Sobol {
+        let seed = settings.resolved_seed()?;
+        let sobol = if settings.sampling == MonteCarloSampling::Sobol {
             Some(sobol::sequence(intervals, seed)?)
         } else {
             None
@@ -129,7 +131,7 @@ impl MonteCarloVanillaEngine {
         let mut blocks: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
             .map(|_| Vec::new())
             .collect();
-        run_blocks(&mut blocks, self.settings.max_active_workers, |block| {
+        run_blocks(&mut blocks, settings.max_active_workers, |block| {
             let mut generator = Pcg32::new(seed, block as u64);
             let mut cursor = sobol
                 .as_ref()
@@ -138,11 +140,11 @@ impl MonteCarloVanillaEngine {
             let begin = block * BLOCK_SIZE;
             let end = ((block + 1) * BLOCK_SIZE).min(samples);
             let mut values = Vec::with_capacity(
-                (end - begin) * intervals * if self.settings.antithetic { 2 } else { 1 },
+                (end - begin) * intervals * if settings.antithetic { 2 } else { 1 },
             );
             for path in begin..end {
                 crate::cancellation::check()?;
-                let paired = self.settings.antithetic && path < paths / 2;
+                let paired = settings.antithetic && path < paths / 2;
                 let offset = values.len();
                 values.resize(offset + intervals * if paired { 2 } else { 1 }, 0.0);
                 let mut positive = context.spot_price();
@@ -258,11 +260,11 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     }
 
     fn validate_solver_seed(&self) -> Result<()> {
-        self.settings.validate_solver_seed()
+        self.settings.sampling.validate_solver_seed()
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AmericanOption> + '_>>> {
-        if self.settings.seed.is_some() {
+        if self.settings.sampling.seed.is_some() {
             return Ok(None);
         }
         Ok(Some(Box::new(self.with_resolved_seed()?)))
