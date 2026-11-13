@@ -6006,9 +6006,9 @@ class MonteCarloVanillaEngine:
     Raises
     ------
     InvalidInputError
-        If paths are outside 1 through 10,000,000, steps outside 1 through
-        10,000, max_active_workers is negative, or Sobol paths are not a power
-        of two.
+        If paths are outside 1 through 10,000,000, max_active_workers is
+        negative, or Sobol paths are not a power of two.
+        Also raised if step_count is outside 1 through 10,000.
 
     See Also
     --------
@@ -6021,7 +6021,8 @@ class MonteCarloVanillaEngine:
     own their samples and share a library-owned Rayon pool. A worker cap does
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
-    measure sampling error. European pricing samples the exact terminal
+    measure sampling error.
+    European pricing samples the exact terminal
     distribution and ignores step_count. Near-strike payoffs preserve small
     movements even when the terminal spot rounds to the strike. American
     pricing uses least-squares Monte Carlo (Longstaff-Schwartz) with step_count
@@ -6375,7 +6376,8 @@ class MonteCarloDigitalEngine:
     own their samples and share a library-owned Rayon pool. A worker cap does
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
-    measure sampling error. Only likelihood-ratio delta and gamma are returned;
+    measure sampling error.
+    Only likelihood-ratio delta and gamma are returned;
     other requested Greeks are absent.
     """
 
@@ -6702,7 +6704,8 @@ class MonteCarloBarrierEngine:
     own their samples and share a library-owned Rayon pool. A worker cap does
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
-    measure sampling error. Monitoring uses continuous survival or the original
+    measure sampling error.
+    Monitoring uses continuous survival or the original
     fixing dates. Near-strike payoffs retain movements even when terminal spot
     rounds to strike. Only delta and gamma are returned.
     """
@@ -7019,7 +7022,8 @@ class MonteCarloDoubleBarrierEngine:
     own their samples and share a library-owned Rayon pool. A worker cap does
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
-    measure sampling error. Monitoring uses continuous survival or the original
+    measure sampling error.
+    Monitoring uses continuous survival or the original
     fixing dates. Near-strike payoffs retain movements even when terminal spot
     rounds to strike. Only delta and gamma are returned.
     """
@@ -7339,7 +7343,8 @@ class MonteCarloAutocallableEngine:
     own their samples and share a library-owned Rayon pool. A worker cap does
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
-    measure sampling error. Simulation uses trading days when knock-in matters,
+    measure sampling error.
+    Simulation uses trading days when knock-in matters,
     or observation dates and expiry otherwise.
     """
 
@@ -7685,7 +7690,8 @@ class MonteCarloAccumulatorEngine:
     own their samples and share a library-owned Rayon pool. A worker cap does
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
-    measure sampling error. Simulation uses the future trading dates. A current
+    measure sampling error.
+    Simulation uses the future trading dates. A current
     knock-out settles before any purchase.
     """
 
@@ -7974,8 +7980,8 @@ class MonteCarloAsianEngine:
         Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
         sampling requires a power of two.
     step_count : int, optional
-        Grid size, 2 through 10,000; defaults to 50. Validated even when
-        unused; see Notes for product-specific use.
+        Grid size, 2 through 10,000; defaults to 50. Validated even
+        when unused; see Notes for product-specific use.
     seed : int or None, optional
         Unsigned 64-bit seed, or None (default) to use system entropy.
     max_active_workers : int, optional
@@ -7991,9 +7997,9 @@ class MonteCarloAsianEngine:
     Raises
     ------
     InvalidInputError
-        If paths are outside 1 through 10,000,000, steps outside 2 through
-        10,000, max_active_workers is negative, or Sobol paths are not a power
-        of two.
+        If paths are outside 1 through 10,000,000, max_active_workers is
+        negative, or Sobol paths are not a power of two.
+        Also raised if step_count is outside 2 through 10,000.
 
     See Also
     --------
@@ -8006,7 +8012,8 @@ class MonteCarloAsianEngine:
     own their samples and share a library-owned Rayon pool. A worker cap does
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
-    measure sampling error. Geometric averages and single fixings sample exact
+    measure sampling error.
+    Geometric averages and single fixings sample exact
     distributions. Arithmetic averages use step_count trapezoidal intervals
     with the first interval integrated conditionally.
     """

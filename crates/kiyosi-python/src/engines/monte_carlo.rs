@@ -53,6 +53,53 @@ fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
 }
 
 macro_rules! sampling_settings {
+    (@class $(#[$summary:meta])* $engine:ident,
+     [$($minimum:literal, $step_description:literal)?],
+     [$(#[$contracts:meta])*], [$(#[$notes:meta])*]) => {
+        $(#[$summary])*
+        ///
+        /// Parameters
+        /// ----------
+        /// path_count : int, optional
+        ///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
+        ///     sampling requires a power of two.
+        $(#[doc = concat!("step_count : int, optional\n    ", $step_description, ", ", stringify!($minimum), " through 10,000; defaults to 50. Validated even\n    when unused; see Notes for product-specific use.")])?
+        /// seed : int or None, optional
+        ///     Unsigned 64-bit seed, or None (default) to use system entropy.
+        /// max_active_workers : int, optional
+        ///     Nonnegative active worker cap per call: zero (default) is automatic,
+        ///     one is serial. Does not bound thread creation; parallel calls share a
+        ///     worker pool, bounded by configure_monte_carlo_pool().
+        /// sampling : MonteCarloSampling, optional
+        ///     Sampling method; defaults to pseudo_random.
+        /// antithetic : bool, optional
+        ///     Pair opposite normal draws; defaults to False. An odd path count leaves
+        ///     one unpaired path.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If paths are outside 1 through 10,000,000, max_active_workers is
+        ///     negative, or Sobol paths are not a power of two.
+        $(#[doc = concat!("    Also raised if step_count is outside ", stringify!($minimum), " through 10,000.")])?
+        ///
+        /// See Also
+        /// --------
+        $(#[$contracts])*
+        ///
+        /// Notes
+        /// -----
+        /// Fixed seeds reproduce results across thread counts in the same build. Calls
+        /// own their samples and share a library-owned Rayon pool. A worker cap does
+        /// not reserve workers. Greeks pin a seed per request. Solves require an
+        /// explicit seed; call with_resolved_seed() first. Solver tolerances do not
+        /// measure sampling error.
+        $(#[$notes])*
+        ///
+        #[pyclass(frozen, eq, module = "kiyosi._native")]
+        #[derive(PartialEq)]
+        pub(crate) struct $engine(pub(crate) kiyosi::$engine);
+    };
     (@new $engine:ident, $settings:expr, []) => {
         kiyosi::$engine::new($settings)
     };
@@ -249,55 +296,23 @@ macro_rules! sampling_settings {
     };
 }
 
-/// Flat-rate Monte Carlo pricing for European and American vanilla options.
-///
-/// Parameters
-/// ----------
-/// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-///     sampling requires a power of two.
-/// step_count : int, optional
-///     Exercise intervals, 1 through 10,000; defaults to 50. Validated even
-///     when unused; see Notes for product-specific use.
-/// seed : int or None, optional
-///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic,
-///     one is serial. Does not bound thread creation; parallel calls share a
-///     worker pool, bounded by configure_monte_carlo_pool().
-/// sampling : MonteCarloSampling, optional
-///     Sampling method; defaults to pseudo_random.
-/// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count leaves
-///     one unpaired path.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If paths are outside 1 through 10,000,000, steps outside 1 through
-///     10,000, max_active_workers is negative, or Sobol paths are not a power
-///     of two.
-///
-/// See Also
-/// --------
-/// EuropeanOption : Supported contract.
-/// AmericanOption : Supported contract.
-///
-/// Notes
-/// -----
-/// Fixed seeds reproduce results across thread counts in the same build. Calls
-/// own their samples and share a library-owned Rayon pool. A worker cap does
-/// not reserve workers. Greeks pin a seed per request. Solves require an
-/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
-/// measure sampling error. European pricing samples the exact terminal
-/// distribution and ignores step_count. Near-strike payoffs preserve small
-/// movements even when the terminal spot rounds to the strike. American
-/// pricing uses least-squares Monte Carlo (Longstaff-Schwartz) with step_count
-/// exercise intervals and requires at least two before expiry.
-///
-#[pyclass(frozen, eq, module = "kiyosi._native")]
-#[derive(PartialEq)]
-pub(crate) struct MonteCarloVanillaEngine(pub(crate) kiyosi::MonteCarloVanillaEngine);
+sampling_settings!(
+    @class
+    /// Flat-rate Monte Carlo pricing for European and American vanilla options.
+    MonteCarloVanillaEngine,
+    [1, "Exercise intervals"],
+    [
+        /// EuropeanOption : Supported contract.
+        /// AmericanOption : Supported contract.
+    ],
+    [
+        /// European pricing samples the exact terminal
+        /// distribution and ignores step_count. Near-strike payoffs preserve small
+        /// movements even when the terminal spot rounds to the strike. American
+        /// pricing uses least-squares Monte Carlo (Longstaff-Schwartz) with step_count
+        /// exercise intervals and requires at least two before expiry.
+    ]
+);
 
 sampling_settings!(
     MonteCarloVanillaEngine, binomial::VanillaInstrument<'_>, [step_count],
@@ -350,48 +365,20 @@ impl MonteCarloEstimate {
     }
 }
 
-/// Flat-rate CPU Monte Carlo pricing for European digitals.
-///
-/// Parameters
-/// ----------
-/// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-///     sampling requires a power of two.
-/// seed : int or None, optional
-///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic,
-///     one is serial. Does not bound thread creation; parallel calls share a
-///     worker pool, bounded by configure_monte_carlo_pool().
-/// sampling : MonteCarloSampling, optional
-///     Sampling method; defaults to pseudo_random.
-/// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count leaves
-///     one unpaired path.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is
-///     negative, or Sobol paths are not a power of two.
-///
-/// See Also
-/// --------
-/// CashOrNothingOption : Supported contract.
-/// AssetOrNothingOption : Supported contract.
-///
-/// Notes
-/// -----
-/// Fixed seeds reproduce results across thread counts in the same build. Calls
-/// own their samples and share a library-owned Rayon pool. A worker cap does
-/// not reserve workers. Greeks pin a seed per request. Solves require an
-/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
-/// measure sampling error. Only likelihood-ratio delta and gamma are returned;
-/// other requested Greeks are absent.
-///
-#[pyclass(frozen, eq, module = "kiyosi._native")]
-#[derive(PartialEq)]
-pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEngine);
+sampling_settings!(
+    @class
+    /// Flat-rate CPU Monte Carlo pricing for European digitals.
+    MonteCarloDigitalEngine,
+    [],
+    [
+        /// CashOrNothingOption : Supported contract.
+        /// AssetOrNothingOption : Supported contract.
+    ],
+    [
+        /// Only likelihood-ratio delta and gamma are returned;
+        /// other requested Greeks are absent.
+    ]
+);
 
 sampling_settings!(
     MonteCarloDigitalEngine, digital::DigitalInstrument<'_>, [],
@@ -409,53 +396,21 @@ sampling_settings!(
     ]
 );
 
-/// Flat-rate CPU Monte Carlo pricing for continuous average-price options.
-///
-/// Parameters
-/// ----------
-/// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-///     sampling requires a power of two.
-/// step_count : int, optional
-///     Grid size, 2 through 10,000; defaults to 50. Validated even when
-///     unused; see Notes for product-specific use.
-/// seed : int or None, optional
-///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic,
-///     one is serial. Does not bound thread creation; parallel calls share a
-///     worker pool, bounded by configure_monte_carlo_pool().
-/// sampling : MonteCarloSampling, optional
-///     Sampling method; defaults to pseudo_random.
-/// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count leaves
-///     one unpaired path.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If paths are outside 1 through 10,000,000, steps outside 2 through
-///     10,000, max_active_workers is negative, or Sobol paths are not a power
-///     of two.
-///
-/// See Also
-/// --------
-/// GeometricAveragePriceOption : Supported contract.
-/// ArithmeticAveragePriceOption : Supported contract.
-///
-/// Notes
-/// -----
-/// Fixed seeds reproduce results across thread counts in the same build. Calls
-/// own their samples and share a library-owned Rayon pool. A worker cap does
-/// not reserve workers. Greeks pin a seed per request. Solves require an
-/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
-/// measure sampling error. Geometric averages and single fixings sample exact
-/// distributions. Arithmetic averages use step_count trapezoidal intervals
-/// with the first interval integrated conditionally.
-///
-#[pyclass(frozen, eq, module = "kiyosi._native")]
-#[derive(PartialEq)]
-pub(crate) struct MonteCarloAsianEngine(pub(crate) kiyosi::MonteCarloAsianEngine);
+sampling_settings!(
+    @class
+    /// Flat-rate CPU Monte Carlo pricing for continuous average-price options.
+    MonteCarloAsianEngine,
+    [2, "Grid size"],
+    [
+        /// GeometricAveragePriceOption : Supported contract.
+        /// ArithmeticAveragePriceOption : Supported contract.
+    ],
+    [
+        /// Geometric averages and single fixings sample exact
+        /// distributions. Arithmetic averages use step_count trapezoidal intervals
+        /// with the first interval integrated conditionally.
+    ]
+);
 
 sampling_settings!(
     MonteCarloAsianEngine, asian::AsianInstrument<'_>, [step_count],
@@ -473,140 +428,56 @@ sampling_settings!(
     ]
 );
 
-/// Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.
-///
-/// Parameters
-/// ----------
-/// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-///     sampling requires a power of two.
-/// seed : int or None, optional
-///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic,
-///     one is serial. Does not bound thread creation; parallel calls share a
-///     worker pool, bounded by configure_monte_carlo_pool().
-/// sampling : MonteCarloSampling, optional
-///     Sampling method; defaults to pseudo_random.
-/// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count leaves
-///     one unpaired path.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is
-///     negative, or Sobol paths are not a power of two.
-///
-/// See Also
-/// --------
-/// BarrierOption : Supported contract.
-///
-/// Notes
-/// -----
-/// Fixed seeds reproduce results across thread counts in the same build. Calls
-/// own their samples and share a library-owned Rayon pool. A worker cap does
-/// not reserve workers. Greeks pin a seed per request. Solves require an
-/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
-/// measure sampling error. Monitoring uses continuous survival or the original
-/// fixing dates. Near-strike payoffs retain movements even when terminal spot
-/// rounds to strike. Only delta and gamma are returned.
-///
-#[pyclass(frozen, eq, module = "kiyosi._native")]
-#[derive(PartialEq)]
-pub(crate) struct MonteCarloBarrierEngine(pub(crate) kiyosi::MonteCarloBarrierEngine);
+sampling_settings!(
+    @class
+    /// Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.
+    MonteCarloBarrierEngine,
+    [],
+    [
+        /// BarrierOption : Supported contract.
+    ],
+    [
+        /// Monitoring uses continuous survival or the original
+        /// fixing dates. Near-strike payoffs retain movements even when terminal spot
+        /// rounds to strike. Only delta and gamma are returned.
+    ]
+);
 
 sampling_settings!(@structured MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierOption>, with_contract);
 
-/// Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
-///
-/// Parameters
-/// ----------
-/// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-///     sampling requires a power of two.
-/// seed : int or None, optional
-///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic,
-///     one is serial. Does not bound thread creation; parallel calls share a
-///     worker pool, bounded by configure_monte_carlo_pool().
-/// sampling : MonteCarloSampling, optional
-///     Sampling method; defaults to pseudo_random.
-/// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count leaves
-///     one unpaired path.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is
-///     negative, or Sobol paths are not a power of two.
-///
-/// See Also
-/// --------
-/// DoubleBarrierOption : Supported contract.
-///
-/// Notes
-/// -----
-/// Fixed seeds reproduce results across thread counts in the same build. Calls
-/// own their samples and share a library-owned Rayon pool. A worker cap does
-/// not reserve workers. Greeks pin a seed per request. Solves require an
-/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
-/// measure sampling error. Monitoring uses continuous survival or the original
-/// fixing dates. Near-strike payoffs retain movements even when terminal spot
-/// rounds to strike. Only delta and gamma are returned.
-///
-#[pyclass(frozen, eq, module = "kiyosi._native")]
-#[derive(PartialEq)]
-pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) kiyosi::MonteCarloDoubleBarrierEngine);
+sampling_settings!(
+    @class
+    /// Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
+    MonteCarloDoubleBarrierEngine,
+    [],
+    [
+        /// DoubleBarrierOption : Supported contract.
+    ],
+    [
+        /// Monitoring uses continuous survival or the original
+        /// fixing dates. Near-strike payoffs retain movements even when terminal spot
+        /// rounds to strike. Only delta and gamma are returned.
+    ]
+);
 
 sampling_settings!(@structured MonteCarloDoubleBarrierEngine, PyRef<'_, double_barrier::DoubleBarrierOption>, with_contract);
 
-/// Flat-rate CPU Monte Carlo pricing for snowball and Phoenix notes.
-///
-/// Parameters
-/// ----------
-/// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-///     sampling requires a power of two.
-/// seed : int or None, optional
-///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic,
-///     one is serial. Does not bound thread creation; parallel calls share a
-///     worker pool, bounded by configure_monte_carlo_pool().
-/// sampling : MonteCarloSampling, optional
-///     Sampling method; defaults to pseudo_random.
-/// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count leaves
-///     one unpaired path.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is
-///     negative, or Sobol paths are not a power of two.
-///
-/// See Also
-/// --------
-/// SnowballOption : Supported contract.
-/// BinarySnowballOption : Supported contract.
-/// TernarySnowballOption : Supported contract.
-/// PhoenixOption : Supported contract.
-///
-/// Notes
-/// -----
-/// Fixed seeds reproduce results across thread counts in the same build. Calls
-/// own their samples and share a library-owned Rayon pool. A worker cap does
-/// not reserve workers. Greeks pin a seed per request. Solves require an
-/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
-/// measure sampling error. Simulation uses trading days when knock-in matters,
-/// or observation dates and expiry otherwise.
-///
-#[pyclass(frozen, eq, module = "kiyosi._native")]
-#[derive(PartialEq)]
-pub(crate) struct MonteCarloAutocallableEngine(pub(crate) kiyosi::MonteCarloAutocallableEngine);
+sampling_settings!(
+    @class
+    /// Flat-rate CPU Monte Carlo pricing for snowball and Phoenix notes.
+    MonteCarloAutocallableEngine,
+    [],
+    [
+        /// SnowballOption : Supported contract.
+        /// BinarySnowballOption : Supported contract.
+        /// TernarySnowballOption : Supported contract.
+        /// PhoenixOption : Supported contract.
+    ],
+    [
+        /// Simulation uses trading days when knock-in matters,
+        /// or observation dates and expiry otherwise.
+    ]
+);
 
 sampling_settings!(
     @structured MonteCarloAutocallableEngine,
@@ -614,47 +485,19 @@ sampling_settings!(
     autocallable::with_note
 );
 
-/// Flat-rate CPU Monte Carlo pricing for accumulators.
-///
-/// Parameters
-/// ----------
-/// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-///     sampling requires a power of two.
-/// seed : int or None, optional
-///     Unsigned 64-bit seed, or None (default) to use system entropy.
-/// max_active_workers : int, optional
-///     Nonnegative active worker cap per call: zero (default) is automatic,
-///     one is serial. Does not bound thread creation; parallel calls share a
-///     worker pool, bounded by configure_monte_carlo_pool().
-/// sampling : MonteCarloSampling, optional
-///     Sampling method; defaults to pseudo_random.
-/// antithetic : bool, optional
-///     Pair opposite normal draws; defaults to False. An odd path count leaves
-///     one unpaired path.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If paths are outside 1 through 10,000,000, max_active_workers is
-///     negative, or Sobol paths are not a power of two.
-///
-/// See Also
-/// --------
-/// Accumulator : Supported contract.
-///
-/// Notes
-/// -----
-/// Fixed seeds reproduce results across thread counts in the same build. Calls
-/// own their samples and share a library-owned Rayon pool. A worker cap does
-/// not reserve workers. Greeks pin a seed per request. Solves require an
-/// explicit seed; call with_resolved_seed() first. Solver tolerances do not
-/// measure sampling error. Simulation uses the future trading dates. A current
-/// knock-out settles before any purchase.
-///
-#[pyclass(frozen, eq, module = "kiyosi._native")]
-#[derive(PartialEq)]
-pub(crate) struct MonteCarloAccumulatorEngine(pub(crate) kiyosi::MonteCarloAccumulatorEngine);
+sampling_settings!(
+    @class
+    /// Flat-rate CPU Monte Carlo pricing for accumulators.
+    MonteCarloAccumulatorEngine,
+    [],
+    [
+        /// Accumulator : Supported contract.
+    ],
+    [
+        /// Simulation uses the future trading dates. A current
+        /// knock-out settles before any purchase.
+    ]
+);
 
 sampling_settings!(
     @structured MonteCarloAccumulatorEngine,
