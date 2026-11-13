@@ -1,6 +1,21 @@
 use super::{Curve, PricingContext, Result, SpatialGrid, Stepper, TimeGrid, local_volatility};
 use crate::{Error, LocalVolatilitySurface, Timestamp};
 
+// Dispatch outside the solver so each diffusion keeps its compile-time specialization.
+macro_rules! with_diffusion {
+    ($context:ident, |$diffusion:ident| $price:expr) => {{
+        use $crate::engines::finite_difference::{diffusion::LocalDiffusion, local_volatility};
+        if let Some(model) = local_volatility::local_model($context) {
+            let $diffusion = LocalDiffusion::new($context, model.surface());
+            $price
+        } else {
+            let $diffusion = $context.bsm_parameters()?.volatility();
+            $price
+        }
+    }};
+}
+pub(super) use with_diffusion;
+
 pub(super) trait Diffusion: Copy {
     const LOCAL: bool;
     fn sigma(self, time: f64, spot: f64) -> f64;

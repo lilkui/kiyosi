@@ -15,7 +15,7 @@ mod grid;
 pub(crate) mod heston;
 mod local_volatility;
 mod step;
-use diffusion::{Diffusion, LocalDiffusion};
+use diffusion::Diffusion;
 use grid::{SpatialGrid, TimeGrid};
 use step::Stepper;
 
@@ -238,7 +238,7 @@ fn native(
             None,
         ));
     }
-    if let Some(model) = local_volatility::local_model(context) {
+    diffusion::with_diffusion!(context, |diffusion| {
         native_model(
             option,
             payoff,
@@ -247,20 +247,9 @@ fn native(
             request,
             shifts,
             concentrate,
-            LocalDiffusion::new(context, model.surface()),
+            diffusion,
         )
-    } else {
-        native_model(
-            option,
-            payoff,
-            context,
-            settings,
-            request,
-            shifts,
-            concentrate,
-            context.bsm_parameters()?.volatility(),
-        )
-    }
+    })
 }
 
 #[expect(

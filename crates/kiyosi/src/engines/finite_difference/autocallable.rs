@@ -1,8 +1,8 @@
 use super::{
     Curve, Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
-    FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, NumericalShiftSettings,
-    OptionContract, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid,
-    analysis, diffusion, diffusion_upper, local_volatility,
+    FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
+    PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
+    diffusion, diffusion_upper, local_volatility,
 };
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
@@ -213,25 +213,9 @@ fn native<T: AutocallableTerms>(
             None,
         ));
     }
-    if let Some(model) = local_volatility::local_model(context) {
-        native_with_diffusion(
-            note,
-            context,
-            settings,
-            request,
-            shifts,
-            LocalDiffusion::new(context, model.surface()),
-        )
-    } else {
-        native_with_diffusion(
-            note,
-            context,
-            settings,
-            request,
-            shifts,
-            context.bsm_parameters()?.volatility(),
-        )
-    }
+    diffusion::with_diffusion!(context, |diffusion| {
+        native_with_diffusion(note, context, settings, request, shifts, diffusion)
+    })
 }
 
 #[expect(

@@ -1,9 +1,9 @@
 use super::{
     Curve, Diffusion, FiniteDifferenceBinaryBarrierEngine, FiniteDifferenceDoubleTouchEngine,
-    FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, NumericalShiftSettings,
-    OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid,
-    TimeGrid, black_scholes_arguments, diffusion, diffusion_upper, local_volatility, scaled, step,
-    unstable, weighted_cdf,
+    FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionType, Payoff,
+    PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid,
+    black_scholes_arguments, diffusion, diffusion_upper, local_volatility, scaled, step, unstable,
+    weighted_cdf,
 };
 use crate::instruments::binary_barrier::Contract;
 use crate::instruments::monitoring::validate_life;
@@ -103,25 +103,9 @@ fn native(
     if crate::engines::deterministic::enabled(context) {
         return PricingResult::new(crate::engines::deterministic::binary(contract, context)?);
     }
-    if let Some(model) = local_volatility::local_model(context) {
-        native_with_diffusion(
-            contract,
-            context,
-            settings,
-            request,
-            shifts,
-            LocalDiffusion::new(context, model.surface()),
-        )
-    } else {
-        native_with_diffusion(
-            contract,
-            context,
-            settings,
-            request,
-            shifts,
-            context.bsm_parameters()?.volatility(),
-        )
-    }
+    diffusion::with_diffusion!(context, |diffusion| {
+        native_with_diffusion(contract, context, settings, request, shifts, diffusion)
+    })
 }
 
 fn native_with_diffusion<D: Diffusion>(
