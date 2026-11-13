@@ -1,6 +1,6 @@
-use crate::engines::analytic::barrier::{analytic_log_shift, hit_value, reflection_tail};
+use crate::engines::analytic::barrier::{analytic_log_shift, barrier_terms, hit_value};
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{checked, log_ratio, scaled_cash, scaled_cdf, standardize};
+use crate::numerics::{checked, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
     AnalyticDigitalEngine, DigitalOption, GreeksRequest, OptionContract, OptionType,
     PricingContext, PricingEngine, PricingResult, Result,
@@ -168,21 +168,9 @@ impl Contract<'_> {
         let direction = self.digital.map(DigitalOption::option_type);
         let call = direction == Some(OptionType::Call);
         let carry = rate - dividend;
-        let width = sigma * t.sqrt();
-        let mu = carry / sigma / sigma - 0.5;
-        let moneyness = log_ratio(spot, strike);
-        let x1 = if mu.is_finite() {
-            moneyness / width + (1.0 + mu) * width
-        } else {
-            standardize(moneyness + carry * t, sigma, t.sqrt()) + 0.5 * width
-        };
-        let x2 = if mu.is_finite() {
-            -ratio / width + (1.0 + mu) * width
-        } else {
-            standardize(-ratio + carry * t, sigma, t.sqrt()) + 0.5 * width
-        };
-        let y1 = (2.0 * ratio + moneyness) / width + (1.0 + mu) * width;
-        let y2 = ratio / width + (1.0 + mu) * width;
+        let ([width, x1, x2, y1, y2], reflected) =
+            barrier_terms(log_ratio(spot, strike), ratio, carry, sigma, t);
+        let barrier_strike = log_ratio(option.barrier_level(), strike) + shift;
         let phi = if direction.is_some() {
             if call { 1.0 } else { -1.0 }
         } else if knock_in == upper {
@@ -194,32 +182,19 @@ impl Contract<'_> {
         let asset = self.payout.is_none();
         let amount = self.payout.unwrap_or(spot);
         let discount = -if asset { dividend } else { rate } * t;
-        let reflection = 2.0 * (if asset { mu + 1.0 } else { mu }) * ratio;
         let payoff_shift = if asset { 0.0 } else { width };
         let f1 = || scaled_cdf(amount, discount, phi * x1 - phi * payoff_shift);
         let f2 = || scaled_cdf(amount, discount, phi * x2 - phi * payoff_shift);
-        let reflected = |argument: f64, at_strike: bool| {
-            if reflection.is_finite() {
-                scaled_cdf(amount, discount + reflection, argument)
-            } else {
-                reflection_tail(
-                    amount,
-                    discount,
-                    ratio,
-                    if at_strike {
-                        log_ratio(option.barrier_level(), strike) + shift
-                    } else {
-                        0.0
-                    },
-                    carry,
-                    sigma,
-                    t,
-                    if asset { 0.5 } else { -0.5 },
-                )
-            }
+        let f3 = || {
+            reflected(
+                amount,
+                discount,
+                eta * y1 - eta * payoff_shift,
+                barrier_strike,
+                asset,
+            )
         };
-        let f3 = || reflected(eta * y1 - eta * payoff_shift, true);
-        let f4 = || reflected(eta * y2 - eta * payoff_shift, false);
+        let f4 = || reflected(amount, discount, eta * y2 - eta * payoff_shift, 0.0, asset);
         let value = if direction.is_none() {
             if knock_in { f2() + f4() } else { f2() - f4() }
         } else {

@@ -180,54 +180,25 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
     } else {
         0.0
     };
-    let root = t.sqrt();
-    let width = sigma * root;
     let x = option.strike();
     let carry = rate - dividend;
-    let mu = carry / sigma / sigma - 0.5;
-    let moneyness = log_ratio(spot, x);
-    let x2 = if mu.is_finite() {
-        -ratio / width + (1.0 + mu) * width
-    } else {
-        standardize(-ratio + carry * t, sigma, root) + 0.5 * width
-    };
-    let y1 = (2.0 * ratio + moneyness) / width + (1.0 + mu) * width;
-    let y2 = ratio / width + (1.0 + mu) * width;
+    let ([width, _, x2, y1, y2], reflected) =
+        barrier_terms(log_ratio(spot, x), ratio, carry, sigma, t);
+    let barrier_strike = log_ratio(option.barrier_level(), x) + shift;
     let call = option.option_type() == OptionType::Call;
     let eta = if upper { -1.0 } else { 1.0 };
     let phi = if call { 1.0 } else { -1.0 };
-    let reflected = |amount: f64, discount: f64, argument: f64, at_strike: bool, asset: bool| {
-        let exponent = 2.0 * (if asset { mu + 1.0 } else { mu }) * ratio;
-        if exponent.is_finite() {
-            scaled_cdf(amount, discount + exponent, argument)
-        } else {
-            reflection_tail(
-                amount,
-                discount,
-                ratio,
-                if at_strike {
-                    log_ratio(option.barrier_level(), x) + shift
-                } else {
-                    0.0
-                },
-                carry,
-                sigma,
-                t,
-                if asset { 0.5 } else { -0.5 },
-            )
-        }
-    };
     let b = || {
         phi * scaled_cdf(spot, -dividend * t, phi * x2)
             - phi * scaled_cdf(x, -rate * t, phi * x2 - phi * width)
     };
     let c = || {
-        phi * reflected(spot, -dividend * t, eta * y1, true, true)
-            - phi * reflected(x, -rate * t, eta * y1 - eta * width, true, false)
+        phi * reflected(spot, -dividend * t, eta * y1, barrier_strike, true)
+            - phi * reflected(x, -rate * t, eta * y1 - eta * width, barrier_strike, false)
     };
     let d = || {
-        phi * reflected(spot, -dividend * t, eta * y2, false, true)
-            - phi * reflected(x, -rate * t, eta * y2 - eta * width, false, false)
+        phi * reflected(spot, -dividend * t, eta * y2, 0.0, true)
+            - phi * reflected(x, -rate * t, eta * y2 - eta * width, 0.0, false)
     };
     let e = || {
         scaled_cdf(option.rebate(), -rate * t, eta * x2 - eta * width)
@@ -235,7 +206,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
                 option.rebate(),
                 -rate * t,
                 eta * y2 - eta * width,
-                false,
+                0.0,
                 false,
             )
     };
@@ -248,7 +219,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
                     option.rebate(),
                     -rate * t,
                     eta * y2 - eta * width,
-                    false,
+                    0.0,
                     false,
                 )
         }
@@ -275,11 +246,57 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
     checked_with_scale(value, scale)
 }
 
+pub(super) fn barrier_terms(
+    moneyness: f64,
+    ratio: f64,
+    carry: f64,
+    sigma: f64,
+    time: f64,
+) -> ([f64; 5], impl Fn(f64, f64, f64, f64, bool) -> f64) {
+    let root = time.sqrt();
+    let width = sigma * root;
+    let mu = carry / sigma / sigma - 0.5;
+    let argument = |distance| {
+        if mu.is_finite() {
+            distance / width + (1.0 + mu) * width
+        } else {
+            standardize(distance + carry * time, sigma, root) + 0.5 * width
+        }
+    };
+    let reflected = move |amount, discount, argument, barrier_strike, asset| {
+        let exponent = 2.0 * (if asset { mu + 1.0 } else { mu }) * ratio;
+        if exponent.is_finite() {
+            scaled_cdf(amount, discount + exponent, argument)
+        } else {
+            reflection_tail(
+                amount,
+                discount,
+                ratio,
+                barrier_strike,
+                carry,
+                sigma,
+                time,
+                if asset { 0.5 } else { -0.5 },
+            )
+        }
+    };
+    (
+        [
+            width,
+            argument(moneyness),
+            argument(-ratio),
+            (2.0 * ratio + moneyness) / width + (1.0 + mu) * width,
+            ratio / width + (1.0 + mu) * width,
+        ],
+        reflected,
+    )
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "matches the reflection-tail formula"
 )]
-pub(crate) fn reflection_tail(
+fn reflection_tail(
     amount: f64,
     discount: f64,
     ratio: f64,
