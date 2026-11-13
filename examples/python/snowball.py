@@ -29,7 +29,6 @@ note = standard_snowball(
     knock_in_observation_clock_time=time(15),
     effective_time=start,
     expiry_time=end,
-    calendar=calendar,
 )
 
 # Edit observation and maturity coupons together; the original note retains 12%.
