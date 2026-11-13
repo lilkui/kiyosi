@@ -3441,7 +3441,195 @@ class FiniteDifferenceDigitalEngine(
     domains require convergence checks.
     """
 
-class MonteCarloVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
+class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instrument]):
+    """Shared Monte Carlo methods with separate pricing and statistics contracts."""
+
+    def with_resolved_seed(self) -> Self:
+        """Return an engine with a concrete seed, preserving all other controls.
+
+        An existing seed is retained. Save or pickle the returned engine before
+        pricing to replay its draws within the same build. The original is
+        unchanged. Entropy failures raise OSError.
+        """
+
+    @property
+    def path_count(self) -> int:
+        """Return the exact number of sampled paths."""
+
+    @property
+    def seed(self) -> int | None:
+        """Return the unsigned 64-bit seed, or None for system entropy."""
+
+    @property
+    def max_active_workers(self) -> int:
+        """Return the per-call active worker cap; zero selects automatic sizing.
+
+        Parallel calls share a CPU-sized pool; this cap does not bound thread
+        creation.
+        """
+
+    @property
+    def sampling(self) -> _pricing.MonteCarloSampling:
+        """Return the sampling choice string: pseudo_random or sobol."""
+
+    @property
+    def antithetic(self) -> bool:
+        """Return whether opposite normal draws are paired."""
+
+    def price_with_seed(
+        self, instrument: Instrument, context: PricingContext
+    ) -> tuple[float, int | None]:
+        """Return the scalar price and the seed used by this request.
+
+        Parameters
+        ----------
+        instrument : object
+            Any contract supported by price(), including American vanilla options.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple[float, int or None]
+            Price and actual sampling seed; None when no sampling is needed.
+            Reprice with replace(seed=seed) and the same inputs and controls to
+            replay the result within the same build. The engine is unchanged.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or scalar pricing fails.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Does not compute sampling uncertainty. Signal exceptions cancel the request
+        and propagate without a partial result, as for price().
+        """
+
+    def price(self, instrument: Instrument, context: PricingContext) -> float:
+        """Return the price.
+
+        Parameters
+        ----------
+        instrument : object
+            Supported contract; see the engine class for accepted types.
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        float
+            Present value of remaining contractual payments.
+
+        Raises
+        ------
+        KiyosiError
+            If domain validation, engine applicability or numerical pricing fails.
+
+        OSError
+            If system entropy or worker creation fails.
+        """
+
+    def price_with_statistics(
+        self, instrument: StatisticsInstrument, context: PricingContext
+    ) -> MonteCarloEstimate:
+        """Return a price with sampling uncertainty.
+
+        Parameters
+        ----------
+        instrument : object
+            A supported contract. Vanilla statistics require EuropeanOption; other
+            engines accept the same contracts as price().
+        context : PricingContext
+            Market snapshot and valuation instant.
+
+        Returns
+        -------
+        MonteCarloEstimate
+            Mean, optional standard error and asymptotic 95% confidence interval.
+            Sobol, insufficient independent samples and odd antithetic counts omit
+            uncertainty. Known pseudorandom analytic values have zero error.
+            Sampling uncertainty does not measure numerical integration bias.
+
+        Raises
+        ------
+        KiyosiError
+            If pricing or uncertainty validation fails, or the contract is
+            unsupported.
+        OSError
+            If system entropy or worker creation fails.
+        """
+
+    def price_with_greeks(
+        self,
+        instrument: Instrument,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> PricingResult:
+        """Return the price and selected sensitivities using engine estimators.
+
+        Parameters
+        ----------
+        instrument : object
+            Supported contract; see the engine class for accepted types.
+        context : PricingContext
+            Market snapshot and valuation instant.
+        greeks : str or iterable of str
+            Greek names or "all" to request every measure; duplicates are ignored.
+            An empty iterable requests price only.
+        spot_shift : float or None, optional
+            Positive absolute spot bump; None selects the product's automatic bump.
+        volatility_shift : float or None, optional
+            Positive decimal volatility bump. None selects the smaller of 0.0001
+            and half the current volatility.
+        rate_shift : float, optional
+            Positive decimal rate bump; defaults to 0.0001.
+        time_shift : datetime.timedelta or None, optional
+            Positive whole-microsecond bump; None selects an automatic time step.
+            Omitted controls or Ellipsis retain engine settings, whose shared
+            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            bump. Controls affect numerical fallbacks, event checks and terminal
+            stencils; native estimators and engine/model Greek coverage are
+            preserved.
+
+        Returns
+        -------
+        PricingResult
+            Price and requested Greeks. Unsupported or undefined Greeks are None,
+            with time Greeks absent at expiry; other terminal Greeks follow the
+            payoff.
+
+        Raises
+        ------
+        KiyosiError
+            If controls are invalid, pricing fails or a feasible bumped valuation
+            fails.
+        ValueError
+            If a Greek name is unknown.
+        TypeError
+            If representations, Greek names or keyword arguments are invalid.
+        OSError
+            If system entropy or worker creation fails.
+
+        Notes
+        -----
+        Barrier engines use spot_shift for event-availability checks and continuous
+        at-hit rebate derivatives. Autocallable and accumulator engines use
+        numerical differences with engine defaults. At expiry spot Greeks use
+        default terminal-payoff stencils. Use numerical_greeks for explicit scalar
+        bump calculations on supported BSM pairs.
+        """
+
+class MonteCarloVanillaEngine(
+    _MonteCarloMethods[EuropeanOption | AmericanOption, EuropeanOption]
+):
     """Flat-rate Monte Carlo pricing for European and American vanilla options.
 
     Parameters
@@ -3490,14 +3678,6 @@ class MonteCarloVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     exercise intervals and requires at least two before expiry.
     """
 
-    def with_resolved_seed(self) -> Self:
-        """Return an engine with a concrete seed, preserving all other controls.
-
-        An existing seed is retained. Save or pickle the returned engine before
-        pricing to replay its draws within the same build. The original is
-        unchanged. Entropy failures raise OSError.
-        """
-
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
@@ -3544,120 +3724,8 @@ class MonteCarloVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
         """
 
     @property
-    def path_count(self) -> int:
-        """Return the exact number of sampled paths."""
-
-    @property
     def step_count(self) -> int:
         """Return the configured grid size."""
-
-    @property
-    def seed(self) -> int | None:
-        """Return the unsigned 64-bit seed, or None for system entropy."""
-
-    @property
-    def max_active_workers(self) -> int:
-        """Return the per-call active worker cap; zero selects automatic sizing.
-
-        Parallel calls share a CPU-sized pool; this cap does not bound thread
-        creation.
-        """
-
-    @property
-    def sampling(self) -> _pricing.MonteCarloSampling:
-        """Return the sampling choice string: pseudo_random or sobol."""
-
-    @property
-    def antithetic(self) -> bool:
-        """Return whether opposite normal draws are paired."""
-
-    def price_with_seed(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> tuple[float, int | None]:
-        """Return the scalar price and the seed used by this request.
-
-        Parameters
-        ----------
-        instrument : object
-            Any contract supported by price(), including American vanilla options.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        tuple[float, int or None]
-            Price and actual sampling seed; None when no sampling is needed.
-            Reprice with replace(seed=seed) and the same inputs and controls to
-            replay the result within the same build. The engine is unchanged.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or scalar pricing fails.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Does not compute sampling uncertainty. Signal exceptions cancel the request
-        and propagate without a partial result, as for price().
-        """
-
-    def price(
-        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_statistics(
-        self, instrument: EuropeanOption, context: PricingContext
-    ) -> MonteCarloEstimate:
-        """Return a price with sampling uncertainty.
-
-        Parameters
-        ----------
-        instrument : object
-            A supported contract. Vanilla statistics require EuropeanOption; other
-            engines accept the same contracts as price().
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        MonteCarloEstimate
-            Mean, optional standard error and asymptotic 95% confidence interval.
-            Sobol, insufficient independent samples and odd antithetic counts omit
-            uncertainty. Known pseudorandom analytic values have zero error.
-            Sampling uncertainty does not measure numerical integration bias.
-
-        Raises
-        ------
-        KiyosiError
-            If pricing or uncertainty validation fails, or the contract is
-            unsupported.
-        OSError
-            If system entropy or worker creation fails.
-        """
 
     def price_with_greeks(
         self,
@@ -3751,7 +3819,10 @@ class MonteCarloEstimate:
         """Return the asymptotic 95% confidence interval, or None when unavailable."""
 
 class MonteCarloDigitalEngine(
-    _PricingMethods[CashOrNothingOption | AssetOrNothingOption]
+    _MonteCarloMethods[
+        CashOrNothingOption | AssetOrNothingOption,
+        CashOrNothingOption | AssetOrNothingOption,
+    ]
 ):
     """Flat-rate CPU Monte Carlo pricing for European digitals.
 
@@ -3794,14 +3865,6 @@ class MonteCarloDigitalEngine(
     other requested Greeks are absent.
     """
 
-    def with_resolved_seed(self) -> Self:
-        """Return an engine with a concrete seed, preserving all other controls.
-
-        An existing seed is retained. Save or pickle the returned engine before
-        pricing to replay its draws within the same build. The original is
-        unchanged. Entropy failures raise OSError.
-        """
-
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
@@ -3843,124 +3906,6 @@ class MonteCarloDigitalEngine(
             If fields fail constructor validation.
         TypeError
             If a field name or representation is invalid.
-        """
-
-    @property
-    def path_count(self) -> int:
-        """Return the exact number of sampled paths."""
-
-    @property
-    def seed(self) -> int | None:
-        """Return the unsigned 64-bit seed, or None for system entropy."""
-
-    @property
-    def max_active_workers(self) -> int:
-        """Return the per-call active worker cap; zero selects automatic sizing.
-
-        Parallel calls share a CPU-sized pool; this cap does not bound thread
-        creation.
-        """
-
-    @property
-    def sampling(self) -> _pricing.MonteCarloSampling:
-        """Return the sampling choice string: pseudo_random or sobol."""
-
-    @property
-    def antithetic(self) -> bool:
-        """Return whether opposite normal draws are paired."""
-
-    def price_with_seed(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> tuple[float, int | None]:
-        """Return the scalar price and the seed used by this request.
-
-        Parameters
-        ----------
-        instrument : object
-            Any contract supported by price(), including American vanilla options.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        tuple[float, int or None]
-            Price and actual sampling seed; None when no sampling is needed.
-            Reprice with replace(seed=seed) and the same inputs and controls to
-            replay the result within the same build. The engine is unchanged.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or scalar pricing fails.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Does not compute sampling uncertainty. Signal exceptions cancel the request
-        and propagate without a partial result, as for price().
-        """
-
-    def price(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_statistics(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> MonteCarloEstimate:
-        """Return a price with sampling uncertainty.
-
-        Parameters
-        ----------
-        instrument : object
-            A supported contract. Vanilla statistics require EuropeanOption; other
-            engines accept the same contracts as price().
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        MonteCarloEstimate
-            Mean, optional standard error and asymptotic 95% confidence interval.
-            Sobol, insufficient independent samples and odd antithetic counts omit
-            uncertainty. Known pseudorandom analytic values have zero error.
-            Sampling uncertainty does not measure numerical integration bias.
-
-        Raises
-        ------
-        KiyosiError
-            If pricing or uncertainty validation fails, or the contract is
-            unsupported.
-        OSError
-            If system entropy or worker creation fails.
         """
 
     def price_with_greeks(
@@ -4027,7 +3972,7 @@ class MonteCarloDigitalEngine(
         configurable scalar differences.
         """
 
-class MonteCarloBarrierEngine(_PricingMethods[BarrierOption]):
+class MonteCarloBarrierEngine(_MonteCarloMethods[BarrierOption, BarrierOption]):
     """Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.
 
     Parameters
@@ -4069,14 +4014,6 @@ class MonteCarloBarrierEngine(_PricingMethods[BarrierOption]):
     rounds to strike. Only delta and gamma are returned.
     """
 
-    def with_resolved_seed(self) -> Self:
-        """Return an engine with a concrete seed, preserving all other controls.
-
-        An existing seed is retained. Save or pickle the returned engine before
-        pricing to replay its draws within the same build. The original is
-        unchanged. Entropy failures raise OSError.
-        """
-
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
@@ -4120,182 +4057,9 @@ class MonteCarloBarrierEngine(_PricingMethods[BarrierOption]):
             If a field name or representation is invalid.
         """
 
-    @property
-    def path_count(self) -> int:
-        """Return the exact number of sampled paths."""
-
-    @property
-    def seed(self) -> int | None:
-        """Return the unsigned 64-bit seed, or None for system entropy."""
-
-    @property
-    def max_active_workers(self) -> int:
-        """Return the per-call active worker cap; zero selects automatic sizing.
-
-        Parallel calls share a CPU-sized pool; this cap does not bound thread
-        creation.
-        """
-
-    @property
-    def sampling(self) -> _pricing.MonteCarloSampling:
-        """Return the sampling choice string: pseudo_random or sobol."""
-
-    @property
-    def antithetic(self) -> bool:
-        """Return whether opposite normal draws are paired."""
-
-    def price_with_seed(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> tuple[float, int | None]:
-        """Return the scalar price and the seed used by this request.
-
-        Parameters
-        ----------
-        instrument : object
-            Any contract supported by price(), including American vanilla options.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        tuple[float, int or None]
-            Price and actual sampling seed; None when no sampling is needed.
-            Reprice with replace(seed=seed) and the same inputs and controls to
-            replay the result within the same build. The engine is unchanged.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or scalar pricing fails.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Does not compute sampling uncertainty. Signal exceptions cancel the request
-        and propagate without a partial result, as for price().
-        """
-
-    def price(self, instrument: BarrierOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_statistics(
-        self, instrument: BarrierOption, context: PricingContext
-    ) -> MonteCarloEstimate:
-        """Return a price with sampling uncertainty.
-
-        Parameters
-        ----------
-        instrument : object
-            A supported contract. Vanilla statistics require EuropeanOption; other
-            engines accept the same contracts as price().
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        MonteCarloEstimate
-            Mean, optional standard error and asymptotic 95% confidence interval.
-            Sobol, insufficient independent samples and odd antithetic counts omit
-            uncertainty. Known pseudorandom analytic values have zero error.
-            Sampling uncertainty does not measure numerical integration bias.
-
-        Raises
-        ------
-        KiyosiError
-            If pricing or uncertainty validation fails, or the contract is
-            unsupported.
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: BarrierOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Barrier engines use spot_shift for event-availability checks and continuous
-        at-hit rebate derivatives. Autocallable and accumulator engines use
-        numerical differences with engine defaults. At expiry spot Greeks use
-        default terminal-payoff stencils. Use numerical_greeks for explicit scalar
-        bump calculations on supported BSM pairs.
-        """
-
-class MonteCarloDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
+class MonteCarloDoubleBarrierEngine(
+    _MonteCarloMethods[DoubleBarrierOption, DoubleBarrierOption]
+):
     """Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
 
     Parameters
@@ -4337,14 +4101,6 @@ class MonteCarloDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
     rounds to strike. Only delta and gamma are returned.
     """
 
-    def with_resolved_seed(self) -> Self:
-        """Return an engine with a concrete seed, preserving all other controls.
-
-        An existing seed is retained. Save or pickle the returned engine before
-        pricing to replay its draws within the same build. The original is
-        unchanged. Entropy failures raise OSError.
-        """
-
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
@@ -4388,184 +4144,10 @@ class MonteCarloDoubleBarrierEngine(_PricingMethods[DoubleBarrierOption]):
             If a field name or representation is invalid.
         """
 
-    @property
-    def path_count(self) -> int:
-        """Return the exact number of sampled paths."""
-
-    @property
-    def seed(self) -> int | None:
-        """Return the unsigned 64-bit seed, or None for system entropy."""
-
-    @property
-    def max_active_workers(self) -> int:
-        """Return the per-call active worker cap; zero selects automatic sizing.
-
-        Parallel calls share a CPU-sized pool; this cap does not bound thread
-        creation.
-        """
-
-    @property
-    def sampling(self) -> _pricing.MonteCarloSampling:
-        """Return the sampling choice string: pseudo_random or sobol."""
-
-    @property
-    def antithetic(self) -> bool:
-        """Return whether opposite normal draws are paired."""
-
-    def price_with_seed(
-        self, instrument: DoubleBarrierOption, context: PricingContext
-    ) -> tuple[float, int | None]:
-        """Return the scalar price and the seed used by this request.
-
-        Parameters
-        ----------
-        instrument : object
-            Any contract supported by price(), including American vanilla options.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        tuple[float, int or None]
-            Price and actual sampling seed; None when no sampling is needed.
-            Reprice with replace(seed=seed) and the same inputs and controls to
-            replay the result within the same build. The engine is unchanged.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or scalar pricing fails.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Does not compute sampling uncertainty. Signal exceptions cancel the request
-        and propagate without a partial result, as for price().
-        """
-
-    def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_statistics(
-        self, instrument: DoubleBarrierOption, context: PricingContext
-    ) -> MonteCarloEstimate:
-        """Return a price with sampling uncertainty.
-
-        Parameters
-        ----------
-        instrument : object
-            A supported contract. Vanilla statistics require EuropeanOption; other
-            engines accept the same contracts as price().
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        MonteCarloEstimate
-            Mean, optional standard error and asymptotic 95% confidence interval.
-            Sobol, insufficient independent samples and odd antithetic counts omit
-            uncertainty. Known pseudorandom analytic values have zero error.
-            Sampling uncertainty does not measure numerical integration bias.
-
-        Raises
-        ------
-        KiyosiError
-            If pricing or uncertainty validation fails, or the contract is
-            unsupported.
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: DoubleBarrierOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Barrier engines use spot_shift for event-availability checks and continuous
-        at-hit rebate derivatives. Autocallable and accumulator engines use
-        numerical differences with engine defaults. At expiry spot Greeks use
-        default terminal-payoff stencils. Use numerical_greeks for explicit scalar
-        bump calculations on supported BSM pairs.
-        """
-
 class MonteCarloAutocallableEngine(
-    _PricingMethods[
-        SnowballOption | BinarySnowballOption | TernarySnowballOption | PhoenixOption
+    _MonteCarloMethods[
+        SnowballOption | BinarySnowballOption | TernarySnowballOption | PhoenixOption,
+        SnowballOption | BinarySnowballOption | TernarySnowballOption | PhoenixOption,
     ]
 ):
     """Flat-rate CPU Monte Carlo pricing for snowball and Phoenix notes.
@@ -4611,14 +4193,6 @@ class MonteCarloAutocallableEngine(
     or observation dates and expiry otherwise.
     """
 
-    def with_resolved_seed(self) -> Self:
-        """Return an engine with a concrete seed, preserving all other controls.
-
-        An existing seed is retained. Save or pickle the returned engine before
-        pricing to replay its draws within the same build. The original is
-        unchanged. Entropy failures raise OSError.
-        """
-
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
@@ -4662,202 +4236,7 @@ class MonteCarloAutocallableEngine(
             If a field name or representation is invalid.
         """
 
-    @property
-    def path_count(self) -> int:
-        """Return the exact number of sampled paths."""
-
-    @property
-    def seed(self) -> int | None:
-        """Return the unsigned 64-bit seed, or None for system entropy."""
-
-    @property
-    def max_active_workers(self) -> int:
-        """Return the per-call active worker cap; zero selects automatic sizing.
-
-        Parallel calls share a CPU-sized pool; this cap does not bound thread
-        creation.
-        """
-
-    @property
-    def sampling(self) -> _pricing.MonteCarloSampling:
-        """Return the sampling choice string: pseudo_random or sobol."""
-
-    @property
-    def antithetic(self) -> bool:
-        """Return whether opposite normal draws are paired."""
-
-    def price_with_seed(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> tuple[float, int | None]:
-        """Return the scalar price and the seed used by this request.
-
-        Parameters
-        ----------
-        instrument : object
-            Any contract supported by price(), including American vanilla options.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        tuple[float, int or None]
-            Price and actual sampling seed; None when no sampling is needed.
-            Reprice with replace(seed=seed) and the same inputs and controls to
-            replay the result within the same build. The engine is unchanged.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or scalar pricing fails.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Does not compute sampling uncertainty. Signal exceptions cancel the request
-        and propagate without a partial result, as for price().
-        """
-
-    def price(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_statistics(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-    ) -> MonteCarloEstimate:
-        """Return a price with sampling uncertainty.
-
-        Parameters
-        ----------
-        instrument : object
-            A supported contract. Vanilla statistics require EuropeanOption; other
-            engines accept the same contracts as price().
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        MonteCarloEstimate
-            Mean, optional standard error and asymptotic 95% confidence interval.
-            Sobol, insufficient independent samples and odd antithetic counts omit
-            uncertainty. Known pseudorandom analytic values have zero error.
-            Sampling uncertainty does not measure numerical integration bias.
-
-        Raises
-        ------
-        KiyosiError
-            If pricing or uncertainty validation fails, or the contract is
-            unsupported.
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: SnowballOption
-        | BinarySnowballOption
-        | TernarySnowballOption
-        | PhoenixOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Barrier engines use spot_shift for event-availability checks and continuous
-        at-hit rebate derivatives. Autocallable and accumulator engines use
-        numerical differences with engine defaults. At expiry spot Greeks use
-        default terminal-payoff stencils. Use numerical_greeks for explicit scalar
-        bump calculations on supported BSM pairs.
-        """
-
-class MonteCarloAccumulatorEngine(_PricingMethods[Accumulator]):
+class MonteCarloAccumulatorEngine(_MonteCarloMethods[Accumulator, Accumulator]):
     """Flat-rate CPU Monte Carlo pricing for accumulators.
 
     Parameters
@@ -4898,14 +4277,6 @@ class MonteCarloAccumulatorEngine(_PricingMethods[Accumulator]):
     knock-out settles before any purchase.
     """
 
-    def with_resolved_seed(self) -> Self:
-        """Return an engine with a concrete seed, preserving all other controls.
-
-        An existing seed is retained. Save or pickle the returned engine before
-        pricing to replay its draws within the same build. The original is
-        unchanged. Entropy failures raise OSError.
-        """
-
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
@@ -4949,183 +4320,11 @@ class MonteCarloAccumulatorEngine(_PricingMethods[Accumulator]):
             If a field name or representation is invalid.
         """
 
-    @property
-    def path_count(self) -> int:
-        """Return the exact number of sampled paths."""
-
-    @property
-    def seed(self) -> int | None:
-        """Return the unsigned 64-bit seed, or None for system entropy."""
-
-    @property
-    def max_active_workers(self) -> int:
-        """Return the per-call active worker cap; zero selects automatic sizing.
-
-        Parallel calls share a CPU-sized pool; this cap does not bound thread
-        creation.
-        """
-
-    @property
-    def sampling(self) -> _pricing.MonteCarloSampling:
-        """Return the sampling choice string: pseudo_random or sobol."""
-
-    @property
-    def antithetic(self) -> bool:
-        """Return whether opposite normal draws are paired."""
-
-    def price_with_seed(
-        self, instrument: Accumulator, context: PricingContext
-    ) -> tuple[float, int | None]:
-        """Return the scalar price and the seed used by this request.
-
-        Parameters
-        ----------
-        instrument : object
-            Any contract supported by price(), including American vanilla options.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        tuple[float, int or None]
-            Price and actual sampling seed; None when no sampling is needed.
-            Reprice with replace(seed=seed) and the same inputs and controls to
-            replay the result within the same build. The engine is unchanged.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or scalar pricing fails.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Does not compute sampling uncertainty. Signal exceptions cancel the request
-        and propagate without a partial result, as for price().
-        """
-
-    def price(self, instrument: Accumulator, context: PricingContext) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_statistics(
-        self, instrument: Accumulator, context: PricingContext
-    ) -> MonteCarloEstimate:
-        """Return a price with sampling uncertainty.
-
-        Parameters
-        ----------
-        instrument : object
-            A supported contract. Vanilla statistics require EuropeanOption; other
-            engines accept the same contracts as price().
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        MonteCarloEstimate
-            Mean, optional standard error and asymptotic 95% confidence interval.
-            Sobol, insufficient independent samples and odd antithetic counts omit
-            uncertainty. Known pseudorandom analytic values have zero error.
-            Sampling uncertainty does not measure numerical integration bias.
-
-        Raises
-        ------
-        KiyosiError
-            If pricing or uncertainty validation fails, or the contract is
-            unsupported.
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_greeks(
-        self,
-        instrument: Accumulator,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Return the price and selected sensitivities using engine estimators.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-        greeks : str or iterable of str
-            Greek names or "all" to request every measure; duplicates are ignored.
-            An empty iterable requests price only.
-        spot_shift : float or None, optional
-            Positive absolute spot bump; None selects the product's automatic bump.
-        volatility_shift : float or None, optional
-            Positive decimal volatility bump. None selects the smaller of 0.0001
-            and half the current volatility.
-        rate_shift : float, optional
-            Positive decimal rate bump; defaults to 0.0001.
-        time_shift : datetime.timedelta or None, optional
-            Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
-
-        Returns
-        -------
-        PricingResult
-            Price and requested Greeks. Unsupported or undefined Greeks are None,
-            with time Greeks absent at expiry; other terminal Greeks follow the
-            payoff.
-
-        Raises
-        ------
-        KiyosiError
-            If controls are invalid, pricing fails or a feasible bumped valuation
-            fails.
-        ValueError
-            If a Greek name is unknown.
-        TypeError
-            If representations, Greek names or keyword arguments are invalid.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Barrier engines use spot_shift for event-availability checks and continuous
-        at-hit rebate derivatives. Autocallable and accumulator engines use
-        numerical differences with engine defaults. At expiry spot Greeks use
-        default terminal-payoff stencils. Use numerical_greeks for explicit scalar
-        bump calculations on supported BSM pairs.
-        """
-
 class MonteCarloAsianEngine(
-    _PricingMethods[GeometricAveragePriceOption | ArithmeticAveragePriceOption]
+    _MonteCarloMethods[
+        GeometricAveragePriceOption | ArithmeticAveragePriceOption,
+        GeometricAveragePriceOption | ArithmeticAveragePriceOption,
+    ]
 ):
     """Flat-rate CPU Monte Carlo pricing for continuous average-price options.
 
@@ -5173,14 +4372,6 @@ class MonteCarloAsianEngine(
     with the first interval integrated conditionally.
     """
 
-    def with_resolved_seed(self) -> Self:
-        """Return an engine with a concrete seed, preserving all other controls.
-
-        An existing seed is retained. Save or pickle the returned engine before
-        pricing to replay its draws within the same build. The original is
-        unchanged. Entropy failures raise OSError.
-        """
-
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
@@ -5227,126 +4418,8 @@ class MonteCarloAsianEngine(
         """
 
     @property
-    def path_count(self) -> int:
-        """Return the exact number of sampled paths."""
-
-    @property
     def step_count(self) -> int:
         """Return the configured grid size."""
-
-    @property
-    def seed(self) -> int | None:
-        """Return the unsigned 64-bit seed, or None for system entropy."""
-
-    @property
-    def max_active_workers(self) -> int:
-        """Return the per-call active worker cap; zero selects automatic sizing.
-
-        Parallel calls share a CPU-sized pool; this cap does not bound thread
-        creation.
-        """
-
-    @property
-    def sampling(self) -> _pricing.MonteCarloSampling:
-        """Return the sampling choice string: pseudo_random or sobol."""
-
-    @property
-    def antithetic(self) -> bool:
-        """Return whether opposite normal draws are paired."""
-
-    def price_with_seed(
-        self,
-        instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
-        context: PricingContext,
-    ) -> tuple[float, int | None]:
-        """Return the scalar price and the seed used by this request.
-
-        Parameters
-        ----------
-        instrument : object
-            Any contract supported by price(), including American vanilla options.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        tuple[float, int or None]
-            Price and actual sampling seed; None when no sampling is needed.
-            Reprice with replace(seed=seed) and the same inputs and controls to
-            replay the result within the same build. The engine is unchanged.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or scalar pricing fails.
-        OSError
-            If system entropy or worker creation fails.
-
-        Notes
-        -----
-        Does not compute sampling uncertainty. Signal exceptions cancel the request
-        and propagate without a partial result, as for price().
-        """
-
-    def price(
-        self,
-        instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
-        context: PricingContext,
-    ) -> float:
-        """Return the price.
-
-        Parameters
-        ----------
-        instrument : object
-            Supported contract; see the engine class for accepted types.
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        float
-            Present value of remaining contractual payments.
-
-        Raises
-        ------
-        KiyosiError
-            If domain validation, engine applicability or numerical pricing fails.
-
-        OSError
-            If system entropy or worker creation fails.
-        """
-
-    def price_with_statistics(
-        self,
-        instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
-        context: PricingContext,
-    ) -> MonteCarloEstimate:
-        """Return a price with sampling uncertainty.
-
-        Parameters
-        ----------
-        instrument : object
-            A supported contract. Vanilla statistics require EuropeanOption; other
-            engines accept the same contracts as price().
-        context : PricingContext
-            Market snapshot and valuation instant.
-
-        Returns
-        -------
-        MonteCarloEstimate
-            Mean, optional standard error and asymptotic 95% confidence interval.
-            Sobol, insufficient independent samples and odd antithetic counts omit
-            uncertainty. Known pseudorandom analytic values have zero error.
-            Sampling uncertainty does not measure numerical integration bias.
-
-        Raises
-        ------
-        KiyosiError
-            If pricing or uncertainty validation fails, or the contract is
-            unsupported.
-        OSError
-            If system entropy or worker creation fails.
-        """
 
     def price_with_greeks(
         self,

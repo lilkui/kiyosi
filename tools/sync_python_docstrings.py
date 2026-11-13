@@ -20,6 +20,11 @@ from pathlib import Path
 from kiyosi import _native
 
 STUB = Path(__file__).resolve().parents[1] / "python/src/kiyosi/_native.pyi"
+_SHARED_OWNERS = {
+    "_PricingMethods": _native.BjerksundStenslandVanillaEngine,
+    "_FiniteDifferenceMethods": _native.FiniteDifferenceVanillaEngine,
+    "_MonteCarloMethods": _native.MonteCarloBarrierEngine,
+}
 
 
 def sync_docstrings(declarations, owner):
@@ -27,16 +32,8 @@ def sync_docstrings(declarations, owner):
     for node in declarations:
         if not isinstance(node, (ast.ClassDef, ast.FunctionDef)):
             continue
-        if isinstance(node, ast.ClassDef) and node.name in (
-            "_PricingMethods",
-            "_FiniteDifferenceMethods",
-        ):
-            owner_class = (
-                _native.FiniteDifferenceVanillaEngine
-                if node.name == "_FiniteDifferenceMethods"
-                else _native.BjerksundStenslandVanillaEngine
-            )
-            sync_docstrings(node.body, owner_class)
+        if isinstance(node, ast.ClassDef) and node.name in _SHARED_OWNERS:
+            sync_docstrings(node.body, _SHARED_OWNERS[node.name])
             continue
         if node.name.startswith("_"):
             continue
