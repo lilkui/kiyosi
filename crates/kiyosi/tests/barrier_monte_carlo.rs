@@ -54,12 +54,11 @@ fn native_barrier_spot_controls_recover_near_boundary_greeks() -> Result<()> {
         max_active_workers: 1,
         ..Default::default()
     };
-    let single_engine = MonteCarloBarrierEngine::new(settings)?;
-    let double_engine = MonteCarloDoubleBarrierEngine::new(settings)?;
+    let engine = MonteCarloBarrierEngine::new(settings)?;
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
     let defaults = [
-        single_engine.price_with_greeks(&single, &context, request)?,
-        double_engine.price_with_greeks(&double, &context, request)?,
+        engine.price_with_greeks(&single, &context, request)?,
+        engine.price_with_greeks(&double, &context, request)?,
     ];
     for result in defaults {
         assert_eq!(result.status(Greek::Delta), GreekStatus::StencilUnavailable);
@@ -74,22 +73,12 @@ fn native_barrier_spot_controls_recover_near_boundary_greeks() -> Result<()> {
     };
     for (result, tighter) in [
         (
-            single_engine.price_with_greeks_with_settings(&single, &context, request, shifts)?,
-            single_engine.price_with_greeks_with_settings(
-                &single,
-                &context,
-                request,
-                tighter_shifts,
-            )?,
+            engine.price_with_greeks_with_settings(&single, &context, request, shifts)?,
+            engine.price_with_greeks_with_settings(&single, &context, request, tighter_shifts)?,
         ),
         (
-            double_engine.price_with_greeks_with_settings(&double, &context, request, shifts)?,
-            double_engine.price_with_greeks_with_settings(
-                &double,
-                &context,
-                request,
-                tighter_shifts,
-            )?,
+            engine.price_with_greeks_with_settings(&double, &context, request, shifts)?,
+            engine.price_with_greeks_with_settings(&double, &context, request, tighter_shifts)?,
         ),
     ] {
         assert!(result.require(Greek::Delta)? < 0.0);
@@ -101,8 +90,8 @@ fn native_barrier_spot_controls_recover_near_boundary_greeks() -> Result<()> {
             ..Default::default()
         };
         for result in [
-            single_engine.price_with_greeks_with_settings(&single, &context, request, shifts),
-            double_engine.price_with_greeks_with_settings(&double, &context, request, shifts),
+            engine.price_with_greeks_with_settings(&single, &context, request, shifts),
+            engine.price_with_greeks_with_settings(&double, &context, request, shifts),
         ] {
             assert!(matches!(result, Err(Error::InvalidInput(_))));
         }

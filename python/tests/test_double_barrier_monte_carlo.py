@@ -30,7 +30,7 @@ from test_double_barrier_finite_difference import (
 
 def test_tiny_volatility_payoffs_match_the_vanilla_limit(subtests):
     sigma = 1e-17
-    engine = pricing.MonteCarloDoubleBarrierEngine(
+    engine = pricing.MonteCarloBarrierEngine(
         path_count=32768, seed=42, sampling="sobol"
     )
     for spot, direction, mode in product(
@@ -60,7 +60,7 @@ def test_at_hit_rebate_greeks_require_a_usable_spot_stencil():
         rebate_timing="at_hit",
     )
     context = market(1e16)
-    engine = pricing.MonteCarloDoubleBarrierEngine(path_count=32, seed=42)
+    engine = pricing.MonteCarloBarrierEngine(path_count=32, seed=42)
     result = engine.price_with_greeks(option, context, ("delta", "gamma"))
     assert result.price == engine.price(option, context)
     for name in ("delta", "gamma"):
@@ -88,7 +88,7 @@ def test_at_hit_rebate_greeks_require_a_usable_spot_stencil():
 @pytest.mark.parametrize("direction", ("call", "put"))
 @pytest.mark.parametrize("kind", ("knock_in", "knock_out"))
 def test_continuous_prices_and_shared_sample_greeks_match_quantlib(direction, kind):
-    engine = pricing.MonteCarloDoubleBarrierEngine(
+    engine = pricing.MonteCarloBarrierEngine(
         path_count=32768, seed=42, sampling="sobol"
     )
     option = contract(option_type=direction, barrier_type=kind)
@@ -104,7 +104,7 @@ def test_continuous_prices_and_shared_sample_greeks_match_quantlib(direction, ki
 
 
 def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
-    engine = pricing.MonteCarloDoubleBarrierEngine(
+    engine = pricing.MonteCarloBarrierEngine(
         path_count=262144, seed=42, sampling="sobol"
     )
     for direction, timing, final in product(
@@ -164,7 +164,7 @@ def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
 
 
 def test_series_switch_extreme_bands_and_tiny_volatility():
-    engine = pricing.MonteCarloDoubleBarrierEngine(
+    engine = pricing.MonteCarloBarrierEngine(
         path_count=65536, seed=42, sampling="sobol"
     )
     for volatility, price, delta, gamma in (
@@ -241,7 +241,7 @@ def test_rebates_match_independent_exit_series_with_negative_rates():
             3 * discounted,
         )
 
-    engine = pricing.MonteCarloDoubleBarrierEngine(
+    engine = pricing.MonteCarloBarrierEngine(
         path_count=65536, seed=42, sampling="sobol"
     )
     for rate in (-0.02, 0.04):
@@ -290,10 +290,8 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
             "sampling": sampling,
             "antithetic": paired,
         }
-        serial = pricing.MonteCarloDoubleBarrierEngine(max_active_workers=1, **settings)
-        parallel = pricing.MonteCarloDoubleBarrierEngine(
-            max_active_workers=4, **settings
-        )
+        serial = pricing.MonteCarloBarrierEngine(max_active_workers=1, **settings)
+        parallel = pricing.MonteCarloBarrierEngine(max_active_workers=4, **settings)
         expected = serial.price_with_greeks(option, context, greeks="all")
 
         def evaluate(index, parallel=parallel, serial=serial, option=option):
@@ -310,7 +308,7 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
     )
     for paths in (1, 2, 3, 5, 257):
         settings = {"path_count": paths, "seed": 42, "antithetic": True}
-        engine = pricing.MonteCarloDoubleBarrierEngine(**settings)
+        engine = pricing.MonteCarloBarrierEngine(**settings)
         assert sum(
             engine.price(contract(barrier_type=kind), context)
             for kind in ("knock_in", "knock_out")
@@ -322,7 +320,7 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
 
 
 def test_current_equality_prior_history_expiry_and_finished_monitoring():
-    engine = pricing.MonteCarloDoubleBarrierEngine(path_count=1, seed=42)
+    engine = pricing.MonteCarloBarrierEngine(path_count=1, seed=42)
     analytic = pricing.AnalyticDoubleBarrierEngine()
     for kind, timing in (
         ("knock_out", "at_hit"),
@@ -380,7 +378,7 @@ def test_current_equality_prior_history_expiry_and_finished_monitoring():
 
 
 def test_defaults_exports_and_strict_representations():
-    factory = pricing.MonteCarloDoubleBarrierEngine
+    factory = pricing.MonteCarloBarrierEngine
     engine, vanilla = factory(), pricing.MonteCarloVanillaEngine()
     for name in (
         "path_count",
@@ -392,7 +390,7 @@ def test_defaults_exports_and_strict_representations():
         assert getattr(engine, name) == getattr(vanilla, name)
         with pytest.raises(AttributeError):
             setattr(engine, name, getattr(engine, name))
-    assert "MonteCarloDoubleBarrierEngine" in pricing.__all__
+    assert "MonteCarloBarrierEngine" in pricing.__all__
     for name in ("path_count", "seed", "max_active_workers"):
         for value in (
             True,
@@ -473,7 +471,7 @@ def test_defaults_exports_and_strict_representations():
 
 
 def test_errors_validation_order_and_failure_state():
-    engine = pricing.MonteCarloDoubleBarrierEngine(path_count=32, seed=42)
+    engine = pricing.MonteCarloBarrierEngine(path_count=32, seed=42)
     option, context = contract(), market()
     quote = engine.price(option, context)
     curve = RateTermStructure(
@@ -543,9 +541,7 @@ def test_errors_validation_order_and_failure_state():
 
 
 def test_solver_replays_draws_rejects_fixed_cashflows_and_preserves_inputs():
-    engine = pricing.MonteCarloDoubleBarrierEngine(
-        path_count=8192, seed=42, sampling="sobol"
-    )
+    engine = pricing.MonteCarloBarrierEngine(path_count=8192, seed=42, sampling="sobol")
     option = contract(lower_barrier=50, upper_barrier=200)
     context = market()
     quote = engine.price(option, context)
@@ -617,7 +613,5 @@ def test_sobol_dimension_limit_includes_unobserved_expiry_leg():
         observation_times=dates,
         calendar=all_days_calendar(),
     )
-    engine = pricing.MonteCarloDoubleBarrierEngine(
-        path_count=1, seed=42, sampling="sobol"
-    )
+    engine = pricing.MonteCarloBarrierEngine(path_count=1, seed=42, sampling="sobol")
     assert_rejection(InvalidInputError, engine.price, option, market())

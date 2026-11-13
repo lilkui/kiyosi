@@ -3972,95 +3972,12 @@ class MonteCarloDigitalEngine(
         configurable scalar differences.
         """
 
-class MonteCarloBarrierEngine(_MonteCarloMethods[BarrierOption, BarrierOption]):
-    """Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.
-
-    Parameters
-    ----------
-    path_count : int, optional
-        Exact path count, 1 through 10,000,000; defaults to 131,072. Sobol
-        sampling requires a power of two.
-    seed : int or None, optional
-        Unsigned 64-bit seed, or None (default) to use system entropy.
-    max_active_workers : int, optional
-        Nonnegative active worker cap per call: zero (default) is automatic,
-        one is serial. Does not bound thread creation; parallel calls share a
-        worker pool, bounded by configure_monte_carlo_pool().
-    sampling : MonteCarloSampling, optional
-        Sampling method; defaults to pseudo_random.
-    antithetic : bool, optional
-        Pair opposite normal draws; defaults to False. An odd path count leaves
-        one unpaired path.
-
-    Raises
-    ------
-    InvalidInputError
-        If paths are outside 1 through 10,000,000, max_active_workers is
-        negative, or Sobol paths are not a power of two.
-
-    See Also
-    --------
-    BarrierOption : Supported contract.
-
-    Notes
-    -----
-    Fixed seeds reproduce results across thread counts in the same build. Calls
-    own their samples and share a library-owned Rayon pool. A worker cap does
-    not reserve workers. Greeks pin a seed per request. Solves require an
-    explicit seed; call with_resolved_seed() first. Solver tolerances do not
-    measure sampling error.
-    Monitoring uses continuous survival or the original
-    fixing dates. Near-strike payoffs retain movements even when terminal spot
-    rounds to strike. Only delta and gamma are returned.
-    """
-
-    def __eq__(self, other: object) -> bool: ...
-    def __init__(
-        self,
-        *,
-        path_count: SupportsIndex = ...,
-        seed: SupportsIndex | None = None,
-        max_active_workers: SupportsIndex = ...,
-        sampling: _pricing.MonteCarloSampling = ...,
-        antithetic: bool = ...,
-    ) -> None: ...
-    def replace(
-        self,
-        *,
-        path_count: SupportsIndex | EllipsisType = ...,
-        seed: SupportsIndex | None | EllipsisType = ...,
-        max_active_workers: SupportsIndex | EllipsisType = ...,
-        sampling: _pricing.MonteCarloSampling | EllipsisType = ...,
-        antithetic: bool | EllipsisType = ...,
-    ) -> Self:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-
-class MonteCarloDoubleBarrierEngine(
-    _MonteCarloMethods[DoubleBarrierOption, DoubleBarrierOption]
+class MonteCarloBarrierEngine(
+    _MonteCarloMethods[
+        BarrierOption | DoubleBarrierOption, BarrierOption | DoubleBarrierOption
+    ]
 ):
-    """Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
+    """Flat-rate CPU Monte Carlo pricing for single- and double-barrier vanilla options.
 
     Parameters
     ----------
@@ -4087,7 +4004,8 @@ class MonteCarloDoubleBarrierEngine(
 
     See Also
     --------
-    DoubleBarrierOption : Supported contract.
+    BarrierOption : Supported single-barrier contract.
+    DoubleBarrierOption : Supported double-barrier contract.
 
     Notes
     -----
@@ -4738,7 +4656,7 @@ def implied_volatility(
 def implied_volatility(
     engine: AnalyticDoubleBarrierEngine
     | FiniteDifferenceDoubleBarrierEngine
-    | MonteCarloDoubleBarrierEngine,
+    | MonteCarloBarrierEngine,
     instrument: DoubleBarrierOption,
     context: PricingContext,
     observed_price: _Real,
@@ -4970,7 +4888,7 @@ def numerical_greeks(
 def numerical_greeks(
     engine: AnalyticDoubleBarrierEngine
     | FiniteDifferenceDoubleBarrierEngine
-    | MonteCarloDoubleBarrierEngine,
+    | MonteCarloBarrierEngine,
     instrument: DoubleBarrierOption,
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],

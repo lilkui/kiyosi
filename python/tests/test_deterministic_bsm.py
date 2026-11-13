@@ -89,7 +89,7 @@ def cases():
         (
             "AnalyticDoubleBarrierEngine",
             "FiniteDifferenceDoubleBarrierEngine",
-            "MonteCarloDoubleBarrierEngine",
+            "MonteCarloBarrierEngine",
         ),
         10,
     )

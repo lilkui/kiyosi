@@ -35,7 +35,6 @@ pub use accumulator::MonteCarloAccumulatorEngine;
 pub use autocallable::MonteCarloAutocallableEngine;
 pub use barrier::MonteCarloBarrierEngine;
 pub use digital::MonteCarloDigitalEngine;
-pub use double_barrier::MonteCarloDoubleBarrierEngine;
 
 /// Selects terminal sampling independently of antithetic pairing.
 ///

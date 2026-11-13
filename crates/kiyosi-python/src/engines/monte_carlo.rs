@@ -11,6 +11,27 @@ use crate::market::PricingContext;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+#[derive(FromPyObject)]
+pub(crate) enum BarrierInstrument<'py> {
+    Single(PyRef<'py, barrier::BarrierOption>),
+    Double(PyRef<'py, double_barrier::DoubleBarrierOption>),
+}
+
+macro_rules! with_barrier {
+    ($instrument:expr, $option:ident, $body:expr) => {{
+        match $instrument {
+            BarrierInstrument::Single(option) => {
+                let $option = &option.0;
+                $body
+            }
+            BarrierInstrument::Double(option) => {
+                let $option = &option.0;
+                $body
+            }
+        }
+    }};
+}
+
 /// Cap the process-wide Monte Carlo pool before its first parallel request.
 ///
 /// Parameters
@@ -430,11 +451,12 @@ sampling_settings!(
 
 sampling_settings!(
     @class
-    /// Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.
+    /// Flat-rate CPU Monte Carlo pricing for single- and double-barrier vanilla options.
     MonteCarloBarrierEngine,
     [],
     [
-        /// BarrierOption : Supported contract.
+        /// BarrierOption : Supported single-barrier contract.
+        /// DoubleBarrierOption : Supported double-barrier contract.
     ],
     [
         /// Monitoring uses continuous survival or the original
@@ -443,24 +465,7 @@ sampling_settings!(
     ]
 );
 
-sampling_settings!(@structured MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierOption>, with_contract);
-
-sampling_settings!(
-    @class
-    /// Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
-    MonteCarloDoubleBarrierEngine,
-    [],
-    [
-        /// DoubleBarrierOption : Supported contract.
-    ],
-    [
-        /// Monitoring uses continuous survival or the original
-        /// fixing dates. Near-strike payoffs retain movements even when terminal spot
-        /// rounds to strike. Only delta and gamma are returned.
-    ]
-);
-
-sampling_settings!(@structured MonteCarloDoubleBarrierEngine, PyRef<'_, double_barrier::DoubleBarrierOption>, with_contract);
+sampling_settings!(@structured MonteCarloBarrierEngine, BarrierInstrument<'_>, with_barrier);
 
 sampling_settings!(
     @class

@@ -24,7 +24,7 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let single = MonteCarloBarrierEngine::new(settings(true)).unwrap();
-    let double = MonteCarloDoubleBarrierEngine::new(settings(true)).unwrap();
+    let double = MonteCarloBarrierEngine::new(settings(true)).unwrap();
     for volatility in [1e-18, 1e-200] {
         let context = context(volatility, false);
         for (direction, strike) in [(OptionType::Call, 90.0), (OptionType::Put, 110.0)] {

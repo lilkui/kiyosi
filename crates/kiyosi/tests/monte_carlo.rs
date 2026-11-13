@@ -46,7 +46,7 @@ fn solver_seed_policy_covers_every_monte_carlo_contract_family() -> Result<()> {
                 settings,
             )?),
             PricingEngine::<DoubleBarrierOption>::validate_solver_seed(
-                &MonteCarloDoubleBarrierEngine::new(settings)?,
+                &MonteCarloBarrierEngine::new(settings)?,
             ),
             PricingEngine::<Accumulator>::validate_solver_seed(&MonteCarloAccumulatorEngine::new(
                 settings,
@@ -1307,7 +1307,7 @@ fn resolved_seed_engines_preserve_configuration_and_replay() -> Result<()> {
     }
     check!(MonteCarloDigitalEngine::new(settings)?);
     check!(MonteCarloBarrierEngine::new(settings)?);
-    check!(MonteCarloDoubleBarrierEngine::new(settings)?);
+    check!(MonteCarloBarrierEngine::new(settings)?);
     check!(MonteCarloAutocallableEngine::new(settings)?);
     check!(MonteCarloAccumulatorEngine::new(settings)?);
     let vanilla = MonteCarloVanillaEngine::new(MonteCarloGridSettings {

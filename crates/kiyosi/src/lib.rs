@@ -155,9 +155,9 @@ pub use engines::finite_difference::{
 };
 pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,
-    MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloDoubleBarrierEngine,
-    MonteCarloEstimate, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
-    MonteCarloUncertaintyStatus, MonteCarloVanillaEngine, configure_monte_carlo_pool,
+    MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloEstimate, MonteCarloGridSettings,
+    MonteCarloSampling, MonteCarloSettings, MonteCarloUncertaintyStatus, MonteCarloVanillaEngine,
+    configure_monte_carlo_pool,
 };
 pub use engines::quadrature::{
     QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,

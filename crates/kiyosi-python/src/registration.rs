@@ -92,7 +92,6 @@ pricing_classes!(
         engines::monte_carlo::MonteCarloDigitalEngine,
         engines::monte_carlo::MonteCarloAsianEngine,
         engines::monte_carlo::MonteCarloBarrierEngine,
-        engines::monte_carlo::MonteCarloDoubleBarrierEngine,
         engines::monte_carlo::MonteCarloAutocallableEngine,
         engines::monte_carlo::MonteCarloAccumulatorEngine,
     ]

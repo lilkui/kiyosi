@@ -81,10 +81,7 @@ fn samples(settings: MonteCarloSettings) -> Vec<(&'static str, f64, MonteCarloEs
         ),
         (
             "double",
-            sample(
-                &MonteCarloDoubleBarrierEngine::new(settings).unwrap(),
-                &double,
-            ),
+            sample(&MonteCarloBarrierEngine::new(settings).unwrap(), &double),
         ),
     ]
     .into_iter()
@@ -290,7 +287,7 @@ fn terminal_statistics_report_known_values_for_each_new_engine() {
                 .unwrap()
                 .price_with_statistics(&barrier, &context)
                 .unwrap(),
-            MonteCarloDoubleBarrierEngine::new(settings)
+            MonteCarloBarrierEngine::new(settings)
                 .unwrap()
                 .price_with_statistics(&double, &context)
                 .unwrap(),
@@ -343,7 +340,7 @@ fn analytic_at_hit_rebates_shift_prices_without_adding_sampling_variance() {
     let zero = DoubleBarrierOption::new(double.clone()).unwrap();
     double.rebate = 7.0;
     let rebate = DoubleBarrierOption::new(double).unwrap();
-    let engine = MonteCarloDoubleBarrierEngine::new(settings()).unwrap();
+    let engine = MonteCarloBarrierEngine::new(settings()).unwrap();
     let base = engine.price_with_statistics(&zero, &context).unwrap();
     let actual = engine.price_with_statistics(&rebate, &context).unwrap();
     let shift = AnalyticDoubleBarrierEngine
@@ -404,7 +401,7 @@ fn statistics_preserve_scheduled_barrier_prices() {
             &BarrierOption::new(single).unwrap(),
         ),
         sample(
-            &MonteCarloDoubleBarrierEngine::new(settings()).unwrap(),
+            &MonteCarloBarrierEngine::new(settings()).unwrap(),
             &DoubleBarrierOption::new(double).unwrap(),
         ),
     ] {
@@ -475,7 +472,7 @@ fn resolved_barriers_report_zero_error_before_expiry() {
         .unwrap();
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let single = MonteCarloBarrierEngine::new(settings()).unwrap();
-    let double = MonteCarloDoubleBarrierEngine::new(settings()).unwrap();
+    let double = MonteCarloBarrierEngine::new(settings()).unwrap();
     for knock_in in [false, true] {
         let mut terms = BarrierOptionTerms::new(
             OptionType::Call,
@@ -559,7 +556,7 @@ fn statistics_preserve_life_history_and_model_rejections() {
     let digital_engine = MonteCarloDigitalEngine::new(settings()).unwrap();
     let asian_engine = MonteCarloAsianEngine::new(settings().into()).unwrap();
     let single_engine = MonteCarloBarrierEngine::new(settings()).unwrap();
-    let double_engine = MonteCarloDoubleBarrierEngine::new(settings()).unwrap();
+    let double_engine = MonteCarloBarrierEngine::new(settings()).unwrap();
     let after = market()
         .replace(PricingContextChanges {
             valuation_time: Some(end.add_days(1).unwrap()),
@@ -752,7 +749,7 @@ fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
         ))?,
     )?;
     check(
-        MonteCarloDoubleBarrierEngine::new,
+        MonteCarloBarrierEngine::new,
         &DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
             OptionType::Call,
             100.0,

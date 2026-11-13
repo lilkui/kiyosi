@@ -32,7 +32,7 @@ def test_barrier_greek_signature_defaults_can_be_forwarded(subtests):
             i.BarrierOption(**vanilla, barrier_level=120, barrier_type="up_and_out"),
         ),
         (
-            p.MonteCarloDoubleBarrierEngine(path_count=64, seed=42),
+            p.MonteCarloBarrierEngine(path_count=64, seed=42),
             i.DoubleBarrierOption(
                 **vanilla, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
             ),

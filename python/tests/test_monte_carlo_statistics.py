@@ -40,7 +40,7 @@ def contracts():
         ),
         (
             "double",
-            p.MonteCarloDoubleBarrierEngine,
+            p.MonteCarloBarrierEngine,
             i.DoubleBarrierOption(
                 barrier_type="knock_out", lower_barrier=80, upper_barrier=120, **vanilla
             ),

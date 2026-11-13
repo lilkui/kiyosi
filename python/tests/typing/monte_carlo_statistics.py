@@ -21,7 +21,6 @@ from kiyosi.pricing import (
     MonteCarloAutocallableEngine,
     MonteCarloBarrierEngine,
     MonteCarloDigitalEngine,
-    MonteCarloDoubleBarrierEngine,
     MonteCarloEstimate,
     MonteCarloUncertaintyStatus,
     MonteCarloVanillaEngine,
@@ -57,7 +56,7 @@ def sampling_estimates(
         MonteCarloEstimate,
     )
     assert_type(
-        MonteCarloDoubleBarrierEngine().price_with_statistics(double, context),
+        MonteCarloBarrierEngine().price_with_statistics(double, context),
         MonteCarloEstimate,
     )
     assert_type(

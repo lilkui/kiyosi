@@ -102,7 +102,7 @@ def terminal_cases():
             (
                 "AnalyticDoubleBarrierEngine",
                 "FiniteDifferenceDoubleBarrierEngine",
-                "MonteCarloDoubleBarrierEngine",
+                "MonteCarloBarrierEngine",
             ),
             5,
         ),

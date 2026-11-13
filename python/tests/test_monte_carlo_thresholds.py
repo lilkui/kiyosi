@@ -42,7 +42,7 @@ def test_scheduled_barriers_preserve_sub_ulp_threshold_movements(
     volatility, direction, strike, kind, lower, upper
 ):
     single = pricing.MonteCarloBarrierEngine(**SETTINGS)
-    double = pricing.MonteCarloDoubleBarrierEngine(**SETTINGS)
+    double = pricing.MonteCarloBarrierEngine(**SETTINGS)
     context = market(volatility)
     common = {
         "option_type": direction,

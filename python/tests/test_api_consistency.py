@@ -124,7 +124,7 @@ def test_greek_requests_report_disjoint_support_and_preserve_partial_results(sub
             )
         ),
         (pricing.MonteCarloBarrierEngine(**sampling), barrier, bsm, True),
-        (pricing.MonteCarloDoubleBarrierEngine(**sampling), double, bsm, True),
+        (pricing.MonteCarloBarrierEngine(**sampling), double, bsm, True),
     ):
         for at in (start, end):
             with subtests.test(engine=engine, at=at):
@@ -1899,7 +1899,7 @@ def test_shift_validation_is_independent_of_estimator_and_valuation_time(subtest
             bsm,
         ),
         (
-            pricing.MonteCarloDoubleBarrierEngine(**sampling),
+            pricing.MonteCarloBarrierEngine(**sampling),
             ins.DoubleBarrierOption(
                 option_type="call",
                 strike=100,

@@ -10,15 +10,18 @@ use crate::{
 };
 
 #[derive(Clone, Copy)]
-pub(super) enum Contract<'a> {
+enum Contract<'a> {
     Single(&'a BarrierOption),
     Double(&'a DoubleBarrierOption),
 }
 
-/// Prices single-barrier contracts with conditional-survival CPU Monte Carlo.
+/// Prices single- and double-barrier contracts with conditional-survival CPU Monte Carlo.
+///
+/// Accepts [`BarrierOption`] and [`DoubleBarrierOption`] with the same sampling controls.
 ///
 /// Continuous monitoring uses one terminal draw and Brownian-bridge survival;
-/// scheduled monitoring uses original fixing dates and an unobserved expiry leg
+/// double barriers use an image/spectral survival series. Scheduled monitoring
+/// uses original fixing dates and an unobserved expiry leg
 /// when needed. Future barrier tests preserve log-price movements even when the
 /// simulated spot rounds to the barrier. Sampling, exact path counts and
 /// thread reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
@@ -79,7 +82,8 @@ impl MonteCarloBarrierEngine {
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves,
     /// [`crate::Error::InvalidInput`] outside life,
     /// [`crate::Error::InvalidInput`] for Sobol dimensions above 21,201, [`crate::Error::InvalidInput`] for impossible history,
-    /// or [`crate::Error::ComputationFailure`] for unrepresentable paths or results.
+    /// or [`crate::Error::ComputationFailure`] for unrepresentable paths,
+    /// nonconvergent survival series or results.
     /// Operational failures retain their native [`std::io::Error`] through
     /// [`crate::Error::Io`].
     ///
@@ -90,18 +94,11 @@ impl MonteCarloBarrierEngine {
     /// # Aborts
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
-        Ok(self
-            .native(
-                Contract::Single(option),
-                context,
-                GreeksRequest::new([]),
-                Default::default(),
-                false,
-            )?
-            .0
-            .price())
+    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
+    where
+        Self: PricingEngine<I>,
+    {
+        PricingEngine::price(self, option, context)
     }
 
     /// Returns a price with sampling standard error and an asymptotic 95% interval.
@@ -122,24 +119,15 @@ impl MonteCarloBarrierEngine {
     /// # Aborts
     ///
     /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
-    pub fn price_with_statistics(
+    pub fn price_with_statistics<I>(
         &self,
-        option: &BarrierOption,
+        option: &I,
         context: &PricingContext,
-    ) -> Result<MonteCarloEstimate> {
-        let (result, error) = self.native(
-            Contract::Single(option),
-            context,
-            GreeksRequest::new([]),
-            Default::default(),
-            true,
-        )?;
-        MonteCarloEstimate::from_sampling(
-            result.price(),
-            error,
-            self.sampling_settings(),
-            result.seed(),
-        )
+    ) -> Result<MonteCarloEstimate>
+    where
+        Self: PricingEngine<I>,
+    {
+        PricingEngine::price_with_statistics(self, option, context)
     }
 
     /// Returns requested delta/gamma using the price's normal samples.
@@ -190,31 +178,24 @@ impl MonteCarloBarrierEngine {
     ///         spot_shift: Some(0.005), ..Default::default()
     ///     })?;
     /// assert_eq!(tuned.price(), result.price());
+    /// let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
+    ///     100.0, start, option.expiry_time(), 80.0, 120.0, DoubleBarrierType::KnockOut))?;
+    /// assert!((engine.price(&double, &context)? - 1.0838814592583166).abs() < 0.003);
     /// # Ok(()) }
     /// ```
-    pub fn price_with_greeks(
+    pub fn price_with_greeks<I: OptionContract>(
         &self,
-        option: &BarrierOption,
+        option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, Default::default())
+    ) -> Result<PricingResult>
+    where
+        Self: PricingEngine<I>,
+    {
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 
-    fn greeks_with_settings(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        shifts: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        greeks(self, option, context, request, shifts, || {
-            self.native(Contract::Single(option), context, request, shifts, false)
-                .map(|result| result.0)
-        })
-    }
-
-    pub(super) fn native(
+    fn native(
         &self,
         contract: Contract<'_>,
         context: &PricingContext,
@@ -230,7 +211,7 @@ impl MonteCarloBarrierEngine {
             Contract::Single(_) => None,
             Contract::Double(option) => Some(option.upper_barrier()),
         };
-        self.validate_applicability(context)?;
+        crate::engines::flat_rates(context)?;
         validate_life(option, context)?;
         if crate::engines::deterministic::enabled(context) {
             let value = match contract {
@@ -564,66 +545,93 @@ impl MonteCarloBarrierEngine {
     }
 }
 
-impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
-    fn price_with_seed(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-    ) -> Result<(f64, Option<u64>)> {
-        context.bsm_parameters()?;
-        let (result, _) = self.native(
-            Contract::Single(option),
-            context,
-            GreeksRequest::new([]),
-            Default::default(),
-            false,
-        )?;
-        Ok((result.price(), result.seed()))
-    }
-    fn greek_method(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        <Self as PricingEngine<BarrierOption>>::validate_applicability(self, context)?;
-        Ok(crate::GreekMethod::for_valuation(
-            option,
-            context,
-            crate::GreekMethod::NativeWithSpotControl,
-        ))
-    }
+macro_rules! barrier_pricing {
+    ($option:ty, $variant:ident) => {
+        impl PricingEngine<$option> for MonteCarloBarrierEngine {
+            fn price_with_seed(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<(f64, Option<u64>)> {
+                let (result, _) = self.native(
+                    Contract::$variant(option),
+                    context,
+                    GreeksRequest::new([]),
+                    Default::default(),
+                    false,
+                )?;
+                Ok((result.price(), result.seed()))
+            }
+            fn greek_method(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<crate::GreekMethod> {
+                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                Ok(crate::GreekMethod::for_valuation(
+                    option,
+                    context,
+                    crate::GreekMethod::NativeWithSpotControl,
+                ))
+            }
 
-    fn price_with_statistics(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate> {
-        self.price_with_statistics(option, context)
-    }
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        crate::engines::flat_rates(context).map(|_| ())
-    }
-    fn validate_solver_seed(&self) -> Result<()> {
-        self.sampling_settings().validate_solver_seed()
-    }
+            fn price_with_statistics(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<MonteCarloEstimate> {
+                let (result, error) = self.native(
+                    Contract::$variant(option),
+                    context,
+                    GreeksRequest::new([]),
+                    Default::default(),
+                    true,
+                )?;
+                MonteCarloEstimate::from_sampling(
+                    result.price(),
+                    error,
+                    self.sampling_settings(),
+                    result.seed(),
+                )
+            }
+            fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+                crate::engines::flat_rates(context).map(|_| ())
+            }
+            fn validate_solver_seed(&self) -> Result<()> {
+                self.sampling_settings().validate_solver_seed()
+            }
 
-    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
-        if self.settings.seed.is_some() {
-            return Ok(None);
+            fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<$option> + '_>>> {
+                if self.settings.seed.is_some() {
+                    return Ok(None);
+                }
+                Ok(Some(Box::new(self.with_resolved_seed()?)))
+            }
+            fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
+                self.price_with_seed(option, context)
+                    .map(|(price, _)| price)
+            }
+
+            fn price_with_greeks_with_settings(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                request: GreeksRequest,
+                settings: crate::NumericalShiftSettings,
+            ) -> Result<PricingResult> {
+                greeks(self, option, context, request, settings, || {
+                    self.native(
+                        Contract::$variant(option),
+                        context,
+                        request,
+                        settings,
+                        false,
+                    )
+                    .map(|result| result.0)
+                })
+            }
         }
-        Ok(Some(Box::new(self.with_resolved_seed()?)))
-    }
-    fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
-    }
-
-    fn price_with_greeks_with_settings(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, settings)
-    }
+    };
 }
+barrier_pricing!(BarrierOption, Single);
+barrier_pricing!(DoubleBarrierOption, Double);

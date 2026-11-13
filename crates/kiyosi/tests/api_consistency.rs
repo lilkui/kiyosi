@@ -248,12 +248,7 @@ fn greek_requests_report_disjoint_support_and_preserve_partial_results() -> Resu
         );
     }
     check!(MonteCarloBarrierEngine::new(sampling)?, barrier, bsm, true);
-    check!(
-        MonteCarloDoubleBarrierEngine::new(sampling)?,
-        double,
-        bsm,
-        true
-    );
+    check!(MonteCarloBarrierEngine::new(sampling)?, double, bsm, true);
     Ok(())
 }
 
@@ -1402,7 +1397,7 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
     check!(MonteCarloDigitalEngine::new(settings)?, &digital);
     check!(MonteCarloAsianEngine::new(settings.into())?, &asian);
     check!(MonteCarloBarrierEngine::new(settings)?, &barrier);
-    check!(MonteCarloDoubleBarrierEngine::new(settings)?, &double);
+    check!(MonteCarloBarrierEngine::new(settings)?, &double);
     Ok(())
 }
 
@@ -1556,7 +1551,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
     );
     double.touch_state = Some(BarrierTouchState::Untouched);
     check(
-        &MonteCarloDoubleBarrierEngine::new(sampling)?,
+        &MonteCarloBarrierEngine::new(sampling)?,
         &DoubleBarrierOption::new(double)?,
         bsm.clone(),
     )?;

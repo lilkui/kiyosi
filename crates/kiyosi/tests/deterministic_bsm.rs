@@ -141,7 +141,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         &[
             &AnalyticDoubleBarrierEngine,
             &FiniteDifferenceDoubleBarrierEngine::default(),
-            &MonteCarloDoubleBarrierEngine::default(),
+            &MonteCarloBarrierEngine::default(),
         ],
     )?;
     for cash in [false, true] {

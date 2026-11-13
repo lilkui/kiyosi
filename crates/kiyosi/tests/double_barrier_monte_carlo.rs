@@ -36,7 +36,7 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
             ..Default::default()
         })
         .unwrap();
-    let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+    let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
         path_count: 32,
         seed: Some(42),
         ..Default::default()
@@ -75,7 +75,7 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
 #[test]
 fn tiny_volatility_payoffs_match_the_vanilla_limit() {
     let sigma = 1e-17;
-    let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+    let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
         path_count: 32768,
         seed: Some(42),
         sampling: MonteCarloSampling::Sobol,
@@ -131,7 +131,7 @@ fn continuous_prices_and_shared_sample_greeks_match_independent_references() {
             DoubleBarrierOption::new(terms(direction, DoubleBarrierType::KnockOut)).unwrap();
         let context = market();
         for seed in [17, 42, 103] {
-            let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+            let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
                 path_count: 32768,
                 seed: Some(seed),
                 sampling: MonteCarloSampling::Sobol,
@@ -150,8 +150,8 @@ fn continuous_prices_and_shared_sample_greeks_match_independent_references() {
     }
 }
 
-fn engine() -> MonteCarloDoubleBarrierEngine {
-    MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+fn engine() -> MonteCarloBarrierEngine {
+    MonteCarloBarrierEngine::new(MonteCarloSettings {
         path_count: 65536,
         seed: Some(42),
         sampling: MonteCarloSampling::Sobol,
@@ -194,7 +194,7 @@ fn pseudo_random_prices_and_likelihood_greeks_match_across_seeds() {
                 )
                 .unwrap();
             for seed in [17, 42, 103] {
-                let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+                let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
                     path_count: 131_072,
                     seed: Some(seed),
                     antithetic: true,
@@ -393,7 +393,7 @@ fn scheduled_dates_and_unobserved_expiry_leg_match_finite_difference() {
 #[test]
 fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
     assert_eq!(
-        MonteCarloDoubleBarrierEngine::default().sampling_settings(),
+        MonteCarloBarrierEngine::default().sampling_settings(),
         MonteCarloSettings::default()
     );
     for scheduled in [false, true] {
@@ -417,8 +417,8 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
                     sampling,
                     antithetic,
                 };
-                let serial = MonteCarloDoubleBarrierEngine::new(settings).unwrap();
-                let parallel = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+                let serial = MonteCarloBarrierEngine::new(settings).unwrap();
+                let parallel = MonteCarloBarrierEngine::new(MonteCarloSettings {
                     max_active_workers: 4,
                     ..settings
                 })
@@ -458,7 +458,7 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
             antithetic: true,
             ..Default::default()
         };
-        let engine = MonteCarloDoubleBarrierEngine::new(settings).unwrap();
+        let engine = MonteCarloBarrierEngine::new(settings).unwrap();
         let total = [DoubleBarrierType::KnockIn, DoubleBarrierType::KnockOut]
             .into_iter()
             .map(|kind| {
@@ -484,7 +484,7 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
     reason = "Exact comparisons select fixed test cases and payoff boundaries."
 )]
 fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampling() {
-    let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+    let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
         path_count: 1,
         seed: Some(42),
         ..Default::default()
@@ -639,7 +639,7 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
         (implied_volatility(&engine, &option, &context, quote, controls).unwrap() - 0.2).abs()
             < 1e-5
     );
-    let unseeded = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+    let unseeded = MonteCarloBarrierEngine::new(MonteCarloSettings {
         path_count: 2048,
         ..Default::default()
     })
@@ -724,7 +724,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
         },
     ] {
         assert!(matches!(
-            MonteCarloDoubleBarrierEngine::new(settings).unwrap_err(),
+            MonteCarloBarrierEngine::new(settings).unwrap_err(),
             Error::InvalidInput(_)
         ));
     }

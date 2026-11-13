@@ -20,7 +20,6 @@ from kiyosi.pricing import (
     FiniteDifferenceHestonVanillaEngine,
     FiniteDifferenceVanillaEngine,
     MonteCarloBarrierEngine,
-    MonteCarloDoubleBarrierEngine,
     MonteCarloVanillaEngine,
     QuadratureVanillaEngine,
     numerical_greeks,
@@ -37,7 +36,7 @@ def native_barrier_controls(
         PricingResult,
     )
     assert_type(
-        MonteCarloDoubleBarrierEngine().price_with_greeks(
+        MonteCarloBarrierEngine().price_with_greeks(
             double, context, "delta", spot_shift=None
         ),
         PricingResult,
