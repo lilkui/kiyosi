@@ -575,7 +575,10 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         },
         TradingCalendar::weekdays(),
     ))?;
-    let daily = note.replace_calendar(TradingCalendar::all_days()).unwrap();
+    let daily = note.replace(SnowballOptionChanges {
+        calendar: Some(TradingCalendar::all_days()),
+        ..Default::default()
+    })?;
     assert_eq!(
         daily
             .replace(SnowballOptionChanges {
