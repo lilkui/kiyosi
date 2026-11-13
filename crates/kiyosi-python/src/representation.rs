@@ -96,30 +96,33 @@ pub(crate) fn calendar_preview(
     }
 }
 
+pub(crate) fn observation(
+    py: Python<'_>,
+    value: &kiyosi::AutocallableObservation,
+) -> PyResult<String> {
+    let (kind, field, coupon) = match value.kind() {
+        kiyosi::AutocallableObservationKind::Snowball => {
+            ("snowball", "coupon_rate", value.coupon_rate())
+        }
+        kiyosi::AutocallableObservationKind::Phoenix => (
+            "phoenix",
+            "coupon_barrier_level",
+            value.coupon_barrier_level(),
+        ),
+    };
+    Ok(format!(
+        "AutocallableObservation.{kind}({}, {:?}, {field}={:?})",
+        python_timestamp(py, value.time())?.repr()?,
+        value.knock_out_level(),
+        coupon.unwrap_or_default(),
+    ))
+}
+
 pub(crate) fn observations(
     py: Python<'_>,
     values: &[kiyosi::AutocallableObservation],
 ) -> PyResult<String> {
-    preview(values, |r| {
-        Ok(format!(
-            "AutocallableObservation.{}({}, {:?}, {}={:?})",
-            if r.kind() == kiyosi::AutocallableObservationKind::Snowball {
-                "snowball"
-            } else {
-                "phoenix"
-            },
-            python_timestamp(py, r.time())?.repr()?,
-            r.knock_out_level(),
-            if r.kind() == kiyosi::AutocallableObservationKind::Snowball {
-                "coupon_rate"
-            } else {
-                "coupon_barrier_level"
-            },
-            r.coupon_rate()
-                .or(r.coupon_barrier_level())
-                .unwrap_or_default()
-        ))
-    })
+    preview(values, |value| observation(py, value))
 }
 
 pub(crate) fn format(

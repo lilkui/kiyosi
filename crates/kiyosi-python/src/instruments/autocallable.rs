@@ -431,22 +431,7 @@ impl AutocallableObservation {
         self.0.coupon_barrier_level()
     }
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let (kind, field, value) = if self.0.kind() == kiyosi::AutocallableObservationKind::Snowball
-        {
-            ("snowball", "coupon_rate", self.0.coupon_rate())
-        } else {
-            (
-                "phoenix",
-                "coupon_barrier_level",
-                self.0.coupon_barrier_level(),
-            )
-        };
-        Ok(format!(
-            "AutocallableObservation.{kind}({}, {:?}, {field}={value:?})",
-            self.time(py)?.repr()?,
-            self.0.knock_out_level(),
-            value = value.unwrap_or_default(),
-        ))
+        crate::representation::observation(py, &self.0)
     }
 }
 
