@@ -6,10 +6,7 @@ use super::{QuadratureSettings, flat_rates, simpson};
 use crate::engines::Payoff;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash};
-use crate::{
-    AmericanOption, Error, EuropeanOption, GreeksRequest, OptionContract, PricingContext,
-    PricingEngine, PricingResult, Result,
-};
+use crate::{AmericanOption, Error, EuropeanOption, PricingContext, PricingEngine, Result};
 
 /// Configures vanilla spatial quadrature and American exercise intervals.
 ///
@@ -73,6 +70,31 @@ impl QuadratureVanillaSettings {
 /// derivatives near exercise boundaries, also require bump convergence checks.
 /// Distinct and shared instances support concurrent pricing with request-local working storage.
 /// See [`Self::new`] for usage.
+///
+/// # Pricing
+///
+/// Prices a European or American option, settling intrinsic value at expiry.
+///
+/// See [`Self::new`] for an example.
+///
+/// ## Errors
+///
+/// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
+/// before life validation. Returns [`Error::InvalidInput`] outside permitted
+/// valuation bounds or curve coverage, and [`Error::ComputationFailure`] for unrepresentable grids,
+/// transitions, tails or prices.
+///
+/// # Greeks
+///
+/// Computes requested numerical Greeks with shared bump controls.
+///
+/// Expiry Greeks follow terminal payoffs; time Greeks are absent. Infeasible stencils leave affected measures
+/// absent; feasible bumped failures propagate. See [`Self::new`] for usage.
+///
+/// ## Errors
+///
+/// Checks flat-rate BSM applicability before shift validation, then
+/// propagates [`crate::numerical_greeks`] and [`Self::price`] errors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureVanillaEngine {
     settings: QuadratureVanillaSettings,
@@ -113,44 +135,6 @@ impl QuadratureVanillaEngine {
     /// Returns owned settings; see [`Self::new`] for an example.
     pub fn settings(&self) -> QuadratureVanillaSettings {
         self.settings
-    }
-
-    /// Prices a European or American option, settling intrinsic value at expiry.
-    ///
-    /// See [`Self::new`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
-    /// before life validation. Returns [`Error::InvalidInput`] outside permitted
-    /// valuation bounds or curve coverage, and [`Error::ComputationFailure`] for unrepresentable grids,
-    /// transitions, tails or prices.
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        <Self as PricingEngine<I>>::price(self, option, context)
-    }
-
-    /// Computes requested numerical Greeks with shared bump controls.
-    ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Infeasible stencils leave affected measures
-    /// absent; feasible bumped failures propagate. See [`Self::new`] for usage.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate BSM applicability before shift validation, then
-    /// propagates [`crate::numerical_greeks`] and [`Self::price`] errors.
-    pub fn price_with_greeks<I: OptionContract>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
-    where
-        Self: PricingEngine<I>,
-    {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 

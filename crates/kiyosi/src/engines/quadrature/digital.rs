@@ -1,10 +1,7 @@
 use super::{QuadratureSettings, flat_rates, simpson};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, log_ratio, standardize};
-use crate::{
-    DigitalOption, Error, GreeksRequest, OptionType, PricingContext, PricingEngine, PricingResult,
-    Result,
-};
+use crate::{DigitalOption, Error, OptionType, PricingContext, PricingEngine, Result};
 
 /// Prices European cash-or-nothing and asset-or-nothing options by BSM quadrature.
 ///
@@ -18,6 +15,32 @@ use crate::{
 ///
 /// Distinct and shared instances support concurrent pricing without shared working storage.
 /// See [`Self::new`] for usage.
+///
+/// # Pricing
+///
+/// Prices a digital through expiry, permitting pre-effective valuation.
+///
+/// See [`Self::new`] for usage. Equality at expiry pays zero.
+///
+/// ## Errors
+///
+/// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
+/// before valuation validation. Returns [`Error::InvalidInput`] after expiry
+/// or outside curve coverage and [`Error::ComputationFailure`] for unrepresentable transitions,
+/// weights or prices. Inputs and settings remain unchanged.
+///
+/// # Greeks
+///
+/// Computes requested numerical Greeks with shared bump controls.
+///
+/// Expiry Greeks follow terminal payoffs; time Greeks are absent. Infeasible stencils leave affected
+/// measures absent; feasible bumped failures propagate. See [`Self::new`].
+///
+/// ## Errors
+///
+/// Checks flat-rate BSM applicability before shift validation,
+/// then propagates [`crate::numerical_greeks`] and [`Self::price`] errors.
+/// Inputs and settings remain unchanged.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureDigitalEngine {
     settings: QuadratureSettings,
@@ -57,39 +80,6 @@ impl QuadratureDigitalEngine {
     /// Returns owned integration settings; see [`Self::new`] for usage.
     pub fn settings(&self) -> QuadratureSettings {
         self.settings
-    }
-
-    /// Prices a digital through expiry, permitting pre-effective valuation.
-    ///
-    /// See [`Self::new`] for usage. Equality at expiry pays zero.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
-    /// before valuation validation. Returns [`Error::InvalidInput`] after expiry
-    /// or outside curve coverage and [`Error::ComputationFailure`] for unrepresentable transitions,
-    /// weights or prices. Inputs and settings remain unchanged.
-    pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        <Self as PricingEngine<DigitalOption>>::price(self, option, context)
-    }
-
-    /// Computes requested numerical Greeks with shared bump controls.
-    ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Infeasible stencils leave affected
-    /// measures absent; feasible bumped failures propagate. See [`Self::new`].
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate BSM applicability before shift validation,
-    /// then propagates [`crate::numerical_greeks`] and [`Self::price`] errors.
-    /// Inputs and settings remain unchanged.
-    pub fn price_with_greeks(
-        &self,
-        option: &DigitalOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 

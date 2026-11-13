@@ -5,14 +5,28 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates};
 use crate::numerics::{log_ratio, scaled_signed_cash};
 use crate::{
-    Accumulator, BlackScholesMertonParameters, Error, GreeksRequest, OptionType, PricingContext,
-    PricingEngine, PricingResult, Result, Timestamp,
+    Accumulator, BlackScholesMertonParameters, Error, OptionType, PricingContext, PricingEngine,
+    PricingResult, Result, Timestamp,
 };
 
 /// Prices accumulators and decumulators using affine layers and Gaussian integration.
 ///
 /// Shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
+///
+/// # Greeks
+///
+/// Computes requested scalar Greeks with shared core bump defaults; see [`Self::new`].
+///
+/// At expiry Greeks follow terminal payoffs, with time Greeks absent.
+/// Spot/time stencils crossing active events are unavailable. Before expiry
+/// vega and rho are defined at current thresholds. Request-local curve reuse
+/// preserves the same prices as independent scalar repricing.
+///
+/// ## Errors
+///
+/// Checks flat-rate applicability before shift validation, then propagates
+/// [`crate::numerical_greeks`] errors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureAccumulatorEngine {
     settings: QuadratureSettings,
@@ -71,25 +85,6 @@ impl QuadratureAccumulatorEngine {
     /// and transitions return [`Error::ComputationFailure`].
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         price(option, context, self.settings, None)
-    }
-    /// Computes requested scalar Greeks with shared core bump defaults; see [`Self::new`].
-    ///
-    /// At expiry Greeks follow terminal payoffs, with time Greeks absent.
-    /// Spot/time stencils crossing active events are unavailable. Before expiry
-    /// vega and rho are defined at current thresholds. Request-local curve reuse
-    /// preserves the same prices as independent scalar repricing.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate applicability before shift validation, then propagates
-    /// [`crate::numerical_greeks`] errors.
-    pub fn price_with_greeks(
-        &self,
-        option: &Accumulator,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {

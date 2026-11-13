@@ -3,8 +3,7 @@ use crate::engines::analytic::barrier::{hit_value, resolved_price};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, log_ratio, scaled_cash, scaled_signed_cash};
 use crate::{
-    BarrierOption, Error, GreeksRequest, OptionType, PricingContext, PricingEngine, PricingResult,
-    RebateTiming, Result,
+    BarrierOption, Error, OptionType, PricingContext, PricingEngine, RebateTiming, Result,
 };
 
 /// Configures the spatial resolution and integration extent for event-date quadrature.
@@ -55,6 +54,19 @@ impl QuadratureSettings {
 /// Uses Simpson integration for continuous monitoring and Gaussian integration of piecewise cubic interpolants
 /// between scheduled observations, including schedules ending before expiry.
 /// Owns its settings; shared instances support concurrent pricing. See [`Self::new`].
+///
+/// # Greeks
+///
+/// Computes requested scalar numerical Greeks with shared bump defaults.
+///
+/// Expiry Greeks follow terminal payoffs. Before expiry, a current barrier equality without a prior touch suppresses Greeks.
+/// Stencils crossing observations or spot barriers leave affected measures absent.
+/// See [`Self::new`] for an example.
+///
+/// ## Errors
+///
+/// Checks flat-rate applicability before shift validation and propagates
+/// [`crate::numerical_greeks`] and [`Self::price`] errors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureBarrierEngine {
     settings: QuadratureSettings,
@@ -113,25 +125,6 @@ impl QuadratureBarrierEngine {
     /// Exhausted at-hit rebate integration returns [`Error::NonConvergence`].
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         price(option, context, self.settings, None)
-    }
-
-    /// Computes requested scalar numerical Greeks with shared bump defaults.
-    ///
-    /// Expiry Greeks follow terminal payoffs. Before expiry, a current barrier equality without a prior touch suppresses Greeks.
-    /// Stencils crossing observations or spot barriers leave affected measures absent.
-    /// See [`Self::new`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate applicability before shift validation and propagates
-    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
-    pub fn price_with_greeks(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {

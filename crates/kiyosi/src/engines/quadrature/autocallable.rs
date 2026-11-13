@@ -10,7 +10,7 @@ use crate::instruments::autocallable::pricing::{
 use crate::numerics::{log_ratio, scaled_signed_cash};
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
-    Error, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
+    Error, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes by quadrature between event dates.
@@ -22,6 +22,19 @@ use crate::{
 /// Spatial resolution and integration extent require separate convergence checks.
 /// Shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
+///
+/// # Greeks
+///
+/// Computes requested scalar sensitivities using shared core bump defaults.
+///
+/// Expiry Greeks follow terminal payoffs; time Greeks are absent. Spot and time stencils crossing active events
+/// are unavailable; vega and rho remain defined at current thresholds.
+/// See [`Self::new`] for an example.
+///
+/// ## Errors
+///
+/// Checks flat-rate applicability before shift validation, then
+/// propagates [`crate::numerical_greeks`] errors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureAutocallableEngine {
     settings: QuadratureSettings,
@@ -86,24 +99,6 @@ impl QuadratureAutocallableEngine {
         context: &PricingContext,
     ) -> Result<f64> {
         price(option, context, self.settings, None)
-    }
-    /// Computes requested scalar sensitivities using shared core bump defaults.
-    ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Spot and time stencils crossing active events
-    /// are unavailable; vega and rho remain defined at current thresholds.
-    /// See [`Self::new`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate applicability before shift validation, then
-    /// propagates [`crate::numerical_greeks`] errors.
-    pub fn price_with_greeks<T: AutocallableTerms>(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAutocallableEngine {

@@ -1,9 +1,9 @@
 use super::{
     Curve, Diffusion, FiniteDifferenceBinaryBarrierEngine, FiniteDifferenceDoubleTouchEngine,
     FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, NumericalShiftSettings,
-    OptionContract, OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result,
-    SpatialGrid, TimeGrid, black_scholes_arguments, diffusion, diffusion_upper, local_volatility,
-    scaled, step, unstable, weighted_cdf,
+    OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid,
+    TimeGrid, black_scholes_arguments, diffusion, diffusion_upper, local_volatility, scaled, step,
+    unstable, weighted_cdf,
 };
 use crate::instruments::binary_barrier::Contract;
 use crate::instruments::monitoring::validate_life;
@@ -12,80 +12,6 @@ use crate::{
     AnalyticDigitalEngine, BinaryBarrierOption, DigitalOption, DoubleTouchOption, ObservationMode,
     SettlementTiming, TouchOption,
 };
-
-impl FiniteDifferenceBinaryBarrierEngine {
-    /// Prices a binary barrier or single touch with BSM or local volatility.
-    ///
-    /// Continuous barriers are exact grid edges; scheduled observations project event cells.
-    /// Prior at-hit payments have no remaining value; resolved cash flows use exact discounts.
-    /// Accepts flat or nonconstant rate curves. Local volatility requires surface coverage only
-    /// through the remaining stochastic horizon, including the last at-hit observation.
-    /// See [`Self::price_with_greeks`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
-    /// for impossible history, invalid grids,
-    /// or unstable explicit steps. Returns [`Error::ComputationFailure`][crate::Error::ComputationFailure] for
-    /// numerical failures.
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        <Self as PricingEngine<I>>::price(self, option, context)
-    }
-
-    /// Returns spline spot Greeks and completes other sensitivities on the central domain.
-    ///
-    /// Stencils crossing observations or barriers leave affected measures absent.
-    /// Expiry Greeks follow terminal payoffs. Before expiry, a current barrier equality without a prior touch suppresses Greeks.
-    /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
-    /// other requested Greeks are absent.
-    ///
-    /// # Errors
-    ///
-    /// Validates shifts before pricing, then propagates [`Self::price`] and
-    /// [`crate::numerical_greeks`] errors.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::*;
-    /// # use kiyosi::OptionContract as _;
-    /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = TouchOption::cash(TouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
-    ///     120.0, BarrierType::UpAndIn), 10.0)?;
-    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
-    ///     100.0, start.into())?;
-    /// let engine = FiniteDifferenceBinaryBarrierEngine::default();
-    /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]))?;
-    /// assert!(result.price() > 0.0);
-    /// assert!(result.has(Greek::Delta));
-    /// # Ok(()) }
-    /// ```
-    pub fn price_with_greeks<I: OptionContract>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
-    where
-        Self: PricingEngine<I>,
-    {
-        <Self as PricingEngine<I>>::price_with_greeks_with_settings(
-            self,
-            option,
-            context,
-            request,
-            self.greek_settings(option),
-        )
-    }
-}
 
 macro_rules! binary_pricing {
     ($engine:ty, $option:ty) => {
@@ -151,78 +77,6 @@ macro_rules! binary_pricing {
 binary_pricing!(FiniteDifferenceBinaryBarrierEngine, BinaryBarrierOption);
 binary_pricing!(FiniteDifferenceBinaryBarrierEngine, TouchOption);
 binary_pricing!(FiniteDifferenceDoubleTouchEngine, DoubleTouchOption);
-
-impl FiniteDifferenceDoubleTouchEngine {
-    /// Prices cash double-touch contracts using both inclusive boundaries and shared history.
-    ///
-    /// Fits continuous boundaries exactly and projects scheduled events simultaneously.
-    /// Prior at-hit payments have zero remaining value; resolved cash uses exact discounts.
-    /// Accepts BSM or local volatility with flat or nonconstant rate curves. Surface coverage
-    /// follows the remaining stochastic horizon, not a previously settled payment.
-    /// See [`DoubleTouchOption::cash`] for construction and pricing.
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
-    /// for unknown or impossible history, invalid grids,
-    /// or unstable explicit steps. Numerical failures return
-    /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
-    pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
-        <Self as PricingEngine<DoubleTouchOption>>::price(self, option, context)
-    }
-
-    /// Returns spline spot Greeks and completes other sensitivities on the central domain.
-    ///
-    /// Stencils crossing either boundary or an observation omit affected measures.
-    /// Expiry Greeks follow terminal payoffs. Before expiry, current boundary equality without a prior touch suppresses Greeks.
-    /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
-    /// other requested Greeks are absent.
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Validates shifts before pricing, then propagates [`Self::price`] and
-    /// [`crate::numerical_greeks`] errors.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::*;
-    /// # use kiyosi::OptionContract as _;
-    /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let mut terms = DoubleTouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
-    ///     80.0, 120.0, DoubleBarrierType::KnockOut);
-    /// terms.touch_state = Some(BarrierTouchState::Untouched);
-    /// let option = DoubleTouchOption::cash(terms, 1.0)?;
-    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
-    ///     100.0, start.into())?;
-    /// let result = FiniteDifferenceDoubleTouchEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
-    /// assert!((result.price() - 0.36726156351907174).abs() < 0.00001);
-    /// assert!(result.has(Greek::Delta));
-    /// # Ok(()) }
-    /// ```
-    pub fn price_with_greeks(
-        &self,
-        option: &DoubleTouchOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        <Self as PricingEngine<DoubleTouchOption>>::price_with_greeks_with_settings(
-            self,
-            option,
-            context,
-            request,
-            self.greek_settings(option),
-        )
-    }
-}
 
 fn default_upper(contract: &Contract<'_>, context: &PricingContext) -> f64 {
     let relevant = context.spot_price().max(

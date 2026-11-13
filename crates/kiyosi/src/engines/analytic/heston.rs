@@ -82,6 +82,17 @@ impl HestonIntegrationSettings {
 /// implied-parameter solvers are unsupported. Owns its settings and supports concurrent
 /// calls on shared instances, with request-local integration state.
 /// See [`Self::new`] for a complete example.
+///
+/// # Greeks
+///
+/// Returns the price with requested Greeks marked unsupported; see [`Self::new`].
+///
+/// Use [`PricingResult::require`] to reject an unavailable Greek.
+/// Inputs remain unchanged; valid numerical shifts are unused.
+///
+/// ## Errors
+///
+/// Checks Heston applicability and propagates [`Self::price`] errors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct AnalyticHestonEuropeanEngine {
     settings: HestonIntegrationSettings,
@@ -217,23 +228,6 @@ impl AnalyticHestonEuropeanEngine {
         let correction = integrate(&mut integrand, base / scale, self.settings, scale)?;
         let price = base + scale * correction;
         checked_with_scale(price, scale)
-    }
-
-    /// Returns the price with requested Greeks marked unsupported; see [`Self::new`].
-    ///
-    /// Use [`PricingResult::require`] to reject an unavailable Greek.
-    /// Inputs remain unchanged; valid numerical shifts are unused.
-    ///
-    /// # Errors
-    ///
-    /// Checks Heston applicability and propagates [`Self::price`] errors.
-    pub fn price_with_greeks(
-        &self,
-        option: &EuropeanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 

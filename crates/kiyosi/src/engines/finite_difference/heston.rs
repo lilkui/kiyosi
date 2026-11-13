@@ -96,6 +96,37 @@ impl HestonFiniteDifferenceSettings {
 /// in the Heston model with correlation][heston-adi].
 ///
 /// [heston-adi]: https://www.math.ualberta.ca/ijnam/Volume-7-2010/No-2-10/2010-02-06.pdf
+///
+/// # Pricing
+///
+/// Prices a European or American call or put; see [`Self::new`].
+///
+/// Validates the model, permitted valuation bounds and curve coverage before expiry payoff.
+/// European valuation may precede the effective time; American valuation must
+/// be within the inclusive contract life. Both require rate/dividend coverage
+/// from valuation through expiry; see [`OptionContract::valuation_start`].
+/// Grid coverage is checked only when that grid is needed. Initial variance
+/// is at valuation. Explicit domains must be checked by enlargement, as must
+/// automatic domains. Only rounding-sized negative prices may be clipped.
+///
+/// ## Errors
+///
+/// Returns [`crate::Error::UnsupportedOperation`] for other models,
+/// [`crate::Error::InvalidInput`] outside permitted valuation bounds or curve coverage, or for explicit
+/// bounds that exclude spot, strike or initial variance, and
+/// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
+/// invalid prices. Fixed grids do not report error-target nonconvergence.
+/// Inputs and settings remain unchanged on success and failure.
+///
+/// # Greeks
+///
+/// Returns the price with requested Greeks marked unsupported; see [`Self::new`].
+///
+/// Use [`PricingResult::require`] to reject an unavailable Greek.
+///
+/// ## Errors
+///
+/// Checks Heston applicability and propagates [`Self::price`] errors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FiniteDifferenceHestonVanillaEngine {
     settings: HestonFiniteDifferenceSettings,
@@ -112,7 +143,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// ```rust
     /// use kiyosi::{AmericanOption, Date, FiniteDifferenceHestonVanillaEngine,
-    ///     HestonFiniteDifferenceSettings, HestonParameters, OptionType, PricingContext};
+    ///     HestonFiniteDifferenceSettings, HestonParameters, OptionType, PricingContext, PricingEngine};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
@@ -135,50 +166,6 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// Returns owned grid controls; see [`Self::new`].
     pub fn settings(&self) -> HestonFiniteDifferenceSettings {
         self.settings
-    }
-
-    /// Prices a European or American call or put; see [`Self::new`].
-    ///
-    /// Validates the model, permitted valuation bounds and curve coverage before expiry payoff.
-    /// European valuation may precede the effective time; American valuation must
-    /// be within the inclusive contract life. Both require rate/dividend coverage
-    /// from valuation through expiry; see [`OptionContract::valuation_start`].
-    /// Grid coverage is checked only when that grid is needed. Initial variance
-    /// is at valuation. Explicit domains must be checked by enlargement, as must
-    /// automatic domains. Only rounding-sized negative prices may be clipped.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for other models,
-    /// [`crate::Error::InvalidInput`] outside permitted valuation bounds or curve coverage, or for explicit
-    /// bounds that exclude spot, strike or initial variance, and
-    /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
-    /// invalid prices. Fixed grids do not report error-target nonconvergence.
-    /// Inputs and settings remain unchanged on success and failure.
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        <Self as PricingEngine<I>>::price(self, option, context)
-    }
-
-    /// Returns the price with requested Greeks marked unsupported; see [`Self::new`].
-    ///
-    /// Use [`PricingResult::require`] to reject an unavailable Greek.
-    ///
-    /// # Errors
-    ///
-    /// Checks Heston applicability and propagates [`Self::price`] errors.
-    pub fn price_with_greeks<I: OptionContract>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
-    where
-        Self: PricingEngine<I>,
-    {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 
