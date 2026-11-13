@@ -16,21 +16,8 @@ macro_rules! autocallable_properties {
      {$($field:ident => $convert:expr),+ $(,)?}
      [$(#[$replacement_doc:meta])*],
      $($extra:item),* $(,)?) => {
-        #[pymethods]
-        impl $name {
-            $(#[$replacement_doc])*
-            #[pyo3(signature = (*, $($parameter=crate::conversions::OMITTED),+))]
-            #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
-            fn replace(
-                &self,
-                $(#[pyo3(from_py_with = supplied)] $parameter: Option<&Bound<'_, PyAny>>),+
-            ) -> PyResult<Self> {
-                let changes = kiyosi::$changes {
-                    $($field: $field.map($convert).transpose()?),+
-                };
-                Ok(Self(domain(self.0.replace(changes))?))
-            }
-
+        value_methods!(@documented $name, $changes, [$($parameter),+],
+            {$($field: $field.map($convert).transpose()?),+}, [$(#[$replacement_doc])*], {
             $($extra)*
 
             fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
@@ -98,7 +85,7 @@ macro_rules! autocallable_properties {
             fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
                 python_timestamp(py, self.0.expiry_time())
             }
-        }
+        });
     };
 }
 

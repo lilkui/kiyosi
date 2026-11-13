@@ -9,8 +9,8 @@
 macro_rules! value_methods {
     ($name:ident, $changes:ident, [$($parameter:ident),+],
      {$($field:ident: $value:expr),+ $(,)?}, {$($method:item)*}) => {
-        #[pyo3::pymethods]
-        impl $name {
+        value_methods!(@documented $name, $changes, [$($parameter),+],
+            {$($field: $value),+}, [
             /// Return a validated copy with replacement fields.
             ///
             /// The original value is unchanged on success and failure.
@@ -33,6 +33,13 @@ macro_rules! value_methods {
             ///     If fields fail constructor validation.
             /// TypeError
             ///     If a field name or representation is invalid.
+        ], {$($method)*});
+    };
+    (@documented $name:ident, $changes:ident, [$($parameter:ident),+],
+     {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}) => {
+        #[pyo3::pymethods]
+        impl $name {
+            $(#[$doc])*
             #[pyo3(signature = (*, $($parameter=crate::conversions::OMITTED),+))]
             #[allow(clippy::too_many_arguments, reason = "replacement field counts vary by expansion")]
             fn replace(
