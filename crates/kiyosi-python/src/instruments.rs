@@ -5,27 +5,8 @@ macro_rules! monitoring_properties {
      {$($field:ident: $value:expr),+ $(,)?}
      [$(#[$replacement_doc:meta])*],
      $($extra:item),* $(,)?) => {
-        monitoring_properties!(
-            $name,
-            $(#[$replacement_doc])*
-            #[pyo3(signature = (*, $($parameter=crate::conversions::OMITTED),+))]
-            #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
-            fn replace(
-                &$slf,
-                $(#[pyo3(from_py_with = crate::conversions::supplied)]
-                    $parameter: Option<&pyo3::Bound<'_, pyo3::PyAny>>),+
-            ) -> pyo3::PyResult<Self> {
-                let changes = kiyosi::$changes {
-                    $($field: $value),+
-                };
-                Ok(Self($crate::error::domain($slf.0.replace(changes))?))
-            },
-            $($extra),*
-        );
-    };
-    ($name:ident, $($extra:item),* $(,)?) => {
-        #[pyo3::pymethods]
-        impl $name {
+        value_methods!(@documented $name, $changes, [$($parameter),+], |$slf|
+            {$($field: $value),+}, [$(#[$replacement_doc])*], {
             $($extra)*
 
             fn __repr__(slf: &pyo3::Bound<'_, Self>) -> pyo3::PyResult<String> {
@@ -89,7 +70,7 @@ macro_rules! monitoring_properties {
                     kiyosi::BarrierTouchState::Touched => "touched",
                 })
             }
-        }
+        });
     };
 }
 

@@ -37,18 +37,23 @@ macro_rules! value_methods {
     };
     (@documented $name:ident, $changes:ident, [$($parameter:ident),+],
      {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}) => {
+        value_methods!(@documented $name, $changes, [$($parameter),+], |self|
+            {$($field: $value),+}, [$(#[$doc])*], {$($method)*});
+    };
+    (@documented $name:ident, $changes:ident, [$($parameter:ident),+], |$slf:ident|
+     {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}) => {
         #[pyo3::pymethods]
         impl $name {
             $(#[$doc])*
             #[pyo3(signature = (*, $($parameter=crate::conversions::OMITTED),+))]
             #[allow(clippy::too_many_arguments, reason = "replacement field counts vary by expansion")]
             fn replace(
-                &self,
+                &$slf,
                 $(#[pyo3(from_py_with = crate::conversions::supplied)]
                     $parameter: Option<&pyo3::Bound<'_, pyo3::PyAny>>),+
             ) -> pyo3::PyResult<Self> {
                 let changes = kiyosi::$changes { $($field: $value),+ };
-                Ok(Self($crate::error::domain(self.0.replace(changes))?))
+                Ok(Self($crate::error::domain($slf.0.replace(changes))?))
             }
 
             $($method)*

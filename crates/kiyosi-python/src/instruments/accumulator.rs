@@ -1,5 +1,5 @@
 use crate::calendar::TradingCalendar;
-use crate::conversions::{direction, python_timestamp, real, supplied, timestamp, timestamps};
+use crate::conversions::{direction, python_timestamp, real, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyTuple};
@@ -76,29 +76,23 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 #[derive(Clone, PartialEq)]
 pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 
-#[pymethods]
-impl Accumulator {
-    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
-        let value = slf.borrow();
-        let py = slf.py();
-        crate::representation::format(
-            slf.as_any(),
-            [
-                (
-                    "calendar",
-                    crate::representation::calendar_preview(py, value.0.calendar())?,
-                ),
-                (
-                    "knock_out_observation_times",
-                    Some(value.0.knock_out_observation_times().map_or_else(
-                        || Ok("None".into()),
-                        |times| crate::representation::times(py, times),
-                    )?),
-                ),
-            ],
-        )
-    }
-
+value_methods!(@documented Accumulator, AccumulatorChanges,
+    [option_type, strike, knock_out_level, daily_quantity, acceleration_factor,
+     accumulated_quantity, effective_time, expiry_time, observation_clock_time,
+     knock_out_observation_times, knock_out_settled, calendar], {
+        calendar: crate::calendar::observation_calendar(calendar, knock_out_observation_times)?,
+        knock_out_settled: knock_out_settled.map(settlement).transpose()?,
+        option_type: option_type.map(crate::conversions::direction).transpose()?,
+        strike: strike.map(crate::conversions::real).transpose()?,
+        knock_out_level: knock_out_level.map(crate::conversions::real).transpose()?,
+        daily_quantity: daily_quantity.map(crate::conversions::real).transpose()?,
+        acceleration_factor: acceleration_factor.map(crate::conversions::real).transpose()?,
+        accumulated_quantity: accumulated_quantity.map(crate::conversions::optional_real).transpose()?,
+        effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+        expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
+        observation_clock_time: observation_clock_time.map(crate::conversions::clock_time).transpose()?,
+        knock_out_observation_times: knock_out_observation_times.map(crate::conversions::optional_timestamps).transpose()?,
+    }, [
     /// Return a validated replacement.
     ///
     /// Omission or Ellipsis retains a field. The original value is unchanged.
@@ -141,64 +135,28 @@ impl Accumulator {
     /// TypeError
     ///     If a representation or field name is invalid.
     ///
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "explicit Python replacement fields"
-    )]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] knock_out_level: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] daily_quantity: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] acceleration_factor: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] accumulated_quantity: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] observation_clock_time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] knock_out_observation_times: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = supplied)] knock_out_settled: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] calendar: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let changes = kiyosi::AccumulatorChanges {
-            calendar: crate::calendar::observation_calendar(calendar, knock_out_observation_times)?,
-            knock_out_settled: knock_out_settled.map(settlement).transpose()?,
-            option_type: option_type.map(crate::conversions::direction).transpose()?,
-            strike: strike.map(crate::conversions::real).transpose()?,
-            knock_out_level: knock_out_level.map(crate::conversions::real).transpose()?,
-            daily_quantity: daily_quantity.map(crate::conversions::real).transpose()?,
-            acceleration_factor: acceleration_factor
-                .map(crate::conversions::real)
-                .transpose()?,
-            accumulated_quantity: accumulated_quantity
-                .map(crate::conversions::optional_real)
-                .transpose()?,
-            effective_time: effective_time
-                .map(crate::conversions::timestamp)
-                .transpose()?,
-            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
-            observation_clock_time: observation_clock_time
-                .map(crate::conversions::clock_time)
-                .transpose()?,
-            knock_out_observation_times: knock_out_observation_times
-                .map(crate::conversions::optional_timestamps)
-                .transpose()?,
-        };
-        Ok(Self(domain(self.0.replace(changes))?))
+    ], {
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let value = slf.borrow();
+        let py = slf.py();
+        crate::representation::format(
+            slf.as_any(),
+            [
+                (
+                    "calendar",
+                    crate::representation::calendar_preview(py, value.0.calendar())?,
+                ),
+                (
+                    "knock_out_observation_times",
+                    Some(value.0.knock_out_observation_times().map_or_else(
+                        || Ok("None".into()),
+                        |times| crate::representation::times(py, times),
+                    )?),
+                ),
+            ],
+        )
     }
+
     #[new]
     #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
@@ -324,4 +282,4 @@ impl Accumulator {
     fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         python_timestamp(py, self.0.expiry_time())
     }
-}
+});
