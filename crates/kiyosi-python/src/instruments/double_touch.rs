@@ -44,42 +44,19 @@ pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
 
 monitoring_properties!(
     DoubleTouchOption,
-    #[new]
-    #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, payout, settlement_timing=kiyosi::SettlementTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
-    pub(crate) fn new(
-        effective_time: &Bound<'_, PyAny>,
-        expiry_time: &Bound<'_, PyAny>,
-        lower_barrier: &Bound<'_, PyAny>,
-        upper_barrier: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = super::double_barrier::kind)] barrier_type: kiyosi::DoubleBarrierType,
-        payout: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = super::binary_barrier::settlement)]
-        settlement_timing: kiyosi::SettlementTiming,
-
-        observation_times: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let mut terms = kiyosi::DoubleTouchOptionTerms::new(
-            timestamp(effective_time)?,
-            timestamp(expiry_time)?,
-            real(lower_barrier)?,
-            real(upper_barrier)?,
-            barrier_type,
-        );
-        let payout = real(payout)?;
-        terms.settlement_timing = settlement_timing;
-        terms.observation_times = observation_times
-            .map(crate::conversions::timestamps)
-            .transpose()?;
-        terms.touch_state = touch_state;
-        terms.calendar =
-            crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
-        Ok(Self(domain(kiyosi::DoubleTouchOption::cash(
-            terms, payout,
-        ))?))
-    },
+    @replace DoubleTouchOptionChanges [effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, settlement_timing, observation_times, touch_state, payout, calendar] |self| {
+        calendar: crate::calendar::observation_calendar(calendar, observation_times)?,
+        effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+        expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
+        lower_barrier: lower_barrier.map(crate::conversions::real).transpose()?,
+        upper_barrier: upper_barrier.map(crate::conversions::real).transpose()?,
+        barrier_type: barrier_type.map(crate::instruments::double_barrier::kind).transpose()?,
+        settlement_timing: settlement_timing.map(crate::instruments::binary_barrier::settlement).transpose()?,
+        observation_times: observation_times.map(crate::conversions::optional_timestamps).transpose()?,
+        touch_state: touch_state.map(crate::instruments::barrier::history).transpose()?,
+        payout: payout.map(crate::conversions::real).transpose()?,
+    }
+    [
     /// Return a validated replacement.
     ///
     /// Omission or Ellipsis retains a field. The original value is unchanged.
@@ -119,60 +96,42 @@ monitoring_properties!(
     /// TypeError
     ///     If a representation or field name is invalid.
     ///
-    #[pyo3(signature = (*, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, settlement_timing=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "explicit Python replacement fields"
-    )]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] lower_barrier: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] upper_barrier: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] barrier_type: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] settlement_timing: Option<
-            &Bound<'_, PyAny>,
-        >,
+    ],
+    #[new]
+    #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, payout, settlement_timing=kiyosi::SettlementTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
+    pub(crate) fn new(
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
+        lower_barrier: &Bound<'_, PyAny>,
+        upper_barrier: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = super::double_barrier::kind)] barrier_type: kiyosi::DoubleBarrierType,
+        payout: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = super::binary_barrier::settlement)]
+        settlement_timing: kiyosi::SettlementTiming,
 
-        #[pyo3(from_py_with = crate::conversions::supplied)] observation_times: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] payout: Option<&Bound<'_, PyAny>>,
+        observation_times: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let changes = kiyosi::DoubleTouchOptionChanges {
-            calendar: crate::calendar::observation_calendar(calendar, observation_times)?,
-            effective_time: effective_time
-                .map(crate::conversions::timestamp)
-                .transpose()?,
-            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
-            lower_barrier: lower_barrier.map(crate::conversions::real).transpose()?,
-            upper_barrier: upper_barrier.map(crate::conversions::real).transpose()?,
-            barrier_type: barrier_type
-                .map(crate::instruments::double_barrier::kind)
-                .transpose()?,
-            settlement_timing: settlement_timing
-                .map(crate::instruments::binary_barrier::settlement)
-                .transpose()?,
-            observation_times: observation_times
-                .map(crate::conversions::optional_timestamps)
-                .transpose()?,
-            touch_state: touch_state
-                .map(crate::instruments::barrier::history)
-                .transpose()?,
-            payout: payout.map(crate::conversions::real).transpose()?,
-        };
-        Ok(Self(domain(self.0.replace(changes))?))
+        let mut terms = kiyosi::DoubleTouchOptionTerms::new(
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
+            real(lower_barrier)?,
+            real(upper_barrier)?,
+            barrier_type,
+        );
+        let payout = real(payout)?;
+        terms.settlement_timing = settlement_timing;
+        terms.observation_times = observation_times
+            .map(crate::conversions::timestamps)
+            .transpose()?;
+        terms.touch_state = touch_state;
+        terms.calendar =
+            crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
+        Ok(Self(domain(kiyosi::DoubleTouchOption::cash(
+            terms, payout,
+        ))?))
     },
     /// Return positive finite lower trigger; equality counts as a touch.
     #[getter]

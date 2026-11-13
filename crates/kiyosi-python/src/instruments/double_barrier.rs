@@ -57,6 +57,21 @@ pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
 
 monitoring_properties!(
     DoubleBarrierOption,
+    @replace DoubleBarrierOptionChanges [option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate, rebate_timing, observation_times, touch_state, calendar] |self| {
+        calendar: crate::calendar::observation_calendar(calendar, observation_times)?,
+        option_type: option_type.map(crate::conversions::direction).transpose()?,
+        strike: strike.map(crate::conversions::real).transpose()?,
+        effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+        expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
+        lower_barrier: lower_barrier.map(crate::conversions::real).transpose()?,
+        upper_barrier: upper_barrier.map(crate::conversions::real).transpose()?,
+        barrier_type: barrier_type.map(crate::instruments::double_barrier::kind).transpose()?,
+        rebate: rebate.map(crate::conversions::real).transpose()?,
+        rebate_timing: rebate_timing.map(crate::instruments::barrier::timing).transpose()?,
+        observation_times: observation_times.map(crate::conversions::optional_timestamps).transpose()?,
+        touch_state: touch_state.map(crate::instruments::barrier::history).transpose()?,
+    }
+    [
     /// Return a validated replacement.
     ///
     /// Omission or Ellipsis retains a field. The original value is unchanged.
@@ -100,65 +115,7 @@ monitoring_properties!(
     /// TypeError
     ///     If a representation or field name is invalid.
     ///
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, rebate=crate::conversions::OMITTED, rebate_timing=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "explicit Python replacement fields"
-    )]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] lower_barrier: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] upper_barrier: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] barrier_type: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] rebate: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] rebate_timing: Option<
-            &Bound<'_, PyAny>,
-        >,
-
-        #[pyo3(from_py_with = crate::conversions::supplied)] observation_times: Option<
-            &Bound<'_, PyAny>,
-        >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let changes = kiyosi::DoubleBarrierOptionChanges {
-            calendar: crate::calendar::observation_calendar(calendar, observation_times)?,
-            option_type: option_type.map(crate::conversions::direction).transpose()?,
-            strike: strike.map(crate::conversions::real).transpose()?,
-            effective_time: effective_time
-                .map(crate::conversions::timestamp)
-                .transpose()?,
-            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
-            lower_barrier: lower_barrier.map(crate::conversions::real).transpose()?,
-            upper_barrier: upper_barrier.map(crate::conversions::real).transpose()?,
-            barrier_type: barrier_type
-                .map(crate::instruments::double_barrier::kind)
-                .transpose()?,
-            rebate: rebate.map(crate::conversions::real).transpose()?,
-            rebate_timing: rebate_timing
-                .map(crate::instruments::barrier::timing)
-                .transpose()?,
-            observation_times: observation_times
-                .map(crate::conversions::optional_timestamps)
-                .transpose()?,
-            touch_state: touch_state
-                .map(crate::instruments::barrier::history)
-                .transpose()?,
-        };
-        Ok(Self(domain(self.0.replace(changes))?))
-    },
+    ],
     #[new]
     #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
