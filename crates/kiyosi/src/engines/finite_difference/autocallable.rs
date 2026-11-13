@@ -498,10 +498,8 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     }
     if spot_greeks && request.has(Greek::Speed) {
         let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-        if h > 0.0 && spot > h && spot + h < upper {
-            let up = space.sample(&alive, &curvature, spot + h)[2];
-            let down = space.sample(&alive, &curvature, spot - h)[2];
-            result.set(request, Greek::Speed, (up - down) / (2.0 * h))?;
+        if let Some(speed) = space.speed(&alive, &curvature, spot, h) {
+            result.set(request, Greek::Speed, speed)?;
         }
     }
     Ok((result, Some(upper)))

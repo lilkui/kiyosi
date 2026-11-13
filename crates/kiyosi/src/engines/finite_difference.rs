@@ -526,16 +526,10 @@ fn native_model<D: Diffusion>(
     }
     if request.has(Greek::Speed) {
         let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-        if h > 0.0 && spot > h && spot + h < upper {
+        if let Some(speed) = space.speed(&old, &curvature, spot, h) {
             price_at(spot + h)?;
             price_at(spot - h)?;
-            result.set(
-                request,
-                Greek::Speed,
-                (space.sample(&old, &curvature, spot + h)[2]
-                    - space.sample(&old, &curvature, spot - h)[2])
-                    / (2.0 * h),
-            )?;
+            result.set(request, Greek::Speed, speed)?;
         }
     }
     Ok((result, Some(upper)))
