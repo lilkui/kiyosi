@@ -238,21 +238,8 @@ fn native(
             None,
         ));
     }
-    match context.model_parameters() {
-        crate::ModelParameters::Heston(_) => Err(Error::UnsupportedOperation(
-            "finite differences do not support Heston".into(),
-        )),
-        crate::ModelParameters::BlackScholesMerton(model) => native_model(
-            option,
-            payoff,
-            context,
-            settings,
-            request,
-            shifts,
-            concentrate,
-            model.volatility(),
-        ),
-        crate::ModelParameters::LocalVolatility(model) => native_model(
+    if let Some(model) = local_volatility::local_model(context) {
+        native_model(
             option,
             payoff,
             context,
@@ -261,7 +248,18 @@ fn native(
             shifts,
             concentrate,
             LocalDiffusion::new(context, model.surface()),
-        ),
+        )
+    } else {
+        native_model(
+            option,
+            payoff,
+            context,
+            settings,
+            request,
+            shifts,
+            concentrate,
+            context.bsm_parameters()?.volatility(),
+        )
     }
 }
 
