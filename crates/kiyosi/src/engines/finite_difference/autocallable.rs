@@ -5,7 +5,7 @@ use super::{
     diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility,
 };
 use crate::instruments::autocallable::Coupon;
-use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
+use crate::instruments::autocallable::pricing::{expiry_payment, fixed_value, initial, validate};
 use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms};
 
 impl FiniteDifferenceAutocallableEngine {
@@ -348,26 +348,12 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         }
         breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
     }
-    let payment = |asset, knocked_in, record: Option<&AutocallableObservation>| {
-        let coupon = record.map_or(0.0, |r| note.observation_coupon(r, asset));
-        coupon
-            + if let Some(r) =
-                record.filter(|r| note.knock_out_enabled(r) && asset >= r.knock_out_level())
-            {
-                note.knock_out_payment(r)
-            } else {
-                note.terminal(
-                    asset,
-                    knocked_in || note.observes_knock_in(expiry) && t.below_knock_in(asset),
-                )
-            }
-    };
     for i in 0..size {
         let value = project_in_coordinates(&space, &breaks, i, |asset| {
             [
-                payment(asset, state.knocked_in, end_event),
+                expiry_payment(note, asset, state.knocked_in, end_event),
                 if layered {
-                    payment(asset, true, end_event)
+                    expiry_payment(note, asset, true, end_event)
                 } else {
                     0.0
                 },

@@ -1,6 +1,6 @@
 use super::{
-    AutocallableBarrierState, AutocallableNote, AutocallableTerms, Coupon, Error, PricingContext,
-    Result,
+    AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms, Coupon,
+    Error, PricingContext, Result,
 };
 use crate::Timestamp;
 
@@ -29,28 +29,45 @@ pub(crate) fn initial<T: AutocallableTerms>(
         .iter()
         .find(|r| r.time == context.valuation_time());
     let coupon = current.map_or(0.0, |r| note.observation_coupon(r, context.spot_price()));
-    let settlement = if let Some(record) =
-        current.filter(|r| note.knock_out_enabled(r) && context.spot_price() >= r.knock_out_level)
-    {
-        Some(note.knock_out_payment(record) + coupon)
-    } else if context.valuation_time() == note.expiry_time() {
-        Some(
-            coupon
-                + note.terminal(
-                    context.spot_price(),
-                    knocked_in
-                        || note.observes_knock_in(context.valuation_time())
-                            && note.view().below_knock_in(context.spot_price()),
-                ),
-        )
+    let settlement = if context.valuation_time() == note.expiry_time() {
+        Some(expiry_payment(
+            note,
+            context.spot_price(),
+            knocked_in,
+            current,
+        ))
     } else {
-        None
+        current
+            .filter(|r| note.knock_out_enabled(r) && context.spot_price() >= r.knock_out_level)
+            .map(|record| note.knock_out_payment(record) + coupon)
     };
     Initial {
         knocked_in,
         settlement,
         coupon,
     }
+}
+
+pub(crate) fn expiry_payment<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    spot: f64,
+    knocked_in: bool,
+    record: Option<&AutocallableObservation>,
+) -> f64 {
+    let coupon = record.map_or(0.0, |r| note.observation_coupon(r, spot));
+    coupon
+        + if let Some(r) =
+            record.filter(|r| note.knock_out_enabled(r) && spot >= r.knock_out_level())
+        {
+            note.knock_out_payment(r)
+        } else {
+            note.terminal(
+                spot,
+                knocked_in
+                    || note.observes_knock_in(note.expiry_time())
+                        && note.view().below_knock_in(spot),
+            )
+        }
 }
 
 pub(crate) fn future_event_times<T: AutocallableTerms>(
