@@ -33,7 +33,14 @@ def _wrap(callable: Any, defaults: dict[str, Any]) -> Any:
 
 
 def install(native: ModuleType) -> None:
-    for name, defaults in native._signature_defaults.items():
+    defaults_by_name = dict(native._signature_defaults)
+    for name, value in vars(native).items():
+        if isclass(value) and name.endswith("Engine"):
+            instance = value()
+            defaults_by_name[name] = {
+                field: getattr(instance, field) for field in value._STATE_FIELDS
+            }
+    for name, defaults in defaults_by_name.items():
         value = getattr(native, name)
         if isclass(value):
             value.__signature__ = _signature(value, defaults)
