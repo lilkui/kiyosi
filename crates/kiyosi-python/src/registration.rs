@@ -99,6 +99,12 @@ pricing_classes!(
 );
 
 pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
+    macro_rules! register_functions {
+        ($($function:path),+ $(,)?) => {
+            $(module.add_function(wrap_pyfunction!($function, module)?)?;)+
+        };
+    }
+
     register_instruments(module)?;
     register_engines(module)?;
     module.add("__version__", kiyosi::VERSION)?;
@@ -146,73 +152,29 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             .getattr("Literal")?
             .get_item(pyo3::types::PyTuple::new(py, names)?)?,
     )?;
-    module.add_function(wrap_pyfunction!(
+    register_functions!(
         instruments::autocallable::standard_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::european_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::step_down_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::both_down_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::dual_coupon_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::parachute_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::otm_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::loss_capped_snowball,
-        module
-    )?)?;
+    );
     module.add_class::<instruments::autocallable::AutocallableObservation>()?;
     module.add_class::<instruments::autocallable::KnockInObservation>()?;
-    module.add_function(wrap_pyfunction!(
+    register_functions!(
         instruments::autocallable::fixed_coupon_note,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::standard_phoenix,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::step_down_phoenix,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::digital_coupon_note,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::early_profit_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::butterfly_snowball,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
         instruments::autocallable::autocallable_observations,
-        module
-    )?)?;
+    );
     module.add_class::<engines::monte_carlo::MonteCarloEstimate>()?;
-    module.add_function(wrap_pyfunction!(
-        engines::monte_carlo::configure_monte_carlo_pool,
-        module
-    )?)?;
+    register_functions!(engines::monte_carlo::configure_monte_carlo_pool,);
     module.add_class::<BlackScholesMertonParameters>()?;
     module.add_class::<crate::heston::HestonParameters>()?;
     module.add_class::<crate::local_volatility::LocalVolatilitySurface>()?;
@@ -222,21 +184,20 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_class::<schedule::ObservationSchedule>()?;
     module.add_class::<PricingContext>()?;
     module.add_class::<risk::PricingResult>()?;
-    module.add_function(wrap_pyfunction!(risk::implied_volatility, module)?)?;
-    module.add_function(wrap_pyfunction!(risk::numerical_greeks, module)?)?;
-    module.add_function(wrap_pyfunction!(risk::implied_snowball_coupon, module)?)?;
-    module.add_function(wrap_pyfunction!(risk::implied_phoenix_coupon, module)?)?;
-    module.add_function(wrap_pyfunction!(calendar::weekdays_calendar, module)?)?;
-    module.add_function(wrap_pyfunction!(calendar::all_days_calendar, module)?)?;
-    module.add_function(wrap_pyfunction!(calendar::sse_calendar, module)?)?;
-    module.add_function(wrap_pyfunction!(calendar::custom_calendar, module)?)?;
-    module.add_function(wrap_pyfunction!(schedule::fixed_interval_schedule, module)?)?;
-    module.add_function(wrap_pyfunction!(schedule::monthly_schedule, module)?)?;
-    module.add_function(wrap_pyfunction!(calendar::_calendar_parts, module)?)?;
-    module.add_function(wrap_pyfunction!(risk::_pricing_result, module)?)?;
-    module.add_function(wrap_pyfunction!(
+    register_functions!(
+        risk::implied_volatility,
+        risk::numerical_greeks,
+        risk::implied_snowball_coupon,
+        risk::implied_phoenix_coupon,
+        calendar::weekdays_calendar,
+        calendar::all_days_calendar,
+        calendar::sse_calendar,
+        calendar::custom_calendar,
+        schedule::fixed_interval_schedule,
+        schedule::monthly_schedule,
+        calendar::_calendar_parts,
+        risk::_pricing_result,
         engines::monte_carlo::_monte_carlo_estimate,
-        module
-    )?)?;
+    );
     crate::signatures::register(py, module)
 }
