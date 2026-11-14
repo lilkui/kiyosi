@@ -23,6 +23,15 @@ fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::FiniteDifferenceScheme> 
     }
 }
 
+pub(crate) fn scheme_name(value: kiyosi::FiniteDifferenceScheme) -> &'static str {
+    match value {
+        kiyosi::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
+        kiyosi::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
+        kiyosi::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
+        kiyosi::FiniteDifferenceScheme::Rannacher => "rannacher",
+    }
+}
+
 macro_rules! fd_engine {
     ($name:ident, $instrument:ty $(,)?) => {
         fd_engine!($name, $instrument, with_contract);
@@ -155,12 +164,7 @@ macro_rules! fd_engine {
                 /// Return the configured time-marching choice string.
                 #[getter]
                 fn scheme(&self) -> &'static str {
-                    match self.0.settings().scheme {
-                        kiyosi::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
-                        kiyosi::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
-                        kiyosi::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
-                        kiyosi::FiniteDifferenceScheme::Rannacher => "rannacher",
-                    }
+                    scheme_name(self.0.settings().scheme)
                 }
 
                 /// Return the explicit upper spot boundary, or None for automatic selection.

@@ -73,6 +73,13 @@ fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
     }
 }
 
+pub(crate) fn sampling_name(value: kiyosi::MonteCarloSampling) -> &'static str {
+    match value {
+        kiyosi::MonteCarloSampling::PseudoRandom => "pseudo_random",
+        kiyosi::MonteCarloSampling::Sobol => "sobol",
+    }
+}
+
 macro_rules! sampling_settings {
     (@class $(#[$summary:meta])* $engine:ident,
      [$($minimum:literal, $step_description:literal)?],
@@ -299,10 +306,7 @@ macro_rules! sampling_settings {
             /// Return the sampling choice string: pseudo_random or sobol.
             #[getter]
             fn sampling(&self) -> &'static str {
-                match sampling_settings!(@sampling self.0, [$($step)?]).sampling {
-                    kiyosi::MonteCarloSampling::PseudoRandom => "pseudo_random",
-                    kiyosi::MonteCarloSampling::Sobol => "sobol",
-                }
+                sampling_name(sampling_settings!(@sampling self.0, [$($step)?]).sampling)
             }
             /// Return whether opposite normal draws are paired.
             #[getter]
