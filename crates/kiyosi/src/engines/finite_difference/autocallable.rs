@@ -80,8 +80,7 @@ impl FiniteDifferenceAutocallableEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = self.settings.greek_shifts;
-        analysis(option, context, self.settings, request, shifts, native)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>

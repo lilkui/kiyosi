@@ -78,8 +78,7 @@ impl FiniteDifferenceBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = self.settings.greek_shifts;
-        analysis(option, context, self.settings, request, shifts)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 
@@ -236,8 +235,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = self.settings.greek_shifts;
-        analysis(option, context, self.settings, request, shifts)
+        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {
