@@ -197,13 +197,13 @@ pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
     instrument: &I,
     context: &crate::market::PricingContext,
     request: impl PricingRequest<R>,
-    short: bool,
+    short_pricing: bool,
 ) -> PyResult<R> {
     let context = &context.0;
     let model = context.model_parameters();
     crate::error::domain(request.run(
         py,
-        short
+        request.is_short(short_pricing)
             && model.risk_free_curve().nodes().is_empty()
             && model.dividend_curve().nodes().is_empty(),
         || request.evaluate(engine, instrument, context),
@@ -220,7 +220,7 @@ pub(crate) enum ScalarRequest {
 }
 
 pub(crate) trait PricingRequest<R>: Copy + Sync {
-    fn is_short(self) -> bool {
+    fn is_short(self, _short_pricing: bool) -> bool {
         false
     }
     fn run(
@@ -232,7 +232,7 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
     where
         R: Send,
     {
-        if short && self.is_short() {
+        if short {
             py.check_signals()?;
             let result = operation();
             py.check_signals()?;
@@ -250,8 +250,8 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
 }
 
 impl PricingRequest<f64> for ScalarRequest {
-    fn is_short(self) -> bool {
-        matches!(self, Self::Price)
+    fn is_short(self, short_pricing: bool) -> bool {
+        short_pricing && matches!(self, Self::Price)
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -313,8 +313,8 @@ impl NativeGreeksRequest {
 }
 
 impl PricingRequest<kiyosi::PricingResult> for NativeGreeksRequest {
-    fn is_short(self) -> bool {
-        true
+    fn is_short(self, short_pricing: bool) -> bool {
+        short_pricing
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -334,8 +334,8 @@ pub(crate) struct StatisticsRequest;
 pub(crate) struct SeededPriceRequest;
 
 impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
-    fn is_short(self) -> bool {
-        true
+    fn is_short(self, short_pricing: bool) -> bool {
+        short_pricing
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -349,8 +349,8 @@ impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
 }
 
 impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
-    fn is_short(self) -> bool {
-        true
+    fn is_short(self, short_pricing: bool) -> bool {
+        short_pricing
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -378,7 +378,7 @@ impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
 pub(crate) struct GreekMethodRequest;
 
 impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
-    fn is_short(self) -> bool {
+    fn is_short(self, _short_pricing: bool) -> bool {
         true
     }
 
@@ -389,5 +389,31 @@ impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
         context: &kiyosi::PricingContext,
     ) -> kiyosi::Result<kiyosi::GreekMethod> {
         engine.greek_method(instrument, context)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metadata_is_short_independently_of_pricing_but_solvers_are_not() {
+        let greeks = NativeGreeksRequest {
+            request: kiyosi::GreeksRequest::all(),
+            settings: Default::default(),
+        };
+        let solver = ScalarRequest::ImpliedVolatility {
+            observed_price: 10.0,
+            settings: kiyosi::ImpliedVolatilitySettings::new(0.1, 0.3),
+        };
+        for short_pricing in [false, true] {
+            assert!(GreekMethodRequest.is_short(short_pricing));
+            assert!(!solver.is_short(short_pricing));
+            assert!(!NumericalGreeksRequest(greeks).is_short(short_pricing));
+            assert_eq!(ScalarRequest::Price.is_short(short_pricing), short_pricing);
+            assert_eq!(greeks.is_short(short_pricing), short_pricing);
+            assert_eq!(SeededPriceRequest.is_short(short_pricing), short_pricing);
+            assert_eq!(StatisticsRequest.is_short(short_pricing), short_pricing);
+        }
     }
 }
