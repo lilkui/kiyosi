@@ -134,20 +134,6 @@ fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
             .max(r.coupon_barrier_level().unwrap_or(0.0))
     })
 }
-fn default_upper<T: AutocallableTerms>(
-    note: &AutocallableNote<T>,
-    context: &PricingContext,
-    risk: &Curve,
-    dividend: &Curve,
-) -> Result<f64> {
-    diffusion_upper(
-        highest(note).max(context.spot_price()),
-        context,
-        context.valuation_time().years_until(note.expiry_time()),
-        risk,
-        dividend,
-    )
-}
 
 fn event<'a, T: AutocallableTerms>(
     note: &'a AutocallableNote<T>,
@@ -279,19 +265,22 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         widths.extend_from_slice(&grid.widths[intervals..]);
         grid = TimeGrid { times, widths };
     }
+    let highest = highest(note);
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
-        None => default_upper(note, context, &risk, &dividend)?,
+        None => diffusion_upper(
+            highest.max(context.spot_price()),
+            context,
+            time,
+            &risk,
+            &dividend,
+        )?,
     };
     let mut space = SpatialGrid::new(
         settings,
         upper,
-        if upper > 4.0 * highest(note) {
-            highest(note)
-        } else {
-            0.0
-        },
-        highest(note).max(context.spot_price()),
+        if upper > 4.0 * highest { highest } else { 0.0 },
+        highest.max(context.spot_price()),
     )?;
     if settings.scheme != FiniteDifferenceScheme::ExplicitEuler {
         let mut levels = vec![t.reference_spot()];
@@ -313,8 +302,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
                 levels.push(r.coupon_barrier_level().unwrap_or(0.0));
             }
         }
-        let scale =
-            highest(note) * (0.001 * (nearest * 365.0).min(1.0).sqrt()).max(64.0 * f64::EPSILON);
+        let scale = highest * (0.001 * (nearest * 365.0).min(1.0).sqrt()).max(64.0 * f64::EPSILON);
         super::grid::concentrate(&mut space, levels, scale)?;
     }
     if !D::LOCAL {
