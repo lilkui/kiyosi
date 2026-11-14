@@ -991,8 +991,8 @@ impl MonteCarloVanillaEngine {
         }
         let moneyness = log_ratio(context.spot_price(), option.strike());
         let (total, pairs, seed) =
-            terminal_samples(self.settings.sampling, statistics, |normal| {
-                let increment = diffusion.mul_add(normal, drift);
+            path_samples(self.settings.sampling, 1, statistics, |normals| {
+                let increment = diffusion.mul_add(normals[0], drift);
                 let terminal = context.spot_price() * increment.exp();
                 if !terminal.is_finite() || terminal <= 0.0 {
                     return Err(unstable());
@@ -1072,14 +1072,6 @@ fn estimate(
         None
     };
     MonteCarloEstimate::from_sampling(price, standard_error, settings, seed)
-}
-
-fn terminal_samples<const N: usize>(
-    settings: MonteCarloSettings,
-    statistics: bool,
-    payoff: impl Fn(f64) -> Result<[f64; N]> + Sync,
-) -> Result<([Moments; N], [Moments; N], u64)> {
-    path_samples(settings, 1, statistics, |normals| payoff(normals[0]))
 }
 
 pub(crate) fn path_means<const N: usize>(
