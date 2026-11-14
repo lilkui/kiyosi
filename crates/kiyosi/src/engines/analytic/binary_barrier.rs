@@ -48,8 +48,10 @@ impl AnalyticBinaryBarrierEngine {
     ///
     /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
     ///
-    /// Expiry Greeks follow terminal payoffs. Before expiry, Greeks at a current barrier equality are absent. Stencils crossing
-    /// observations or barriers leave affected Greeks absent.
+    /// Expiry Greeks follow terminal payoffs. Before expiry at positive BSM volatility,
+    /// barrier equality without a prior touch leaves spot derivatives absent; rate
+    /// and volatility Greeks follow the resolved payoff.
+    /// Stencils crossing observations or barriers leave affected Greeks absent.
     ///
     /// ## Errors
     ///

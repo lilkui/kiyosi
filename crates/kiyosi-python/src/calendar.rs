@@ -210,7 +210,7 @@ pub(crate) fn sse_calendar() -> TradingCalendar {
 /// Returns
 /// -------
 /// TradingCalendar
-///     Observation records.
+///     Calendar with normalized overrides and the selected annualization basis.
 ///
 /// Raises
 /// ------

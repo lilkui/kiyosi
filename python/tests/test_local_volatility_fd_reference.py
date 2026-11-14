@@ -85,7 +85,28 @@ def values(result):
 
 @cache
 def reference(kind, direction, time, space, spot=100, dividend=0.02, mesher_vol=0.5):
-    """Explicit local-volatility process; Black volatility configures only the independent mesh."""
+    """Price the fixed local-volatility surface with QuantLib.
+
+    Parameters
+    ----------
+    kind : str
+        Contract family recognized by the reference.
+    direction : {'call', 'put'}
+        Payoff direction.
+    time, space : int
+        Time and spatial step counts.
+    spot : float, optional
+        Valuation spot.
+    dividend : float, optional
+        Annual continuously compounded dividend yield.
+    mesher_vol : float, optional
+        Black volatility used only to size the independent mesh.
+
+    Returns
+    -------
+    tuple of float
+        Independent price, delta and gamma.
+    """
     start, end = ql.Date(1, 1, 2025), ql.Date(1, 1, 2026)
     ql.Settings.instance().evaluationDate = start
     dc = ql.Actual365Fixed()

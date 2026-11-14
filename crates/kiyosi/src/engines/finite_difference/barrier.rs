@@ -34,12 +34,14 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// Uses [`NumericalShiftSettings`] for bumps and fixes the central BSM spatial domain.
     /// Local volatility accepts only delta/gamma, holding the absolute surface fixed.
-    /// Stencils crossing observations or barriers leave affected Greeks absent; all are
-    /// based on terminal payoffs at expiry and absent at a current barrier equality without a prior touch.
+    /// Stencils crossing observations or barriers leave affected Greeks absent.
+    /// Expiry Greeks follow terminal payoffs. Before expiry at positive BSM volatility,
+    /// barrier equality without a prior touch leaves spot derivatives absent; rate
+    /// and volatility Greeks follow the resolved payoff.
     ///
     /// ## Errors
     ///
-    /// Leaves other local-volatility Greeks absent. Validates shifts before pricing. Propagates [`Self::price`] and
+    /// Validates shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
     /// Inputs and engine settings remain unchanged on success and failure.
     ///
@@ -178,15 +180,16 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// including explicit upper-domain coverage checks when a full-domain grid is needed.
     /// Continuous barriers fix the barrier grid's edges independently of that upper bound.
     ///
-    ///
     /// # Greeks
     ///
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
     /// Fixes the central BSM spatial domain for bumps. Local volatility accepts only
     /// delta and gamma with the local-volatility surface held fixed. Stencils crossing
-    /// either boundary or an observation omit affected measures; expiry Greeks follow terminal payoffs. Before expiry, current boundary
-    /// equality without a prior touch suppresses Greeks.
+    /// either boundary or an observation omit affected measures. Expiry Greeks
+    /// follow terminal payoffs. Before expiry at positive BSM volatility, boundary
+    /// equality without a prior touch leaves spot derivatives absent; rate and
+    /// volatility Greeks follow the resolved payoff.
     ///
     /// ## Errors
     ///

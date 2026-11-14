@@ -27,7 +27,7 @@ use pyo3::types::{PyBool, PySlice, PyTuple};
 /// -----
 /// Construct from explicit times, or use fixed_interval_schedule or
 /// monthly_schedule. Bounds and calendar validate the input; the schedule owns
-/// its times and calendar. Empty schedules are valid. The times property returns a
+/// its times and calendar. The times property returns a
 /// copy; forward and reverse iteration retrieve timestamps lazily and retain
 /// the schedule owner. Integer indexing accepts
 /// negative indices, rejects bool, and raises IndexError outside the sequence.
@@ -153,8 +153,7 @@ impl ObservationSchedule {
 /// end_time : datetime.datetime
 ///     Last timestamp of the interval.
 /// interval_days : int
-///     Positive calendar-day spacing of unadjusted observations, up to 2**63 -
-///     1.
+///     Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
 /// observation_clock_time : datetime.time
 ///     Required observation time of day, without timezone information.
 /// calendar : TradingCalendar, optional
@@ -163,7 +162,7 @@ impl ObservationSchedule {
 /// Returns
 /// -------
 /// ObservationSchedule
-///     Observation records.
+///     Ordered observation times and their validation calendar.
 ///
 /// Raises
 /// ------
@@ -225,7 +224,7 @@ pub(crate) fn fixed_interval_schedule(
 /// Returns
 /// -------
 /// ObservationSchedule
-///     Observation records.
+///     Ordered observation times and their validation calendar.
 ///
 /// Raises
 /// ------

@@ -33,9 +33,9 @@ pub enum SettlementTiming {
     AtExpiry,
 }
 
-/// Binary strike and monitoring inputs; validated by [`BinaryBarrierOption::cash`] or
+/// Supplies binary strike and monitoring inputs.
 ///
-/// [`BinaryBarrierOption::asset`].
+/// Validated by [`BinaryBarrierOption::cash`] or [`BinaryBarrierOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryBarrierTerms {
     /// Owns the contractual observation calendar; defaults to weekdays.
@@ -110,10 +110,8 @@ impl BinaryBarrierOption {
     ///
     /// # Errors
     ///
-    ///
     /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
     /// barrier, fixing times or calendar compatibility, checked in that order.
-    /// Supplied history requires an in-life timestamp on construction.
     /// History relative to valuation is checked during pricing.
     ///
     /// # Examples
@@ -257,7 +255,6 @@ impl TouchOption {
     /// Current at-hit cash pays the payout; prior at-hit settlement has zero remaining value.
     ///
     /// # Errors
-    ///
     ///
     /// Returns [`Error::InvalidInput`] for invalid positive payout or barrier,
     /// reversed life, invalid fixings, or at-hit no-touch settlement.

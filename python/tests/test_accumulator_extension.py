@@ -43,7 +43,20 @@ def engines():
 
 
 def terminal_reference(option, context):
-    """Independent truncated-lognormal expectation for one remaining event."""
+    """Compute the truncated-lognormal expectation for one remaining event.
+
+    Parameters
+    ----------
+    option : Accumulator
+        Contract with known outstanding quantity.
+    context : PricingContext
+        Flat-rate BSM snapshot before the final event.
+
+    Returns
+    -------
+    float
+        Discounted value of outstanding units and the final accumulation.
+    """
     end = datetime.combine(option.expiry_time, datetime.min.time())
     time = (end - context.valuation_time).total_seconds() / (365 * 86400)
     model = context.model_parameters

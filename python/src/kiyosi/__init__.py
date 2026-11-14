@@ -22,8 +22,10 @@ Domain failures raise ``KiyosiError`` subclasses. ``InvalidInputError`` also inh
 exceptions, and operational failures use ``OSError``. Catch exception types;
 messages are diagnostic text. ``MissingHistoryError`` identifies absent required
 history and inherits ``InvalidInputError``.
-Rust panics are not domain errors, and allocation
-exhaustion may terminate the process.
+
+With Rust unwinding enabled, panics raise ``pyo3_runtime.PanicException``, a
+``BaseException`` subclass. Aborting panics and allocation exhaustion may
+terminate the process.
 
 Values own their data and expose read-only properties. Collection properties
 return owned tuples, with nested tuples for surfaces. Replacement returns a new
@@ -53,7 +55,6 @@ Calls are synchronous. During long requests the calling thread polls signals.
 Signal-handler exceptions, including ``KeyboardInterrupt``, cancel the worker
 and propagate after it stops, without a partial result. Cancellation is
 cooperative; allocation and individual work units may delay it.
-
 """
 
 from . import _native

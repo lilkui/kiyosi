@@ -92,10 +92,9 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
-    ///
     /// Returns [`crate::Error::InvalidInput`] unless finite `0 < lower < upper`,
-    /// then reuses [`BarrierOption::new`] categories and validation order, including
-    /// for at-hit knock-in rebates even if zero.
+    /// then reuses [`BarrierOption::new`] categories and validation order.
+    /// At-hit knock-in rebates are invalid even when zero.
     ///
     /// # Examples
     ///

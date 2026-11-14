@@ -68,7 +68,24 @@ def option(**changes):
 
 
 def reference(parameters, instrument, tolerance, *, exp_sinh=False):
-    """Independent QuantLib 1.43 Gatheral reference with Lobatto or exp-sinh."""
+    """Price a Heston option with QuantLib 1.43 Gatheral integration.
+
+    Parameters
+    ----------
+    parameters : HestonParameters
+        Model with flat risk-free and dividend rates.
+    instrument : EuropeanOption
+        Contract to price at START with spot 100.
+    tolerance : float
+        Integration tolerance.
+    exp_sinh : bool, optional
+        Use exp-sinh integration; otherwise use adaptive Lobatto integration.
+
+    Returns
+    -------
+    float
+        Independent reference price.
+    """
     assert ql.__version__ == "1.43"
     qstart = ql.Date(START.day, START.month, START.year)
     end = instrument.expiry_time

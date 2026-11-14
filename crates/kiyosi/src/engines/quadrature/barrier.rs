@@ -59,7 +59,9 @@ impl QuadratureSettings {
 ///
 /// Computes requested scalar numerical Greeks with shared bump defaults.
 ///
-/// Expiry Greeks follow terminal payoffs. Before expiry, a current barrier equality without a prior touch suppresses Greeks.
+/// Expiry Greeks follow terminal payoffs. Before expiry at positive BSM volatility,
+/// barrier equality without a prior touch leaves spot derivatives absent; rate
+/// and volatility Greeks follow the resolved payoff.
 /// Stencils crossing observations or spot barriers leave affected measures absent.
 /// See [`Self::new`] for an example.
 ///

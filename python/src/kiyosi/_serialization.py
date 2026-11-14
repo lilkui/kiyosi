@@ -157,7 +157,7 @@ def _replacement(factory: Any) -> Any:
 
         Parameters
         ----------
-        **changes : object, optional
+        **changes
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -180,6 +180,9 @@ def _replacement(factory: Any) -> Any:
         }
         return factory(**(_fields(self) | changes))
 
+    replace.__doc__ = (replace.__doc__ or "").replace(
+        "**changes", ", ".join(factory._STATE_FIELDS) + " : object, optional"
+    )
     replace.__dict__["__signature__"] = constructor.replace(
         parameters=[
             Parameter("self", Parameter.POSITIONAL_OR_KEYWORD),

@@ -77,8 +77,8 @@ macro_rules! fd_engine {
         /// deterministic rate curves. All FD product families support local-volatility
         /// price, delta and gamma, including American exercise. Other requested Greeks
         /// are None. Autocallable coupon solvers support local volatility; implied
-        /// volatility raises UnsupportedOperationError. Sigma
-        /// uses fixed absolute surface coordinates; expiry Greeks follow terminal
+        /// volatility raises UnsupportedOperationError. The local-volatility surface
+        /// stays fixed in absolute coordinates; expiry Greeks follow terminal
         /// payoffs and are absent where their stencils cross product events. Vanilla
         /// expiry Greeks use exact supported payoff derivatives, undefined at the
         /// strike. Surface coverage follows remaining stochastic evolution; rate
@@ -98,8 +98,8 @@ macro_rules! fd_engine {
                 /// BSM volatility uses scalar differences. Other BSM Greeks use numerical
                 /// differences with request-level shifts. Local volatility provides only
                 /// delta and gamma. At expiry vanilla Greeks use exact supported payoff
-                /// derivatives; other products use default terminal-payoff stencils. Use
-                /// numerical_greeks for configurable scalar differences under BSM.
+                /// derivatives; other products use terminal-payoff stencils with the
+                /// request's shifts. Use numerical_greeks for scalar differences under BSM.
                 ///
             ],
             [],

@@ -73,7 +73,6 @@ impl DoubleTouchOption {
     ///
     /// # Errors
     ///
-    ///
     /// Returns [`Error::InvalidInput`] for invalid positive finite payout,
     /// then for at-hit no-touch settlement. Shared monitoring validation then
     /// rejects invalid boundaries, reversed life or invalid schedules.

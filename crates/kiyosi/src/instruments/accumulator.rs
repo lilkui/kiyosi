@@ -74,22 +74,23 @@ impl AccumulatorTerms {
 /// Calls purchase units and settle as `quantity * (spot - strike)`; puts sell units
 /// and settle as `quantity * (strike - spot)`. Acceleration applies strictly below
 /// strike for calls, strictly above for puts, and not at equality. Both accumulate
-/// at the specified observation clock time on trading dates within the inclusive contract life. Knock-out
-/// observes every trading date by default, or only the explicit times. An empty
+/// at the specified clock on trading dates within the inclusive contract life.
+/// Knock-out observes every trading date by default, or only the explicit times. An empty
 /// schedule disables knock-out. Calls knock out at or above the barrier,
 /// puts at or below it; knock-out adds no units at its own timestamp. Expiry
 /// accumulates before settlement only when it is a daily observation and does not knock out.
 /// Settlement may fall on a closed date without adding an observation.
-/// Prices exclude previously settled cash flows;
-/// `knock_out_settled: Some(true)` records an already settled knock-out and gives zero remaining value.
+///
+/// Prices exclude settled cash flows. `knock_out_settled: Some(true)` records
+/// an already settled knock-out with zero remaining value.
 /// Pricing rejects this state unless a knock-out observation strictly precedes valuation.
-/// Accrued quantity is ignored for settled contracts. History is caller asserted,
-/// and is required after any strictly prior accumulation or knock-out observation.
+/// Accrued quantity is ignored for settled contracts. Caller-supplied quantity
+/// is required after any strictly prior accumulation or knock-out observation.
 /// Termination history is required after a strictly prior knock-out observation:
 /// `None` means unknown, `Some(false)` means active and `Some(true)` means settled.
-/// For accrued quantity, `None` means unknown;
-/// an explicit zero records no outstanding units. Active contracts reject positive quantity
-/// before a strictly prior accumulation observation. No quantity is inferred from elapsed dates.
+/// For accrued quantity, `None` means unknown and an explicit zero means no
+/// outstanding units. Active contracts reject positive quantity before a strictly
+/// prior accumulation observation. No quantity is inferred from elapsed dates.
 /// Shared reads and owning replacements support concurrent use; see [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct Accumulator {

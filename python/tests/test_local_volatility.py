@@ -50,7 +50,26 @@ def engine(n=800, t=800, upper=400):
 
 
 def quantlib_skew(n, spot, direction):
-    """Independent log-space mesher and PDE; never fit an implied-vol surface."""
+    """Price the supplied local-volatility skew with an independent PDE.
+
+    Parameters
+    ----------
+    n : int
+        Number of time and spatial steps.
+    spot : float
+        Valuation spot.
+    direction : {'call', 'put'}
+        Payoff direction.
+
+    Returns
+    -------
+    tuple
+        Price, delta, gamma and the QuantLib local-volatility surface.
+
+    Notes
+    -----
+    Uses a log-space mesher without fitting an implied-volatility surface.
+    """
     start, end = ql.Date(1, 1, 2025), ql.Date(1, 1, 2026)
     ql.Settings.instance().evaluationDate = start
     # QuantLib uses price rows and time columns, the transpose of our API.

@@ -32,10 +32,10 @@
 //!
 //! Supplied history describes events strictly before [`PricingContext::valuation_time`].
 //! Observations exactly at valuation use the current spot and are processed once.
-//! Bookkeeping owns lifecycle events, historical market data, state progression,
-//! settlement progression, and consistency with valuation time and contract terms.
-//! Callers must prevent stale-state and future-state misuse; Kiyosi does not check
-//! state age, reconstruct historical paths, or automatically advance supplied state.
+//! Callers maintain lifecycle events, historical market data and settlement status,
+//! keeping supplied state consistent with valuation time and contract terms.
+//! Kiyosi does not check state age, reconstruct historical paths or advance supplied
+//! state. Callers must prevent stale or future state from being supplied.
 //!
 //! Absent history is unknown; explicit zero, false, untouched, and no-event states
 //! are known history where supported. [`AutocallableBarrierState::KnockedIn`]

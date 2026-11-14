@@ -578,7 +578,7 @@ macro_rules! engine_settings {
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for fewer than three asset steps,
-            /// nonpositive time steps, or a nonpositive or non-finite upper boundary or spot bump.
+            /// nonpositive time steps, or a nonpositive or non-finite upper boundary.
             /// Validation precedes storing settings; no grid is allocated here.
             /// See [`Self::price`] for engine-specific usage.
             ///
@@ -726,7 +726,9 @@ engine_settings!(
     /// Returns spline spot Greeks and completes other sensitivities on the central domain.
     ///
     /// Stencils crossing observations or barriers leave affected measures absent.
-    /// Expiry Greeks follow terminal payoffs. Before expiry, a current barrier equality without a prior touch suppresses Greeks.
+    /// Expiry Greeks follow terminal payoffs. Before expiry at positive BSM volatility,
+    /// barrier equality without a prior touch leaves spot derivatives absent; rate
+    /// and volatility Greeks follow the resolved payoff.
     /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
     /// other requested Greeks are absent.
     ///
@@ -775,7 +777,7 @@ engine_settings!(
     /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
-    /// for unknown or impossible history, invalid grids,
+    /// for impossible history, invalid grids,
     /// or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
     ///
@@ -784,7 +786,9 @@ engine_settings!(
     /// Returns spline spot Greeks and completes other sensitivities on the central domain.
     ///
     /// Stencils crossing either boundary or an observation omit affected measures.
-    /// Expiry Greeks follow terminal payoffs. Before expiry, current boundary equality without a prior touch suppresses Greeks.
+    /// Expiry Greeks follow terminal payoffs. Before expiry at positive BSM volatility,
+    /// boundary equality without a prior touch leaves spot derivatives absent; rate
+    /// and volatility Greeks follow the resolved payoff.
     /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
     /// other requested Greeks are absent.
     ///

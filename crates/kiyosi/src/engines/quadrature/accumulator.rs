@@ -36,9 +36,6 @@ impl QuadratureAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Missing required prior history returns [`crate::Error::MissingHistory`].
-    /// Supplied history covers events strictly before valuation.
-    ///
     /// Propagates [`QuadratureSettings::validate`] errors.
     ///
     /// # Examples

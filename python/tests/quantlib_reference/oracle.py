@@ -336,7 +336,18 @@ def reference_row(
 
 
 def load_fixture(name):
-    """Load fresh fixture data with defaults expanded and budgets checked."""
+    """Load fresh fixture data with defaults expanded and budgets checked.
+
+    Parameters
+    ----------
+    name : str
+        Fixture filename relative to DATA_DIR.
+
+    Returns
+    -------
+    dict
+        Parsed fixture with expanded scenarios or profiles.
+    """
     config = json.loads((DATA_DIR / name).read_text(encoding="utf-8"))
     for collection, defaults_key in (
         ("scenarios", "defaults"),

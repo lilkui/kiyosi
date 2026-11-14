@@ -319,7 +319,7 @@ impl PricingContext {
     /// Borrows the concrete model selection; see [`Self::new`].
     ///
     /// Match [`ModelParameters`] or use [`ModelParameters::as_bsm`] before reading
-    /// BSM fields. Python returns an owned instance of the concrete model type.
+    /// BSM fields.
     pub fn model_parameters(&self) -> &ModelParameters {
         &self.model_parameters
     }

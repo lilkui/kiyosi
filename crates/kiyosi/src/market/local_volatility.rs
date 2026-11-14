@@ -25,8 +25,8 @@ impl LocalVolatilitySurface {
     ///
     /// Returns [`Error::InvalidInput`] for fewer than two nodes on either axis,
     /// unordered or numerically indistinguishable time nodes, a nonrectangular
-    /// table, or nonpositive or non-finite prices
-    /// or volatilities. No partially validated value is returned.
+    /// table, or nonpositive or non-finite prices or volatilities.
+    /// No partially validated value is returned.
     ///
     /// # Examples
     ///

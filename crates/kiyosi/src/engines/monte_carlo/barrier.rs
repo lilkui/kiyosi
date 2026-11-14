@@ -99,8 +99,9 @@ impl MonteCarloBarrierEngine {
     ///
     /// Returns requested delta/gamma using the price's normal samples.
     ///
-    /// Other Greeks are absent. Expiry and spot stencils crossing a current
-    /// monitored barrier suppress delta/gamma. The optional [`NumericalShiftSettings::spot_shift`]
+    /// Other Greeks are absent. Expiry delta and gamma follow terminal-payoff
+    /// stencils; spot stencils crossing a current monitored barrier suppress them.
+    /// The optional [`NumericalShiftSettings::spot_shift`]
     /// controls that availability and numerical derivatives of the analytic
     /// continuous at-hit rebate. Configure it with [`PricingEngine::price_with_greeks_with_settings`].
     /// Custom scalar differences use [`crate::numerical_greeks`].

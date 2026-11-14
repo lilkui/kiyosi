@@ -546,8 +546,8 @@ impl CoxRossRubinsteinDigitalEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] errors. Nonempty requests without delta or gamma return
-    /// [`Error::UnsupportedOperation`]; empty requests select price only.
+    /// [`Self::price`] errors. Requested measures other than delta and gamma
+    /// have [`crate::GreekStatus::Unsupported`]; empty requests select price only.
     ///
     /// # Examples
     ///

@@ -247,15 +247,16 @@ pub(crate) fn _pricing_result(
 ///     Required measure names or "all". Unsupported instrument/engine pairs
 ///     are checked before Greek names.
 /// spot_shift : float or None, optional
-///     Positive absolute spot bump. Omission, Ellipsis or None selects the automatic engine/product bump.
+///     Positive absolute spot bump. Omission, Ellipsis or None selects the
+///     automatic engine/product bump.
 /// volatility_shift : float or None, optional
 ///     Positive decimal volatility bump. None selects the smaller of 0.0001 and
 ///     half the current volatility. Omission or Ellipsis uses shared defaults.
 /// rate_shift : float, optional
-///     Positive decimal rate bump. Omission or Ellipsis uses shared defaults.
+///     Positive decimal rate bump; defaults to 0.0001. Ellipsis uses the default.
 /// time_shift : datetime.timedelta or None, optional
-///     Positive explicit bump. Omission, Ellipsis or None selects an automatic bump up to one day
-///     shortened to avoid observations. Use smaller durations to check
+///     Positive whole-microsecond bump. Omission, Ellipsis or None selects an
+///     automatic bump up to one day, shortened to avoid observations. Use smaller durations to check
 ///     convergence for intraday valuations and between observations.
 ///
 /// Returns
@@ -275,9 +276,12 @@ pub(crate) fn _pricing_result(
 /// TypeError
 ///     If greeks is not a string or iterable of strings.
 /// OSError
-///     If system entropy or worker creation fails. Monte Carlo draws are
-///     pinned within the request, matching the Rust numerical_greeks
-///     operation.
+///     If system entropy or worker creation fails.
+///
+/// Notes
+/// -----
+/// Monte Carlo draws use a fixed seed throughout the request, matching the
+/// Rust numerical_greeks operation.
 ///
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, greeks, *, spot_shift=crate::conversions::OMITTED, volatility_shift=crate::conversions::OMITTED, rate_shift=crate::conversions::OMITTED, time_shift=crate::conversions::OMITTED))]

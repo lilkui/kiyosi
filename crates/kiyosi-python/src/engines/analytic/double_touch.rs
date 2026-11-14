@@ -11,8 +11,10 @@ analytic_engine!(
     /// at-hit payments. Nonconstant rate curves are rejected. At positive
     /// volatility, unresolved scheduled monitoring is unsupported. Resolved cash
     /// flows and zero-volatility paths support scheduled monitoring after calendar
-    /// and history validation. Greeks use numerical differences; expiry and
-    /// current barrier equality without a prior touch omit Greeks. Stencils
+    /// and history validation. Greeks use numerical differences. At expiry they
+    /// follow terminal payoffs, with time Greeks absent. Before expiry at positive
+    /// volatility, barrier equality without a prior touch leaves spot Greeks
+    /// absent; rate and volatility Greeks follow the resolved payoff. Stencils
     /// crossing a barrier omit affected measures.
     ///
     /// See Also

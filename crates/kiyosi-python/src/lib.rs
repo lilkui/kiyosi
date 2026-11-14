@@ -7,9 +7,9 @@
 
 // Expand replacement methods before PyO3 parses the complete implementation.
 macro_rules! value_methods {
-    ($name:ident, $changes:ident, [$($parameter:ident),+],
+    ($name:ident, $changes:ident, [$first_parameter:ident $(, $parameter:ident)*],
      {$($field:ident: $value:expr),+ $(,)?}, {$($method:item)*}) => {
-        value_methods!(@documented $name, $changes, [$($parameter),+],
+        value_methods!(@documented $name, $changes, [$first_parameter $(, $parameter)*],
             {$($field: $value),+}, [
             /// Return a validated copy with replacement fields.
             ///
@@ -17,7 +17,7 @@ macro_rules! value_methods {
             ///
             /// Parameters
             /// ----------
-            /// **changes : object, optional
+            #[doc = concat!(stringify!($first_parameter) $(, ", ", stringify!($parameter))*, " : object, optional")]
             ///     Constructor fields to replace; see the class documentation for field
             ///     descriptions. Omission or Ellipsis retains a field; None clears
             ///     nullable fields.

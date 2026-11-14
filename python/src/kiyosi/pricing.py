@@ -140,14 +140,28 @@ MonteCarloUncertaintyStatus = Literal[
 
 
 class SnowballCouponQuote(TypedDict):
-    """Annual first-observation coupon and its maturity linkage."""
+    """Annual first-observation coupon and its maturity linkage.
+
+    Attributes
+    ----------
+    first_observation_coupon : float
+        Annual decimal coupon at the first observation.
+    quote_convention : CouponQuoteConvention
+        Whether the maturity coupon shifts with observation coupons.
+    """
 
     first_observation_coupon: float
     quote_convention: CouponQuoteConvention
 
 
 class PhoenixCouponQuote(TypedDict):
-    """Absolute coupon rate per qualifying observation."""
+    """Absolute coupon rate per qualifying observation.
+
+    Attributes
+    ----------
+    coupon_per_period : float
+        Signed decimal rate per qualifying observation, without time accrual.
+    """
 
     coupon_per_period: float
 

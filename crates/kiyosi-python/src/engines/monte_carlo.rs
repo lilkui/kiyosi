@@ -151,8 +151,8 @@ macro_rules! sampling_settings {
                 /// -----
                 /// Barrier engines use spot_shift for event-availability checks and continuous
                 /// at-hit rebate derivatives. Autocallable and accumulator engines use
-                /// numerical differences with engine defaults. At expiry spot Greeks use
-                /// default terminal-payoff stencils. Use numerical_greeks for explicit scalar
+                /// numerical differences with the request's shifts. At expiry spot Greeks
+                /// use terminal-payoff stencils with those shifts. Use numerical_greeks for scalar
                 /// bump calculations on supported BSM pairs.
                 ///
             ]
@@ -271,7 +271,17 @@ macro_rules! sampling_settings {
             ///
             /// An existing seed is retained. Save or pickle the returned engine before
             /// pricing to replay its draws within the same build. The original is
-            /// unchanged. Entropy failures raise OSError.
+            /// unchanged.
+            ///
+            /// Returns
+            /// -------
+            /// object
+            ///     Engine of the same class with a concrete seed.
+            ///
+            /// Raises
+            /// ------
+            /// OSError
+            ///     If system entropy is unavailable.
             ///
             fn with_resolved_seed(&self) -> PyResult<Self> {
                 Ok(Self(domain(self.0.with_resolved_seed())?))
@@ -411,15 +421,15 @@ sampling_settings!(
         /// -----
         /// At positive volatility before expiry delta and gamma use native
         /// likelihood-ratio estimators. Zero volatility uses scalar differences. At
-        /// expiry they use default terminal-payoff stencils. Use numerical_greeks for
-        /// configurable scalar differences.
+        /// expiry they use terminal-payoff stencils with the request's shifts.
+        /// Use numerical_greeks for scalar differences throughout.
         ///
     ]
 );
 
 sampling_settings!(
     @class
-    /// Flat-rate CPU Monte Carlo pricing for continuous average-price options.
+    /// BSM Monte Carlo pricing for continuous average-price options.
     MonteCarloAsianEngine,
     [2, "Grid size"],
     [
@@ -429,7 +439,9 @@ sampling_settings!(
     [
         /// Geometric averages and single fixings sample exact
         /// distributions. Arithmetic averages use step_count trapezoidal intervals
-        /// with the first interval integrated conditionally.
+        /// with the first interval integrated conditionally. Geometric pricing
+        /// requires constant rates before expiry; arithmetic pricing accepts
+        /// deterministic rate curves.
     ]
 );
 
@@ -443,8 +455,8 @@ sampling_settings!(
         /// -----
         /// At positive volatility before expiry delta and gamma use native estimators.
         /// Zero volatility uses scalar differences. At expiry delta and gamma use
-        /// default terminal-payoff stencils. Use numerical_greeks for configurable
-        /// scalar differences.
+        /// terminal-payoff stencils with the request's shifts. Use numerical_greeks
+        /// for scalar differences throughout.
         ///
     ]
 );

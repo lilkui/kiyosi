@@ -46,9 +46,6 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Missing required prior history returns [`crate::Error::MissingHistory`].
-    /// Supplied history covers events strictly before valuation.
-    ///
     /// Returns [`crate::Error::InvalidInput`] for invalid paths, threads or sampling.
     ///
     /// # Examples
@@ -139,9 +136,11 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), inclusive life
-    /// ([`crate::Error::InvalidInput`]), then trading expiry and knock-out dates
-    /// ([`crate::Error::InvalidInput`]), including for fixed settlements.
+    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), then inclusive life
+    /// and prior history. Invalid life or impossible history returns
+    /// [`crate::Error::InvalidInput`]; missing history returns [`crate::Error::MissingHistory`].
+    /// Calendar compatibility is validated by [`Accumulator::new`]. Required curve
+    /// coverage is checked before simulating future events.
     /// Sobol dimensions above 21,201 return [`crate::Error::InvalidInput`].
     /// Non-finite paths, quantities, settlements or uncertainty return
     /// [`crate::Error::ComputationFailure`]. Entropy and thread failures retain native

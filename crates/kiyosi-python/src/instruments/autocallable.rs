@@ -431,7 +431,7 @@ impl AutocallableObservation {
     }
 }
 
-/// Associates parallel sequences into input observation records.
+/// Combine parallel sequences into validated observation records.
 ///
 /// Parameters
 /// ----------
@@ -783,7 +783,7 @@ times, stages may have no autocall_observations, and rates need not decrease."
 ///     Positive upper terminal settlement strike.
 /// lower_strike : float
 ///     Nonnegative lower terminal strike, at most the upper strike.
-/// knock_in_observation : KnockInObservation, optional
+/// knock_in_observation : KnockInObservation
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
@@ -1051,7 +1051,7 @@ snowball_properties! {
 ///     Knocked-in maturity coupon, at most the intact maturity coupon.
 /// knock_in_level : float
 ///     Positive strict downside threshold.
-/// knock_in_observation : KnockInObservation, optional
+/// knock_in_observation : KnockInObservation
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
@@ -1197,7 +1197,7 @@ snowball_properties! {
 ///     Positive upper terminal settlement strike.
 /// lower_strike : float
 ///     Nonnegative lower terminal strike, at most the upper strike.
-/// knock_in_observation : KnockInObservation, optional
+/// knock_in_observation : KnockInObservation
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
@@ -1225,9 +1225,9 @@ snowball_properties! {
 /// TypeError
 ///     If a required value is missing or a supplied representation is invalid.
 /// InvalidInputError
-///     If amounts, strikes, life times or observations are invalid.
-///     Observation coupon_rate must be zero; coupon_barrier_level is
-///     nonnegative.
+///     If amounts, strikes, life times or observations are invalid. Records
+///     must be Phoenix observations with nonnegative coupon barriers;
+///     snowball observations are rejected even when their coupon is zero.
 ///
 /// Notes
 /// -----
@@ -1421,24 +1421,23 @@ macro_rules! phoenix_preset {
         ///     Positive strict knock-in threshold.
         #[doc = concat!(stringify!($knock_out), " : float")]
         ///     Positive inclusive threshold at the first eligible knock-out observation.
-        /// lockout_periods : int, optional
-        ///     Initial observations excluded from knock-out; defaults to zero and must
-        ///     leave at least one eligible observation. Coupons and knock-in remain active.
-        $(
-            #[doc = concat!(stringify!($clock), " : datetime.time")]
-            ///     Daily knock-in observation clock on trading days.
-        )?
-        ///
         $(
             #[doc = concat!(stringify!($extra), " : float")]
             #[doc = concat!("    ", $extra_doc)]
         )*
+        $(
+            #[doc = concat!(stringify!($clock), " : datetime.time")]
+            ///     Daily knock-in observation clock on trading days.
+        )?
         /// autocall_times : iterable of datetime.datetime
         ///     Strictly increasing observation and payment times within life.
         /// effective_time : datetime.datetime
         ///     Inclusive contract start.
         /// expiry_time : datetime.datetime
         ///     Inclusive expiry time.
+        /// lockout_periods : int, optional
+        ///     Initial observations excluded from knock-out; defaults to zero and must
+        ///     leave at least one eligible observation. Coupons and knock-in remain active.
         /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         ///     State strictly before valuation. None is unknown; no_event means no prior
         ///     knock-in or knock-out, knocked_in means outstanding after knock-in, and

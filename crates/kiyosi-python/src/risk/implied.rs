@@ -31,7 +31,7 @@ use pyo3::prelude::*;
 /// Returns
 /// -------
 /// float
-///     Annual parameter in decimal units.
+///     Annualized BSM volatility in decimal units.
 ///
 /// Raises
 /// ------

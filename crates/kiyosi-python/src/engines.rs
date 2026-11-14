@@ -113,6 +113,11 @@ macro_rules! engine_methods {
             }
             /// Return the price and selected sensitivities using engine estimators.
             ///
+            /// Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+            /// fallbacks, event checks and terminal stencils; native estimators and
+            /// engine/model Greek coverage are preserved. Every supplied control is
+            /// validated.
+            ///
             /// Parameters
             /// ----------
             /// instrument : object
@@ -131,11 +136,6 @@ macro_rules! engine_methods {
             ///     Positive decimal rate bump; defaults to 0.0001.
             /// time_shift : datetime.timedelta or None, optional
             ///     Positive whole-microsecond bump; None selects an automatic time step.
-            ///     Omitted controls or Ellipsis use shared
-            ///     defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            ///     bump. Controls affect numerical fallbacks, event checks and terminal
-            ///     stencils; native estimators and engine/model Greek coverage are
-            ///     preserved.
             ///
             /// Returns
             /// -------

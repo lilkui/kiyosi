@@ -266,7 +266,7 @@ class EuropeanOption:
 
         Parameters
         ----------
-        **changes : object, optional
+        option_type, strike, effective_time, expiry_time : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -343,7 +343,7 @@ class AmericanOption:
 
         Parameters
         ----------
-        **changes : object, optional
+        option_type, strike, effective_time, expiry_time : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -424,7 +424,7 @@ class CashOrNothingOption:
 
         Parameters
         ----------
-        **changes : object, optional
+        option_type, strike, payout, effective_time, expiry_time : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -505,7 +505,7 @@ class AssetOrNothingOption:
 
         Parameters
         ----------
-        **changes : object, optional
+        option_type, strike, effective_time, expiry_time : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -794,7 +794,7 @@ class BlackScholesMertonParameters:
 
         Parameters
         ----------
-        **changes : object, optional
+        risk_free_rate, dividend_yield, volatility : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -915,7 +915,7 @@ class HestonParameters:
 
         Parameters
         ----------
-        **changes : object, optional
+        risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -1102,7 +1102,7 @@ class LocalVolatilityParameters:
 
         Parameters
         ----------
-        **changes : object, optional
+        risk_free_rate, dividend_yield, surface : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -1307,7 +1307,7 @@ def custom_calendar(
     Returns
     -------
     TradingCalendar
-        Observation records.
+        Calendar with normalized overrides and the selected annualization basis.
 
     Raises
     ------
@@ -1339,7 +1339,7 @@ class ObservationSchedule:
     -----
     Construct from explicit times, or use fixed_interval_schedule or
     monthly_schedule. Bounds and calendar validate the input; the schedule owns
-    its times and calendar. Empty schedules are valid. The times property returns a
+    its times and calendar. The times property returns a
     copy; forward and reverse iteration retrieve timestamps lazily and retain
     the schedule owner. Integer indexing accepts
     negative indices, rejects bool, and raises IndexError outside the sequence.
@@ -1389,8 +1389,7 @@ def fixed_interval_schedule(
     end_time : datetime.datetime
         Last timestamp of the interval.
     interval_days : int
-        Positive calendar-day spacing of unadjusted observations, up to 2**63 -
-        1.
+        Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
     observation_clock_time : datetime.time
         Required observation time of day, without timezone information.
     calendar : TradingCalendar, optional
@@ -1399,7 +1398,7 @@ def fixed_interval_schedule(
     Returns
     -------
     ObservationSchedule
-        Observation records.
+        Ordered observation times and their validation calendar.
 
     Raises
     ------
@@ -1443,7 +1442,7 @@ def monthly_schedule(
     Returns
     -------
     ObservationSchedule
-        Observation records.
+        Ordered observation times and their validation calendar.
 
     Raises
     ------
@@ -1504,7 +1503,7 @@ class PricingContext:
 
         Parameters
         ----------
-        **changes : object, optional
+        model_parameters, spot_price, valuation_time : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -1627,6 +1626,11 @@ class _PricingMethods[Instrument]:
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -1645,11 +1649,6 @@ class _PricingMethods[Instrument]:
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -1697,6 +1696,11 @@ class AnalyticEuropeanEngine(_PricingMethods[EuropeanOption]):
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -1715,11 +1719,6 @@ class AnalyticEuropeanEngine(_PricingMethods[EuropeanOption]):
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -1798,7 +1797,7 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
 
         Parameters
         ----------
-        **changes : object, optional
+        absolute_tolerance, relative_tolerance, max_evaluations : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -1869,6 +1868,11 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -1887,11 +1891,6 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -1961,6 +1960,11 @@ class AnalyticDigitalEngine(
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -1979,11 +1983,6 @@ class AnalyticDigitalEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -2042,7 +2041,7 @@ class CoxRossRubinsteinBarrierEngine(_PricingMethods[BarrierOption]):
 
         Parameters
         ----------
-        **changes : object, optional
+        step_count : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -2077,6 +2076,11 @@ class CoxRossRubinsteinBarrierEngine(_PricingMethods[BarrierOption]):
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -2095,11 +2099,6 @@ class CoxRossRubinsteinBarrierEngine(_PricingMethods[BarrierOption]):
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -2122,8 +2121,8 @@ class CoxRossRubinsteinBarrierEngine(_PricingMethods[BarrierOption]):
         -----
         At positive volatility before expiry delta and gamma use tree nodes. Zero
         volatility uses scalar differences. Other Greeks are unsupported. At expiry
-        spot Greeks use default terminal-payoff stencils. Use numerical_greeks for
-        configurable scalar differences.
+        spot Greeks use terminal-payoff stencils with the request's shifts.
+        Use numerical_greeks for scalar differences throughout.
         """
 
 class QuadratureBarrierEngine(_PricingMethods[BarrierOption]):
@@ -2168,7 +2167,7 @@ class QuadratureBarrierEngine(_PricingMethods[BarrierOption]):
 
         Parameters
         ----------
-        **changes : object, optional
+        asset_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -2247,7 +2246,7 @@ class QuadratureDigitalEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        asset_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -2330,7 +2329,7 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
 
         Parameters
         ----------
-        **changes : object, optional
+        asset_step_count, time_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -2387,7 +2386,7 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
 
         Parameters
         ----------
-        **changes : object, optional
+        step_count : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -2422,6 +2421,11 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -2440,11 +2444,6 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -2466,10 +2465,10 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         Notes
         -----
         At positive volatility before expiry delta and gamma use tree nodes;
-        one-step gamma and other Greeks use numerical differences with engine
-        defaults. At expiry spot Greeks use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences. Zero volatility uses
-        scalar differences.
+        one-step gamma and other Greeks use numerical differences with the
+        request's shifts. Zero volatility also uses scalar differences. At expiry
+        spot Greeks use terminal-payoff stencils with the request's shifts.
+        Use numerical_greeks for scalar differences throughout.
         """
 
 class CoxRossRubinsteinDigitalEngine(
@@ -2506,7 +2505,7 @@ class CoxRossRubinsteinDigitalEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        step_count : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -2541,6 +2540,11 @@ class CoxRossRubinsteinDigitalEngine(
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -2559,11 +2563,6 @@ class CoxRossRubinsteinDigitalEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -2586,8 +2585,8 @@ class CoxRossRubinsteinDigitalEngine(
         -----
         At positive volatility before expiry delta and gamma use tree nodes. Zero
         volatility uses scalar differences. Other Greeks are unsupported. At expiry
-        spot Greeks use default terminal-payoff stencils. Use numerical_greeks for
-        configurable scalar differences.
+        spot Greeks use terminal-payoff stencils with the request's shifts.
+        Use numerical_greeks for scalar differences throughout.
         """
 
 class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
@@ -2616,7 +2615,7 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
 
         Parameters
         ----------
-        **changes : object, optional
+        asset_step_count, time_step_count, scheme, asset_upper_boundary : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -2663,6 +2662,11 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -2681,11 +2685,6 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -2710,8 +2709,8 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
         BSM volatility uses scalar differences. Other BSM Greeks use numerical
         differences with request-level shifts. Local volatility provides only
         delta and gamma. At expiry vanilla Greeks use exact supported payoff
-        derivatives; other products use default terminal-payoff stencils. Use
-        numerical_greeks for configurable scalar differences under BSM.
+        derivatives; other products use terminal-payoff stencils with the
+        request's shifts. Use numerical_greeks for scalar differences under BSM.
         """
 
 class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
@@ -2755,8 +2754,8 @@ class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
-    volatility raises UnsupportedOperationError. Sigma
-    uses fixed absolute surface coordinates; expiry Greeks follow terminal
+    volatility raises UnsupportedOperationError. The local-volatility surface
+    stays fixed in absolute coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
     strike. Surface coverage follows remaining stochastic evolution; rate
@@ -2805,8 +2804,8 @@ class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
-    volatility raises UnsupportedOperationError. Sigma
-    uses fixed absolute surface coordinates; expiry Greeks follow terminal
+    volatility raises UnsupportedOperationError. The local-volatility surface
+    stays fixed in absolute coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
     strike. Surface coverage follows remaining stochastic evolution; rate
@@ -2857,8 +2856,8 @@ class FiniteDifferenceDoubleBarrierEngine(
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
-    volatility raises UnsupportedOperationError. Sigma
-    uses fixed absolute surface coordinates; expiry Greeks follow terminal
+    volatility raises UnsupportedOperationError. The local-volatility surface
+    stays fixed in absolute coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
     strike. Surface coverage follows remaining stochastic evolution; rate
@@ -2911,8 +2910,8 @@ class FiniteDifferenceAutocallableEngine(
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
-    volatility raises UnsupportedOperationError. Sigma
-    uses fixed absolute surface coordinates; expiry Greeks follow terminal
+    volatility raises UnsupportedOperationError. The local-volatility surface
+    stays fixed in absolute coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
     strike. Surface coverage follows remaining stochastic evolution; rate
@@ -2961,8 +2960,8 @@ class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOpti
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
-    volatility raises UnsupportedOperationError. Sigma
-    uses fixed absolute surface coordinates; expiry Greeks follow terminal
+    volatility raises UnsupportedOperationError. The local-volatility surface
+    stays fixed in absolute coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
     strike. Surface coverage follows remaining stochastic evolution; rate
@@ -3013,8 +3012,8 @@ class FiniteDifferenceBinaryBarrierEngine(
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
-    volatility raises UnsupportedOperationError. Sigma
-    uses fixed absolute surface coordinates; expiry Greeks follow terminal
+    volatility raises UnsupportedOperationError. The local-volatility surface
+    stays fixed in absolute coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
     strike. Surface coverage follows remaining stochastic evolution; rate
@@ -3089,7 +3088,7 @@ class FiniteDifferenceHestonVanillaEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        asset_step_count, variance_step_count, time_step_count, asset_upper_boundary, variance_upper_boundary : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -3170,6 +3169,11 @@ class FiniteDifferenceHestonVanillaEngine(
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -3188,11 +3192,6 @@ class FiniteDifferenceHestonVanillaEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -3260,8 +3259,8 @@ class FiniteDifferenceVanillaEngine(
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
-    volatility raises UnsupportedOperationError. Sigma
-    uses fixed absolute surface coordinates; expiry Greeks follow terminal
+    volatility raises UnsupportedOperationError. The local-volatility surface
+    stays fixed in absolute coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
     strike. Surface coverage follows remaining stochastic evolution; rate
@@ -3312,8 +3311,8 @@ class FiniteDifferenceDigitalEngine(
     deterministic rate curves. All FD product families support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
-    volatility raises UnsupportedOperationError. Sigma
-    uses fixed absolute surface coordinates; expiry Greeks follow terminal
+    volatility raises UnsupportedOperationError. The local-volatility surface
+    stays fixed in absolute coordinates; expiry Greeks follow terminal
     payoffs and are absent where their stencils cross product events. Vanilla
     expiry Greeks use exact supported payoff derivatives, undefined at the
     strike. Surface coverage follows remaining stochastic evolution; rate
@@ -3329,7 +3328,17 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
 
         An existing seed is retained. Save or pickle the returned engine before
         pricing to replay its draws within the same build. The original is
-        unchanged. Entropy failures raise OSError.
+        unchanged.
+
+        Returns
+        -------
+        object
+            Engine of the same class with a concrete seed.
+
+        Raises
+        ------
+        OSError
+            If system entropy is unavailable.
         """
 
     @property
@@ -3455,6 +3464,11 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -3473,11 +3487,6 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -3502,8 +3511,8 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
         -----
         Barrier engines use spot_shift for event-availability checks and continuous
         at-hit rebate derivatives. Autocallable and accumulator engines use
-        numerical differences with engine defaults. At expiry spot Greeks use
-        default terminal-payoff stencils. Use numerical_greeks for explicit scalar
+        numerical differences with the request's shifts. At expiry spot Greeks
+        use terminal-payoff stencils with those shifts. Use numerical_greeks for scalar
         bump calculations on supported BSM pairs.
         """
 
@@ -3585,7 +3594,7 @@ class MonteCarloVanillaEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        path_count, step_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -3620,6 +3629,11 @@ class MonteCarloVanillaEngine(
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -3638,11 +3652,6 @@ class MonteCarloVanillaEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -3770,7 +3779,7 @@ class MonteCarloDigitalEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        path_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -3801,6 +3810,11 @@ class MonteCarloDigitalEngine(
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -3819,11 +3833,6 @@ class MonteCarloDigitalEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -3848,8 +3857,8 @@ class MonteCarloDigitalEngine(
         -----
         At positive volatility before expiry delta and gamma use native
         likelihood-ratio estimators. Zero volatility uses scalar differences. At
-        expiry they use default terminal-payoff stencils. Use numerical_greeks for
-        configurable scalar differences.
+        expiry they use terminal-payoff stencils with the request's shifts.
+        Use numerical_greeks for scalar differences throughout.
         """
 
 class MonteCarloBarrierEngine(
@@ -3924,7 +3933,7 @@ class MonteCarloBarrierEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        path_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -4016,7 +4025,7 @@ class MonteCarloAutocallableEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        path_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -4100,7 +4109,7 @@ class MonteCarloAccumulatorEngine(_MonteCarloMethods[Accumulator, Accumulator]):
 
         Parameters
         ----------
-        **changes : object, optional
+        path_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -4124,7 +4133,7 @@ class MonteCarloAsianEngine(
         GeometricAveragePriceOption | ArithmeticAveragePriceOption,
     ]
 ):
-    """Flat-rate CPU Monte Carlo pricing for continuous average-price options.
+    """BSM Monte Carlo pricing for continuous average-price options.
 
     Parameters
     ----------
@@ -4167,7 +4176,9 @@ class MonteCarloAsianEngine(
     measure sampling error.
     Geometric averages and single fixings sample exact
     distributions. Arithmetic averages use step_count trapezoidal intervals
-    with the first interval integrated conditionally.
+    with the first interval integrated conditionally. Geometric pricing
+    requires constant rates before expiry; arithmetic pricing accepts
+    deterministic rate curves.
     """
 
     def __eq__(self, other: object) -> bool: ...
@@ -4197,7 +4208,7 @@ class MonteCarloAsianEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        path_count, step_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -4232,6 +4243,11 @@ class MonteCarloAsianEngine(
     ) -> PricingResult:
         """Return the price and selected sensitivities using engine estimators.
 
+        Omitted controls or Ellipsis use shared defaults. Shifts affect numerical
+        fallbacks, event checks and terminal stencils; native estimators and
+        engine/model Greek coverage are preserved. Every supplied control is
+        validated.
+
         Parameters
         ----------
         instrument : object
@@ -4250,11 +4266,6 @@ class MonteCarloAsianEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis use shared
-            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
-            bump. Controls affect numerical fallbacks, event checks and terminal
-            stencils; native estimators and engine/model Greek coverage are
-            preserved.
 
         Returns
         -------
@@ -4279,8 +4290,8 @@ class MonteCarloAsianEngine(
         -----
         At positive volatility before expiry delta and gamma use native estimators.
         Zero volatility uses scalar differences. At expiry delta and gamma use
-        default terminal-payoff stencils. Use numerical_greeks for configurable
-        scalar differences.
+        terminal-payoff stencils with the request's shifts. Use numerical_greeks
+        for scalar differences throughout.
         """
 
 type Greek = Literal[
@@ -4476,7 +4487,7 @@ def implied_volatility(
     Returns
     -------
     float
-        Annual parameter in decimal units.
+        Annualized BSM volatility in decimal units.
 
     Raises
     ------
@@ -4700,15 +4711,16 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump. Omission, Ellipsis or None selects the automatic engine/product bump.
+        Positive absolute spot bump. Omission, Ellipsis or None selects the
+        automatic engine/product bump.
     volatility_shift : float or None, optional
         Positive decimal volatility bump. None selects the smaller of 0.0001 and
         half the current volatility. Omission or Ellipsis uses shared defaults.
     rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis uses shared defaults.
+        Positive decimal rate bump; defaults to 0.0001. Ellipsis uses the default.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission, Ellipsis or None selects an automatic bump up to one day
-        shortened to avoid observations. Use smaller durations to check
+        Positive whole-microsecond bump. Omission, Ellipsis or None selects an
+        automatic bump up to one day, shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 
     Returns
@@ -4728,9 +4740,12 @@ def numerical_greeks(
     TypeError
         If greeks is not a string or iterable of strings.
     OSError
-        If system entropy or worker creation fails. Monte Carlo draws are
-        pinned within the request, matching the Rust numerical_greeks
-        operation.
+        If system entropy or worker creation fails.
+
+    Notes
+    -----
+    Monte Carlo draws use a fixed seed throughout the request, matching the
+    Rust numerical_greeks operation.
     """
 
 @overload
@@ -4939,7 +4954,7 @@ class GeometricAveragePriceOption:
 
         Parameters
         ----------
-        **changes : object, optional
+        option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -5048,7 +5063,7 @@ class ArithmeticAveragePriceOption:
 
         Parameters
         ----------
-        **changes : object, optional
+        option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -5278,7 +5293,7 @@ class BarrierOption:
 
     @property
     def observation_schedule(self) -> ObservationSchedule | None:
-        """Returns an owned schedule, or None for continuous monitoring."""
+        """Return an owned schedule, or None for continuous monitoring."""
 
     @property
     def mean_observation_year_fraction(self) -> float:
@@ -5469,7 +5484,7 @@ class DoubleBarrierOption:
 
     @property
     def observation_schedule(self) -> ObservationSchedule | None:
-        """Returns an owned schedule, or None for continuous monitoring."""
+        """Return an owned schedule, or None for continuous monitoring."""
 
     @property
     def touch_state(self) -> Literal["untouched", "touched"] | None:
@@ -5551,7 +5566,7 @@ class RangeAccrualOption:
 
         Parameters
         ----------
-        **changes : object, optional
+        notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time, observation_clock_time, realized_hit_count, calendar : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -5648,8 +5663,10 @@ class AnalyticDoubleTouchEngine(_PricingMethods[DoubleTouchOption]):
     at-hit payments. Nonconstant rate curves are rejected. At positive
     volatility, unresolved scheduled monitoring is unsupported. Resolved cash
     flows and zero-volatility paths support scheduled monitoring after calendar
-    and history validation. Greeks use numerical differences; expiry and
-    current barrier equality without a prior touch omit Greeks. Stencils
+    and history validation. Greeks use numerical differences. At expiry they
+    follow terminal payoffs, with time Greeks absent. Before expiry at positive
+    volatility, barrier equality without a prior touch leaves spot Greeks
+    absent; rate and volatility Greeks follow the resolved payoff. Stencils
     crossing a barrier omit affected measures.
 
     See Also
@@ -5825,7 +5842,7 @@ class BinaryBarrierOption:
 
     @property
     def observation_schedule(self) -> ObservationSchedule | None:
-        """Returns an owned schedule, or None for continuous monitoring."""
+        """Return an owned schedule, or None for continuous monitoring."""
 
     @property
     def mean_observation_year_fraction(self) -> float:
@@ -6010,7 +6027,7 @@ class TouchOption:
 
     @property
     def observation_schedule(self) -> ObservationSchedule | None:
-        """Returns an owned schedule, or None for continuous monitoring."""
+        """Return an owned schedule, or None for continuous monitoring."""
 
     @property
     def mean_observation_year_fraction(self) -> float:
@@ -6203,7 +6220,7 @@ class DoubleTouchOption:
 
     @property
     def observation_schedule(self) -> ObservationSchedule | None:
-        """Returns an owned schedule, or None for continuous monitoring."""
+        """Return an owned schedule, or None for continuous monitoring."""
 
     @property
     def touch_state(self) -> Literal["untouched", "touched"] | None:
@@ -6263,7 +6280,7 @@ class QuadratureAutocallableEngine(
 
         Parameters
         ----------
-        **changes : object, optional
+        asset_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -6469,7 +6486,7 @@ def autocallable_observations(
     knock_out_coupon_rates: Iterable[_Real],
     coupon_barrier_levels: None = None,
 ) -> list[AutocallableObservation]:
-    """Associates parallel sequences into input observation records.
+    """Combine parallel sequences into validated observation records.
 
     Parameters
     ----------
@@ -6560,7 +6577,7 @@ class SnowballOption:
         Positive upper terminal settlement strike.
     lower_strike : float
         Nonnegative lower terminal strike, at most the upper strike.
-    knock_in_observation : KnockInObservation, optional
+    knock_in_observation : KnockInObservation
         Observe knock-in on every trading day or only at expiry.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -6779,7 +6796,7 @@ class PhoenixOption:
         Positive upper terminal settlement strike.
     lower_strike : float
         Nonnegative lower terminal strike, at most the upper strike.
-    knock_in_observation : KnockInObservation, optional
+    knock_in_observation : KnockInObservation
         Observe knock-in on every trading day or only at expiry.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -6807,9 +6824,9 @@ class PhoenixOption:
     TypeError
         If a required value is missing or a supplied representation is invalid.
     InvalidInputError
-        If amounts, strikes, life times or observations are invalid.
-        Observation coupon_rate must be zero; coupon_barrier_level is
-        nonnegative.
+        If amounts, strikes, life times or observations are invalid. Records
+        must be Phoenix observations with nonnegative coupon barriers;
+        snowball observations are rejected even when their coupon is zero.
 
     Notes
     -----
@@ -7183,7 +7200,7 @@ class TernarySnowballOption:
         Knocked-in maturity coupon, at most the intact maturity coupon.
     knock_in_level : float
         Positive strict downside threshold.
-    knock_in_observation : KnockInObservation, optional
+    knock_in_observation : KnockInObservation
         Observe knock-in on every trading day or only at expiry.
     effective_time : datetime.datetime
         Inclusive contract start.
@@ -8238,7 +8255,7 @@ class QuadratureAccumulatorEngine(_PricingMethods[Accumulator]):
 
         Parameters
         ----------
-        **changes : object, optional
+        asset_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -8293,20 +8310,19 @@ def standard_phoenix(
         Positive strict knock-in threshold.
     knock_out_level : float
         Positive inclusive threshold at the first eligible knock-out observation.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-
     coupon_barrier_level : float
         Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     autocall_times : iterable of datetime.datetime
         Strictly increasing observation and payment times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         State strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out, knocked_in means outstanding after knock-in, and
@@ -8372,22 +8388,21 @@ def step_down_phoenix(
         Positive strict knock-in threshold.
     initial_knock_out_level : float
         Positive inclusive threshold at the first eligible knock-out observation.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-
     coupon_barrier_level : float
         Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
     knock_out_level_decrement : float
         Finite nonnegative absolute decrement after each eligible observation; lockout does not consume ladder steps.
+    knock_in_observation_clock_time : datetime.time
+        Daily knock-in observation clock on trading days.
     autocall_times : iterable of datetime.datetime
         Strictly increasing observation and payment times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         State strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out, knocked_in means outstanding after knock-in, and
@@ -8450,16 +8465,15 @@ def fixed_coupon_note(
         Positive strict knock-in threshold.
     knock_out_level : float
         Positive inclusive threshold at the first eligible knock-out observation.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
-
     autocall_times : iterable of datetime.datetime
         Strictly increasing observation and payment times within life.
     effective_time : datetime.datetime
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         State strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out, knocked_in means outstanding after knock-in, and
@@ -8523,10 +8537,6 @@ def digital_coupon_note(
         Positive strict knock-in threshold.
     knock_out_level : float
         Positive inclusive threshold at the first eligible knock-out observation.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
-
     coupon_barrier_level : float
         Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
     autocall_times : iterable of datetime.datetime
@@ -8535,6 +8545,9 @@ def digital_coupon_note(
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
+    lockout_periods : int, optional
+        Initial observations excluded from knock-out; defaults to zero and must
+        leave at least one eligible observation. Coupons and knock-in remain active.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         State strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out, knocked_in means outstanding after knock-in, and

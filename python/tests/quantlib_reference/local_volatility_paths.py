@@ -35,7 +35,18 @@ NAMES = (
 
 
 def process(spot=101.0):
-    """Build an explicitly supplied surface, independent of Black-vol fallback."""
+    """Build a QuantLib process with an explicit local-volatility surface.
+
+    Parameters
+    ----------
+    spot : float, optional
+        Initial underlying price.
+
+    Returns
+    -------
+    QuantLib.GeneralizedBlackScholesProcess
+        Process using the supplied local surface without Black-vol fallback.
+    """
     start = ql.Date(1, 1, 2025)
     basis = ql.Actual365Fixed()
     matrix = ql.Matrix(3, 2)
@@ -77,7 +88,22 @@ def events(grid):
 
 
 def payoffs(path, records, initial_spot=101.0):
-    """Value independently specified contracts from monitored path values."""
+    """Value independently specified contracts from monitored path values.
+
+    Parameters
+    ----------
+    path : sequence of float
+        Simulated underlying prices.
+    records : sequence of tuple
+        Path indices, year fractions, discount factors and observation indices.
+    initial_spot : float, optional
+        Spot used for the initial accumulation and knock-in check.
+
+    Returns
+    -------
+    list of float
+        Discounted payoffs in NAMES order.
+    """
     quantity = 3.0 + (2.0 if initial_spot < 100 else 1.0)
     accumulated = None
     knocked_in = initial_spot < 95
@@ -126,7 +152,24 @@ def payoffs(path, records, initial_spot=101.0):
 
 
 def estimate(pairs, substeps, seed=1729, spot=101.0):
-    """Report the mean and sampling standard error from independent antithetic pairs."""
+    """Estimate prices and standard errors from independent antithetic pairs.
+
+    Parameters
+    ----------
+    pairs : int
+        Number of independent antithetic pairs.
+    substeps : int
+        Base path steps per calendar day.
+    seed : int, optional
+        Random sequence seed.
+    spot : float, optional
+        Initial underlying price.
+
+    Returns
+    -------
+    dict
+        Simulation settings, control prices and estimates by contract.
+    """
     required = [(day - START).days / 365 for day in trading_dates()]
     grid = ql.TimeGrid(required, 90 * substeps)
     records = events(grid)
@@ -197,7 +240,28 @@ def estimate(pairs, substeps, seed=1729, spot=101.0):
 
 
 def time_bias(pairs, substeps, seed=31415, spot=101.0):
-    """Couple coarse and fine QuantLib path discretizations by summing pairs of Brownian increments."""
+    """Estimate time bias with coupled coarse and fine QuantLib paths.
+
+    Parameters
+    ----------
+    pairs : int
+        Number of independent antithetic pairs.
+    substeps : int
+        Coarse path steps per calendar day; the fine path uses twice as many.
+    seed : int, optional
+        Random sequence seed.
+    spot : float, optional
+        Initial underlying price.
+
+    Returns
+    -------
+    dict
+        Fine-minus-coarse payoff differences and their standard errors.
+
+    Notes
+    -----
+    Each coarse Brownian increment sums two fine increments.
+    """
     coarse_steps = 90 * substeps
     step = 90 / 365 / coarse_steps
     grid = ql.TimeGrid([day / (365 * substeps) for day in range(1, coarse_steps + 1)])
@@ -253,7 +317,24 @@ def time_bias(pairs, substeps, seed=31415, spot=101.0):
 
 
 def sensitivities(pairs, substeps, seed=1729, spot=101.0):
-    """Measure two fixed-surface bump widths on shared Gaussian sequences."""
+    """Measure two fixed-surface bump widths on shared Gaussian sequences.
+
+    Parameters
+    ----------
+    pairs : int
+        Number of independent antithetic pairs.
+    substeps : int
+        Base path steps per calendar day.
+    seed : int, optional
+        Random sequence seed shared by all bumps.
+    spot : float, optional
+        Central underlying price.
+
+    Returns
+    -------
+    dict
+        Delta and gamma estimates for spot bumps of one and two price units.
+    """
     required = [(day - START).days / 365 for day in trading_dates()]
     grid = ql.TimeGrid(required, 90 * substeps)
     records = events(grid)

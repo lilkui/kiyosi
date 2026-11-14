@@ -15,16 +15,19 @@ observation records carry no calendar. Pass ``calendar=schedule.calendar`` when
 building records from a schedule; presets inherit the schedule's calendar.
 Replacement inherits a supplied schedule's calendar, otherwise retaining the
 contract's calendar.
+
 Explicit observations use exact timestamps; automatic observations require
 ``observation_clock_time``. Autocallable daily knock-in owns its clock in
 ``KnockInObservation.every_trading_day``; daily presets accept
-``knock_in_observation_clock_time``. Daily knock-in and accumulation include the effective
-instant; range accrual observations exclude it. Settlement adds no observation.
+``knock_in_observation_clock_time``. Daily knock-in and accumulation include
+the effective instant; range accrual observations exclude it. Settlement adds
+no observation.
 Barrier and touch contracts use ``observation_times=None`` for continuous
 monitoring and a nonempty iterable for scheduled monitoring. Their read-only
 ``observation_mode`` property reports the selected mode. Both ``observation_times``
 and ``observation_schedule`` return ``None`` for continuous monitoring. A scheduled
-contract's ``observation_schedule`` can be passed as ``observation_times`` with its calendar intact.
+contract's ``observation_schedule`` can be passed as ``observation_times``
+with its calendar intact.
 Timestamp tuples contain no calendar; forward the contract's calendar with them.
 
 Supplied history describes events strictly before the requested valuation.
@@ -32,8 +35,9 @@ Observations exactly at valuation use current spot once. Bookkeeping owns event
 records, lifecycle and settlement progression, and consistency with valuation time
 and contract terms, including preventing stale-state or future-state misuse.
 Kiyosi neither checks state age nor reconstructs history. Missing history is
-unknown; explicit zero, false, untouched, and no-event states are known history. Range accruals accept prior
-hit counts; accumulators accept prior quantity and knock-out settlement state.
+unknown; explicit zero, false, untouched, and no-event states are known history.
+Range accruals accept prior hit counts; accumulators accept prior quantity and
+knock-out settlement state.
 Asian options accept the realized average for the elapsed averaging interval.
 Numerical time sensitivities hold supplied history fixed.
 
@@ -46,10 +50,10 @@ construct product-specific observations. ``autocall_observations`` contains the
 contractual knock-out and applicable coupon records; ``autocall_times`` returns
 their timestamps. Knock-in monitoring is defined independently by
 ``knock_in_observation`` and ``knock_in_observation_schedule``.
-``PhoenixOption`` accepts a finite signed
-``coupon_per_period`` rate applied at each qualifying observation without time accrual. Principal redemption is
-per unit of original notional; scale the complete price and Greeks for position
-size.
+
+``PhoenixOption`` accepts a finite signed ``coupon_per_period`` rate applied at
+each qualifying observation without time accrual. Principal redemption is per
+unit of original notional; scale the complete price and Greeks for position size.
 
 Phoenix ``lockout_periods`` disables knock-out for the first specified number of
 observations, while coupons and knock-in remain active. At least one observation

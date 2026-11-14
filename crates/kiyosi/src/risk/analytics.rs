@@ -79,7 +79,7 @@ impl Greek {
 /// Selects price sensitivities, ignoring duplicates.
 ///
 /// Select measures explicitly with [`Self::new`] or [`Self::all`].
-/// Empty requests select price only; every sensitivity is not requested.
+/// Empty requests select price only, leaving every sensitivity unrequested.
 /// Unsupported measures remain absent with [`GreekStatus::Unsupported`], including
 /// requests with no engine/model-supported measure. Use [`PricingResult::require`]
 /// to reject a measure unavailable in the result.
@@ -480,12 +480,10 @@ impl NumericalShiftSettings {
 
 /// Describes how an engine estimates Greeks and which shift controls it may use.
 ///
-/// This describes the calculation path, independently of the requested measures.
-/// A listed control may be unused for a particular request or resolved payoff.
-/// Greek requests expose shift controls; each calculation path uses the controls below.
-/// Customize scalar differences with
-/// [`crate::numerical_greeks`]. See
-/// [`PricingEngine::greek_method`] for an example.
+/// The calculation path is independent of the requested measures. A listed
+/// control may be unused for a particular request or resolved payoff.
+/// Use [`crate::numerical_greeks`] for scalar differences with explicit controls.
+/// See [`PricingEngine::greek_method`] for an example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GreekMethod {
     /// Uses native analytic, grid or sampling estimates without numerical shifts.
@@ -636,8 +634,8 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// Reports the native Greek calculation path without pricing or drawing samples.
     ///
     /// Controls are potentially active across supported requests; individual requests,
-    /// current events and resolved payoffs may use fewer. Contract life and history
-    /// are validated by pricing, rather than by this query. The standalone
+    /// current events and resolved payoffs may use fewer. Pricing validates
+    /// contract life and history; this query checks applicability only. The standalone
     /// [`crate::numerical_greeks`] helper always selects numerical differences.
     ///
     /// # Errors

@@ -38,8 +38,8 @@ macro_rules! binomial_engine {
                 /// -----
                 /// At positive volatility before expiry delta and gamma use tree nodes. Zero
                 /// volatility uses scalar differences. Other Greeks are unsupported. At expiry
-                /// spot Greeks use default terminal-payoff stencils. Use numerical_greeks for
-                /// configurable scalar differences.
+                /// spot Greeks use terminal-payoff stencils with the request's shifts.
+                /// Use numerical_greeks for scalar differences throughout.
                 ///
             ]
         );
@@ -102,10 +102,10 @@ binomial_engine!(
         /// Notes
         /// -----
         /// At positive volatility before expiry delta and gamma use tree nodes;
-        /// one-step gamma and other Greeks use numerical differences with engine
-        /// defaults. At expiry spot Greeks use default terminal-payoff stencils. Use
-        /// numerical_greeks for configurable scalar differences. Zero volatility uses
-        /// scalar differences.
+        /// one-step gamma and other Greeks use numerical differences with the
+        /// request's shifts. Zero volatility also uses scalar differences. At expiry
+        /// spot Greeks use terminal-payoff stencils with the request's shifts.
+        /// Use numerical_greeks for scalar differences throughout.
         ///
     ]
 );
