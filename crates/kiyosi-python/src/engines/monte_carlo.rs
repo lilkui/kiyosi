@@ -512,22 +512,7 @@ sampling_settings!(
 
 engine_methods!(@evaluate MonteCarloVanillaEngine, binomial::VanillaInstrument<'_>, binomial::with_vanilla);
 
-impl MonteCarloDigitalEngine {
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "retain the extracted Python borrow during evaluation"
-    )]
-    pub(crate) fn evaluate<R: Send>(
-        &self,
-        py: Python<'_>,
-        instrument: digital::DigitalInstrument<'_>,
-        context: &PricingContext,
-        request: impl crate::engines::PricingRequest<R>,
-    ) -> PyResult<R> {
-        let option = instrument.contract();
-        crate::engines::evaluate(py, &self.0, option, context, request, false)
-    }
-}
+engine_methods!(@evaluate MonteCarloDigitalEngine, digital::DigitalInstrument<'_>, digital::with_digital);
 
 engine_methods!(@evaluate MonteCarloAsianEngine, asian::AsianInstrument<'_>, asian::with_asian);
 
