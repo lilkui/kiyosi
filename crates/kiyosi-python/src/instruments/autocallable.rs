@@ -23,8 +23,9 @@ macro_rules! autocallable_properties {
             fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
                 let value = slf.borrow();
                 let py = slf.py();
-                crate::representation::format(slf.as_any(), [
-                    ("calendar", crate::representation::calendar_preview(py, value.0.calendar())?),
+                crate::representation::format(slf.as_any(), Self::_STATE_FIELDS, &[
+                    ("calendar", Some(crate::representation::calendar_preview(py, value.0.calendar())?
+                        .unwrap_or_else(|| "weekdays_calendar()".into()))),
                     ("autocall_observations", Some(crate::representation::observations(py, value.0.autocall_observations())?)),
                 ])
             }

@@ -58,6 +58,7 @@ rate_properties!(
         let value = slf.borrow();
         crate::representation::model(
             slf.as_any(),
+            Self::_STATE_FIELDS,
             value.0.risk_free_curve(),
             value.0.dividend_curve(),
         )

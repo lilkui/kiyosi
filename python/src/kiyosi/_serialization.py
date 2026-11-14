@@ -3,17 +3,11 @@
 import copyreg
 import reprlib
 from datetime import datetime
-from functools import cache
-from inspect import Parameter, Signature, isclass, signature
+from inspect import isclass
 from types import ModuleType
 from typing import Any, get_args
 
 from . import _native
-
-
-@cache
-def _constructor(factory: Any) -> Signature:
-    return signature(factory)
 
 
 def _copy(value: Any) -> Any:
@@ -49,14 +43,6 @@ def _curve(reference_time: Any, times: Any, factors: Any, shift: float) -> Any:
     return _native.RateTermStructure(
         reference_time=reference_time, times=times, factors=factors
     ).shifted(shift)
-
-
-class _Preview:
-    def __init__(self, text: str) -> None:
-        self.text = text
-
-    def __repr__(self) -> str:
-        return self.text
 
 
 def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
@@ -118,7 +104,7 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
     return _restore, (factory, _fields(value))
 
 
-def _fields(value: Any, previews: dict[str, str] | None = None) -> dict[str, Any]:
+def _fields(value: Any) -> dict[str, Any]:
     if isinstance(value, _native.PricingResult):
         values = {name: getattr(value, name) for name in get_args(_native.Greek)}
         return {
@@ -153,29 +139,20 @@ def _fields(value: Any, previews: dict[str, str] | None = None) -> dict[str, Any
     ):
         # Reconstruct rates from curves to retain their nodes, shifts and coverage.
         fields.update(risk_free_rate="risk_free_curve", dividend_yield="dividend_curve")
-    return {
-        name: _Preview(previews[name])
-        if previews and name in previews
-        else getattr(value, attribute)
-        for name, attribute in fields.items()
-    }
+    return {name: getattr(value, attribute) for name, attribute in fields.items()}
 
 
 _repr_formatter = reprlib.Repr()
 _repr_formatter.maxother = 160
 
 
-def _repr(value: Any, previews: dict[str, str] | None = None) -> str:
-    fields = _fields(value, previews)
+def _repr(value: Any) -> str:
+    fields = _fields(value)
     name = type(value).__name__
     if fields.get("calendar") == _native.weekdays_calendar():
-        if _constructor(type(value)).parameters["calendar"].default is Parameter.empty:
-            fields["calendar"] = _Preview("weekdays_calendar()")
-        else:
-            fields.pop("calendar")
+        fields.pop("calendar")
     terms = ", ".join(
-        f"{key}={field.text if isinstance(field, _Preview) else _repr_formatter.repr(field)}"
-        for key, field in fields.items()
+        f"{key}={_repr_formatter.repr(field)}" for key, field in fields.items()
     )
     return f"{name}({terms})"
 

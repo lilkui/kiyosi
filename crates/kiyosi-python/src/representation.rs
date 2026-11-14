@@ -1,6 +1,5 @@
 use crate::conversions::python_timestamp;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 
 fn preview<T>(
     items: impl IntoIterator<Item = T>,
@@ -54,13 +53,15 @@ pub(crate) fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResu
 
 pub(crate) fn model(
     value: &Bound<'_, PyAny>,
+    fields: &[&str],
     risk_free: &kiyosi::RateTermStructure,
     dividend: &kiyosi::RateTermStructure,
 ) -> PyResult<String> {
     let py = value.py();
     format(
         value,
-        [
+        fields,
+        &[
             ("risk_free_rate", Some(curve(py, risk_free)?)),
             ("dividend_yield", Some(curve(py, dividend)?)),
         ],
@@ -142,17 +143,21 @@ pub(crate) fn observations(
 
 pub(crate) fn format(
     value: &Bound<'_, PyAny>,
-    fields: impl IntoIterator<Item = (&'static str, Option<String>)>,
+    fields: &[&str],
+    previews: &[(&str, Option<String>)],
 ) -> PyResult<String> {
-    let py = value.py();
-    let previews = PyDict::new(py);
-    for (name, preview) in fields {
-        if let Some(preview) = preview {
-            previews.set_item(name, preview)?;
-        }
+    let mut terms = Vec::with_capacity(fields.len());
+    for &field in fields {
+        let text = match previews.iter().find(|(name, _)| *name == field) {
+            Some((_, Some(text))) => text.clone(),
+            Some(("calendar", None)) => continue,
+            _ => value.getattr(field)?.repr()?.to_string(),
+        };
+        terms.push(format!("{field}={text}"));
     }
-    PyModule::import(py, "kiyosi._serialization")?
-        .getattr("_repr")?
-        .call1((value, previews))?
-        .extract()
+    Ok(format!(
+        "{}({})",
+        value.get_type().name()?,
+        terms.join(", ")
+    ))
 }

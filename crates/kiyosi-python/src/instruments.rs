@@ -12,7 +12,7 @@ macro_rules! monitoring_properties {
             fn __repr__(slf: &pyo3::Bound<'_, Self>) -> pyo3::PyResult<String> {
                 let value = slf.borrow();
                 let py = slf.py();
-                crate::representation::format(slf.as_any(), [
+                crate::representation::format(slf.as_any(), Self::_STATE_FIELDS, &[
                     ("calendar", crate::representation::calendar_preview(py, value.0.calendar())?),
                     ("observation_times", value.0.observation_times().map(|times| crate::representation::times(py, times)).transpose()?),
                 ])

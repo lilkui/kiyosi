@@ -339,8 +339,6 @@ def test_repr_exposes_terms_settings_and_results(subtests):
 def test_repr_pickle_and_engine_replacement_ignore_constructor_only_parameters(
     monkeypatch,
 ):
-    from kiyosi import _serialization
-
     objects = (
         p.AnalyticEuropeanEngine(),
         p.FiniteDifferenceVanillaEngine(asset_step_count=123, time_step_count=456),
@@ -377,7 +375,6 @@ def test_repr_pickle_and_engine_replacement_ignore_constructor_only_parameters(
             ),
             raising=False,
         )
-    monkeypatch.setattr(_serialization, "_constructor", inspect.signature)
     for value, expected in zip(objects, representations, strict=True):
         assert repr(value) == expected
         restored = pickle.loads(pickle.dumps(value))
@@ -418,8 +415,6 @@ def test_repr_pickle_and_engine_replacement_ignore_constructor_only_parameters(
 def test_model_reconstruction_ignores_constructor_only_parameters(
     factory, parameters, monkeypatch
 ):
-    from kiyosi import _serialization
-
     model = factory(
         risk_free_rate=m.RateTermStructure(
             reference_time=START, times=[END], factors=[0.99]
@@ -444,7 +439,6 @@ def test_model_reconstruction_ignores_constructor_only_parameters(
         ),
         raising=False,
     )
-    monkeypatch.setattr(_serialization, "_constructor", inspect.signature)
 
     restored = pickle.loads(pickle.dumps(model))
     assert restored == model

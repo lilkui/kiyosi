@@ -141,7 +141,8 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
         let py = slf.py();
         crate::representation::format(
             slf.as_any(),
-            [
+            Self::_STATE_FIELDS,
+            &[
                 (
                     "calendar",
                     crate::representation::calendar_preview(py, value.0.calendar())?,
