@@ -515,7 +515,7 @@ fn native_with_model<D: Diffusion>(
     };
     let edges = |current: f64| {
         let mut edges = vanilla_edges(current);
-        let next = observations.iter().find(|&&event| event >= current);
+        let next = observations.get(observations.partition_point(|&event| event < current));
         if !scheduled || next.is_some() {
             let rebate = if scheduled && terms.rebate_timing() == RebateTiming::AtHit {
                 scaled(
@@ -558,7 +558,7 @@ fn native_with_model<D: Diffusion>(
         );
     };
     let march = |mut values: Vec<f64>, events: bool| -> Result<Vec<f64>> {
-        if events && (!scheduled || observations.contains(&time)) {
+        if events && (!scheduled || observations.last() == Some(&time)) {
             if scheduled {
                 observe(&mut values, time, true);
             } else {
@@ -615,7 +615,7 @@ fn native_with_model<D: Diffusion>(
                 |values, asset| space.linear(values, asset),
             );
         };
-        if scheduled && observations.contains(&time) {
+        if scheduled && observations.last() == Some(&time) {
             observe_in(&mut unactivated, &continuation, time);
         } else if !scheduled {
             for i in [0, space.count] {
@@ -646,7 +646,8 @@ fn native_with_model<D: Diffusion>(
                 }
             },
             |current, vanilla| {
-                let remaining = !scheduled || observations.iter().any(|&event| event >= current);
+                let remaining =
+                    !scheduled || observations.last().is_some_and(|&event| event >= current);
                 let edge = |asset| {
                     if remaining && knocked(asset) {
                         full_space.linear(vanilla, asset)

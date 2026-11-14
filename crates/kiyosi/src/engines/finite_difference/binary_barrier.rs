@@ -333,11 +333,11 @@ fn native_with_diffusion<D: Diffusion>(
         .chain(contract.digital.map(DigitalOption::strike))
         .collect();
     let edges = |current, events: bool| {
+        let next = observations.get(observations.partition_point(|&event| event < current));
         let value = |asset| {
             if !events {
                 return base(asset, current);
             }
-            let next = observations.iter().find(|&&event| event >= current);
             if knocked(asset) && (!scheduled || next.is_some()) {
                 hit(asset, current, next.copied().unwrap_or(current))
             } else if contract.digital.is_none() && knock_in {
@@ -365,7 +365,7 @@ fn native_with_diffusion<D: Diffusion>(
                 super::barrier::project(&space, &breaks, i, |asset| {
                     if !events {
                         terminal(asset)
-                    } else if (!scheduled || observations.contains(&time)) && knocked(asset) {
+                    } else if (!scheduled || observations.last() == Some(&time)) && knocked(asset) {
                         hit(asset, time, time)
                     } else {
                         surviving(asset)
@@ -468,7 +468,7 @@ fn local_digital_knock_in<D: Diffusion>(
     let values = (0..=space.count)
         .map(|i| {
             super::barrier::project(space, &breaks, i, |asset| {
-                if (!scheduled || observations.contains(&time)) && knocked(asset) {
+                if (!scheduled || observations.last() == Some(&time)) && knocked(asset) {
                     payoff.value(asset)
                 } else {
                     0.0
@@ -489,8 +489,9 @@ fn local_digital_knock_in<D: Diffusion>(
         }
     };
     let edges = |current, continuation: &[f64]| {
+        let remaining = !scheduled || observations.last().is_some_and(|&event| event >= current);
         let value = |asset| {
-            if knocked(asset) && (!scheduled || observations.iter().any(|&t| t >= current)) {
+            if knocked(asset) && remaining {
                 full.linear(continuation, asset)
             } else {
                 0.0

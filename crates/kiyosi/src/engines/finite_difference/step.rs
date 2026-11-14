@@ -35,7 +35,10 @@ pub(super) fn march<D: Diffusion>(
             )?;
             std::mem::swap(&mut values, &mut next);
         }
-        if observations.contains(&grid.times[step]) {
+        if observations
+            .binary_search_by(|event| event.total_cmp(&grid.times[step]))
+            .is_ok()
+        {
             observe(&mut values, grid.times[step]);
             damping = 2;
         }
@@ -118,7 +121,10 @@ pub(super) fn march_with_continuation<D: Diffusion>(
             std::mem::swap(&mut continuation, &mut next_continuation);
             std::mem::swap(&mut values, &mut next);
         }
-        if observations.contains(&grid.times[step]) {
+        if observations
+            .binary_search_by(|event| event.total_cmp(&grid.times[step]))
+            .is_ok()
+        {
             observe(&mut values, &continuation, grid.times[step]);
             damping = 2;
         }
