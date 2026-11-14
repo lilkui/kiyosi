@@ -551,6 +551,34 @@ fn analysis<I: OptionContract>(
     )
 }
 
+fn barrier_analysis(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    mut settings: FiniteDifferenceSettings,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    default_upper: impl FnOnce() -> f64,
+    native: impl Fn(&PricingContext, FiniteDifferenceSettings, GreeksRequest) -> Result<PricingResult>,
+) -> Result<PricingResult> {
+    shifts.validate()?;
+    local_volatility::validate_request(context, request)?;
+    if settings.asset_upper_boundary.is_none() && local_volatility::local_model(context).is_none() {
+        let upper = default_upper();
+        if upper.is_finite() {
+            settings.asset_upper_boundary = Some(upper);
+        }
+    }
+    complete_greeks(
+        option,
+        context,
+        request,
+        shifts,
+        true,
+        native(context, settings, request)?,
+        |context, request| native(context, settings, request),
+    )
+}
+
 macro_rules! engine_settings {
     ($engine:ident, $description:literal $(, $(#[$doc:meta])*)?) => {
         #[doc = $description]

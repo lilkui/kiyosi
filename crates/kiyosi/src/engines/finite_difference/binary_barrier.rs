@@ -48,26 +48,16 @@ macro_rules! binary_pricing {
                 shifts: crate::NumericalShiftSettings,
             ) -> Result<PricingResult> {
                 <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
-                shifts.validate()?;
-                local_volatility::validate_request(context, request)?;
-                let mut settings = self.settings;
-                if settings.asset_upper_boundary.is_none()
-                    && local_volatility::local_model(context).is_none()
-                {
-                    let upper = default_upper(&option.contract(), context);
-                    if upper.is_finite() {
-                        settings.asset_upper_boundary = Some(upper);
-                    }
-                }
-                super::complete_greeks(
+                let contract = option.contract();
+                super::barrier_analysis(
                     option,
                     context,
+                    self.settings,
                     request,
                     shifts,
-                    true,
-                    native(&option.contract(), context, settings, request, shifts)?,
-                    |context, request| {
-                        native(&option.contract(), context, settings, request, shifts)
+                    || default_upper(&contract, context),
+                    |context, settings, request| {
+                        native(&contract, context, settings, request, shifts)
                     },
                 )
             }

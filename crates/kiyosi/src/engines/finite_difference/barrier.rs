@@ -161,23 +161,14 @@ fn analysis(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
-    shifts.validate()?;
-    local_volatility::validate_request(context, request)?;
-    let mut settings = settings;
-    if settings.asset_upper_boundary.is_none() && local_volatility::local_model(context).is_none() {
-        let upper = default_upper(option, context);
-        if upper.is_finite() {
-            settings.asset_upper_boundary = Some(upper);
-        }
-    }
-    super::complete_greeks(
+    super::barrier_analysis(
         option,
         context,
+        settings,
         request,
         shifts,
-        true,
-        native_barrier(option, context, settings, request, shifts)?,
-        |context, request| native_barrier(option, context, settings, request, shifts),
+        || default_upper(option, context),
+        |context, settings, request| native_barrier(option, context, settings, request, shifts),
     )
 }
 
