@@ -15,7 +15,8 @@ macro_rules! pricing_classes {
             context: &PricingContext,
             request: impl FnOnce() -> PyResult<Q>,
         ) -> PyResult<R> {
-            $(if let Ok(engine) = engine.extract::<PyRef<'_, $class>>() {
+            $(if engine.is_instance_of::<$class>() {
+                let engine = engine.extract::<PyRef<'_, $class>>()?;
                 return engine.evaluate(py, crate::conversions::instrument(instrument)?, context, request()?);
             })+
             Err(pyo3::exceptions::PyTypeError::new_err("expected a Kiyosi pricing engine"))
