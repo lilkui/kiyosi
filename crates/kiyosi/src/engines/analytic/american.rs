@@ -318,13 +318,9 @@ impl BjerksundStenslandVanillaEngine {
                 context,
             );
         }
+        crate::instruments::monitoring::validate_life(option, context)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        if valuation < option.effective_time() || valuation > expiry {
-            return Err(Error::InvalidInput(
-                "valuation must be within the contract life".into(),
-            ));
-        }
         let time = valuation.years_until(expiry);
         let model = context.bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;

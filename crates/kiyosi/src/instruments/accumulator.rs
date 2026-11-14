@@ -284,12 +284,8 @@ impl Accumulator {
     }
 
     pub(crate) fn validate_pricing(&self, context: &PricingContext) -> Result<()> {
+        super::monitoring::validate_life(self, context)?;
         let valuation = context.valuation_time();
-        if valuation < self.effective_time() || valuation > self.expiry_time() {
-            return Err(Error::InvalidInput(
-                "valuation must be within contract life".into(),
-            ));
-        }
         let had_accumulation =
             self.any_accumulation(self.effective_time(), valuation, |time| time < valuation)?;
         let had_knock_out = match self.knock_out_observation_times() {

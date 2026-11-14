@@ -1,6 +1,6 @@
 use super::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms, Coupon,
-    Error, PricingContext, Result,
+    PricingContext, Result,
 };
 use crate::Timestamp;
 
@@ -100,12 +100,7 @@ pub(crate) fn validate<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
 ) -> Result<()> {
-    let valuation = context.valuation_time();
-    if valuation < note.effective_time() || valuation > note.expiry_time() {
-        return Err(Error::InvalidInput(
-            "valuation must be within contract life".into(),
-        ));
-    }
+    crate::instruments::monitoring::validate_life(note, context)?;
     note.prior(context.valuation_time())?;
     Ok(())
 }
