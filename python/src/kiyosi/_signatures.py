@@ -1,11 +1,9 @@
 """Expose Rust-derived defaults through Python signature introspection."""
 
 from functools import wraps
-from inspect import Parameter, Signature, isbuiltin, isclass, signature
+from inspect import Signature, isbuiltin, isclass, signature
 from types import ModuleType
 from typing import Any
-
-from ._serialization import _fields
 
 
 def _signature(callable: Any, defaults: dict[str, Any]) -> Signature:
@@ -42,54 +40,6 @@ def _wrap(callable: Any, defaults: dict[str, Any]) -> Any:
     return call
 
 
-def _replacement(factory: Any) -> Any:
-    constructor = Signature(
-        [
-            Parameter(name, Parameter.KEYWORD_ONLY, default=Ellipsis)
-            for name in factory._STATE_FIELDS
-        ]
-    )
-
-    def replace(self: Any, **changes: Any) -> Any:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
-
-        Parameters
-        ----------
-        **changes : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
-
-        Returns
-        -------
-        object
-            Validated instance of the same class.
-
-        Raises
-        ------
-        InvalidInputError
-            If fields fail constructor validation.
-        TypeError
-            If a field name or representation is invalid.
-        """
-        constructor.bind_partial(**changes)
-        changes = {
-            name: value for name, value in changes.items() if value is not Ellipsis
-        }
-        return factory(**(_fields(self) | changes))
-
-    replace.__dict__["__signature__"] = constructor.replace(
-        parameters=[
-            Parameter("self", Parameter.POSITIONAL_OR_KEYWORD),
-            *constructor.parameters.values(),
-        ],
-        return_annotation=factory,
-    )
-    return replace
-
-
 def install(native: ModuleType) -> None:
     defaults = dict(native._signature_defaults)
     defaults["calendar"] = native.weekdays_calendar()
@@ -116,7 +66,5 @@ def install(native: ModuleType) -> None:
             resolved = _signature(value, constructor_defaults)
             if resolved != original:
                 value.__signature__ = resolved
-            if name.endswith("Engine") and resolved.parameters:
-                value.replace = _replacement(value)
         elif isbuiltin(value) and name != "numerical_greeks":
             setattr(native, name, _wrap(value, solvers.get(name, defaults)))

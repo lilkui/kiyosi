@@ -1,9 +1,9 @@
-"""Copy and reconstruct immutable native values through validated constructors."""
+"""Copy, replace and reconstruct immutable native values through validated constructors."""
 
 import copyreg
 import reprlib
 from datetime import datetime
-from inspect import isclass
+from inspect import Parameter, Signature, isclass
 from types import ModuleType
 from typing import Any, get_args
 
@@ -142,6 +142,54 @@ def _fields(value: Any) -> dict[str, Any]:
     return {name: getattr(value, attribute) for name, attribute in fields.items()}
 
 
+def _replacement(factory: Any) -> Any:
+    constructor = Signature(
+        [
+            Parameter(name, Parameter.KEYWORD_ONLY, default=Ellipsis)
+            for name in factory._STATE_FIELDS
+        ]
+    )
+
+    def replace(self: Any, **changes: Any) -> Any:
+        """Return a validated copy with replacement fields.
+
+        The original value is unchanged on success and failure.
+
+        Parameters
+        ----------
+        **changes : object, optional
+            Constructor fields to replace; see the class documentation for field
+            descriptions. Omission or Ellipsis retains a field; None clears
+            nullable fields.
+
+        Returns
+        -------
+        object
+            Validated instance of the same class.
+
+        Raises
+        ------
+        InvalidInputError
+            If fields fail constructor validation.
+        TypeError
+            If a field name or representation is invalid.
+        """
+        constructor.bind_partial(**changes)
+        changes = {
+            name: value for name, value in changes.items() if value is not Ellipsis
+        }
+        return factory(**(_fields(self) | changes))
+
+    replace.__dict__["__signature__"] = constructor.replace(
+        parameters=[
+            Parameter("self", Parameter.POSITIONAL_OR_KEYWORD),
+            *constructor.parameters.values(),
+        ],
+        return_annotation=factory,
+    )
+    return replace
+
+
 _repr_formatter = reprlib.Repr()
 _repr_formatter.maxother = 160
 
@@ -167,5 +215,7 @@ def install(native: ModuleType) -> None:
             value.__copy__ = _copy
             value.__deepcopy__ = _deepcopy
             copyreg.pickle(value, _reduce)
+            if value.__name__.endswith("Engine") and value._STATE_FIELDS:
+                value.replace = _replacement(value)
             if value.__repr__ is object.__repr__:
                 value.__repr__ = _repr
