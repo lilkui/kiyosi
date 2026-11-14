@@ -66,9 +66,6 @@ macro_rules! binomial_engine {
             [$(#[$greeks_doc])*],
             [],
             {
-                #[classattr]
-                const _STATE_FIELDS: &'static [&'static str] = &["step_count"];
-
                 #[new]
                 #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
                 fn new(

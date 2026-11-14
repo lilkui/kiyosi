@@ -29,9 +29,6 @@ macro_rules! analytic_engine {
             ],
             [],
             {
-                #[classattr]
-                const _STATE_FIELDS: &'static [&'static str] = &[];
-
                 #[new]
                 fn new() -> Self {
                     Self

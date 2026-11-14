@@ -3,7 +3,7 @@
 import copyreg
 import reprlib
 from datetime import datetime
-from inspect import Parameter, Signature, isclass
+from inspect import Parameter, Signature, isclass, signature
 from types import ModuleType
 from typing import Any, get_args
 
@@ -215,7 +215,9 @@ def install(native: ModuleType) -> None:
             value.__copy__ = _copy
             value.__deepcopy__ = _deepcopy
             copyreg.pickle(value, _reduce)
-            if value.__name__.endswith("Engine") and value._STATE_FIELDS:
-                value.replace = _replacement(value)
+            if value.__name__.endswith("Engine"):
+                value._STATE_FIELDS = tuple(signature(value).parameters)
+                if value._STATE_FIELDS:
+                    value.replace = _replacement(value)
             if value.__repr__ is object.__repr__:
                 value.__repr__ = _repr
