@@ -1,5 +1,5 @@
 use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
-use super::{estimate, path_samples, scaled_value, unstable};
+use super::{estimate, path_samples, scaled_value, transition, unstable};
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_times, initial, validate,
 };
@@ -188,13 +188,13 @@ impl MonteCarloAutocallableEngine {
             .autocall_observations()
             .partition_point(|r| r.time() <= valuation);
         for date in dates {
-            let time = previous.years_until(date);
-            let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
-            let diffusion = sigma * time.sqrt();
-            let log_discount = -rate * valuation.years_until(date);
-            if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
-                return Err(unstable());
-            }
+            let (drift, diffusion, log_discount) = transition(
+                rate,
+                dividend,
+                sigma,
+                previous.years_until(date),
+                valuation.years_until(date),
+            )?;
             let record = note
                 .autocall_observations()
                 .get(next)

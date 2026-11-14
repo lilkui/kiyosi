@@ -1351,6 +1351,22 @@ pub(crate) fn unstable() -> Error {
     Error::ComputationFailure("Monte Carlo produced a non-finite parameter, path or result".into())
 }
 
+fn transition(
+    rate: f64,
+    dividend: f64,
+    sigma: f64,
+    time: f64,
+    discount_time: f64,
+) -> Result<(f64, f64, f64)> {
+    let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
+    let diffusion = sigma * time.sqrt();
+    let log_discount = -rate * discount_time;
+    if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
+        return Err(unstable());
+    }
+    Ok((drift, diffusion, log_discount))
+}
+
 fn scaled_value(scale: f64, weight: f64, log_discount: f64) -> Result<f64> {
     let value = scale * weight;
     let discount = log_discount.exp();

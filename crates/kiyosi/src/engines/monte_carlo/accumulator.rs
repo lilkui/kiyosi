@@ -1,4 +1,4 @@
-use super::{Moments, estimate, path_samples, scaled_value, unstable};
+use super::{Moments, estimate, path_samples, scaled_value, transition, unstable};
 use crate::numerics::log_ratio;
 use crate::{
     Accumulator, GreeksRequest, MonteCarloEstimate, MonteCarloSettings, OptionType, PricingContext,
@@ -191,13 +191,13 @@ impl MonteCarloAccumulatorEngine {
         let mut previous = valuation;
         let mut steps = Vec::new();
         for date in option.future_observation_times(context)? {
-            let time = previous.years_until(date);
-            let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
-            let diffusion = sigma * time.sqrt();
-            let log_discount = -rate * valuation.years_until(date);
-            if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
-                return Err(unstable());
-            }
+            let (drift, diffusion, log_discount) = transition(
+                rate,
+                dividend,
+                sigma,
+                previous.years_until(date),
+                valuation.years_until(date),
+            )?;
             steps.push((
                 drift,
                 diffusion,
