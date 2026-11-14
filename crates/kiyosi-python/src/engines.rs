@@ -201,11 +201,14 @@ pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
 ) -> PyResult<R> {
     let context = &context.0;
     let model = context.model_parameters();
+    let curve_nodes = model
+        .risk_free_curve()
+        .nodes()
+        .len()
+        .max(model.dividend_curve().nodes().len());
     crate::error::domain(request.run(
         py,
-        request.is_short(short_pricing)
-            && model.risk_free_curve().nodes().is_empty()
-            && model.dividend_curve().nodes().is_empty(),
+        request.is_short(short_pricing && curve_nodes == 0, curve_nodes),
         || request.evaluate(engine, instrument, context),
     )?)
 }
@@ -220,7 +223,7 @@ pub(crate) enum ScalarRequest {
 }
 
 pub(crate) trait PricingRequest<R>: Copy + Sync {
-    fn is_short(self, _short_pricing: bool) -> bool {
+    fn is_short(self, _short_pricing: bool, _curve_nodes: usize) -> bool {
         false
     }
     fn run(
@@ -250,7 +253,7 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
 }
 
 impl PricingRequest<f64> for ScalarRequest {
-    fn is_short(self, short_pricing: bool) -> bool {
+    fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
         short_pricing && matches!(self, Self::Price)
     }
 
@@ -313,7 +316,7 @@ impl NativeGreeksRequest {
 }
 
 impl PricingRequest<kiyosi::PricingResult> for NativeGreeksRequest {
-    fn is_short(self, short_pricing: bool) -> bool {
+    fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
         short_pricing
     }
 
@@ -334,7 +337,7 @@ pub(crate) struct StatisticsRequest;
 pub(crate) struct SeededPriceRequest;
 
 impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
-    fn is_short(self, short_pricing: bool) -> bool {
+    fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
         short_pricing
     }
 
@@ -349,7 +352,7 @@ impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
 }
 
 impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
-    fn is_short(self, short_pricing: bool) -> bool {
+    fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
         short_pricing
     }
 
@@ -378,8 +381,9 @@ impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
 pub(crate) struct GreekMethodRequest;
 
 impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
-    fn is_short(self, _short_pricing: bool) -> bool {
-        true
+    fn is_short(self, _short_pricing: bool, curve_nodes: usize) -> bool {
+        // Flat-rate applicability checks may scan every curve node.
+        curve_nodes <= 1024
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -397,7 +401,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn metadata_is_short_independently_of_pricing_but_solvers_are_not() {
+    fn bounded_metadata_is_short_independently_of_pricing_but_solvers_are_not() {
         let greeks = NativeGreeksRequest {
             request: kiyosi::GreeksRequest::all(),
             settings: Default::default(),
@@ -406,14 +410,29 @@ mod tests {
             observed_price: 10.0,
             settings: kiyosi::ImpliedVolatilitySettings::new(0.1, 0.3),
         };
-        for short_pricing in [false, true] {
-            assert!(GreekMethodRequest.is_short(short_pricing));
-            assert!(!solver.is_short(short_pricing));
-            assert!(!NumericalGreeksRequest(greeks).is_short(short_pricing));
-            assert_eq!(ScalarRequest::Price.is_short(short_pricing), short_pricing);
-            assert_eq!(greeks.is_short(short_pricing), short_pricing);
-            assert_eq!(SeededPriceRequest.is_short(short_pricing), short_pricing);
-            assert_eq!(StatisticsRequest.is_short(short_pricing), short_pricing);
+        for curve_nodes in [0, 1, 1024, 1025] {
+            for short_pricing in [false, true] {
+                let short_pricing = short_pricing && curve_nodes == 0;
+                assert_eq!(
+                    GreekMethodRequest.is_short(short_pricing, curve_nodes),
+                    curve_nodes <= 1024,
+                );
+                assert!(!solver.is_short(short_pricing, curve_nodes));
+                assert!(!NumericalGreeksRequest(greeks).is_short(short_pricing, curve_nodes));
+                assert_eq!(
+                    ScalarRequest::Price.is_short(short_pricing, curve_nodes),
+                    short_pricing
+                );
+                assert_eq!(greeks.is_short(short_pricing, curve_nodes), short_pricing);
+                assert_eq!(
+                    SeededPriceRequest.is_short(short_pricing, curve_nodes),
+                    short_pricing
+                );
+                assert_eq!(
+                    StatisticsRequest.is_short(short_pricing, curve_nodes),
+                    short_pricing
+                );
+            }
         }
     }
 }
