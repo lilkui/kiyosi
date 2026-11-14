@@ -206,11 +206,16 @@ pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
         .nodes()
         .len()
         .max(model.dividend_curve().nodes().len());
-    crate::error::domain(request.run(
-        py,
-        request.is_short(short_pricing && curve_nodes == 0, curve_nodes),
-        || request.evaluate(engine, instrument, context),
-    )?)
+    let operation = || request.evaluate(engine, instrument, context);
+    let result = if request.is_short(short_pricing && curve_nodes == 0, curve_nodes) {
+        py.check_signals()?;
+        let result = operation();
+        py.check_signals()?;
+        result
+    } else {
+        crate::cancellation::run(py, operation)?
+    };
+    crate::error::domain(result)
 }
 
 #[derive(Clone, Copy)]
@@ -225,24 +230,6 @@ pub(crate) enum ScalarRequest {
 pub(crate) trait PricingRequest<R>: Copy + Sync {
     fn is_short(self, _short_pricing: bool, _curve_nodes: usize) -> bool {
         false
-    }
-    fn run(
-        self,
-        py: pyo3::Python<'_>,
-        short: bool,
-        operation: impl FnOnce() -> kiyosi::Result<R> + Send,
-    ) -> pyo3::PyResult<kiyosi::Result<R>>
-    where
-        R: Send,
-    {
-        if short {
-            py.check_signals()?;
-            let result = operation();
-            py.check_signals()?;
-            Ok(result)
-        } else {
-            crate::cancellation::run(py, operation)
-        }
     }
     fn evaluate<I: kiyosi::OptionContract>(
         self,
@@ -337,10 +324,6 @@ pub(crate) struct StatisticsRequest;
 pub(crate) struct SeededPriceRequest;
 
 impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
-    fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
-        short_pricing
-    }
-
     fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
@@ -352,10 +335,6 @@ impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
 }
 
 impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
-    fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
-        short_pricing
-    }
-
     fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
@@ -424,14 +403,8 @@ mod tests {
                     short_pricing
                 );
                 assert_eq!(greeks.is_short(short_pricing, curve_nodes), short_pricing);
-                assert_eq!(
-                    SeededPriceRequest.is_short(short_pricing, curve_nodes),
-                    short_pricing
-                );
-                assert_eq!(
-                    StatisticsRequest.is_short(short_pricing, curve_nodes),
-                    short_pricing
-                );
+                assert!(!SeededPriceRequest.is_short(short_pricing, curve_nodes));
+                assert!(!StatisticsRequest.is_short(short_pricing, curve_nodes));
             }
         }
     }
