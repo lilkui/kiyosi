@@ -143,14 +143,6 @@ rate_properties!(
         surface: surface.map(|value| value.extract::<PyRef<'_, LocalVolatilitySurface>>()
             .map(|value| value.0.clone())).transpose()?,
     },
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        Ok(format!(
-            "LocalVolatilityParameters(risk_free_rate={}, dividend_yield={}, surface={})",
-            crate::representation::curve(py, self.0.risk_free_curve())?,
-            crate::representation::curve(py, self.0.dividend_curve())?,
-            crate::representation::surface(py, self.0.surface())?,
-        ))
-    },
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, surface))]
     fn new(

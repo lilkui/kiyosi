@@ -356,15 +356,6 @@ rate_properties!(
         dividend_yield: dividend_yield.map(rate).transpose()?,
         volatility: volatility.map(real).transpose()?,
     },
-    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
-        let value = slf.borrow();
-        crate::representation::model(
-            slf.as_any(),
-            Self::_STATE_FIELDS,
-            value.0.risk_free_curve(),
-            value.0.dividend_curve(),
-        )
-    },
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, volatility))]
     fn new(
