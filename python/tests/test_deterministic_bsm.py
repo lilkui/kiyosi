@@ -301,6 +301,39 @@ def test_zero_volatility_prices_and_statistics_agree_across_supported_engines(su
                     assert estimate.standard_error == 0
 
 
+def test_finite_difference_greek_methods_follow_deterministic_and_expiry_paths(
+    subtests,
+):
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0
+        ),
+        spot_price=100,
+        valuation_time=START,
+    )
+    for option, engines, _ in cases():
+        for name in engines:
+            if not name.startswith("FiniteDifference"):
+                continue
+            engine = getattr(pricing, name)()
+            with subtests.test(contract=type(option).__name__, engine=name):
+                assert engine.greek_method(option, context) == "numerical"
+                assert engine.active_greek_controls(option, context) == [
+                    "spot_shift",
+                    "volatility_shift",
+                    "rate_shift",
+                    "time_shift",
+                ]
+                terminal = context.replace(valuation_time=option.expiry_time)
+                exact = isinstance(option, (ins.EuropeanOption, ins.AmericanOption))
+                assert engine.greek_method(option, terminal) == (
+                    "native" if exact else "terminal"
+                )
+                assert engine.active_greek_controls(option, terminal) == (
+                    [] if exact else ["spot_shift"]
+                )
+
+
 @pytest.mark.parametrize(
     "curve_field,factor", (("risk_free_rate", 0.5), ("dividend_yield", 2.0))
 )

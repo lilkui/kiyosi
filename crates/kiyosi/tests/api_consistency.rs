@@ -2318,6 +2318,28 @@ fn greek_methods_report_estimators_and_active_controls() -> Result<()> {
         AnalyticEuropeanEngine.greek_method(&option, &zero)?,
         GreekMethod::Numerical
     );
+    for (context, expected) in [
+        (&zero, GreekMethod::Numerical),
+        (&context, GreekMethod::Mixed),
+        (&terminal, GreekMethod::Terminal),
+    ] {
+        assert_eq!(
+            FiniteDifferenceBarrierEngine::default().greek_method(&barrier, context)?,
+            expected
+        );
+        assert_eq!(
+            FiniteDifferenceDigitalEngine::default().greek_method(&digital, context)?,
+            expected
+        );
+    }
+    assert_eq!(
+        FiniteDifferenceVanillaEngine::default().greek_method(&option, &zero)?,
+        GreekMethod::Numerical
+    );
+    assert_eq!(
+        FiniteDifferenceVanillaEngine::default().greek_method(&option, &terminal)?,
+        GreekMethod::Native
+    );
     let local = PricingContext::new(
         LocalVolatilityParameters::new(
             0.05,

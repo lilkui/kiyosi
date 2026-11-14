@@ -11,6 +11,8 @@ pub(super) fn greek_method(
         context,
         if local_model(context).is_some() {
             GreekMethod::NativeWithSpotControl
+        } else if crate::engines::deterministic::enabled(context) {
+            GreekMethod::Numerical
         } else {
             GreekMethod::Mixed
         },

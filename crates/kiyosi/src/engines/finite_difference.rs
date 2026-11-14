@@ -830,26 +830,11 @@ macro_rules! vanilla_pricing {
                 option: &$option,
                 context: &PricingContext,
             ) -> Result<crate::GreekMethod> {
-                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                let method = local_volatility::greek_method(option, context)?;
                 if context.valuation_time() == option.expiry_time() {
                     return Ok(crate::GreekMethod::Native);
                 }
-                Ok(crate::GreekMethod::for_valuation(
-                    option,
-                    context,
-                    if matches!(
-                        context.model_parameters(),
-                        crate::ModelParameters::LocalVolatility(_)
-                    ) {
-                        crate::GreekMethod::NativeWithSpotControl
-                    } else {
-                        if crate::engines::deterministic::enabled(context) {
-                            crate::GreekMethod::Numerical
-                        } else {
-                            crate::GreekMethod::Mixed
-                        }
-                    },
-                ))
+                Ok(method)
             }
 
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
@@ -970,20 +955,7 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
         context: &PricingContext,
     ) -> Result<crate::GreekMethod> {
         <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
-        Ok(crate::GreekMethod::for_valuation(
-            option,
-            context,
-            if matches!(
-                context.model_parameters(),
-                crate::ModelParameters::LocalVolatility(_)
-            ) {
-                crate::GreekMethod::NativeWithSpotControl
-            } else if crate::engines::deterministic::enabled(context) {
-                crate::GreekMethod::Numerical
-            } else {
-                crate::GreekMethod::Mixed
-            },
-        ))
+        local_volatility::greek_method(option, context)
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
