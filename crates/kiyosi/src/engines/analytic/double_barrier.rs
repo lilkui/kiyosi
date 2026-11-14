@@ -3,8 +3,8 @@ use crate::Timestamp;
 use crate::engines::analytic::barrier::resolved_price_with_state;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{
-    Sum, adaptive_simpson, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf,
-    scaled_signed_cash,
+    Sum, adaptive_simpson, checked, log_interval_mass, log_normal_tail, log_ratio, scaled_cash,
+    scaled_cdf, scaled_signed_cash,
 };
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, ObservationMode, OptionType, PricingContext,
@@ -202,13 +202,7 @@ impl AbsorbingDistribution {
                         - 2.0
                             * (distance / deviation)
                             * ((boundary - initial + distance) / deviation);
-                    let inverse_square = (1.0 / z) / z;
-                    let (mut term, mut series) = (1.0, 1.0);
-                    for index in 1..=20 {
-                        term *= -f64::from(2 * index - 1) * inverse_square;
-                        series += term;
-                    }
-                    gaussian - (-z).ln() + (series / (2.0 * PI).sqrt()).ln()
+                    log_normal_tail(z, gaussian)
                 };
                 let large = if high < 0.0 {
                     tail(upper, high)

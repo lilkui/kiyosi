@@ -131,6 +131,11 @@ pub(crate) fn log_normal_cdf(value: f64) -> f64 {
         return normal_cdf(value).ln();
     }
     // Use the erfc tail expansion when exponential weights offset underflow.
+    log_normal_tail(value, -0.5 * value * value)
+}
+
+// Accept a combined Gaussian exponent to preserve cancellation in reflected tails.
+pub(crate) fn log_normal_tail(value: f64, exponent: f64) -> f64 {
     let inverse_square = (1.0 / value) / value;
     let mut term = 1.0;
     let mut sum = 1.0;
@@ -138,7 +143,7 @@ pub(crate) fn log_normal_cdf(value: f64) -> f64 {
         term *= -f64::from(2 * index - 1) * inverse_square;
         sum += term;
     }
-    -0.5 * value * value - (-value).ln() + (sum / (2.0 * PI).sqrt()).ln()
+    exponent - (-value).ln() + (sum / (2.0 * PI).sqrt()).ln()
 }
 
 pub(crate) fn weighted_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
