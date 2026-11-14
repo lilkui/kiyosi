@@ -3,10 +3,10 @@ use super::gaussian::{
     integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
-use crate::numerics::{log_ratio, scaled_signed_cash};
+use crate::numerics::{finite_price, log_ratio, scaled_signed_cash};
 use crate::{
     Accumulator, BlackScholesMertonParameters, Error, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result, Timestamp,
+    Result, Timestamp,
 };
 
 /// Prices accumulators and decumulators using affine layers and Gaussian integration.
@@ -101,10 +101,6 @@ impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {
         })))
     }
 }
-fn checked(value: f64) -> Result<f64> {
-    Ok(PricingResult::new(value)?.price())
-}
-
 struct Request {
     settings: QuadratureSettings,
     curve: std::cell::RefCell<Option<PreparedCurve>>,
@@ -146,7 +142,7 @@ fn price(
     option.validate_pricing(context)?;
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
-        return checked(value);
+        return finite_price(value);
     }
     context.validate_curve_horizon(option.expiry_time())?;
     let horizon = context.valuation_time().years_until(option.expiry_time());
@@ -155,7 +151,7 @@ fn price(
     let evaluate = |nodes: &[f64], layers: &[Layer; 2], drift, deviation, discount| {
         let value =
             |layer: &Layer| layer.evaluate(nodes, current, strike, drift, deviation, discount);
-        checked(quantity * value(&layers[0]) + value(&layers[1]))
+        finite_price(quantity * value(&layers[0]) + value(&layers[1]))
     };
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *option

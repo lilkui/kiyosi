@@ -7,10 +7,10 @@ use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_times, initial, validate,
 };
-use crate::numerics::{log_ratio, scaled_signed_cash};
+use crate::numerics::{finite_price, log_ratio, scaled_signed_cash};
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
-    Error, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
+    Error, PricingContext, PricingEngine, Result, Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes by quadrature between event dates.
@@ -127,10 +127,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
         let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, Some(&mut curve))
     }
-}
-
-fn checked(value: f64) -> Result<f64> {
-    Ok(PricingResult::new(value)?.price())
 }
 
 struct PreparedCurve<T: AutocallableTerms> {
@@ -275,7 +271,7 @@ fn price<T: AutocallableTerms>(
         .settlement
         .or_else(|| fixed_value(note, context, state.knocked_in))
     {
-        return checked(
+        return finite_price(
             value
                 + if state.settlement.is_none() {
                     state.coupon
@@ -290,7 +286,7 @@ fn price<T: AutocallableTerms>(
     let t = note.view();
     let anchor = t.reference_spot();
     let evaluate = |nodes: &[f64], curve: &Layer, drift, deviation, discount| {
-        let value = checked(curve.evaluate(
+        let value = finite_price(curve.evaluate(
             nodes,
             log_ratio(context.spot_price(), anchor),
             anchor,
@@ -298,7 +294,7 @@ fn price<T: AutocallableTerms>(
             deviation,
             discount,
         ))?;
-        checked(state.coupon + value)
+        finite_price(state.coupon + value)
     };
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
@@ -351,7 +347,7 @@ fn price<T: AutocallableTerms>(
     );
     if dates.len() == 1 {
         let (drift, deviation, discount) = transition(horizon)?;
-        return checked(
+        return finite_price(
             state.coupon
                 + integrate_terminal(
                     &terminal,

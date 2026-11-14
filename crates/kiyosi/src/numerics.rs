@@ -53,6 +53,14 @@ pub(crate) fn adaptive_simpson(
     )?)
 }
 
+pub(crate) fn finite_price(price: f64) -> Result<f64> {
+    if price.is_finite() {
+        Ok(price)
+    } else {
+        Err(Error::ComputationFailure("non-finite price".into()))
+    }
+}
+
 pub(crate) fn checked(value: f64) -> Result<f64> {
     checked_with_scale(value, 0.0)
 }

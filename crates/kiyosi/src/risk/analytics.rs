@@ -300,11 +300,8 @@ impl PricingResult {
     /// Returns [`Error::ComputationFailure`] for a non-finite price.
     /// See [`Self::with_greek`] for custom-engine result construction.
     pub fn new(price: f64) -> Result<Self> {
-        if !price.is_finite() {
-            return Err(Error::ComputationFailure("non-finite price".into()));
-        }
         Ok(Self {
-            price,
+            price: crate::numerics::finite_price(price)?,
             seed: None,
             values: [None; Greek::ALL.len()],
             requested: GreeksRequest::new([]),
