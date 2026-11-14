@@ -150,18 +150,21 @@ fn default_upper<T: AutocallableTerms>(
     )
 }
 
-#[expect(
-    clippy::float_cmp,
-    reason = "Event times are recomputed identically from the same timestamps and must match exactly."
-)]
 fn event<'a, T: AutocallableTerms>(
     note: &'a AutocallableNote<T>,
     time: f64,
     context: &PricingContext,
 ) -> Option<&'a AutocallableObservation> {
-    note.autocall_observations()
-        .iter()
-        .find(|r| context.valuation_time().years_until(r.time()) == time)
+    let observations = note.autocall_observations();
+    observations
+        .binary_search_by(|r| {
+            context
+                .valuation_time()
+                .years_until(r.time())
+                .total_cmp(&time)
+        })
+        .ok()
+        .map(|index| &observations[index])
 }
 
 fn native<T: AutocallableTerms>(
@@ -476,4 +479,51 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         }
     }
     Ok((result, Some(upper)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        BinarySnowballOption, BinarySnowballTerms, BlackScholesMertonParameters, Date,
+        TradingCalendar, autocallable_observations,
+    };
+
+    #[test]
+    fn events_match_only_exact_observation_times() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let times = [
+            start.add_micros(11)?,
+            start.add_micros(13)?,
+            start.add_micros(17)?,
+        ];
+        let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.02,
+            start,
+            start.add_micros(20)?,
+            autocallable_observations(&times, &[110.0; 3], Some(&[0.08; 3]), None)?,
+            TradingCalendar::all_days(),
+        ))?;
+        for valuation in [start, times[0], start.add_micros(12)?] {
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
+                100.0,
+                valuation,
+            )?;
+            for micros in 0..=20 {
+                let query = start.add_micros(micros)?;
+                let expected = match micros {
+                    11 | 13 | 17 => Some(query),
+                    _ => None,
+                };
+                assert_eq!(
+                    event(&note, valuation.years_until(query), &context)
+                        .map(AutocallableObservation::time),
+                    expected,
+                    "valuation={valuation:?}, query={query:?}",
+                );
+            }
+        }
+        Ok(())
+    }
 }
