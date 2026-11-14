@@ -48,7 +48,6 @@ impl AnalyticBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
-        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
     /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
@@ -90,7 +89,6 @@ impl Contract<'_> {
         }
     }
     fn price(&self, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         let option = self.monitoring;
         let model = context.bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
@@ -222,7 +220,6 @@ macro_rules! pricing_engine {
                 crate::engines::flat_rates(context).map(|_| ())
             }
             fn price(&self, option: &$contract, context: &PricingContext) -> Result<f64> {
-                context.bsm_parameters()?;
                 option.contract().price(context)
             }
         }
