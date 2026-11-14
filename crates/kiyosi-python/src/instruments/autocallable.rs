@@ -96,6 +96,16 @@ macro_rules! snowball_properties {
             $name,
             @replace $changes $parameters $conversions $documentation,
             $($extra,)*
+            /// Return copied annual knock-out coupons in observation order.
+            #[getter]
+            fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+                PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.coupon_rate().unwrap_or_default()))
+            },
+            /// Return finite annual maturity coupon rate in decimal units.
+            #[getter]
+            fn maturity_coupon_rate(&self) -> f64 {
+                self.0.terms().maturity_coupon_rate
+            },
             /// Return a note with the quoted first coupon and preserved coupon spreads.
             ///
             /// Parameters
@@ -896,16 +906,6 @@ snowball_properties! {
 
         Ok(Self(domain(kiyosi::SnowballOption::new(terms))?))
     },
-    /// Return copied annual knock-out coupons in observation order.
-    #[getter]
-    fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.coupon_rate().unwrap_or_default()))
-    },
-    /// Return finite annual maturity coupon rate in decimal units.
-    #[getter]
-    fn maturity_coupon_rate(&self) -> f64 {
-        self.0.terms().maturity_coupon_rate
-    },
     /// Return positive reference spot used to normalize downside losses.
     #[getter]
     fn initial_spot(&self) -> f64 {
@@ -1039,16 +1039,6 @@ snowball_properties! {
 
         Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?))
     },
-    /// Return copied annual knock-out coupons in observation order.
-    #[getter]
-    fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.coupon_rate().unwrap_or_default()))
-    },
-    /// Return finite annual maturity coupon rate in decimal units.
-    #[getter]
-    fn maturity_coupon_rate(&self) -> f64 {
-        self.0.terms().maturity_coupon_rate
-    },
 }
 
 /// Snowball with distinct intact and knocked-in maturity coupons.
@@ -1174,16 +1164,6 @@ snowball_properties! {
         terms.principal_redemption_ratio = principal_redemption_ratio;
 
         Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?))
-    },
-    /// Return copied annual knock-out coupons in observation order.
-    #[getter]
-    fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.coupon_rate().unwrap_or_default()))
-    },
-    /// Return finite annual maturity coupon rate in decimal units.
-    #[getter]
-    fn maturity_coupon_rate(&self) -> f64 {
-        self.0.terms().maturity_coupon_rate
     },
     /// Return positive strict downside threshold.
     #[getter]
