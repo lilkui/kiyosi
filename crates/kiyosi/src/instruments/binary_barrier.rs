@@ -526,15 +526,13 @@ impl BinaryBarrierOption {
                 .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
-        let updated = match changes.payoff.unwrap_or_else(|| {
+        match changes.payoff.unwrap_or_else(|| {
             self.payout()
                 .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
         }) {
             BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
             BinaryPayoff::Asset => Self::asset(terms),
-        }?;
-
-        Ok(updated)
+        }
     }
 }
 
@@ -591,14 +589,12 @@ impl TouchOption {
                 .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
-        let updated = match changes.payoff.unwrap_or_else(|| {
+        match changes.payoff.unwrap_or_else(|| {
             self.payout()
                 .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
         }) {
             BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
             BinaryPayoff::Asset => Self::asset(terms),
-        }?;
-
-        Ok(updated)
+        }
     }
 }
