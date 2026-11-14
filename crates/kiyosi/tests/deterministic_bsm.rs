@@ -352,6 +352,70 @@ fn deterministic_payoff_boundaries_leave_greeks_undefined_and_solvers_accept_zer
 }
 
 #[test]
+fn deterministic_barrier_greeks_follow_fixings_and_in_life_curve_knots() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let knot = start.add_days(2)?;
+    let end = start.add_days(4)?;
+    let flat = RateTermStructure::flat(0.0, None)?;
+    for (risk, dividend) in [
+        (
+            RateTermStructure::new(start, vec![knot, end], vec![0.5, 1.0])?,
+            flat.clone(),
+        ),
+        (
+            flat,
+            RateTermStructure::new(start, vec![knot, end], vec![2.0, 1.0])?,
+        ),
+    ] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(risk, dividend, 0.0)?,
+            100.0,
+            start,
+        )?;
+        let continuous = TouchOption::cash(
+            TouchOptionTerms::new(start, end, 200.0, BarrierType::UpAndIn),
+            10.0,
+        )?;
+        let scheduled = continuous.replace(TouchOptionChanges {
+            observation_times: Some(Some(vec![end])),
+            ..Default::default()
+        })?;
+        let fixing_at_knot = scheduled.replace(TouchOptionChanges {
+            observation_times: Some(Some(vec![knot, end])),
+            ..Default::default()
+        })?;
+        let early_expiry = continuous.replace(TouchOptionChanges {
+            expiry_time: Some(start.add_days(1)?),
+            ..Default::default()
+        })?;
+        assert!(continuous.at_spot_discontinuity(&context, 0.01));
+        assert!(fixing_at_knot.at_spot_discontinuity(&context, 0.01));
+        assert!(!scheduled.at_spot_discontinuity(&context, 0.01));
+        assert!(!early_expiry.at_spot_discontinuity(&context, 0.01));
+        let double = DoubleTouchOption::cash(
+            DoubleTouchOptionTerms::new(start, end, 50.0, 200.0, DoubleBarrierType::KnockIn),
+            10.0,
+        )?;
+        assert!(double.at_spot_discontinuity(&context, 0.01));
+        let engine = FiniteDifferenceBinaryBarrierEngine::default();
+        let request = GreeksRequest::new([Greek::Delta]);
+        assert!(
+            engine
+                .price_with_greeks(&continuous, &context, request)?
+                .get(Greek::Delta)
+                .is_none()
+        );
+        assert_eq!(
+            engine
+                .price_with_greeks(&scheduled, &context, request)?
+                .require(Greek::Delta)?,
+            0.0
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Result<()> {
     let start = Date::new(2025, 1, 6)?.start_of_day();
     let middle = start.add_days(180)?;

@@ -173,26 +173,25 @@ impl Monitoring {
         if model.volatility() != 0.0 {
             return false;
         }
-        let mut times = self.observation_times().to_vec();
+        let crosses = |time| {
+            time >= context.valuation_time()
+                && time <= self.expiry_time()
+                && (context.deterministic_crosses(time, self.barrier_level(), radius)
+                    || upper
+                        .is_some_and(|level| context.deterministic_crosses(time, level, radius)))
+        };
         if self.continuous() {
-            times.extend([context.valuation_time(), self.expiry_time()]);
-            for curve in [model.risk_free_curve(), model.dividend_curve()] {
-                times.extend(
-                    curve
-                        .nodes()
-                        .iter()
-                        .copied()
-                        .filter(|&time| time <= self.expiry_time()),
-                );
-            }
+            [context.valuation_time(), self.expiry_time()]
+                .into_iter()
+                .chain(
+                    [model.risk_free_curve(), model.dividend_curve()]
+                        .into_iter()
+                        .flat_map(|curve| curve.nodes().iter().copied()),
+                )
+                .any(crosses)
+        } else {
+            self.observation_times().iter().copied().any(crosses)
         }
-        times
-            .into_iter()
-            .filter(|&time| time >= context.valuation_time())
-            .any(|time| {
-                context.deterministic_crosses(time, self.barrier_level(), radius)
-                    || upper.is_some_and(|level| context.deterministic_crosses(time, level, radius))
-            })
     }
 
     pub(crate) fn all_greeks_unavailable(

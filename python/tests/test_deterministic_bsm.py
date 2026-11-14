@@ -11,6 +11,7 @@ from kiyosi.instruments import KnockInObservation
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
+    RateTermStructure,
     all_days_calendar,
     weekdays_calendar,
 )
@@ -298,6 +299,56 @@ def test_zero_volatility_prices_and_statistics_agree_across_supported_engines(su
                     estimate = engine.price_with_statistics(option, context)
                     assert estimate.price == pytest.approx(expected, rel=0, abs=1e-10)
                     assert estimate.standard_error == 0
+
+
+@pytest.mark.parametrize(
+    "curve_field,factor", (("risk_free_rate", 0.5), ("dividend_yield", 2.0))
+)
+def test_deterministic_barrier_greeks_follow_fixings_and_in_life_curve_knots(
+    curve_field, factor
+):
+    knot = START + timedelta(days=2)
+    curve = RateTermStructure(
+        reference_time=START, times=[knot, END], factors=[factor, 1.0]
+    )
+    parameters = {"risk_free_rate": 0, "dividend_yield": 0, "volatility": 0}
+    parameters[curve_field] = curve
+    model = BlackScholesMertonParameters(**parameters)
+    context = PricingContext(
+        model_parameters=model, spot_price=100, valuation_time=START
+    )
+    continuous = ins.TouchOption(
+        effective_time=START,
+        expiry_time=END,
+        barrier_level=200,
+        barrier_type="up_and_in",
+        payoff_type="cash",
+        payout=10,
+    )
+    scheduled = continuous.replace(observation_times=[END])
+    fixing_at_knot = continuous.replace(observation_times=[knot, END])
+    early_expiry = continuous.replace(expiry_time=START + timedelta(days=1))
+    engine = pricing.FiniteDifferenceBinaryBarrierEngine()
+    for option in (continuous, fixing_at_knot):
+        assert engine.price_with_greeks(option, context, "delta").delta is None
+    for option in (scheduled, early_expiry):
+        result = engine.price_with_greeks(option, context, "delta")
+        assert result.price == 0
+        assert result.delta == pytest.approx(0, rel=0, abs=1e-12)
+    double = ins.DoubleTouchOption(
+        effective_time=START,
+        expiry_time=END,
+        lower_barrier=50,
+        upper_barrier=200,
+        barrier_type="knock_in",
+        payout=10,
+    )
+    assert (
+        pricing.FiniteDifferenceDoubleTouchEngine()
+        .price_with_greeks(double, context, "delta")
+        .delta
+        is None
+    )
 
 
 def test_continuous_and_scheduled_hits_use_exact_deterministic_payment_times(subtests):
