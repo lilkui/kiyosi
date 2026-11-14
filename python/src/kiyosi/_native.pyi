@@ -8871,9 +8871,9 @@ def _pricing_result(
     price: _Real,
     greeks: dict[Greek, _Real],
     *,
-    requested: Iterable[Greek] | None = None,
-    supported: Iterable[Greek] | None = None,
-    unavailable_stencils: Iterable[Greek] | None = None,
+    requested: Iterable[Greek],
+    supported: Iterable[Greek],
+    unavailable_stencils: Iterable[Greek],
     seed: SupportsIndex | None = None,
 ) -> PricingResult: ...
 def _monte_carlo_estimate(
