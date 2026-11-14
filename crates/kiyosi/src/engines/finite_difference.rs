@@ -464,19 +464,12 @@ fn complete_greeks(
     context: &PricingContext,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
-    native_spot_greeks: bool,
     mut result: PricingResult,
     native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
 ) -> Result<PricingResult> {
     if local_volatility::local_model(context).is_none() {
         return crate::risk::numerical::complete_greeks(
-            option,
-            context,
-            request,
-            shifts,
-            native_spot_greeks,
-            result,
-            native,
+            option, context, request, shifts, true, result, native,
         );
     }
     result = result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
@@ -545,7 +538,6 @@ fn analysis<I: OptionContract>(
         context,
         request,
         shifts,
-        true,
         result,
         |context, request| Ok(native(option, context, settings, request, shifts)?.0),
     )
@@ -573,7 +565,6 @@ fn barrier_analysis(
         context,
         request,
         shifts,
-        true,
         native(context, settings, request)?,
         |context, request| native(context, settings, request),
     )
