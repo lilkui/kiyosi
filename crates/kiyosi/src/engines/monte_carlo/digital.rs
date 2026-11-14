@@ -314,10 +314,7 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DigitalOption> + '_>>> {
-        if self.settings.seed.is_some() {
-            return Ok(None);
-        }
-        Ok(Some(Box::new(self.with_resolved_seed()?)))
+        prepare_seeded_request!(self, self.settings)
     }
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)

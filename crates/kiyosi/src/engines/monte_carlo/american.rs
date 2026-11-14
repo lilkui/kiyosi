@@ -264,10 +264,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AmericanOption> + '_>>> {
-        if self.settings.sampling.seed.is_some() {
-            return Ok(None);
-        }
-        Ok(Some(Box::new(self.with_resolved_seed()?)))
+        prepare_seeded_request!(self, self.settings.sampling)
     }
 
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {

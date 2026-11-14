@@ -329,10 +329,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {
-        if self.settings.seed.is_some() {
-            return Ok(None);
-        }
-        Ok(Some(Box::new(self.with_resolved_seed()?)))
+        prepare_seeded_request!(self, self.settings)
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)

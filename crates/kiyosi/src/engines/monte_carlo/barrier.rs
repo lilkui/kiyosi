@@ -602,10 +602,7 @@ macro_rules! barrier_pricing {
             }
 
             fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<$option> + '_>>> {
-                if self.settings.seed.is_some() {
-                    return Ok(None);
-                }
-                Ok(Some(Box::new(self.with_resolved_seed()?)))
+                prepare_seeded_request!(self, self.settings)
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 self.price_with_seed(option, context)

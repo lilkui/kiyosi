@@ -20,6 +20,16 @@ use crate::{
 const BLOCK_SIZE: usize = 256;
 const DEFAULT_STEP_COUNT: i32 = 50;
 
+macro_rules! prepare_seeded_request {
+    ($engine:expr, $settings:expr) => {{
+        if $settings.seed.is_some() {
+            Ok(None)
+        } else {
+            Ok(Some(Box::new($engine.with_resolved_seed()?)))
+        }
+    }};
+}
+
 mod accumulator;
 mod american;
 mod asian;
@@ -1025,10 +1035,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + '_>>> {
-        if self.settings.sampling.seed.is_some() {
-            return Ok(None);
-        }
-        Ok(Some(Box::new(self.with_resolved_seed()?)))
+        prepare_seeded_request!(self, self.settings.sampling)
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         let (sample, _, log_discount, _) = self.sample(option, context, false)?;
