@@ -195,6 +195,10 @@ pub(crate) fn integer(value: &Bound<'_, PyAny>) -> PyResult<i32> {
     integer_index(value)?.extract()
 }
 
+pub(crate) fn integer_usize(value: &Bound<'_, PyAny>) -> PyResult<usize> {
+    integer_index(value)?.extract()
+}
+
 pub(crate) fn integer_index<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     if value.is_instance_of::<PyBool>() {
         return Err(PyTypeError::new_err("expected an integer, excluding bool"));

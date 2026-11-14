@@ -1,11 +1,7 @@
-use crate::conversions::{integer_index, real};
+use crate::conversions::{integer_usize, real};
 use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
 use pyo3::prelude::*;
-
-fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
-    integer_index(value)?.extract()
-}
 
 /// Price European calls and puts under Heston by adaptive Fourier integration.
 ///
@@ -87,7 +83,7 @@ engine_methods!(
         fn new(
             #[pyo3(from_py_with = real)] absolute_tolerance: f64,
             #[pyo3(from_py_with = real)] relative_tolerance: f64,
-            #[pyo3(from_py_with = evaluation_count)] max_evaluations: usize,
+            #[pyo3(from_py_with = integer_usize)] max_evaluations: usize,
         ) -> PyResult<Self> {
             Ok(Self(domain(kiyosi::AnalyticHestonEuropeanEngine::new(
                 kiyosi::HestonIntegrationSettings {

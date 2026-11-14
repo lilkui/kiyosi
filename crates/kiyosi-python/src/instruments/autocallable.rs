@@ -1,13 +1,11 @@
 use crate::calendar::TradingCalendar;
-use crate::conversions::{python_timestamp, real, reals, supplied, timestamp, timestamps};
+use crate::conversions::{
+    integer_usize, python_timestamp, real, reals, supplied, timestamp, timestamps,
+};
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
-
-fn phoenix_lockout(value: &Bound<'_, PyAny>) -> PyResult<usize> {
-    crate::conversions::integer_index(value)?.extract()
-}
 
 // Signature order and conversion order are separate to preserve boundary failures.
 macro_rules! autocallable_properties {
@@ -1266,7 +1264,7 @@ autocallable_properties! {
     PhoenixOption,
     @replace PhoenixOptionChanges [coupon_per_period, lockout_periods, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, barrier_state, principal_redemption_ratio, effective_time, expiry_time, autocall_observations, calendar]
     {
-        lockout_periods => phoenix_lockout,
+        lockout_periods => integer_usize,
         calendar => |v| v.extract::<TradingCalendar>().map(|v| v.0),
         coupon_per_period => crate::conversions::real,
         initial_spot => crate::conversions::real,
@@ -1337,7 +1335,7 @@ autocallable_properties! {
         effective_time: &Bound<'_, PyAny>,
         expiry_time: &Bound<'_, PyAny>,
         autocall_observations: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = phoenix_lockout)] lockout_periods: usize,
+        #[pyo3(from_py_with = integer_usize)] lockout_periods: usize,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
         calendar: TradingCalendar,
@@ -1508,7 +1506,7 @@ macro_rules! phoenix_preset {
             autocall_times: &Bound<'_, PyAny>,
             effective_time: &Bound<'_, PyAny>,
             expiry_time: &Bound<'_, PyAny>,
-            #[pyo3(from_py_with = phoenix_lockout)] lockout_periods: usize,
+            #[pyo3(from_py_with = integer_usize)] lockout_periods: usize,
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
             #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
