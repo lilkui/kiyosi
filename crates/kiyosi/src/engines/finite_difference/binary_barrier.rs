@@ -362,7 +362,7 @@ fn native_with_diffusion<D: Diffusion>(
     let march = |events: bool| -> Result<Vec<f64>> {
         let values: Vec<_> = (0..=space.count)
             .map(|i| {
-                super::barrier::project(&space, &breaks, i, |asset| {
+                super::grid::project_in_spot(&space, &breaks, i, |asset| {
                     if !events {
                         terminal(asset)
                     } else if (!scheduled || observations.last() == Some(&time)) && knocked(asset) {
@@ -462,12 +462,12 @@ fn local_digital_knock_in<D: Diffusion>(
     let breaks = [level, digital.strike()];
     let continuation = (0..=full.count)
         .map(|i| {
-            super::barrier::project(&full, &[digital.strike()], i, |asset| payoff.value(asset))
+            super::grid::project_in_spot(&full, &[digital.strike()], i, |asset| payoff.value(asset))
         })
         .collect();
     let values = (0..=space.count)
         .map(|i| {
-            super::barrier::project(space, &breaks, i, |asset| {
+            super::grid::project_in_spot(space, &breaks, i, |asset| {
                 if (!scheduled || observations.last() == Some(&time)) && knocked(asset) {
                     payoff.value(asset)
                 } else {

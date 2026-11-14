@@ -1,5 +1,73 @@
 use super::{Curve, FiniteDifferenceScheme, FiniteDifferenceSettings, Result, invalid_grid};
 
+pub(super) fn project_in_coordinates(
+    space: &SpatialGrid,
+    breaks: &[f64],
+    index: usize,
+    value: impl Fn(f64) -> [f64; 2],
+) -> [f64; 2] {
+    let value_at = |x| value(space.asset_of_coordinate(x));
+    let center = space.coordinate(space.asset(index));
+    if index == 0 || index == space.count {
+        return value_at(center);
+    }
+    let lower = space.coordinate(space.asset(index - 1)).midpoint(center);
+    let upper = center.midpoint(space.coordinate(space.asset(index + 1)));
+    let coordinates = || breaks.iter().map(|&b| space.coordinate(b));
+    if !coordinates().any(|b| b > lower && b < upper) {
+        return value_at(center);
+    }
+    let mut edges = vec![lower, center, upper];
+    edges.extend(coordinates().filter(|&b| b > lower && b < upper));
+    edges.sort_by(f64::total_cmp);
+    edges.dedup();
+    let mut result = [0.0; 2];
+    for e in edges.windows(2) {
+        let middle = e[0].midpoint(e[1]);
+        let radius = (e[1] - e[0]) / (2.0 * 3.0_f64.sqrt());
+        let low = value_at(middle - radius);
+        let high = value_at(middle + radius);
+        for layer in 0..2 {
+            result[layer] += (e[1] - e[0]) / (upper - lower) * low[layer].midpoint(high[layer]);
+        }
+    }
+    result
+}
+
+pub(super) fn project_in_spot(
+    space: &SpatialGrid,
+    breaks: &[f64],
+    index: usize,
+    value: impl Fn(f64) -> f64,
+) -> f64 {
+    let center = space.asset(index);
+    if index == 0 || index == space.count {
+        return value(center);
+    }
+    let lower = space.asset(index - 1).midpoint(center);
+    let upper = space.asset(index + 1).midpoint(center);
+    let mut points: Vec<_> = breaks
+        .iter()
+        .copied()
+        .filter(|&v| v > lower && v < upper)
+        .collect();
+    if points.is_empty() {
+        return value(center);
+    }
+    points.extend([lower, center, upper]);
+    points.sort_by(f64::total_cmp);
+    points.dedup();
+    points
+        .windows(2)
+        .map(|pair| {
+            let middle = pair[0].midpoint(pair[1]);
+            let radius = 0.5 * (pair[1] - pair[0]) / 3.0_f64.sqrt();
+            (pair[1] - pair[0]) / (upper - lower)
+                * value(middle - radius).midpoint(value(middle + radius))
+        })
+        .sum()
+}
+
 pub(super) struct SpatialGrid {
     pub upper: f64,
     pub spacing: f64,

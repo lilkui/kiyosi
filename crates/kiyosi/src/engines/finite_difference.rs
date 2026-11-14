@@ -326,7 +326,7 @@ fn native_model<D: Diffusion>(
     let mut old: Vec<_> = (0..=space.count)
         .map(|i| {
             if !space.nodes.is_empty() {
-                return autocallable::project(&space, &[payoff.strike], i, |asset| {
+                return grid::project_in_coordinates(&space, &[payoff.strike], i, |asset| {
                     [payoff.value(asset), 0.0]
                 })[0];
             }

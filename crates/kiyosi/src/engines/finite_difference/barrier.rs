@@ -2,8 +2,8 @@ use super::{
     Curve, Diffusion, FiniteDifferenceBarrierEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid,
-    black_scholes_arguments, diffusion, diffusion_upper, local_volatility, scaled, step,
-    weighted_cdf,
+    black_scholes_arguments, diffusion, diffusion_upper, grid::project_in_spot, local_volatility,
+    scaled, step, weighted_cdf,
 };
 use crate::engines::analytic::barrier::resolved_price;
 use crate::instruments::monitoring::validate_life;
@@ -709,12 +709,13 @@ pub(super) fn project_event(
         .iter()
         .map(|level| {
             let cut = ((level / space.spacing).round() as usize).min(space.count);
-            let value = project(space, breaks, cut, |asset| match (event(asset), additive) {
-                (Some(value), true) => value - continuation(values, asset),
-                (Some(value), false) => value,
-                (None, true) => 0.0,
-                (None, false) => continuation(values, asset),
-            });
+            let value =
+                project_in_spot(space, breaks, cut, |asset| match (event(asset), additive) {
+                    (Some(value), true) => value - continuation(values, asset),
+                    (Some(value), false) => value,
+                    (None, true) => 0.0,
+                    (None, false) => continuation(values, asset),
+                });
             (cut, if additive { values[cut] + value } else { value })
         })
         .collect();
@@ -726,38 +727,4 @@ pub(super) fn project_event(
     for (cut, value) in projected {
         values[cut] = value;
     }
-}
-
-pub(super) fn project(
-    space: &SpatialGrid,
-    breaks: &[f64],
-    index: usize,
-    value: impl Fn(f64) -> f64,
-) -> f64 {
-    let center = space.asset(index);
-    if index == 0 || index == space.count {
-        return value(center);
-    }
-    let lower = space.asset(index - 1).midpoint(center);
-    let upper = space.asset(index + 1).midpoint(center);
-    let mut points: Vec<_> = breaks
-        .iter()
-        .copied()
-        .filter(|&v| v > lower && v < upper)
-        .collect();
-    if points.is_empty() {
-        return value(center);
-    }
-    points.extend([lower, center, upper]);
-    points.sort_by(f64::total_cmp);
-    points.dedup();
-    points
-        .windows(2)
-        .map(|pair| {
-            let middle = pair[0].midpoint(pair[1]);
-            let radius = 0.5 * (pair[1] - pair[0]) / 3.0_f64.sqrt();
-            (pair[1] - pair[0]) / (upper - lower)
-                * value(middle - radius).midpoint(value(middle + radius))
-        })
-        .sum()
 }

@@ -2,7 +2,7 @@ use super::{
     Curve, Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
-    diffusion, diffusion_upper, local_volatility,
+    diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility,
 };
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
@@ -162,41 +162,6 @@ fn event<'a, T: AutocallableTerms>(
     note.autocall_observations()
         .iter()
         .find(|r| context.valuation_time().years_until(r.time()) == time)
-}
-
-// Project only the jump correction, leaving smooth daily continuation unchanged.
-pub(super) fn project(
-    space: &SpatialGrid,
-    breaks: &[f64],
-    index: usize,
-    value: impl Fn(f64) -> [f64; 2],
-) -> [f64; 2] {
-    let value_at = |x| value(space.asset_of_coordinate(x));
-    let center = space.coordinate(space.asset(index));
-    if index == 0 || index == space.count {
-        return value_at(center);
-    }
-    let lower = space.coordinate(space.asset(index - 1)).midpoint(center);
-    let upper = center.midpoint(space.coordinate(space.asset(index + 1)));
-    let coordinates = || breaks.iter().map(|&b| space.coordinate(b));
-    if !coordinates().any(|b| b > lower && b < upper) {
-        return value_at(center);
-    }
-    let mut edges = vec![lower, center, upper];
-    edges.extend(coordinates().filter(|&b| b > lower && b < upper));
-    edges.sort_by(f64::total_cmp);
-    edges.dedup();
-    let mut result = [0.0; 2];
-    for e in edges.windows(2) {
-        let middle = e[0].midpoint(e[1]);
-        let radius = (e[1] - e[0]) / (2.0 * 3.0_f64.sqrt());
-        let low = value_at(middle - radius);
-        let high = value_at(middle + radius);
-        for layer in 0..2 {
-            result[layer] += (e[1] - e[0]) / (upper - lower) * low[layer].midpoint(high[layer]);
-        }
-    }
-    result
 }
 
 fn native<T: AutocallableTerms>(
@@ -394,7 +359,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
             }
     };
     for i in 0..size {
-        let value = project(&space, &breaks, i, |asset| {
+        let value = project_in_coordinates(&space, &breaks, i, |asset| {
             [
                 payment(asset, state.knocked_in, end_event),
                 payment(asset, true, end_event),
@@ -450,8 +415,9 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
                 }
                 breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
             }
+            // Project only the jump correction, leaving smooth daily continuation unchanged.
             for i in 0..size {
-                let correction = project(&space, &breaks, i, |asset| {
+                let correction = project_in_coordinates(&space, &breaks, i, |asset| {
                     let a = space.linear(&alive, asset);
                     let k = if layered {
                         space.linear(&knocked, asset)

@@ -215,7 +215,7 @@ fn native_with_diffusion<D: Diffusion>(
     };
     let [slope, intercept] = &mut layers;
     for (i, (slope, intercept)) in slope.iter_mut().zip(intercept).enumerate() {
-        let value = super::autocallable::project(&space, &breaks, i, |asset| {
+        let value = super::grid::project_in_coordinates(&space, &breaks, i, |asset| {
             event(
                 asset,
                 option.unit_payoff(asset),
@@ -259,7 +259,7 @@ fn native_with_diffusion<D: Diffusion>(
             let observe = option.observes_knock_out(dates[event_index]);
             for i in 0..=space.count {
                 // Project only the event jump to preserve smooth continuation.
-                let correction = super::autocallable::project(&space, &breaks, i, |asset| {
+                let correction = super::grid::project_in_coordinates(&space, &breaks, i, |asset| {
                     let slope = space.linear(&layers[0], asset);
                     let intercept = space.linear(&layers[1], asset);
                     let value = event(
