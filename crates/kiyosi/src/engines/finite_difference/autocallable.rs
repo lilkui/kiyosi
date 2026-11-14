@@ -326,10 +326,11 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         )?;
     }
     let size = space.count + 1;
+    let knock_in_size = if layered { size } else { 0 };
     let mut alive = vec![0.0; size];
-    let mut knocked = vec![0.0; size];
+    let mut knocked = vec![0.0; knock_in_size];
     let mut next_alive = vec![0.0; size];
-    let mut next_knocked = vec![0.0; size];
+    let mut next_knocked = vec![0.0; knock_in_size];
     let mut breaks = Vec::new();
     if let Some(ki) = t.knock_in {
         breaks.push(ki.level);
@@ -362,11 +363,17 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         let value = project_in_coordinates(&space, &breaks, i, |asset| {
             [
                 payment(asset, state.knocked_in, end_event),
-                payment(asset, true, end_event),
+                if layered {
+                    payment(asset, true, end_event)
+                } else {
+                    0.0
+                },
             ]
         });
         alive[i] = value[0];
-        knocked[i] = value[1];
+        if layered {
+            knocked[i] = value[1];
+        }
     }
     let mut stepper = diffusion.stepper(space.count);
     let mut damping: u32 = 2;
