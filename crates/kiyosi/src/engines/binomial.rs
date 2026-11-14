@@ -1,5 +1,5 @@
 use super::{Payoff, flat_rates};
-use crate::numerics::scaled_cash as scaled;
+use crate::numerics::{log_ratio, scaled_cash as scaled};
 
 mod barrier;
 pub use barrier::CoxRossRubinsteinBarrierEngine;
@@ -313,12 +313,7 @@ fn native(
         return Err(unstable());
     }
     let mut values = Vec::with_capacity(steps + 1);
-    let relative = (spot - payoff.strike) / payoff.strike;
-    let log_moneyness = if relative.abs() < 0.5 {
-        relative.ln_1p()
-    } else {
-        spot.ln() - payoff.strike.ln()
-    };
+    let log_moneyness = log_ratio(spot, payoff.strike);
     for node in 0..=steps {
         if node % 256 == 0 {
             crate::cancellation::check()?;

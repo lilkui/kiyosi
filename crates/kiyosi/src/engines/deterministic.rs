@@ -4,7 +4,9 @@ use crate::instruments::{
     binary_barrier::Contract,
     monitoring::{Monitoring, validate_life},
 };
-use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash, scaled_signed_cash};
+use crate::numerics::{
+    checked, checked_with_scale, finite_price as finite, log_ratio, scaled_cash, scaled_signed_cash,
+};
 use crate::{
     Accumulator, AutocallableNote, AutocallableTerms, BarrierOption, DoubleBarrierOption, Error,
     ModelParameters, ObservationMode, OptionContract, PricingContext, RebateTiming, Result,
@@ -17,14 +19,6 @@ pub(super) fn enabled(context: &PricingContext) -> bool {
 
 fn invalid() -> Error {
     Error::ComputationFailure("deterministic valuation is not representable".into())
-}
-
-fn finite(value: f64) -> Result<f64> {
-    if value.is_finite() {
-        Ok(value)
-    } else {
-        Err(invalid())
-    }
 }
 
 pub(super) fn vanilla(
