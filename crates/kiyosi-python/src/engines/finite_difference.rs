@@ -108,6 +108,12 @@ macro_rules! fd_engine {
             ],
             [],
             {
+                #[classattr]
+                const _STATE_FIELDS: &'static [&'static str] = &[
+                    "asset_step_count", "time_step_count", "scheme", "asset_upper_boundary",
+                    "spot_shift", "volatility_shift", "rate_shift", "time_shift",
+                ];
+
                 #[new]
                 #[expect(clippy::too_many_arguments, reason = "explicit Python grid and Greek controls")]
                 #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=None))]

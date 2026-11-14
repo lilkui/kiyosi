@@ -35,6 +35,9 @@ pub(crate) struct LocalVolatilitySurface(pub(crate) kiyosi::LocalVolatilitySurfa
 
 #[pymethods]
 impl LocalVolatilitySurface {
+    #[classattr]
+    const _STATE_FIELDS: &'static [&'static str] = &["times", "spots", "values"];
+
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
         crate::representation::surface(slf.py(), &slf.borrow().0)
     }

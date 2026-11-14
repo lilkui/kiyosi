@@ -44,6 +44,9 @@ macro_rules! value_methods {
      {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}) => {
         #[pyo3::pymethods]
         impl $name {
+            #[classattr]
+            const _STATE_FIELDS: &'static [&'static str] = &[$(stringify!($parameter)),+];
+
             $(#[$doc])*
             #[pyo3(signature = (*, $($parameter=crate::conversions::OMITTED),+))]
             #[allow(clippy::too_many_arguments, reason = "replacement field counts vary by expansion")]

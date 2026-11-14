@@ -336,11 +336,14 @@ def test_repr_exposes_terms_settings_and_results(subtests):
     assert repr(pickle.loads(pickle.dumps(estimate))) == repr(estimate)
 
 
-def test_repr_and_pickle_reuse_constructor_metadata(monkeypatch):
+def test_repr_pickle_and_engine_replacement_ignore_constructor_only_parameters(
+    monkeypatch,
+):
     from kiyosi import _serialization
 
     objects = (
         p.AnalyticEuropeanEngine(),
+        p.FiniteDifferenceVanillaEngine(asset_step_count=123, time_step_count=456),
         i.EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         ),
@@ -356,15 +359,34 @@ def test_repr_and_pickle_reuse_constructor_metadata(monkeypatch):
     )
     representations = [repr(value) for value in objects]
 
-    def unexpected_signature(_factory):
-        pytest.fail("constructor metadata was already resolved")
-
-    monkeypatch.setattr(_serialization, "signature", unexpected_signature)
+    for value in objects:
+        factory = type(value)
+        constructor = inspect.signature(factory)
+        monkeypatch.setattr(
+            factory,
+            "__signature__",
+            constructor.replace(
+                parameters=[
+                    *constructor.parameters.values(),
+                    inspect.Parameter(
+                        "construction_hint",
+                        inspect.Parameter.KEYWORD_ONLY,
+                        default=None,
+                    ),
+                ]
+            ),
+            raising=False,
+        )
+    monkeypatch.setattr(_serialization, "_constructor", inspect.signature)
     for value, expected in zip(objects, representations, strict=True):
         assert repr(value) == expected
         restored = pickle.loads(pickle.dumps(value))
         assert restored == value
         assert repr(restored) == expected
+    updated = objects[1].replace(asset_step_count=234)
+    assert updated.asset_step_count == 234
+    assert updated.time_step_count == 456
+    assert objects[1].asset_step_count == 123
 
 
 @pytest.mark.parametrize(

@@ -43,7 +43,12 @@ def _wrap(callable: Any, defaults: dict[str, Any]) -> Any:
 
 
 def _replacement(factory: Any) -> Any:
-    constructor = signature(factory)
+    constructor = Signature(
+        [
+            Parameter(name, Parameter.KEYWORD_ONLY, default=Ellipsis)
+            for name in factory._STATE_FIELDS
+        ]
+    )
 
     def replace(self: Any, **changes: Any) -> Any:
         """Return a validated copy with replacement fields.
@@ -78,10 +83,7 @@ def _replacement(factory: Any) -> Any:
     replace.__dict__["__signature__"] = constructor.replace(
         parameters=[
             Parameter("self", Parameter.POSITIONAL_OR_KEYWORD),
-            *(
-                parameter.replace(default=Ellipsis)
-                for parameter in constructor.parameters.values()
-            ),
+            *constructor.parameters.values(),
         ],
         return_annotation=factory,
     )
