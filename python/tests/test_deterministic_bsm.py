@@ -351,6 +351,60 @@ def test_deterministic_barrier_greeks_follow_fixings_and_in_life_curve_knots(
     )
 
 
+@pytest.mark.parametrize("sign", (-1, 1))
+@pytest.mark.parametrize("dense", (False, True))
+def test_deterministic_touch_discounts_across_distinct_curve_knots(sign, dense):
+    def risk(day):
+        return (
+            -sign
+            * (
+                0.1 * min(day, 90)
+                + 0.03 * min(max(day - 90, 0), 180)
+                + 0.15 * max(day - 270, 0)
+            )
+            / 365
+        )
+
+    def dividend(day):
+        return -sign * (0.02 * min(day, 180) + 0.05 * max(day - 180, 0)) / 365
+
+    def curve(days, log_factor):
+        return RateTermStructure(
+            reference_time=START,
+            times=[START + timedelta(days=day) for day in days],
+            factors=[math.exp(log_factor(day)) for day in days],
+        )
+
+    end = START + timedelta(days=365)
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=curve(range(1, 366) if dense else [90, 270, 365], risk),
+            dividend_yield=curve(range(1, 366) if dense else [180, 365], dividend),
+            volatility=0,
+        ),
+        spot_price=100,
+        valuation_time=START,
+    )
+    option = ins.TouchOption(
+        effective_time=START,
+        expiry_time=end,
+        barrier_level=100 * math.exp(sign * 0.025),
+        barrier_type="up_and_in" if sign > 0 else "down_and_in",
+        payoff_type="cash",
+        payout=7,
+        settlement_timing="at_hit",
+        calendar=all_days_calendar(),
+    )
+    hit_time = 270 / 365 + (0.025 - (0.08 * 90 + 0.01 * 90 - 0.02 * 90) / 365) / 0.1
+    expected = 7 * math.exp(risk(270) - sign * 0.15 * (hit_time - 270 / 365))
+    engine = pricing.FiniteDifferenceBinaryBarrierEngine()
+    assert engine.price(option, context) == pytest.approx(expected, abs=1e-10, rel=0)
+    scheduled = option.replace(observation_times=[START + timedelta(days=300)])
+    assert engine.price(scheduled, context) == pytest.approx(
+        7 * math.exp(risk(300)), abs=1e-10, rel=0
+    )
+
+
 def test_continuous_and_scheduled_hits_use_exact_deterministic_payment_times(subtests):
     end = START + timedelta(days=365)
     life = {"effective_time": START, "expiry_time": end}

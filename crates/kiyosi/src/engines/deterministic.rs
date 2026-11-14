@@ -169,22 +169,32 @@ fn first_touch(
         }
     };
     let start = context.valuation_time();
+    let model = context.bsm_parameters()?;
+    let mut previous = start;
+    let (mut risk_log, mut dividend_log) = (0.0, 0.0);
+    let mut advance = |time| -> Result<(f64, f64)> {
+        crate::cancellation::check()?;
+        risk_log = finite(risk_log + model.risk_free_curve().log_factor(previous, time)?)?;
+        dividend_log = finite(dividend_log + model.dividend_curve().log_factor(previous, time)?)?;
+        previous = time;
+        Ok((finite(dividend_log - risk_log)?, risk_log))
+    };
     if monitoring.observation_mode() == ObservationMode::Scheduled {
         for &time in monitoring
             .observation_times()
             .iter()
             .filter(|&&time| time > start)
         {
-            if hit(log_return(context, time)?) {
+            let (value, log_discount) = advance(time)?;
+            if hit(value) {
                 return Ok(Some(Touch {
                     spot: spot(context, time)?,
-                    log_discount: discount(context, time)?,
+                    log_discount,
                 }));
             }
         }
         return Ok(None);
     }
-    let model = context.bsm_parameters()?;
     let end = monitoring.expiry_time();
     let mut times = vec![start, end];
     for curve in [model.risk_free_curve(), model.dividend_curve()] {
@@ -200,14 +210,14 @@ fn first_touch(
     times.sort_unstable();
     times.dedup();
     for pair in times.windows(2) {
-        let x = log_return(context, pair[0])?;
+        let (x, a) = advance(pair[0])?;
         if hit(x) {
             return Ok(Some(Touch {
                 spot: spot(context, pair[0])?,
-                log_discount: discount(context, pair[0])?,
+                log_discount: a,
             }));
         }
-        let y = log_return(context, pair[1])?;
+        let (y, b) = advance(pair[1])?;
         if hit(y) {
             let level = if monitoring.barrier_type().is_up() || y <= lower {
                 monitoring.barrier_level()
@@ -215,8 +225,6 @@ fn first_touch(
                 upper.ok_or_else(invalid)?
             };
             let fraction = (log_ratio(level, initial) - x) / (y - x);
-            let a = discount(context, pair[0])?;
-            let b = discount(context, pair[1])?;
             return Ok(Some(Touch {
                 spot: level,
                 log_discount: fraction.mul_add(b - a, a),

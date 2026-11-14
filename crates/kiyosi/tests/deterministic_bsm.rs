@@ -416,6 +416,82 @@ fn deterministic_barrier_greeks_follow_fixings_and_in_life_curve_knots() -> Resu
 }
 
 #[test]
+fn deterministic_touch_discounts_across_distinct_curve_knots() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let end = start.add_days(365)?;
+    let engine = FiniteDifferenceBinaryBarrierEngine::default();
+    for sign in [-1.0, 1.0] {
+        let risk = |day: i32| {
+            -sign
+                * (0.1 * f64::from(day.min(90))
+                    + 0.03 * f64::from((day - 90).clamp(0, 180))
+                    + 0.15 * f64::from((day - 270).max(0)))
+                / 365.0
+        };
+        let dividend = |day: i32| {
+            -sign * (0.02 * f64::from(day.min(180)) + 0.05 * f64::from((day - 180).max(0))) / 365.0
+        };
+        for dense in [false, true] {
+            let curve = |days: Vec<i32>, log_factor: &dyn Fn(i32) -> f64| {
+                RateTermStructure::new(
+                    start,
+                    days.iter()
+                        .map(|&day| start.add_days(i64::from(day)))
+                        .collect::<Result<_>>()?,
+                    days.iter().map(|&day| log_factor(day).exp()).collect(),
+                )
+            };
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(
+                    curve(
+                        if dense {
+                            (1..=365).collect()
+                        } else {
+                            vec![90, 270, 365]
+                        },
+                        &risk,
+                    )?,
+                    curve(
+                        if dense {
+                            (1..=365).collect()
+                        } else {
+                            vec![180, 365]
+                        },
+                        &dividend,
+                    )?,
+                    0.0,
+                )?,
+                100.0,
+                start,
+            )?;
+            let mut terms = TouchOptionTerms::new(
+                start,
+                end,
+                100.0 * (sign * 0.025).exp(),
+                if sign > 0.0 {
+                    BarrierType::UpAndIn
+                } else {
+                    BarrierType::DownAndIn
+                },
+            );
+            terms.settlement_timing = SettlementTiming::AtHit;
+            terms.calendar = TradingCalendar::all_days();
+            let option = TouchOption::cash(terms, 7.0)?;
+            let hit_time =
+                270.0 / 365.0 + (0.025 - (0.08 * 90.0 + 0.01 * 90.0 - 0.02 * 90.0) / 365.0) / 0.1;
+            let expected = 7.0 * (risk(270) - sign * 0.15 * (hit_time - 270.0 / 365.0)).exp();
+            assert!((engine.price(&option, &context)? - expected).abs() < 1e-10);
+            let scheduled = option.replace(TouchOptionChanges {
+                observation_times: Some(Some(vec![start.add_days(300)?])),
+                ..Default::default()
+            })?;
+            assert!((engine.price(&scheduled, &context)? - 7.0 * risk(300).exp()).abs() < 1e-10);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Result<()> {
     let start = Date::new(2025, 1, 6)?.start_of_day();
     let middle = start.add_days(180)?;
