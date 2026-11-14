@@ -48,10 +48,9 @@ macro_rules! analytic_engine {
                     let $contract = &instrument;
                     $short
                 };
-                $with!(&instrument, $contract, domain(request.run(py,
-                    short || kiyosi::OptionContract::expiry_time($contract) == $market.valuation_time(), || {
-                    request.evaluate(&kiyosi::$engine, $contract, $market)
-                })?))
+                $with!(&instrument, $contract, crate::engines::evaluate(
+                    py, &kiyosi::$engine, $contract, context, request, short,
+                ))
             }
         }
     };

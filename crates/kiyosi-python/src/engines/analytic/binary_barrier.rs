@@ -1,4 +1,3 @@
-use crate::error::domain;
 use crate::instruments::binary_barrier::{BinaryInstrument, with_binary};
 use crate::market::PricingContext;
 use pyo3::prelude::*;

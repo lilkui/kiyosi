@@ -515,7 +515,7 @@ impl MonteCarloDigitalEngine {
         request: impl crate::engines::PricingRequest<R>,
     ) -> PyResult<R> {
         let option = instrument.contract();
-        crate::engines::evaluate(py, &self.0, option, context, request)
+        crate::engines::evaluate(py, &self.0, option, context, request, false)
     }
 }
 

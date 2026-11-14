@@ -1,4 +1,3 @@
-use crate::error::domain;
 use crate::instruments::asian::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
 use crate::market::PricingContext;
 use pyo3::prelude::*;

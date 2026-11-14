@@ -103,11 +103,9 @@ macro_rules! quadrature_engine {
                 request: impl crate::engines::PricingRequest<R>,
             ) -> PyResult<R> {
                 let short = quadrature_engine!(@short $name, self, instrument, context);
-                $with!(&instrument, option, domain(request.run(
-                    py,
-                    short || kiyosi::OptionContract::expiry_time(option) == context.0.valuation_time(),
-                    || request.evaluate(&self.0, option, &context.0),
-                )?))
+                $with!(&instrument, option, crate::engines::evaluate(
+                    py, &self.0, option, context, request, short,
+                ))
             }
         }
     };

@@ -1,4 +1,3 @@
-use crate::error::domain;
 use crate::instruments::digital::{DigitalInstrument, with_digital};
 use crate::market::PricingContext;
 use pyo3::prelude::*;

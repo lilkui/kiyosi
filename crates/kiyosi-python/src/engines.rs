@@ -11,7 +11,7 @@ macro_rules! engine_methods {
                 context: &$crate::market::PricingContext,
                 request: impl $crate::engines::PricingRequest<R>,
             ) -> pyo3::PyResult<R> {
-                $with!(&instrument, option, $crate::engines::evaluate(py, &self.0, option, context, request))
+                $with!(&instrument, option, $crate::engines::evaluate(py, &self.0, option, context, request, false))
             }
         }
     };
@@ -197,11 +197,12 @@ pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
     instrument: &I,
     context: &crate::market::PricingContext,
     request: impl PricingRequest<R>,
+    short: bool,
 ) -> PyResult<R> {
     let context = &context.0;
     crate::error::domain(request.run(
         py,
-        instrument.expiry_time() == context.valuation_time(),
+        short || instrument.expiry_time() == context.valuation_time(),
         || request.evaluate(engine, instrument, context),
     )?)
 }
