@@ -7,7 +7,7 @@ use crate::{
 };
 use crate::{BinaryBarrierOption, SettlementTiming, TouchOption};
 
-use crate::instruments::binary_barrier::Contract;
+use crate::instruments::binary_barrier::{Contract, Settlement};
 /// Prices binary barriers and single-touch contracts analytically with flat rates.
 ///
 /// See [`Self::price`] for usage and scheduled-monitoring restrictions.
@@ -98,21 +98,13 @@ impl Contract<'_> {
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::binary(self, context);
         }
-        let (prior, touched, finished) = self.state(context)?;
         let t = valuation.years_until(option.expiry_time());
         let knock_in = option.barrier_type().is_knock_in();
         let at_hit = self.timing == SettlementTiming::AtHit;
-        if prior && at_hit {
-            return Ok(0.0);
-        }
-        if t == 0.0 || touched || finished {
-            if knock_in != touched {
-                return Ok(0.0);
-            }
-            if at_hit {
-                return Ok(self.payout.unwrap_or(context.spot_price()));
-            }
-            return self.vanilla(context, t);
+        match self.settlement(context)? {
+            Settlement::Value(value) => return Ok(value),
+            Settlement::AtExpiry => return self.vanilla(context, t),
+            Settlement::Pending => {}
         }
         if self.payoff_requires_touch() {
             return if knock_in {

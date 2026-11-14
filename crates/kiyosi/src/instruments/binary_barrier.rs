@@ -427,7 +427,32 @@ pub(crate) struct Contract<'a> {
     pub(crate) payout: Option<f64>,
     pub(crate) timing: SettlementTiming,
 }
+
+pub(crate) enum Settlement {
+    Pending,
+    Value(f64),
+    AtExpiry,
+}
+
 impl Contract<'_> {
+    pub(crate) fn settlement(&self, context: &PricingContext) -> Result<Settlement> {
+        let (prior, touched, finished) = self.state(context)?;
+        let at_hit = self.timing == SettlementTiming::AtHit;
+        if prior && at_hit {
+            return Ok(Settlement::Value(0.0));
+        }
+        if !touched && !finished {
+            return Ok(Settlement::Pending);
+        }
+        Ok(if touched != self.monitoring.barrier_type().is_knock_in() {
+            Settlement::Value(0.0)
+        } else if at_hit {
+            Settlement::Value(self.payout.unwrap_or(context.spot_price()))
+        } else {
+            Settlement::AtExpiry
+        })
+    }
+
     pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
         let Ok((_, touched, finished)) = self.state(context) else {
             return false;

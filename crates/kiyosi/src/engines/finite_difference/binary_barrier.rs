@@ -4,7 +4,7 @@ use super::{
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, diffusion,
     diffusion_upper, local_volatility, payoff::boundary_value, scaled, step, unstable,
 };
-use crate::instruments::binary_barrier::Contract;
+use crate::instruments::binary_barrier::{Contract, Settlement};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::checked;
 use crate::{
@@ -107,7 +107,6 @@ fn native_with_diffusion<D: Diffusion>(
 ) -> Result<PricingResult> {
     let option = contract.monitoring;
     validate_life(option, context)?;
-    let (prior, touched, finished) = contract.state(context)?;
     let upper_barrier = contract.upper_barrier;
     let knock_in = option.barrier_type().is_knock_in();
     let at_hit = contract.timing == SettlementTiming::AtHit;
@@ -119,57 +118,49 @@ fn native_with_diffusion<D: Diffusion>(
             contract.payout.unwrap_or(asset)
         }
     };
-    if prior && at_hit {
-        return PricingResult::new(0.0);
-    }
     let expiry = option.expiry_time();
-    if context.valuation_time() == expiry {
-        return PricingResult::new(if touched == knock_in {
-            terminal(spot)
-        } else {
-            0.0
-        });
-    }
-    if touched || finished {
-        if touched != knock_in {
-            return PricingResult::new(0.0);
-        }
-        if at_hit {
-            return PricingResult::new(contract.payout.unwrap_or(spot));
-        }
-        let value = if let Some(digital) = contract.digital {
-            if D::LOCAL {
-                let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-                let request = if option.spot_discontinuity(context, h, contract.upper_barrier) {
-                    GreeksRequest::new([])
-                } else {
-                    request
-                };
-                return Ok(super::native(
-                    digital,
-                    Payoff::digital(digital),
-                    context,
-                    settings,
-                    request,
-                    shifts,
-                    false,
-                )?
-                .0);
+    match contract.settlement(context)? {
+        Settlement::Value(value) => return PricingResult::new(value),
+        Settlement::AtExpiry => {
+            if context.valuation_time() == expiry {
+                return PricingResult::new(terminal(spot));
             }
-            AnalyticDigitalEngine.price(digital, context)?
-        } else {
-            let model = context.model_parameters();
-            let curve = if contract.payout.is_some() {
-                model.risk_free_curve()
+            let value = if let Some(digital) = contract.digital {
+                if D::LOCAL {
+                    let h =
+                        crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
+                    let request = if option.spot_discontinuity(context, h, contract.upper_barrier) {
+                        GreeksRequest::new([])
+                    } else {
+                        request
+                    };
+                    return Ok(super::native(
+                        digital,
+                        Payoff::digital(digital),
+                        context,
+                        settings,
+                        request,
+                        shifts,
+                        false,
+                    )?
+                    .0);
+                }
+                AnalyticDigitalEngine.price(digital, context)?
             } else {
-                model.dividend_curve()
+                let model = context.model_parameters();
+                let curve = if contract.payout.is_some() {
+                    model.risk_free_curve()
+                } else {
+                    model.dividend_curve()
+                };
+                checked(scaled(
+                    contract.payout.unwrap_or(spot),
+                    curve.log_factor(context.valuation_time(), expiry)?,
+                ))?
             };
-            checked(scaled(
-                contract.payout.unwrap_or(spot),
-                curve.log_factor(context.valuation_time(), expiry)?,
-            ))?
-        };
-        return PricingResult::new(value);
+            return PricingResult::new(value);
+        }
+        Settlement::Pending => {}
     }
     let scheduled = option.observation_mode() == ObservationMode::Scheduled;
     let horizon = if scheduled && at_hit {

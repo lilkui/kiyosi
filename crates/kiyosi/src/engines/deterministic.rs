@@ -1,7 +1,7 @@
 use super::{Payoff, curve::Curve};
 use crate::instruments::autocallable::pricing::{future_event_times, initial, validate};
 use crate::instruments::{
-    binary_barrier::Contract,
+    binary_barrier::{Contract, Settlement},
     monitoring::{Monitoring, validate_life},
 };
 use crate::numerics::{
@@ -270,30 +270,22 @@ pub(super) fn barrier_value(
 pub(super) fn binary(contract: &Contract<'_>, context: &PricingContext) -> Result<f64> {
     let monitoring = contract.monitoring;
     validate_life(monitoring, context)?;
-    let (prior, touched, finished) = contract.state(context)?;
-    let at_hit = contract.timing == SettlementTiming::AtHit;
-    if prior && at_hit {
-        return Ok(0.0);
-    }
-    let touch = if touched {
-        Some(Touch {
-            spot: context.spot_price(),
-            log_discount: 0.0,
-        })
-    } else if finished {
-        None
-    } else {
-        first_touch(monitoring, contract.upper_barrier, context)?
-    };
-    if touch.is_some() != monitoring.barrier_type().is_knock_in() {
-        return Ok(0.0);
-    }
-    if at_hit {
-        let touch = touch.ok_or_else(invalid)?;
-        return checked(scaled_cash(
-            contract.payout.unwrap_or(touch.spot),
-            touch.log_discount,
-        ));
+    match contract.settlement(context)? {
+        Settlement::Value(value) => return checked(scaled_cash(value, 0.0)),
+        Settlement::AtExpiry => {}
+        Settlement::Pending => {
+            let touch = first_touch(monitoring, contract.upper_barrier, context)?;
+            if touch.is_some() != monitoring.barrier_type().is_knock_in() {
+                return Ok(0.0);
+            }
+            if contract.timing == SettlementTiming::AtHit {
+                let touch = touch.ok_or_else(invalid)?;
+                return checked(scaled_cash(
+                    contract.payout.unwrap_or(touch.spot),
+                    touch.log_discount,
+                ));
+            }
+        }
     }
     if let Some(digital) = contract.digital {
         return vanilla(digital, Payoff::digital(digital), context);

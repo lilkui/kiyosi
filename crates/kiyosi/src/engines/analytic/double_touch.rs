@@ -1,4 +1,5 @@
 use super::double_barrier::AbsorbingDistribution;
+use crate::instruments::binary_barrier::Settlement;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, scaled_cash};
 use crate::{
@@ -59,25 +60,18 @@ impl AnalyticDoubleTouchEngine {
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::binary(&option.contract(), context);
         }
-        let (prior, touched, finished) = option.contract().state(context)?;
         let at_hit = option.settlement_timing() == SettlementTiming::AtHit;
-        if prior && at_hit {
-            return Ok(0.0);
-        }
-        let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
-        if touched || finished {
-            if touched != option.is_one_touch() {
-                return Ok(0.0);
-            }
-            return if at_hit {
-                Ok(option.payout())
-            } else {
+        match option.contract().settlement(context)? {
+            Settlement::Value(value) => return Ok(value),
+            Settlement::AtExpiry => {
+                let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
                 context.validate_curve_horizon(option.expiry_time())?;
-                checked(scaled_cash(
+                return checked(scaled_cash(
                     option.payout(),
                     -rate * context.valuation_time().years_until(option.expiry_time()),
-                ))
-            };
+                ));
+            }
+            Settlement::Pending => {}
         }
         if option.observation_mode() == ObservationMode::Scheduled {
             return Err(Error::UnsupportedOperation(
@@ -91,6 +85,7 @@ impl AnalyticDoubleTouchEngine {
             option.expiry_time(),
             context,
         )?;
+        let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
         if at_hit {
             density.hit_value(option.payout(), rate)
         } else {
