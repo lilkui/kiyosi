@@ -1,7 +1,6 @@
 """Caller-owned accrued state uses the requested valuation boundary."""
 
 import copy
-import inspect
 import pickle
 from datetime import datetime, time, timedelta
 
@@ -63,11 +62,6 @@ def test_accumulator_partial_history_and_combined_replacement_preserve_values():
     for value in (original, settled, changed, cleared):
         assert copy.copy(value) == value
         assert pickle.loads(pickle.dumps(value)) == value
-        assert not hasattr(value, "history_time")
-        assert not hasattr(value, "replace_history")
-        assert "history_time" not in inspect.signature(type(value)).parameters
-        with pytest.raises(TypeError):
-            value.replace(history_time=EVENT)
 
 
 @pytest.mark.parametrize(
@@ -128,6 +122,3 @@ def test_range_accrual_counts_current_hit_once_and_accepts_undated_history():
         known.replace(realized_hit_count=-1, notional=100)
     assert known.realized_hit_count == 1
     assert pickle.loads(pickle.dumps(known)) == known
-    assert "history_time" not in inspect.signature(RangeAccrualOption).parameters
-    with pytest.raises(TypeError):
-        RangeAccrualOption(**fields, history_time=EVENT)

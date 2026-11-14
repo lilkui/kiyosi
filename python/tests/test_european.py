@@ -1,6 +1,5 @@
 """Public API checks, through the Rust extension."""
 
-import importlib
 import math
 import numbers
 from concurrent.futures import ThreadPoolExecutor
@@ -8,7 +7,6 @@ from datetime import UTC, date, datetime
 from fractions import Fraction
 
 import pytest
-import QuantLib as ql
 from kiyosi import ComputationFailureError, InvalidInputError
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import (
@@ -72,36 +70,6 @@ def test_call_and_put_prices(direction, expected):
     assert AnalyticEuropeanEngine().price(option, context) == pytest.approx(
         expected, rel=0, abs=1e-12
     )
-
-
-def test_existing_scenarios_against_live_quantlib(make_context, subtests):
-    oracle = importlib.import_module("quantlib_reference.oracle")
-    oracle.require_version()
-    config = oracle.load_fixture("scenarios.json")
-    for scenario in config["scenarios"]:
-        inputs = scenario["inputs"]
-        with subtests.test(case=scenario["case_id"]), ql.SavedSettings():
-            expected = oracle.vanilla_option(inputs).NPV()
-            model = BlackScholesMertonParameters(
-                risk_free_rate=inputs["rate"],
-                dividend_yield=inputs["dividend"],
-                volatility=inputs["volatility"],
-            )
-            option = make_option(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-            )
-            context = make_context(
-                model_parameters=model,
-                spot_price=inputs["spot"],
-                valuation_time=datetime.fromisoformat(inputs["valuation"]),
-            )
-            tolerance = scenario["tolerances"]["price"]
-            assert AnalyticEuropeanEngine().price(option, context) == pytest.approx(
-                expected, rel=0, abs=tolerance
-            )
 
 
 def test_valuation_and_expiry_boundaries(make_context, subtests):

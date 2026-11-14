@@ -9,6 +9,7 @@ from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
 from kiyosi.pricing import numerical_greeks
+from price_differences import price_differences
 
 
 def test_barrier_greek_signature_defaults_can_be_forwarded(subtests):
@@ -117,8 +118,12 @@ def test_numerical_greeks_use_shared_defaults_and_request_controls(subtests):
     engine = p.FiniteDifferenceVanillaEngine(asset_step_count=100, time_step_count=100)
     request = ["gamma", "vega", "rho", "theta"]
     expected = numerical_greeks(engine, option, context, request, **controls)
+    reference = price_differences(engine, option, context, request, **controls)
+    for greek in request:
+        assert expected.require(greek) == pytest.approx(
+            getattr(reference, greek), rel=0, abs=1e-8
+        )
     defaults = numerical_greeks(engine, option, context, request)
-    assert defaults.require("rho") != expected.require("rho")
     assert (
         numerical_greeks(
             engine,
@@ -136,13 +141,14 @@ def test_numerical_greeks_use_shared_defaults_and_request_controls(subtests):
         ("time_shift", timedelta(days=30), "theta"),
     ):
         with subtests.test(field=field):
-            overridden = numerical_greeks(
-                engine, option, context, request, **controls | {field: value}
+            shifts = controls | {field: value}
+            overridden = numerical_greeks(engine, option, context, request, **shifts)
+            reference = price_differences(engine, option, context, [greek], **shifts)
+            assert overridden.require(greek) == pytest.approx(
+                getattr(reference, greek), rel=0, abs=1e-8
             )
-            assert overridden.require(greek) != expected.require(greek)
     automatic = {"spot_shift": None, "time_shift": None}
     assert numerical_greeks(engine, option, context, request, **automatic) == defaults
-    assert numerical_greeks(engine, option, context, request) == defaults
     assert expected.require("rho") == engine.price_with_greeks(
         option, context, "rho", **controls
     ).require("rho")

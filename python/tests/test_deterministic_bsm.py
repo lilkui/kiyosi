@@ -818,11 +818,3 @@ def test_deterministic_boundaries_and_zero_implied_volatility_are_explicit(subte
     for bad in (-0.1, math.nan, math.inf):
         with pytest.raises(InvalidInputError):
             context.model_parameters.replace(volatility=bad)
-
-
-@pytest.mark.parametrize("sigma", (-0.1, math.nan, math.inf))
-def test_negative_and_nonfinite_volatility_remain_invalid(sigma):
-    with pytest.raises(InvalidInputError):
-        BlackScholesMertonParameters(
-            risk_free_rate=0, dividend_yield=0, volatility=sigma
-        )

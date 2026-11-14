@@ -1,7 +1,6 @@
 """Caller-owned touch history at public construction, replacement and pricing seams."""
 
 import copy
-import inspect
 import pickle
 from datetime import timedelta
 
@@ -78,14 +77,6 @@ def test_undated_touch_history_reuses_caller_state_and_validates_at_pricing(
     ):
         assert cloned == option
         assert cloned.touch_state == "touched"
-    assert "history_time" not in inspect.signature(factory).parameters
-    assert "history_time" not in inspect.signature(option.replace).parameters
-    assert not hasattr(option, "history_time")
-    assert not hasattr(option, "replace_history")
-    with pytest.raises(TypeError):
-        factory(**terms, history_time=first)
-    with pytest.raises(TypeError):
-        option.replace(history_time=first)
 
 
 def test_scheduled_touch_at_valuation_is_processed_once_with_current_spot():

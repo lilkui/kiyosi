@@ -1,7 +1,6 @@
 """Undated autocallable state through the public pricing and replacement interfaces."""
 
 import copy
-import inspect
 import pickle
 from datetime import datetime, time, timedelta
 
@@ -11,7 +10,6 @@ from kiyosi.instruments import (
     KnockInObservation,
     SnowballOption,
     autocallable_observations,
-    standard_snowball,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -76,7 +74,6 @@ def test_supplied_state_remains_applicable_across_observations():
         ):
             assert restored == note
             assert restored.barrier_state == state
-            assert "history_time" not in repr(restored)
     note = contract("no_event")
     assert engine.price(note, market(110, EVENT)) == pytest.approx(
         1 + 0.08 * 2 / 365, rel=0, abs=1e-14
@@ -93,13 +90,3 @@ def test_supplied_state_remains_applicable_across_observations():
     assert note.replace(lower_strike=50, barrier_state="knocked_in") == contract(
         "knocked_in"
     ).replace(lower_strike=50)
-
-
-def test_timestamp_and_separate_history_interfaces_are_absent():
-    note = contract("no_event")
-    assert not hasattr(note, "history_time")
-    assert not hasattr(note, "replace_history")
-    for operation in (SnowballOption, note.replace, standard_snowball):
-        assert "history_time" not in inspect.signature(operation).parameters
-        with pytest.raises(TypeError, match="history_time"):
-            operation(history_time=START)

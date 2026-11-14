@@ -1,7 +1,7 @@
 """Autocallable Monte Carlo shared-path and event-grid regressions."""
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import time as clock_time
 
 import pytest
@@ -21,6 +21,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import numerical_greeks
+from price_differences import price_differences
 
 
 def test_scalar_price_survives_confidence_interval_overflow():
@@ -238,7 +239,11 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
                 )
 
 
-def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(subtests):
+@pytest.mark.parametrize(
+    "state,reference_step",
+    (("no_event", timedelta(hours=6)), ("knocked_in", timedelta(days=1))),
+)
+def test_default_time_greeks_respect_remaining_knock_in_events(state, reference_step):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     context = PricingContext(
         model_parameters=BlackScholesMertonParameters(
@@ -247,33 +252,33 @@ def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(sub
         spot_price=75,
         valuation_time=datetime(2025, 1, 2, 12),
     )
-    for engine in (pricing.MonteCarloAutocallableEngine(path_count=64, seed=42),):
-        for state in ("no_event", "knocked_in"):
-            with subtests.test(engine=type(engine).__name__, state=state):
-                note = SnowballOption(
-                    calendar=weekdays_calendar(),
-                    maturity_coupon_rate=0.06,
-                    initial_spot=100,
-                    knock_in_level=75,
-                    upper_strike=100,
-                    lower_strike=60,
-                    barrier_state=state,
-                    effective_time=start,
-                    expiry_time=end,
-                    knock_in_observation=KnockInObservation.every_trading_day(
-                        clock_time()
-                    ),
-                    autocall_observations=autocallable_observations(
-                        [end], [110], knock_out_coupon_rates=[0.08]
-                    ),
-                )
-                result = engine.price_with_greeks(
-                    note,
-                    context,
-                    ["theta", "charm", "color"],
-                )
-                for value in (result.theta, result.charm, result.color):
-                    assert value is not None
+    engine = pricing.MonteCarloAutocallableEngine(path_count=64, seed=42)
+    note = SnowballOption(
+        calendar=weekdays_calendar(),
+        maturity_coupon_rate=0.06,
+        initial_spot=100,
+        knock_in_level=75,
+        upper_strike=100,
+        lower_strike=60,
+        barrier_state=state,
+        effective_time=start,
+        expiry_time=end,
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        autocall_observations=autocallable_observations(
+            [end], [110], knock_out_coupon_rates=[0.08]
+        ),
+    )
+    request = ["theta", "charm", "color"]
+    result = engine.price_with_greeks(note, context, request)
+    # Live daily fixings constrain the default roll; completed knock-in leaves a full day.
+    expected = price_differences(
+        engine, note, context, request, time_shift=reference_step
+    )
+    assert result.price == expected.price
+    for greek in request:
+        assert result.require(greek) == pytest.approx(
+            getattr(expected, greek), rel=0, abs=1e-7
+        )
 
 
 def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(subtests):
