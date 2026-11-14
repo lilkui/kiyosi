@@ -791,7 +791,7 @@ fn greek_results_retain_seeds_for_native_and_scalar_replay() -> Result<()> {
                     option,
                     &context,
                     request,
-                    engine.greek_settings(option),
+                    Default::default(),
                 )
             }
         };
@@ -813,7 +813,7 @@ fn greek_results_retain_seeds_for_native_and_scalar_replay() -> Result<()> {
                     option,
                     &deterministic,
                     request,
-                    engine.greek_settings(option)
+                    Default::default()
                 )?
                 .seed(),
             None

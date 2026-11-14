@@ -76,7 +76,7 @@ fn implied_volatility_inherits_contract_rules_and_keeps_engine_overrides() -> Re
 }
 
 #[test]
-fn generic_greek_requests_preserve_native_methods_and_configured_shifts() -> Result<()> {
+fn generic_greek_requests_preserve_native_methods_and_request_shifts() -> Result<()> {
     fn evaluate<E: PricingEngine + ?Sized>(
         engine: &E,
         option: &EuropeanOption,
@@ -92,10 +92,6 @@ fn generic_greek_requests_preserve_native_methods_and_configured_shifts() -> Res
     let fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
         asset_step_count: 100,
         time_step_count: 100,
-        greek_shifts: NumericalShiftSettings {
-            rate_shift: 0.1,
-            ..Default::default()
-        },
         ..Default::default()
     })?;
     for (engine, expected) in [
@@ -110,12 +106,19 @@ fn generic_greek_requests_preserve_native_methods_and_configured_shifts() -> Res
     ] {
         assert_eq!(evaluate(engine, &option, &context, request)?, expected);
     }
-    let default_fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
-        greek_shifts: NumericalShiftSettings::default(),
-        ..fd.settings()
-    })?;
-    let tuned = evaluate(&fd, &option, &context, request)?.require(Greek::Rho)?;
-    let default = evaluate(&default_fd, &option, &context, request)?.require(Greek::Rho)?;
+    let engine: &dyn PricingEngine = &fd;
+    let tuned = engine
+        .price_with_greeks_with_settings(
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings {
+                rate_shift: 0.1,
+                ..Default::default()
+            },
+        )?
+        .require(Greek::Rho)?;
+    let default = evaluate(engine, &option, &context, request)?.require(Greek::Rho)?;
     assert!((tuned - default).abs() > 0.1);
     Ok(())
 }
@@ -611,12 +614,7 @@ fn custom_native_greeks_preserve_estimator_across_controls() -> Result<()> {
     let expected = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
     let engine: &dyn PricingEngine = &AnalyticProxy;
     assert_eq!(
-        engine.price_with_greeks_with_settings(
-            &option,
-            &context,
-            request,
-            engine.greek_settings(&option)
-        )?,
+        engine.price_with_greeks_with_settings(&option, &context, request, Default::default())?,
         expected
     );
     assert_eq!(
@@ -647,17 +645,11 @@ fn custom_native_greeks_preserve_estimator_across_controls() -> Result<()> {
 }
 
 #[test]
-fn custom_engine_greeks_use_configured_shifts_and_allow_overrides() -> Result<()> {
+fn custom_engine_greeks_use_request_shifts() -> Result<()> {
     struct Cubic;
     impl PricingEngine for Cubic {
         fn price(&self, _: &EuropeanOption, context: &PricingContext) -> Result<f64> {
             Ok(context.spot_price().powi(3))
-        }
-        fn greek_settings(&self, _: &EuropeanOption) -> NumericalShiftSettings {
-            NumericalShiftSettings {
-                spot_shift: Some(2.0),
-                ..Default::default()
-            }
         }
     }
     let (option, context) = market();
@@ -666,7 +658,10 @@ fn custom_engine_greeks_use_configured_shifts_and_allow_overrides() -> Result<()
         &option,
         &context,
         request,
-        Cubic.greek_settings(&option),
+        NumericalShiftSettings {
+            spot_shift: Some(2.0),
+            ..Default::default()
+        },
     )?;
     assert!((configured.require(Greek::Delta)? - 30_004.0).abs() < 1e-8);
     let overridden = Cubic.price_with_greeks_with_settings(
@@ -696,7 +691,7 @@ fn native_greeks_use_defaults_in_shared_trait_adapters() {
                     option,
                     context,
                     GreeksRequest::all(),
-                    engine.greek_settings(option)
+                    Default::default()
                 )
                 .unwrap(),
             *expected,
@@ -707,7 +702,7 @@ fn native_greeks_use_defaults_in_shared_trait_adapters() {
                     option,
                     context,
                     GreeksRequest::all(),
-                    engine.greek_settings(option)
+                    Default::default()
                 )
                 .unwrap(),
             *expected,
@@ -1393,7 +1388,7 @@ fn custom_engines_can_return_validated_analytic_results() {
             &option,
             &context,
             GreeksRequest::new([Greek::Delta]),
-            Engine.greek_settings(&option),
+            Default::default(),
         )
         .unwrap();
     assert_eq!(result.price(), 10.0);

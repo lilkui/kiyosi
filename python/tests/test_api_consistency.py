@@ -1602,28 +1602,17 @@ def test_fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates(subtest
         "rate_shift": 0.0002,
         "time_shift": timedelta(seconds=60),
     }
-    engine = pricing.FiniteDifferenceVanillaEngine(**grid, **shifts)
-    tuned = engine.price_with_greeks(option, context, ["delta", "gamma", "vega"])
-    original = pricing.FiniteDifferenceVanillaEngine(**grid)
-    assert (
-        original.price_with_greeks(
-            option, context, ["delta", "gamma", "vega"], **shifts
-        )
-        == tuned
+    engine = pricing.FiniteDifferenceVanillaEngine(**grid)
+    tuned = engine.price_with_greeks(
+        option, context, ["delta", "gamma", "vega"], **shifts
     )
-    assert original.volatility_shift is None
-    assert (
-        engine.price_with_greeks(
-            option, context, ["delta", "gamma", "vega"], volatility_shift=...
+    for default in (None, Ellipsis):
+        assert (
+            engine.price_with_greeks(
+                option, context, ["delta", "gamma", "vega"], volatility_shift=default
+            )
+            == base
         )
-        == tuned
-    )
-    assert (
-        engine.price_with_greeks(
-            option, context, ["delta", "gamma", "vega"], volatility_shift=None
-        )
-        == base
-    )
     assert tuned.price == base.price
     assert tuned.require("delta") == base.require("delta")
     assert tuned.require("gamma") == base.require("gamma")
@@ -1635,7 +1624,7 @@ def test_fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates(subtest
         )
     )
     measures = ["rho", "dividend_rho", "theta"]
-    configured_result = engine.price_with_greeks(option, regular, measures)
+    configured_result = engine.price_with_greeks(option, regular, measures, **shifts)
     scalar = numerical_greeks(engine, option, regular, measures, **shifts)
     for greek in measures:
         assert configured_result.require(greek) == pytest.approx(
@@ -1649,26 +1638,11 @@ def test_fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates(subtest
             continue
         factory = getattr(pricing, name)
         with subtests.test(engine=name):
-            configured = factory(**shifts)
-            restored = pickle.loads(pickle.dumps(configured))
-            assert restored == configured
-            for field, expected in shifts.items():
-                assert getattr(restored, field) == expected
-            for field, bad in (
-                ("volatility_shift", 0),
-                ("rate_shift", float("nan")),
-                ("time_shift", timedelta()),
-                ("time_shift", timedelta(seconds=-1)),
-            ):
-                with pytest.raises(InvalidInputError):
-                    factory(**{field: bad})
-            for field, bad in (
-                ("volatility_shift", True),
-                ("rate_shift", True),
-                ("time_shift", 1),
-            ):
+            for field, value in shifts.items():
                 with pytest.raises(TypeError):
-                    factory(**{field: bad})
+                    factory(**{field: value})
+                with pytest.raises(TypeError):
+                    factory().replace(**{field: value})
 
 
 def test_greek_status_distinguishes_requests_support_and_stencils():

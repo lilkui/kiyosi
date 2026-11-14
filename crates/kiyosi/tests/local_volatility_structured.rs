@@ -66,10 +66,10 @@ fn parity<I: OptionContract, E: PricingEngine<I>>(engine: &E, option: &I, local:
         .unwrap();
     engine.validate_applicability(local).unwrap();
     let actual = engine
-        .price_with_greeks_with_settings(option, local, request(), engine.greek_settings(option))
+        .price_with_greeks_with_settings(option, local, request(), Default::default())
         .unwrap();
     let reference = engine
-        .price_with_greeks_with_settings(option, &bsm, request(), engine.greek_settings(option))
+        .price_with_greeks_with_settings(option, &bsm, request(), Default::default())
         .unwrap();
     assert!(
         (actual.price() - reference.price()).abs() < 1e-9,
@@ -399,7 +399,7 @@ fn fixed_surface_derivatives<I: OptionContract, E: PricingEngine<I>>(
     tolerance: [f64; 2],
 ) {
     let value = engine
-        .price_with_greeks_with_settings(option, local, request(), engine.greek_settings(option))
+        .price_with_greeks_with_settings(option, local, request(), Default::default())
         .unwrap();
     let shift = 0.05;
     let price = |offset| {

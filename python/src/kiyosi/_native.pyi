@@ -1645,8 +1645,8 @@ class _PricingMethods[Instrument]:
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -1715,8 +1715,8 @@ class AnalyticEuropeanEngine(_PricingMethods[EuropeanOption]):
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -1887,8 +1887,8 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -1979,8 +1979,8 @@ class AnalyticDigitalEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -2095,8 +2095,8 @@ class CoxRossRubinsteinBarrierEngine(_PricingMethods[BarrierOption]):
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -2440,8 +2440,8 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -2559,8 +2559,8 @@ class CoxRossRubinsteinDigitalEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -2601,10 +2601,6 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real | None = ...,
-        rate_shift: _Real = ...,
-        time_shift: timedelta | None = None,
     ) -> None: ...
     def replace(
         self,
@@ -2613,10 +2609,6 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
         time_step_count: SupportsIndex | EllipsisType = ...,
         scheme: _pricing.FiniteDifferenceScheme | EllipsisType = ...,
         asset_upper_boundary: _Real | None | EllipsisType = ...,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated copy with replacement fields.
 
@@ -2658,22 +2650,6 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
     def asset_upper_boundary(self) -> float | None:
         """Return the explicit upper spot boundary, or None for automatic selection."""
 
-    @property
-    def volatility_shift(self) -> float | None:
-        """Return the numerical volatility bump, or None for automatic selection."""
-
-    @property
-    def rate_shift(self) -> float:
-        """Return the numerical parallel rate bump in decimal units."""
-
-    @property
-    def time_shift(self) -> timedelta | None:
-        """Return the explicit time bump, or None for automatic selection."""
-
-    @property
-    def spot_shift(self) -> float | None:
-        """Return the native Greek spot bump, or None for automatic selection."""
-
     def price_with_greeks(
         self,
         instrument: Instrument,
@@ -2705,8 +2681,8 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -2732,7 +2708,7 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
         -----
         Before expiry delta and gamma come from the spatial solution, except zero
         BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with the configured shifts. Local volatility provides only
+        differences with request-level shifts. Local volatility provides only
         delta and gamma. At expiry vanilla Greeks use exact supported payoff
         derivatives; other products use default terminal-payoff stencils. Use
         numerical_greeks for configurable scalar differences under BSM.
@@ -2760,24 +2736,12 @@ class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
         Continuous up and double barriers fix their own upper grid edge; this
         bound is inactive for that grid. Local-volatility knock-in vanilla
         components and scheduled monitoring use the full domain.
-    spot_shift : float or None, optional
-        Positive absolute spot bump for native Greek availability and terminal
-        stencils. None selects the automatic bump; prices and grids are
-        unchanged.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump, or None (default) for the smaller of
-        0.0001 and half the current volatility. Native spatial delta and gamma
-        retain their estimator.
-    rate_shift : float, optional
-        Positive decimal rate bump; defaults to 0.0001.
-    time_shift : datetime.timedelta or None, optional
-        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        explicit upper boundary is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2822,24 +2786,12 @@ class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):
         Continuous up and double barriers fix their own upper grid edge; this
         bound is inactive for that grid. Local-volatility knock-in vanilla
         components and scheduled monitoring use the full domain.
-    spot_shift : float or None, optional
-        Positive absolute spot bump for native Greek availability and terminal
-        stencils. None selects the automatic bump; prices and grids are
-        unchanged.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump, or None (default) for the smaller of
-        0.0001 and half the current volatility. Native spatial delta and gamma
-        retain their estimator.
-    rate_shift : float, optional
-        Positive decimal rate bump; defaults to 0.0001.
-    time_shift : datetime.timedelta or None, optional
-        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        explicit upper boundary is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2886,24 +2838,12 @@ class FiniteDifferenceDoubleBarrierEngine(
         Continuous up and double barriers fix their own upper grid edge; this
         bound is inactive for that grid. Local-volatility knock-in vanilla
         components and scheduled monitoring use the full domain.
-    spot_shift : float or None, optional
-        Positive absolute spot bump for native Greek availability and terminal
-        stencils. None selects the automatic bump; prices and grids are
-        unchanged.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump, or None (default) for the smaller of
-        0.0001 and half the current volatility. Native spatial delta and gamma
-        retain their estimator.
-    rate_shift : float, optional
-        Positive decimal rate bump; defaults to 0.0001.
-    time_shift : datetime.timedelta or None, optional
-        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        explicit upper boundary is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2952,24 +2892,12 @@ class FiniteDifferenceAutocallableEngine(
         Continuous up and double barriers fix their own upper grid edge; this
         bound is inactive for that grid. Local-volatility knock-in vanilla
         components and scheduled monitoring use the full domain.
-    spot_shift : float or None, optional
-        Positive absolute spot bump for native Greek availability and terminal
-        stencils. None selects the automatic bump; prices and grids are
-        unchanged.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump, or None (default) for the smaller of
-        0.0001 and half the current volatility. Native spatial delta and gamma
-        retain their estimator.
-    rate_shift : float, optional
-        Positive decimal rate bump; defaults to 0.0001.
-    time_shift : datetime.timedelta or None, optional
-        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        explicit upper boundary is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3014,24 +2942,12 @@ class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOpti
         Continuous up and double barriers fix their own upper grid edge; this
         bound is inactive for that grid. Local-volatility knock-in vanilla
         components and scheduled monitoring use the full domain.
-    spot_shift : float or None, optional
-        Positive absolute spot bump for native Greek availability and terminal
-        stencils. None selects the automatic bump; prices and grids are
-        unchanged.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump, or None (default) for the smaller of
-        0.0001 and half the current volatility. Native spatial delta and gamma
-        retain their estimator.
-    rate_shift : float, optional
-        Positive decimal rate bump; defaults to 0.0001.
-    time_shift : datetime.timedelta or None, optional
-        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        explicit upper boundary is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3078,24 +2994,12 @@ class FiniteDifferenceBinaryBarrierEngine(
         Continuous up and double barriers fix their own upper grid edge; this
         bound is inactive for that grid. Local-volatility knock-in vanilla
         components and scheduled monitoring use the full domain.
-    spot_shift : float or None, optional
-        Positive absolute spot bump for native Greek availability and terminal
-        stencils. None selects the automatic bump; prices and grids are
-        unchanged.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump, or None (default) for the smaller of
-        0.0001 and half the current volatility. Native spatial delta and gamma
-        retain their estimator.
-    rate_shift : float, optional
-        Positive decimal rate bump; defaults to 0.0001.
-    time_shift : datetime.timedelta or None, optional
-        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        explicit upper boundary is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3284,8 +3188,8 @@ class FiniteDifferenceHestonVanillaEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -3337,24 +3241,12 @@ class FiniteDifferenceVanillaEngine(
         Continuous up and double barriers fix their own upper grid edge; this
         bound is inactive for that grid. Local-volatility knock-in vanilla
         components and scheduled monitoring use the full domain.
-    spot_shift : float or None, optional
-        Positive absolute spot bump for native Greek availability and terminal
-        stencils. None selects the automatic bump; prices and grids are
-        unchanged.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump, or None (default) for the smaller of
-        0.0001 and half the current volatility. Native spatial delta and gamma
-        retain their estimator.
-    rate_shift : float, optional
-        Positive decimal rate bump; defaults to 0.0001.
-    time_shift : datetime.timedelta or None, optional
-        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        explicit upper boundary is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3401,24 +3293,12 @@ class FiniteDifferenceDigitalEngine(
         Continuous up and double barriers fix their own upper grid edge; this
         bound is inactive for that grid. Local-volatility knock-in vanilla
         components and scheduled monitoring use the full domain.
-    spot_shift : float or None, optional
-        Positive absolute spot bump for native Greek availability and terminal
-        stencils. None selects the automatic bump; prices and grids are
-        unchanged.
-    volatility_shift : float or None, optional
-        Positive decimal volatility bump, or None (default) for the smaller of
-        0.0001 and half the current volatility. Native spatial delta and gamma
-        retain their estimator.
-    rate_shift : float, optional
-        Positive decimal rate bump; defaults to 0.0001.
-    time_shift : datetime.timedelta or None, optional
-        Positive whole-microsecond time bump, or None for automatic selection.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary or Greek bump is invalid. Boundary coverage and
+        explicit upper boundary is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3593,8 +3473,8 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -3758,8 +3638,8 @@ class MonteCarloVanillaEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -3939,8 +3819,8 @@ class MonteCarloDigitalEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -4370,8 +4250,8 @@ class MonteCarloAsianEngine(
             Positive decimal rate bump; defaults to 0.0001.
         time_shift : datetime.timedelta or None, optional
             Positive whole-microsecond bump; None selects an automatic time step.
-            Omitted controls or Ellipsis retain engine settings, whose shared
-            defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            Omitted controls or Ellipsis use shared
+            defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             bump. Controls affect numerical fallbacks, event checks and terminal
             stencils; native estimators and engine/model Greek coverage are
             preserved.
@@ -4820,16 +4700,14 @@ def numerical_greeks(
         Required measure names or "all". Unsupported instrument/engine pairs
         are checked before Greek names.
     spot_shift : float or None, optional
-        Positive absolute spot bump. Omission or Ellipsis retains the engine's
-        setting; None selects the automatic engine/product bump.
+        Positive absolute spot bump. Omission, Ellipsis or None selects the automatic engine/product bump.
     volatility_shift : float or None, optional
         Positive decimal volatility bump. None selects the smaller of 0.0001 and
-        half the current volatility. Omission or Ellipsis retains engine settings.
+        half the current volatility. Omission or Ellipsis uses shared defaults.
     rate_shift : float, optional
-        Positive decimal rate bump. Omission or Ellipsis retains engine settings.
+        Positive decimal rate bump. Omission or Ellipsis uses shared defaults.
     time_shift : datetime.timedelta or None, optional
-        Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-        None selects an automatic bump up to one day
+        Positive explicit bump. Omission, Ellipsis or None selects an automatic bump up to one day
         shortened to avoid observations. Use smaller durations to check
         convergence for intraday valuations and between observations.
 

@@ -48,35 +48,37 @@ def test_native_spot_bump_recovers_local_barrier_greeks_without_changing_price()
     automatic = pricing.FiniteDifferenceBarrierEngine(**settings)
     unavailable = automatic.price_with_greeks(option, local, ["delta", "gamma"])
     assert unavailable.status("delta") == "stencil_unavailable"
-    controlled = pricing.FiniteDifferenceBarrierEngine(spot_shift=0.001, **settings)
-    result = controlled.price_with_greeks(option, local, ["delta", "gamma"])
+    result = automatic.price_with_greeks(
+        option, local, ["delta", "gamma"], spot_shift=0.001
+    )
     assert result.price == unavailable.price
     assert result.status("gamma") == "available"
     delta = (
-        controlled.price(option, local.replace(spot_price=119.996))
-        - controlled.price(option, local.replace(spot_price=119.994))
+        automatic.price(option, local.replace(spot_price=119.996))
+        - automatic.price(option, local.replace(spot_price=119.994))
     ) / 0.002
     assert result.require("delta") == pytest.approx(delta, rel=0, abs=1e-6)
-    boundary = controlled.price_with_greeks(
+    boundary = automatic.price_with_greeks(
         option, local.replace(spot_price=120), "delta"
     )
     assert boundary.status("delta") == "undefined"
 
 
-def test_fd_native_spot_controls_validate_and_survive_reconstruction(subtests):
-    import pickle
-
-    for _, name in representatives():
+def test_fd_native_spot_controls_validate_per_request(subtests):
+    local = context()
+    for contract, name in representatives():
         factory = getattr(pricing, name)
         with subtests.test(engine=name):
-            engine = factory(spot_shift=0.001)
-            assert engine.spot_shift == 0.001
-            assert pickle.loads(pickle.dumps(engine)) == engine
+            engine = factory()
             for invalid in (0, -0.001, float("nan"), float("inf")):
                 with pytest.raises(InvalidInputError):
-                    factory(spot_shift=invalid)
+                    engine.price_with_greeks(
+                        contract, local, "delta", spot_shift=invalid
+                    )
             with pytest.raises(TypeError):
-                factory(spot_shift=True)
+                engine.price_with_greeks(contract, local, "delta", spot_shift=True)
+            with pytest.raises(TypeError):
+                factory(spot_shift=0.001)
 
 
 def test_every_fd_scheme_preserves_constant_surface_bsm_results(subtests):

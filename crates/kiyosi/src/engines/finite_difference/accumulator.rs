@@ -89,9 +89,6 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn greek_settings(&self, _option: &Accumulator) -> crate::NumericalShiftSettings {
-        self.settings.greek_shifts
-    }
     fn price_with_greeks_with_settings(
         &self,
         option: &Accumulator,

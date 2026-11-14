@@ -22,19 +22,6 @@ pub(crate) fn duration(value: &Bound<'_, PyAny>) -> PyResult<std::time::Duration
     ))
 }
 
-pub(crate) fn python_duration(
-    py: Python<'_>,
-    value: std::time::Duration,
-) -> PyResult<Bound<'_, PyDelta>> {
-    PyDelta::new(
-        py,
-        i32::try_from(value.as_secs() / 86_400)?,
-        i32::try_from(value.as_secs() % 86_400)?,
-        i32::try_from(value.subsec_micros())?,
-        false,
-    )
-}
-
 pub(crate) fn optional_duration(value: &Bound<'_, PyAny>) -> PyResult<Option<std::time::Duration>> {
     if value.is_none() {
         Ok(None)

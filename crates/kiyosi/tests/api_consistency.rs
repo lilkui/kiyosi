@@ -441,7 +441,7 @@ fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Resu
                     &settled,
                     &context,
                     GreeksRequest::new([Greek::Delta]),
-                    engine.greek_settings(&settled)
+                    Default::default()
                 )?
                 .require(Greek::Delta)?,
             0.0
@@ -777,7 +777,7 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                             &future,
                             &context,
                             request,
-                            engine.greek_settings(&future),
+                            Default::default(),
                         )?;
                         assert_eq!(
                             native,
@@ -785,7 +785,7 @@ fn european_digitals_allow_pre_effective_pricing_greeks_and_solves() -> Result<(
                                 &existing,
                                 &context,
                                 request,
-                                engine.greek_settings(&existing)
+                                Default::default()
                             )?
                         );
                         assert!(native.require(Greek::Delta)?.is_finite());
@@ -902,7 +902,7 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
                         &future,
                         &context,
                         GreeksRequest::new([Greek::Delta]),
-                        engine.greek_settings(&future)
+                        Default::default()
                     )?
                     .require(Greek::Delta)?
                     .is_finite()
@@ -1202,7 +1202,7 @@ fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
             &settled,
             &context,
             GreeksRequest::all(),
-            engine.greek_settings(&settled),
+            Default::default(),
         )?;
         for greek in Greek::ALL {
             assert_eq!(result.require(greek)?, 0.0);
@@ -1373,7 +1373,7 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
                 $option,
                 &context,
                 request,
-                engine.greek_settings($option),
+                Default::default(),
             )?;
             assert_eq!(direct, generic);
             assert_eq!(direct.status(Greek::Delta), GreekStatus::Available);
@@ -1382,7 +1382,7 @@ fn native_greek_methods_match_trait_dispatch() -> Result<()> {
                 $option,
                 &context,
                 GreeksRequest::new([]),
-                engine.greek_settings($option),
+                Default::default(),
             )?;
             assert_eq!(price_only.price(), direct.price());
             for greek in Greek::ALL {
@@ -1452,12 +1452,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
             })?;
             assert!(
                 engine
-                    .price_with_greeks_with_settings(
-                        option,
-                        &context,
-                        request,
-                        engine.greek_settings(option)
-                    )?
+                    .price_with_greeks_with_settings(option, &context, request, Default::default())?
                     .price()
                     .is_finite()
             );
@@ -1812,7 +1807,7 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
                     &settled,
                     &context,
                     GreeksRequest::new([Greek::Delta]),
-                    engine.greek_settings(&settled)
+                    Default::default()
                 )?
                 .require(Greek::Delta)?,
             0.0
@@ -1863,7 +1858,7 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
                     &settled,
                     &context,
                     GreeksRequest::new([Greek::Delta]),
-                    engine.greek_settings(&settled)
+                    Default::default()
                 )?
                 .require(Greek::Delta)?,
             0.0
@@ -2006,15 +2001,8 @@ fn spot_shift_fallback_is_distinct_from_engine_resolution() -> Result<()> {
     let engine = MonteCarloVanillaEngine::default();
     assert_eq!(engine.default_spot_shift(&european, &context), 0.01);
     assert_eq!(engine.default_spot_shift(&american, &context), 8.0);
-    let fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
-        greek_shifts: NumericalShiftSettings {
-            spot_shift: Some(0.5),
-            ..Default::default()
-        },
-        ..Default::default()
-    })?;
+    let fd = FiniteDifferenceVanillaEngine::default();
     assert_eq!(fd.default_spot_shift(&european, &context), 0.01);
-    assert_eq!(fd.greek_settings(&european).spot_shift, Some(0.5));
     assert_eq!(fd.default_spot_shift(&american, &context), 0.01);
     assert_eq!(
         NumericalShiftSettings {
@@ -2814,29 +2802,15 @@ fn fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates() -> Result<(
     let base = FiniteDifferenceVanillaEngine::new(settings)?
         .price_with_greeks(&option, &context, request)?;
     assert_eq!(base.status(Greek::Vega), GreekStatus::Available);
-    let configured = FiniteDifferenceSettings {
-        greek_shifts: NumericalShiftSettings {
-            volatility_shift: Some(0.000_01),
-            rate_shift: 0.000_2,
-            time_shift: Some(std::time::Duration::from_secs(60)),
-            ..settings.greek_shifts
-        },
-        ..settings
+    let shifts = NumericalShiftSettings {
+        volatility_shift: Some(0.000_01),
+        rate_shift: 0.000_2,
+        time_shift: Some(std::time::Duration::from_secs(60)),
+        ..Default::default()
     };
-    let engine = FiniteDifferenceVanillaEngine::new(configured)?;
-    assert_eq!(engine.settings(), configured);
-    let tuned = engine.price_with_greeks(&option, &context, request)?;
-    let original = FiniteDifferenceVanillaEngine::new(settings)?;
-    assert_eq!(
-        original.price_with_greeks_with_settings(
-            &option,
-            &context,
-            request,
-            engine.greek_settings(&option)
-        )?,
-        tuned
-    );
-    assert_eq!(original.settings(), settings);
+    let engine = FiniteDifferenceVanillaEngine::new(settings)?;
+    let tuned = engine.price_with_greeks_with_settings(&option, &context, request, shifts)?;
+    assert_eq!(engine.settings(), settings);
     assert_eq!(tuned.price(), base.price());
     assert_eq!(tuned.require(Greek::Delta)?, base.require(Greek::Delta)?);
     assert_eq!(tuned.require(Greek::Gamma)?, base.require(Greek::Gamma)?);
@@ -2848,43 +2822,32 @@ fn fd_greek_shifts_recover_vega_and_preserve_native_spot_estimates() -> Result<(
     })?;
     let measures = [Greek::Rho, Greek::DividendRho, Greek::Theta];
     let request = GreeksRequest::new(measures);
-    let configured_result = engine.price_with_greeks(&option, &regular, request)?;
-    let scalar = numerical_greeks(&engine, &option, &regular, request, configured.greek_shifts)?;
+    let configured_result =
+        engine.price_with_greeks_with_settings(&option, &regular, request, shifts)?;
+    let scalar = numerical_greeks(&engine, &option, &regular, request, shifts)?;
     for greek in measures {
         assert!((configured_result.require(greek)? - scalar.require(greek)?).abs() < 1e-10);
     }
     for invalid in [
-        FiniteDifferenceSettings {
-            greek_shifts: NumericalShiftSettings {
-                volatility_shift: Some(0.0),
-                ..settings.greek_shifts
-            },
-            ..settings
+        NumericalShiftSettings {
+            volatility_shift: Some(0.0),
+            ..shifts
         },
-        FiniteDifferenceSettings {
-            greek_shifts: NumericalShiftSettings {
-                rate_shift: f64::NAN,
-                ..settings.greek_shifts
-            },
-            ..settings
+        NumericalShiftSettings {
+            rate_shift: f64::NAN,
+            ..shifts
         },
-        FiniteDifferenceSettings {
-            greek_shifts: NumericalShiftSettings {
-                time_shift: Some(std::time::Duration::ZERO),
-                ..settings.greek_shifts
-            },
-            ..settings
+        NumericalShiftSettings {
+            time_shift: Some(std::time::Duration::ZERO),
+            ..shifts
         },
-        FiniteDifferenceSettings {
-            greek_shifts: NumericalShiftSettings {
-                time_shift: Some(std::time::Duration::from_nanos(1)),
-                ..settings.greek_shifts
-            },
-            ..settings
+        NumericalShiftSettings {
+            time_shift: Some(std::time::Duration::from_nanos(1)),
+            ..shifts
         },
     ] {
         assert!(matches!(
-            FiniteDifferenceVanillaEngine::new(invalid),
+            engine.price_with_greeks_with_settings(&option, &context, request, invalid),
             Err(Error::InvalidInput(_))
         ));
     }

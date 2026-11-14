@@ -601,7 +601,7 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
             &option,
             &context,
             GreeksRequest::all(),
-            engine.greek_settings(&option),
+            Default::default(),
         )
         .unwrap();
         assert_eq!(generic, actual);

@@ -247,16 +247,14 @@ pub(crate) fn _pricing_result(
 ///     Required measure names or "all". Unsupported instrument/engine pairs
 ///     are checked before Greek names.
 /// spot_shift : float or None, optional
-///     Positive absolute spot bump. Omission or Ellipsis retains the engine's
-///     setting; None selects the automatic engine/product bump.
+///     Positive absolute spot bump. Omission, Ellipsis or None selects the automatic engine/product bump.
 /// volatility_shift : float or None, optional
 ///     Positive decimal volatility bump. None selects the smaller of 0.0001 and
-///     half the current volatility. Omission or Ellipsis retains engine settings.
+///     half the current volatility. Omission or Ellipsis uses shared defaults.
 /// rate_shift : float, optional
-///     Positive decimal rate bump. Omission or Ellipsis retains engine settings.
+///     Positive decimal rate bump. Omission or Ellipsis uses shared defaults.
 /// time_shift : datetime.timedelta or None, optional
-///     Positive explicit bump. Omission or Ellipsis retains the engine's setting;
-///     None selects an automatic bump up to one day
+///     Positive explicit bump. Omission, Ellipsis or None selects an automatic bump up to one day
 ///     shortened to avoid observations. Use smaller durations to check
 ///     convergence for intraday valuations and between observations.
 ///

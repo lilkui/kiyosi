@@ -379,9 +379,8 @@ pub(crate) fn vanilla_expiry_greeks(
 /// Configures absolute finite-difference bumps.
 ///
 /// Scalar numerical requests validate all bump settings before calculation.
-/// Finite-difference engines use their configured shifts for `price_with_greeks`;
-/// [`PricingEngine::price_with_greeks_with_settings`] accepts explicit shifts while
-/// retaining native estimators. [`PricingEngine::greek_settings`] supplies engine defaults.
+/// [`PricingEngine::price_with_greeks_with_settings`] accepts request-level shifts
+/// while retaining native estimators. [`PricingEngine::price_with_greeks`] uses shared defaults.
 /// See [`crate::numerical_greeks`] for usage.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NumericalShiftSettings {
@@ -483,8 +482,8 @@ impl NumericalShiftSettings {
 ///
 /// This describes the calculation path, independently of the requested measures.
 /// A listed control may be unused for a particular request or resolved payoff.
-/// Finite-difference settings expose all shifts; Monte Carlo barrier calls expose spot control.
-/// Other engines use internal defaults. Customize scalar differences with
+/// Greek requests expose shift controls; each calculation path uses the controls below.
+/// Customize scalar differences with
 /// [`crate::numerical_greeks`]. See
 /// [`PricingEngine::greek_method`] for an example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -551,19 +550,11 @@ impl GreekMethod {
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 /// Custom estimators implement [`Self::price_with_greeks_with_settings`]. Generic
-/// callers use [`Self::price_with_greeks`] to retain native estimators and configured controls.
+/// callers use [`Self::price_with_greeks`] to retain native estimators and shared defaults.
 pub trait PricingEngine<I = EuropeanOption> {
-    /// Returns default Greek controls for this engine; see [`NumericalShiftSettings`].
+    /// Returns requested sensitivities using shared bump defaults.
     ///
-    /// Finite-difference engines return their configured shifts. Other built-in
-    /// engines use the shared defaults, including automatic product-specific spot bumps.
-    fn greek_settings(&self, _option: &I) -> NumericalShiftSettings {
-        NumericalShiftSettings::default()
-    }
-
-    /// Returns requested sensitivities using this engine's configured controls.
-    ///
-    /// Delegates to [`Self::price_with_greeks_with_settings`] with [`Self::greek_settings`],
+    /// Delegates to [`Self::price_with_greeks_with_settings`] with [`NumericalShiftSettings::default`],
     /// retaining native estimators through generic engines and trait objects.
     /// Inputs remain unchanged.
     ///
@@ -599,15 +590,15 @@ pub trait PricingEngine<I = EuropeanOption> {
     where
         I: crate::OptionContract,
     {
-        self.price_with_greeks_with_settings(option, context, request, self.greek_settings(option))
+        self.price_with_greeks_with_settings(option, context, request, Default::default())
     }
 
     /// Returns native sensitivities with explicit request-level numerical controls.
     ///
-    /// Built-in overrides retain native estimators and apply shifts to numerical
+    /// Built-in overrides retain native estimators and apply request-level shifts to numerical
     /// fallbacks, event checks and terminal stencils. Purely analytic measures ignore
     /// the validated controls. Custom estimators override this hook; [`Self::price_with_greeks`]
-    /// supplies configured controls through a generic engine or trait object.
+    /// supplies shared defaults through a generic engine or trait object.
     /// The default uses scalar differences. Inputs remain unchanged.
     ///
     /// # Errors

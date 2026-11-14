@@ -131,8 +131,8 @@ macro_rules! engine_methods {
             ///     Positive decimal rate bump; defaults to 0.0001.
             /// time_shift : datetime.timedelta or None, optional
             ///     Positive whole-microsecond bump; None selects an automatic time step.
-            ///     Omitted controls or Ellipsis retain engine settings, whose shared
-            ///     defaults are automatic spot, volatility and time bumps and a 0.0001 rate
+            ///     Omitted controls or Ellipsis use shared
+            ///     defaults: automatic spot, volatility and time bumps and a 0.0001 rate
             ///     bump. Controls affect numerical fallbacks, event checks and terminal
             ///     stencils; native estimators and engine/model Greek coverage are
             ///     preserved.
@@ -276,16 +276,9 @@ impl PricingRequest<f64> for ScalarRequest {
 pub(crate) struct NumericalGreeksRequest(pub NativeGreeksRequest);
 
 #[derive(Clone, Copy)]
-#[expect(
-    clippy::option_option,
-    reason = "omission retains settings; None selects automatic bumps"
-)]
 pub(crate) struct NativeGreeksRequest {
     pub request: kiyosi::GreeksRequest,
-    pub spot_shift: Option<Option<f64>>,
-    pub volatility_shift: Option<Option<f64>>,
-    pub rate_shift: Option<f64>,
-    pub time_shift: Option<Option<std::time::Duration>>,
+    pub settings: kiyosi::NumericalShiftSettings,
 }
 
 impl NativeGreeksRequest {
@@ -296,28 +289,28 @@ impl NativeGreeksRequest {
         rate_shift: Option<&Bound<'_, PyAny>>,
         time_shift: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
+        let defaults = kiyosi::NumericalShiftSettings::default();
         Ok(Self {
             request: crate::risk::greeks_request(greeks)?,
-            spot_shift: spot_shift
-                .map(crate::conversions::optional_real)
-                .transpose()?,
-            volatility_shift: volatility_shift
-                .map(crate::conversions::optional_real)
-                .transpose()?,
-            rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
-            time_shift: time_shift
-                .map(crate::conversions::optional_duration)
-                .transpose()?,
+            settings: kiyosi::NumericalShiftSettings {
+                spot_shift: spot_shift
+                    .map(crate::conversions::optional_real)
+                    .transpose()?
+                    .unwrap_or(defaults.spot_shift),
+                volatility_shift: volatility_shift
+                    .map(crate::conversions::optional_real)
+                    .transpose()?
+                    .unwrap_or(defaults.volatility_shift),
+                rate_shift: rate_shift
+                    .map(crate::conversions::real)
+                    .transpose()?
+                    .unwrap_or(defaults.rate_shift),
+                time_shift: time_shift
+                    .map(crate::conversions::optional_duration)
+                    .transpose()?
+                    .unwrap_or(defaults.time_shift),
+            },
         })
-    }
-
-    fn settings(self, defaults: kiyosi::NumericalShiftSettings) -> kiyosi::NumericalShiftSettings {
-        kiyosi::NumericalShiftSettings {
-            spot_shift: self.spot_shift.unwrap_or(defaults.spot_shift),
-            volatility_shift: self.volatility_shift.unwrap_or(defaults.volatility_shift),
-            rate_shift: self.rate_shift.unwrap_or(defaults.rate_shift),
-            time_shift: self.time_shift.unwrap_or(defaults.time_shift),
-        }
     }
 }
 
@@ -332,12 +325,7 @@ impl PricingRequest<kiyosi::PricingResult> for NativeGreeksRequest {
         instrument: &I,
         context: &kiyosi::PricingContext,
     ) -> kiyosi::Result<kiyosi::PricingResult> {
-        engine.price_with_greeks_with_settings(
-            instrument,
-            context,
-            self.request,
-            self.settings(engine.greek_settings(instrument)),
-        )
+        engine.price_with_greeks_with_settings(instrument, context, self.request, self.settings)
     }
 }
 
@@ -388,13 +376,7 @@ impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
         instrument: &I,
         context: &kiyosi::PricingContext,
     ) -> kiyosi::Result<kiyosi::PricingResult> {
-        kiyosi::numerical_greeks(
-            engine,
-            instrument,
-            context,
-            self.0.request,
-            self.0.settings(engine.greek_settings(instrument)),
-        )
+        kiyosi::numerical_greeks(engine, instrument, context, self.0.request, self.0.settings)
     }
 }
 

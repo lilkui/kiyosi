@@ -73,13 +73,6 @@ pub struct FiniteDifferenceSettings {
     /// double barrier makes this bound inactive for the barrier grid. Local-volatility
     /// knock-in vanilla components and scheduled monitoring use the full domain.
     pub asset_upper_boundary: Option<f64>,
-    /// Sets Greek bump controls, validated at engine construction.
-    ///
-    /// Uses [`NumericalShiftSettings`] defaults. Spot shifts control native Greek
-    /// availability and terminal stencils without changing prices or spatial grids.
-    /// Other shifts tune numerical completion; native spatial estimators are preserved.
-    /// See [`FiniteDifferenceBarrierEngine::price_with_greeks`] for configuration.
-    pub greek_shifts: NumericalShiftSettings,
 }
 
 impl Default for FiniteDifferenceSettings {
@@ -89,7 +82,6 @@ impl Default for FiniteDifferenceSettings {
             time_step_count: 400,
             scheme: Default::default(),
             asset_upper_boundary: None,
-            greek_shifts: NumericalShiftSettings::default(),
         }
     }
 }
@@ -100,8 +92,7 @@ impl FiniteDifferenceSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
-    /// fewer than one time interval, a nonpositive or non-finite boundary or Greek bump,
-    /// or a time bump that is zero or not a whole number of microseconds.
+    /// fewer than one time interval, a nonpositive or non-finite boundary.
     /// Leaves the settings unchanged. Domain coverage and scheme stability are checked at pricing.
     ///
     /// # Examples
@@ -123,7 +114,6 @@ impl FiniteDifferenceSettings {
         if let Some(boundary) = self.asset_upper_boundary {
             crate::error::finite(boundary, true, "asset_upper_boundary")?;
         }
-        self.greek_shifts.validate()?;
         Ok(())
     }
 }
@@ -878,9 +868,6 @@ macro_rules! vanilla_pricing {
                 .0
                 .price())
             }
-            fn greek_settings(&self, _option: &$option) -> crate::NumericalShiftSettings {
-                self.settings.greek_shifts
-            }
             fn price_with_greeks_with_settings(
                 &self,
                 option: &$option,
@@ -1004,9 +991,6 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
     }
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)
-    }
-    fn greek_settings(&self, _option: &DigitalOption) -> crate::NumericalShiftSettings {
-        self.settings.greek_shifts
     }
     fn price_with_greeks_with_settings(
         &self,

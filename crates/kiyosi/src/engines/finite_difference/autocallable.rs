@@ -100,9 +100,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn greek_settings(&self, _option: &AutocallableNote<T>) -> crate::NumericalShiftSettings {
-        self.settings.greek_shifts
-    }
     fn price_with_greeks_with_settings(
         &self,
         option: &AutocallableNote<T>,

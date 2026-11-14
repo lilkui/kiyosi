@@ -96,7 +96,7 @@ def test_automatic_american_bump_matches_explicit_core_control():
     assert result.require("gamma") == explicit.require("gamma")
 
 
-def test_numerical_greeks_inherit_and_override_engine_controls(subtests):
+def test_numerical_greeks_use_shared_defaults_and_request_controls(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     option = i.EuropeanOption(
         option_type="call", strike=100, effective_time=start, expiry_time=end
@@ -114,12 +114,11 @@ def test_numerical_greeks_inherit_and_override_engine_controls(subtests):
         "rate_shift": 0.1,
         "time_shift": timedelta(days=2),
     }
-    engine = p.FiniteDifferenceVanillaEngine(
-        asset_step_count=100, time_step_count=100, **controls
-    )
+    engine = p.FiniteDifferenceVanillaEngine(asset_step_count=100, time_step_count=100)
     request = ["gamma", "vega", "rho", "theta"]
     expected = numerical_greeks(engine, option, context, request, **controls)
-    assert numerical_greeks(engine, option, context, request) == expected
+    defaults = numerical_greeks(engine, option, context, request)
+    assert defaults.require("rho") != expected.require("rho")
     assert (
         numerical_greeks(
             engine,
@@ -128,7 +127,7 @@ def test_numerical_greeks_inherit_and_override_engine_controls(subtests):
             request,
             **dict.fromkeys(controls, Ellipsis),
         )
-        == expected
+        == defaults
     )
     for field, value, greek in (
         ("spot_shift", 10.0, "gamma"),
@@ -138,16 +137,12 @@ def test_numerical_greeks_inherit_and_override_engine_controls(subtests):
     ):
         with subtests.test(field=field):
             overridden = numerical_greeks(
-                engine, option, context, request, **{field: value}
-            )
-            assert overridden == numerical_greeks(
                 engine, option, context, request, **controls | {field: value}
             )
             assert overridden.require(greek) != expected.require(greek)
     automatic = {"spot_shift": None, "time_shift": None}
-    assert numerical_greeks(
-        engine, option, context, request, **automatic
-    ) == numerical_greeks(engine.replace(**automatic), option, context, request)
+    assert numerical_greeks(engine, option, context, request, **automatic) == defaults
+    assert numerical_greeks(engine, option, context, request) == defaults
     assert expected.require("rho") == engine.price_with_greeks(
-        option, context, "rho"
+        option, context, "rho", **controls
     ).require("rho")

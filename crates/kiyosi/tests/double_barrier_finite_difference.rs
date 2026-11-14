@@ -308,7 +308,6 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
                 time_step_count: steps,
                 scheme,
                 asset_upper_boundary: Some(400.0),
-                ..Default::default()
             })
             .unwrap()
             .price_with_greeks(
@@ -339,7 +338,6 @@ fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
         time_step_count: 1600,
         scheme: FiniteDifferenceScheme::ExplicitEuler,
         asset_upper_boundary: Some(400.0),
-        ..Default::default()
     })
     .unwrap();
     assert!(matches!(
@@ -431,7 +429,6 @@ fn narrow_interim_event_cells_remain_positive_and_converge() {
                     time_step_count: 2000,
                     scheme,
                     asset_upper_boundary: Some(400.0),
-                    ..Default::default()
                 })
                 .unwrap();
                 let actual = engine.price(&option, &market(100.25)).unwrap();

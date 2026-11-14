@@ -220,10 +220,10 @@ fn check_damping<I: OptionContract, E: PricingEngine<I>>(
 ) {
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
     let actual = cn
-        .price_with_greeks_with_settings(option, context, request, cn.greek_settings(option))
+        .price_with_greeks_with_settings(option, context, request, Default::default())
         .unwrap();
     let expected = implicit
-        .price_with_greeks_with_settings(option, context, request, implicit.greek_settings(option))
+        .price_with_greeks_with_settings(option, context, request, Default::default())
         .unwrap();
     assert_eq!(actual, expected);
     assert_eq!(actual.price(), cn.price(option, context).unwrap());
@@ -239,7 +239,6 @@ fn standard_crank_nicolson_matches_one_unsmoothed_step() {
         time_step_count: 1,
         scheme: FiniteDifferenceScheme::CrankNicolson,
         asset_upper_boundary: Some(300.0),
-        ..Default::default()
     };
     let actual = FiniteDifferenceVanillaEngine::new(settings)
         .unwrap()

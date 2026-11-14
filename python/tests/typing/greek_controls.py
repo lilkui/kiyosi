@@ -83,16 +83,18 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
         )
 
 
-def fd_configured_shifts(option: EuropeanOption, context: PricingContext) -> None:
-    engine = FiniteDifferenceVanillaEngine(
-        volatility_shift=0.00001, rate_shift=0.0002, time_shift=timedelta(seconds=60)
-    )
-
-    assert_type(engine.volatility_shift, float | None)
-    assert_type(engine.rate_shift, float)
-    assert_type(engine.time_shift, timedelta | None)
+def fd_request_shifts(option: EuropeanOption, context: PricingContext) -> None:
+    engine = FiniteDifferenceVanillaEngine()
     assert_type(
-        engine.price_with_greeks(option, context, ["delta", "vega"]), PricingResult
+        engine.price_with_greeks(
+            option,
+            context,
+            ["delta", "vega"],
+            volatility_shift=0.00001,
+            rate_shift=0.0002,
+            time_shift=timedelta(seconds=60),
+        ),
+        PricingResult,
     )
     assert_type(
         numerical_greeks(
@@ -130,9 +132,7 @@ def engine_replacement_types() -> None:
     assert_type(
         finite_difference.replace(asset_step_count=400), FiniteDifferenceVanillaEngine
     )
-    assert_type(
-        finite_difference.replace(spot_shift=None), FiniteDifferenceVanillaEngine
-    )
+    finite_difference.replace(spot_shift=None)  # ty: ignore[unknown-argument]
     finite_difference.replace(asset_step_count=None)  # ty: ignore[invalid-argument-type]
     finite_difference.replace(unknown=1)  # ty: ignore[unknown-argument]
 

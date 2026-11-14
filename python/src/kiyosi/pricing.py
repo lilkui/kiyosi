@@ -18,7 +18,7 @@ Use ``engine.greek_method`` and ``engine.active_greek_controls`` to inspect
 estimation before pricing. ``numerical_greeks`` selects scalar BSM differences.
 
 Request-level shifts tune numerical fallbacks and availability checks without
-changing engine settings. Both Greek entry points inherit the engine's settings
+changing engine settings. Both Greek entry points use shared defaults
 when controls are omitted or Ellipsis;
 ``None`` selects automatic spot, volatility and time bumps. Automatic volatility
 bumps use the smaller of 0.0001 and half the current volatility. Every supplied

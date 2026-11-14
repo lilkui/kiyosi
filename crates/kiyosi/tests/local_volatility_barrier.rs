@@ -63,14 +63,15 @@ fn native_spot_bump_recovers_local_barrier_greeks_without_changing_price() -> Re
         unavailable.status(Greek::Delta),
         GreekStatus::StencilUnavailable
     );
-    let controlled = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
-        greek_shifts: NumericalShiftSettings {
+    let result = automatic.price_with_greeks_with_settings(
+        &option,
+        &context,
+        request(),
+        NumericalShiftSettings {
             spot_shift: Some(0.001),
-            ..settings.greek_shifts
+            ..Default::default()
         },
-        ..settings
-    })?;
-    let result = controlled.price_with_greeks(&option, &context, request())?;
+    )?;
     assert_eq!(result.price(), unavailable.price());
     assert!(result.require(Greek::Gamma)?.is_finite());
     let up = context.replace(PricingContextChanges {
@@ -81,28 +82,29 @@ fn native_spot_bump_recovers_local_barrier_greeks_without_changing_price() -> Re
         spot_price: Some(119.994),
         ..Default::default()
     })?;
-    let delta = (controlled.price(&option, &up)? - controlled.price(&option, &down)?) / 0.002;
+    let delta = (automatic.price(&option, &up)? - automatic.price(&option, &down)?) / 0.002;
     assert!((result.require(Greek::Delta)? - delta).abs() < 1e-6);
     let boundary = context.replace(PricingContextChanges {
         spot_price: Some(120.0),
         ..Default::default()
     })?;
     assert_eq!(
-        controlled
+        automatic
             .price_with_greeks(&option, &boundary, request())?
             .status(Greek::Delta),
         GreekStatus::Undefined
     );
     for shift in [0.0, -0.001, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            FiniteDifferenceSettings {
-                greek_shifts: NumericalShiftSettings {
+            automatic.price_with_greeks_with_settings(
+                &option,
+                &context,
+                request(),
+                NumericalShiftSettings {
                     spot_shift: Some(shift),
-                    ..settings.greek_shifts
+                    ..Default::default()
                 },
-                ..settings
-            }
-            .validate(),
+            ),
             Err(Error::InvalidInput(_))
         ));
     }

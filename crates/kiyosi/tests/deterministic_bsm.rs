@@ -12,7 +12,7 @@ fn verify<I: OptionContract>(
             option,
             context,
             GreeksRequest::all(),
-            engine.greek_settings(option),
+            Default::default(),
         )?;
         assert!((result.price() - expected).abs() < 1e-10);
         if result.supported().has(Greek::Delta) && !option.at_spot_discontinuity(context, 0.01) {
@@ -327,7 +327,7 @@ fn deterministic_payoff_boundaries_leave_greeks_undefined_and_solvers_accept_zer
             &option,
             &context,
             GreeksRequest::all(),
-            engine.greek_settings(&option),
+            Default::default(),
         )?;
         assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
         assert_eq!(result.status(Greek::Vega), GreekStatus::Undefined);

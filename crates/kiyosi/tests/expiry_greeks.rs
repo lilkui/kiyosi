@@ -20,7 +20,7 @@ fn resolved_barriers_have_zero_spot_greeks_at_inactive_strikes() -> Result<()> {
             option,
             context,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-            engine.greek_settings(option),
+            Default::default(),
         )?;
         for greek in [Greek::Delta, Greek::Gamma] {
             assert_eq!(result.get(greek), inactive.then_some(0.0));
@@ -134,7 +134,7 @@ fn finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility() ->
                                 &option,
                                 &context,
                                 GreeksRequest::all(),
-                                generic.greek_settings(&option)
+                                Default::default()
                             )?
                         );
                         assert_eq!(
@@ -215,7 +215,7 @@ fn analytic_terminal_greeks_are_exact_next_to_the_strike() -> Result<()> {
                         &option,
                         &context,
                         GreeksRequest::all(),
-                        generic.greek_settings(&option)
+                        Default::default()
                     )?
                 );
                 assert_eq!(
@@ -279,7 +279,7 @@ fn automatic_spot_bumps_fit_small_price_units() -> Result<()> {
                 &option,
                 &context,
                 request,
-                engine.greek_settings(&option),
+                Default::default(),
             )?;
             assert!((result.require(Greek::Delta)? - 1.0).abs() < 1e-10);
             assert!((result.require(Greek::Gamma)? * spot).abs() < 1e-8);
@@ -434,7 +434,7 @@ fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<(
                         &option,
                         &context,
                         GreeksRequest::all(),
-                        engine.greek_settings(&option),
+                        Default::default(),
                     )?;
                     assert!(
                         (result.require(Greek::Delta)?
