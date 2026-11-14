@@ -1,9 +1,8 @@
 use super::{
     Curve, Diffusion, FiniteDifferenceBinaryBarrierEngine, FiniteDifferenceDoubleTouchEngine,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionType, Payoff,
-    PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid,
-    black_scholes_arguments, diffusion, diffusion_upper, local_volatility, scaled, step, unstable,
-    weighted_cdf,
+    PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, diffusion,
+    diffusion_upper, local_volatility, payoff::boundary_value, scaled, step, unstable,
 };
 use crate::instruments::binary_barrier::Contract;
 use crate::instruments::monitoring::validate_life;
@@ -281,17 +280,15 @@ fn native_with_diffusion<D: Diffusion>(
                     0.0
                 };
             }
-            let (d1, d2) = black_scholes_arguments(
+            boundary_value(
+                Payoff::digital(digital),
                 asset,
-                digital.strike(),
-                dividend.log_factor(current, time) - risk.log_factor(current, time),
+                [
+                    risk.log_factor(current, time),
+                    dividend.log_factor(current, time),
+                ],
                 diffusion.sigma(0.0, 0.0),
-                tau.sqrt(),
-            );
-            weighted_cdf(
-                contract.payout.unwrap_or(asset),
-                log,
-                sign * if contract.payout.is_some() { d2 } else { d1 },
+                tau,
             )
         } else {
             scaled(contract.payout.unwrap_or(asset), log)

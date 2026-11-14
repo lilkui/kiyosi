@@ -2,8 +2,8 @@ use super::{
     Curve, Diffusion, FiniteDifferenceBarrierEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid,
-    black_scholes_arguments, diffusion, diffusion_upper, grid::project_in_spot, local_volatility,
-    scaled, step, weighted_cdf,
+    diffusion, diffusion_upper, grid::project_in_spot, local_volatility, payoff::boundary_value,
+    scaled, step,
 };
 use crate::engines::analytic::barrier::resolved_price;
 use crate::instruments::monitoring::validate_life;
@@ -493,14 +493,13 @@ fn native_with_model<D: Diffusion>(
                     0.0
                 };
             }
-            let (d1, d2) = black_scholes_arguments(
+            boundary_value(
+                Payoff::vanilla(terms.option_type(), terms.strike(), false),
                 asset,
-                terms.strike(),
-                q - r,
+                [r, q],
                 volatility.sigma(0.0, 0.0),
-                tau.sqrt(),
-            );
-            sign * (weighted_cdf(asset, q, sign * d1) - weighted_cdf(terms.strike(), r, sign * d2))
+                tau,
+            )
         };
         [value(space.asset(0)), value(space.upper)]
     };

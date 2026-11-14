@@ -2,7 +2,7 @@ use super::{
     Diffusion, Error, Payoff, Result, black_scholes_arguments, scaled, unstable, weighted_cdf,
 };
 
-pub(super) fn upper_boundary<D: Diffusion>(
+pub(super) fn boundary_value<D: Diffusion>(
     payoff: Payoff,
     upper: f64,
     [risk_log, dividend_log]: [f64; 2],

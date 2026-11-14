@@ -397,7 +397,7 @@ fn native_model<D: Diffusion>(
             let risk_log = risk.log_factor(time - tau, time);
             let dividend_log = dividend.log_factor(time - tau, time);
             let high =
-                payoff::upper_boundary(payoff, upper, [risk_log, dividend_log], diffusion, tau);
+                payoff::boundary_value(payoff, upper, [risk_log, dividend_log], diffusion, tau);
             let low = if payoff.sign > 0.0 || (payoff.is_digital() && payoff.payout().is_none()) {
                 0.0
             } else if payoff.is_american() {
