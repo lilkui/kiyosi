@@ -504,18 +504,14 @@ fn scheduled_price(
     let barrier = log_ratio(option.barrier_level(), option.strike());
     let current = log_ratio(context.spot_price(), option.strike());
     if dates.len() == 1 && dates[0] == option.expiry_time() {
-        let deviation = sigma * horizon.sqrt();
-        let drift = drift_rate * horizon;
-        if deviation <= 0.0 || !deviation.is_finite() || !drift.is_finite() {
-            return Err(invalid_transition());
-        }
+        let (drift, deviation, discount) = super::transition(horizon, drift_rate, sigma, rate)?;
         return checked(integrate_terminal(
             &terminal_layer(option),
             current,
             option.strike(),
             drift,
             deviation,
-            -rate * horizon,
+            discount,
         ));
     }
     let lower = 0.0_f64.min(barrier).min(current) + (drift_rate * horizon).min(0.0) - extent;
@@ -547,12 +543,7 @@ fn scheduled_price(
         } else {
             dates[event - 1].years_until(dates[event])
         };
-        let drift = drift_rate * time;
-        let deviation = sigma * time.sqrt();
-        let discount = -rate * time;
-        if deviation <= 0.0 || !deviation.is_finite() || !drift.is_finite() {
-            return Err(invalid_transition());
-        }
+        let (drift, deviation, discount) = super::transition(time, drift_rate, sigma, rate)?;
         if event == 0 {
             let value = evaluate(&nodes, &layer, drift, deviation, discount)?;
             if let Some(prepared) = prepared {
