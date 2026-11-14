@@ -35,6 +35,14 @@ pub(crate) fn python_duration(
     )
 }
 
+pub(crate) fn optional_duration(value: &Bound<'_, PyAny>) -> PyResult<Option<std::time::Duration>> {
+    if value.is_none() {
+        Ok(None)
+    } else {
+        duration(value).map(Some)
+    }
+}
+
 pub(crate) fn instrument<'a, 'py, T>(value: &'a Bound<'py, PyAny>) -> PyResult<T>
 where
     T: FromPyObject<'a, 'py>,
@@ -197,6 +205,14 @@ pub(crate) fn integer(value: &Bound<'_, PyAny>) -> PyResult<i32> {
 
 pub(crate) fn integer_usize(value: &Bound<'_, PyAny>) -> PyResult<usize> {
     integer_index(value)?.extract()
+}
+
+pub(crate) fn optional_seed(value: &Bound<'_, PyAny>) -> PyResult<Option<u64>> {
+    if value.is_none() {
+        Ok(None)
+    } else {
+        integer_index(value)?.extract().map(Some)
+    }
 }
 
 pub(crate) fn integer_index<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {

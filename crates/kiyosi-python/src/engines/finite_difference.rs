@@ -124,27 +124,27 @@ macro_rules! fd_engine {
 
                 #[new]
                 #[expect(clippy::too_many_arguments, reason = "explicit Python grid and Greek controls")]
-                #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=None))]
+                #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=kiyosi::$name::default().settings().asset_upper_boundary, spot_shift=kiyosi::$name::default().settings().greek_shifts.spot_shift, volatility_shift=kiyosi::$name::default().settings().greek_shifts.volatility_shift, rate_shift=kiyosi::$name::default().settings().greek_shifts.rate_shift, time_shift=kiyosi::$name::default().settings().greek_shifts.time_shift))]
                 fn new(
                     #[pyo3(from_py_with = integer)] asset_step_count: i32,
                     #[pyo3(from_py_with = integer)] time_step_count: i32,
                     #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
-                    asset_upper_boundary: Option<&Bound<'_, PyAny>>,
-                    spot_shift: Option<&Bound<'_, PyAny>>,
+                    #[pyo3(from_py_with = crate::conversions::optional_real)] asset_upper_boundary: Option<f64>,
+                    #[pyo3(from_py_with = crate::conversions::optional_real)] spot_shift: Option<f64>,
                     #[pyo3(from_py_with = crate::conversions::optional_real)] volatility_shift: Option<f64>,
                     #[pyo3(from_py_with = real)] rate_shift: f64,
-                    time_shift: Option<&Bound<'_, PyAny>>,
+                    #[pyo3(from_py_with = crate::conversions::optional_duration)] time_shift: Option<std::time::Duration>,
                 ) -> PyResult<Self> {
                     Ok(Self(domain(kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
                         asset_step_count,
                         time_step_count,
                         scheme,
-                        asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
+                        asset_upper_boundary,
                         greek_shifts: kiyosi::NumericalShiftSettings {
-                            spot_shift: spot_shift.map(real).transpose()?,
+                            spot_shift,
                             volatility_shift,
                             rate_shift,
-                            time_shift: time_shift.map(crate::conversions::duration).transpose()?,
+                            time_shift,
                         },
                     }))?))
                 }

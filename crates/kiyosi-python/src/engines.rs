@@ -306,13 +306,7 @@ impl NativeGreeksRequest {
                 .transpose()?,
             rate_shift: rate_shift.map(crate::conversions::real).transpose()?,
             time_shift: time_shift
-                .map(|value| {
-                    if value.is_none() {
-                        Ok(None)
-                    } else {
-                        crate::conversions::duration(value).map(Some)
-                    }
-                })
+                .map(crate::conversions::optional_duration)
                 .transpose()?,
         })
     }

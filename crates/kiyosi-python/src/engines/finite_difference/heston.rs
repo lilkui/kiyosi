@@ -1,4 +1,4 @@
-use crate::conversions::{integer, real};
+use crate::conversions::integer;
 use crate::engines::binomial;
 use crate::error::domain;
 use pyo3::prelude::*;
@@ -91,13 +91,13 @@ engine_methods!(
         ];
 
         #[new]
-        #[pyo3(signature = (*, asset_step_count=kiyosi::HestonFiniteDifferenceSettings::default().asset_step_count, variance_step_count=kiyosi::HestonFiniteDifferenceSettings::default().variance_step_count, time_step_count=kiyosi::HestonFiniteDifferenceSettings::default().time_step_count, asset_upper_boundary=None, variance_upper_boundary=None))]
+        #[pyo3(signature = (*, asset_step_count=kiyosi::HestonFiniteDifferenceSettings::default().asset_step_count, variance_step_count=kiyosi::HestonFiniteDifferenceSettings::default().variance_step_count, time_step_count=kiyosi::HestonFiniteDifferenceSettings::default().time_step_count, asset_upper_boundary=kiyosi::HestonFiniteDifferenceSettings::default().asset_upper_boundary, variance_upper_boundary=kiyosi::HestonFiniteDifferenceSettings::default().variance_upper_boundary))]
         fn new(
             #[pyo3(from_py_with = integer)] asset_step_count: i32,
             #[pyo3(from_py_with = integer)] variance_step_count: i32,
             #[pyo3(from_py_with = integer)] time_step_count: i32,
-            asset_upper_boundary: Option<&Bound<'_, PyAny>>,
-            variance_upper_boundary: Option<&Bound<'_, PyAny>>,
+            #[pyo3(from_py_with = crate::conversions::optional_real)] asset_upper_boundary: Option<f64>,
+            #[pyo3(from_py_with = crate::conversions::optional_real)] variance_upper_boundary: Option<f64>,
         ) -> PyResult<Self> {
             Ok(Self(domain(
                 kiyosi::FiniteDifferenceHestonVanillaEngine::new(
@@ -105,8 +105,8 @@ engine_methods!(
                         asset_step_count,
                         variance_step_count,
                         time_step_count,
-                        asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
-                        variance_upper_boundary: variance_upper_boundary.map(real).transpose()?,
+                        asset_upper_boundary,
+                        variance_upper_boundary,
                     },
                 ),
             )?))

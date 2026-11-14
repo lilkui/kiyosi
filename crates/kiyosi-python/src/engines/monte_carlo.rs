@@ -1,4 +1,4 @@
-use crate::conversions::{boolean, integer, integer_index};
+use crate::conversions::{boolean, integer};
 use crate::engines::binomial;
 use crate::error::domain;
 use crate::instruments::accumulator;
@@ -248,18 +248,18 @@ macro_rules! sampling_settings {
             ];
 
             #[new]
-            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().$step(),)? seed=None, max_active_workers=kiyosi::MonteCarloSettings::default().max_active_workers, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
+            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().$step(),)? seed=kiyosi::MonteCarloSettings::default().seed, max_active_workers=kiyosi::MonteCarloSettings::default().max_active_workers, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
             fn new(
                 #[pyo3(from_py_with = integer)] path_count: i32,
                 $(#[pyo3(from_py_with = integer)] $step: i32,)?
-                seed: Option<&Bound<'_, PyAny>>,
+                #[pyo3(from_py_with = crate::conversions::optional_seed)] seed: Option<u64>,
                 #[pyo3(from_py_with = integer)] max_active_workers: i32,
                 #[pyo3(from_py_with = sampling)] sampling: kiyosi::MonteCarloSampling,
                 #[pyo3(from_py_with = boolean)] antithetic: bool,
             ) -> PyResult<Self> {
                 let settings = kiyosi::MonteCarloSettings {
                     path_count,
-                    seed: seed.map(|value| integer_index(value)?.extract::<u64>()).transpose()?,
+                    seed,
                     max_active_workers,
                     sampling,
                     antithetic,
