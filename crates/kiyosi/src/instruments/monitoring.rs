@@ -235,14 +235,14 @@ impl OptionContract for Monitoring {
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
+        let times = self.observation_times();
         self.prior(before).is_ok()
             && self.prior(after).is_ok()
             && (self.continuous()
                 || self.touch_state() == Some(BarrierTouchState::Touched)
-                || !self
-                    .observation_times()
-                    .iter()
-                    .any(|d| before <= *d && *d <= after))
+                || times
+                    .get(times.partition_point(|&time| time < before))
+                    .is_none_or(|&time| time > after))
     }
 }
 

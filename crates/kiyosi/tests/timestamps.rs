@@ -1,6 +1,83 @@
 use kiyosi::*;
 
 #[test]
+fn scheduled_time_stencils_exclude_inclusive_events_and_allow_gaps() -> Result<()> {
+    let clock = TimeOfDay::new(10, 0, 0, 0)?;
+    let start = Date::new(2025, 1, 2)?.at_time(clock);
+    let times = [start.add_days(1)?, start.add_days(4)?, start.add_days(5)?];
+    let end = times[2];
+    let mut barrier_terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        120.0,
+        BarrierType::UpAndOut,
+    );
+    barrier_terms.observation_times = Some(times.to_vec());
+    barrier_terms.touch_state = Some(BarrierTouchState::Untouched);
+    let barrier = BarrierOption::new(barrier_terms)?;
+    let mut note_terms = BinarySnowballTerms::new(
+        0.1,
+        start,
+        end,
+        autocallable_observations(&times, &[110.0; 3], Some(&[0.1; 3]), None)?,
+        TradingCalendar::weekdays(),
+    );
+    note_terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    let note = BinarySnowballOption::new(note_terms)?;
+    let mut accumulator_terms = AccumulatorTerms::new(
+        100.0,
+        110.0,
+        1.0,
+        2.0,
+        start,
+        end,
+        TimeOfDay::new(15, 0, 0, 0)?,
+    );
+    accumulator_terms.knock_out_observation_times = Some(times.to_vec());
+    let accumulator = Accumulator::new(accumulator_terms)?;
+    let accrual = RangeAccrualOption::new(RangeAccrualTerms::new(
+        100.0, 0.1, 90.0, 110.0, start, end, clock,
+    ))?;
+    assert_eq!(accrual.observation_schedule().times(), times);
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let contracts: [&dyn OptionContract; 4] = [&barrier, &note, &accumulator, &accrual];
+    for (before, after, available) in [
+        (start, start.add_micros(1)?, true),
+        (times[0].add_micros(-1)?, times[0], false),
+        (times[0], times[0], false),
+        (times[0], times[0].add_micros(1)?, false),
+        (times[0].add_micros(-1)?, times[0].add_micros(1)?, false),
+        (times[0].add_micros(1)?, times[0].add_micros(2)?, true),
+        (times[1], times[1], false),
+        (times[2], times[2], false),
+        (times[2].add_micros(1)?, times[2].add_micros(2)?, true),
+        (times[0].add_micros(1)?, times[0].add_micros(-1)?, true),
+    ] {
+        for (index, contract) in contracts.iter().enumerate() {
+            assert_eq!(
+                contract.time_stencil_available(&context, before, after),
+                available,
+                "contract {index}, {before:?} through {after:?}"
+            );
+        }
+    }
+    let no_knock_out = accumulator.replace(AccumulatorChanges {
+        knock_out_observation_times: Some(Some(Vec::new())),
+        ..Default::default()
+    })?;
+    for time in times {
+        assert!(no_knock_out.time_stencil_available(&context, time, time));
+    }
+    Ok(())
+}
+
+#[test]
 fn public_intraday_arithmetic_crosses_days_and_checks_supported_bounds() -> Result<()> {
     let at = Timestamp::new(Date::new(2025, 12, 31)?, 23, 58, 0, 123_456)?;
     let later = at.add_micros(300_000_000)?;

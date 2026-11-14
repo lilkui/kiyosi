@@ -252,11 +252,10 @@ impl OptionContract for RangeAccrualOption {
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
-        !self
-            .schedule
-            .times()
-            .iter()
-            .any(|&time| before <= time && time <= after)
+        let times = self.schedule.times();
+        times
+            .get(times.partition_point(|&time| time < before))
+            .is_none_or(|&time| time > after)
     }
 }
 

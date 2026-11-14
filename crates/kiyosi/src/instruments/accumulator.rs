@@ -539,14 +539,13 @@ impl OptionContract for Accumulator {
         if self.knock_out_settled() == Some(true) {
             return true;
         }
+        let times = self.knock_out_observation_times().unwrap_or(&[]);
         !self
             .any_accumulation(before, after, |_| true)
             .unwrap_or(true)
-            && !self
-                .knock_out_observation_times()
-                .unwrap_or(&[])
-                .iter()
-                .any(|&time| before <= time && time <= after)
+            && times
+                .get(times.partition_point(|&time| time < before))
+                .is_none_or(|&time| time > after)
     }
 }
 

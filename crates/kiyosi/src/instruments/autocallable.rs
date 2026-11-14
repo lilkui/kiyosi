@@ -1211,10 +1211,10 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         if self.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
             return true;
         }
-        if self
-            .autocall_observations()
-            .iter()
-            .any(|r| before <= r.time && r.time <= after)
+        let observations = self.autocall_observations();
+        if observations
+            .get(observations.partition_point(|record| record.time < before))
+            .is_some_and(|record| record.time <= after)
         {
             return false;
         }
