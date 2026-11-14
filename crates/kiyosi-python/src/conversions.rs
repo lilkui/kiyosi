@@ -234,6 +234,9 @@ pub(crate) fn optional_timestamps(
 }
 
 pub(crate) fn timestamps(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Timestamp>> {
+    if let Ok(schedule) = value.extract::<PyRef<'_, crate::schedule::ObservationSchedule>>() {
+        return Ok(schedule.0.times().to_vec());
+    }
     value.try_iter()?.map(|item| timestamp(&item?)).collect()
 }
 
