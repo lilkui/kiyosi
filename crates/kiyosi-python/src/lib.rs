@@ -4,6 +4,10 @@
     clippy::doc_markdown,
     reason = "Python docstrings use NumPy conventions rather than Rust Markdown"
 )]
+#![allow(
+    clippy::used_underscore_items,
+    reason = "PyO3-generated code references intentionally private Python names"
+)]
 
 // Expand replacement methods before PyO3 parses the complete implementation.
 macro_rules! value_methods {

@@ -504,8 +504,8 @@ impl Operator {
             dx: vec![[0.0; 3]; nx],
             dv: vec![[0.0; 3]; rows],
         };
-        for i in 1..nx - 1 {
-            op.dx[i] = derivative(s, i);
+        for (i, dx) in op.dx.iter_mut().enumerate().take(nx - 1).skip(1) {
+            *dx = derivative(s, i);
         }
         for j in 0..rows {
             let variance = v.map_or(deterministic, |v| v[j]);
