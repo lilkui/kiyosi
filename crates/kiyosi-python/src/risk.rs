@@ -144,6 +144,10 @@ impl PricingResult {
     }
     /// Return requested Greek names in the library's stable measure order.
     #[getter]
+    #[expect(
+        clippy::needless_collect,
+        reason = "PyTuple::new requires ExactSizeIterator, which filter does not implement"
+    )]
     fn requested<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
         PyTuple::new(
             py,
@@ -157,6 +161,10 @@ impl PricingResult {
     /// Return engine/model-supported names, regardless of availability.
     ///
     #[getter]
+    #[expect(
+        clippy::needless_collect,
+        reason = "PyTuple::new requires ExactSizeIterator, which filter does not implement"
+    )]
     fn supported<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
         PyTuple::new(
             py,
