@@ -234,6 +234,12 @@ macro_rules! sampling_settings {
                 )?))
             }
 
+            #[classattr]
+            const _STATE_FIELDS: &'static [&'static str] = &[
+                "path_count", $(stringify!($step),)? "seed", "max_active_workers",
+                "sampling", "antithetic",
+            ];
+
             #[new]
             #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().$step(),)? seed=None, max_active_workers=kiyosi::MonteCarloSettings::default().max_active_workers, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
             fn new(

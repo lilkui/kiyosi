@@ -84,6 +84,12 @@ engine_methods!(
         ///
     ],
     {
+        #[classattr]
+        const _STATE_FIELDS: &'static [&'static str] = &[
+            "asset_step_count", "variance_step_count", "time_step_count",
+            "asset_upper_boundary", "variance_upper_boundary",
+        ];
+
         #[new]
         #[pyo3(signature = (*, asset_step_count=kiyosi::HestonFiniteDifferenceSettings::default().asset_step_count, variance_step_count=kiyosi::HestonFiniteDifferenceSettings::default().variance_step_count, time_step_count=kiyosi::HestonFiniteDifferenceSettings::default().time_step_count, asset_upper_boundary=None, variance_upper_boundary=None))]
         fn new(

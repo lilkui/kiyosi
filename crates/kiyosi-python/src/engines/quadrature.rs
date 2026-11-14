@@ -58,6 +58,11 @@ macro_rules! quadrature_engine {
             ],
             [],
             {
+                #[classattr]
+                const _STATE_FIELDS: &'static [&'static str] = &[
+                    "asset_step_count", $(stringify!($time),)? "integration_standard_deviations",
+                ];
+
                 #[new]
                 #[pyo3(signature = (*, asset_step_count=kiyosi::$settings::default().asset_step_count, $($time=kiyosi::$settings::default().$time,)? integration_standard_deviations=kiyosi::$settings::default().integration_standard_deviations))]
                 fn new(

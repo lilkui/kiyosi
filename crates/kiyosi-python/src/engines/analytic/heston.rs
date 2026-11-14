@@ -77,6 +77,11 @@ engine_methods!(
         ///
     ],
     {
+        #[classattr]
+        const _STATE_FIELDS: &'static [&'static str] = &[
+            "absolute_tolerance", "relative_tolerance", "max_evaluations",
+        ];
+
         #[new]
         #[pyo3(signature = (*, absolute_tolerance=kiyosi::HestonIntegrationSettings::default().absolute_tolerance, relative_tolerance=kiyosi::HestonIntegrationSettings::default().relative_tolerance, max_evaluations=kiyosi::HestonIntegrationSettings::default().max_evaluations))]
         fn new(

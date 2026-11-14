@@ -339,6 +339,9 @@ def test_repr_exposes_terms_settings_and_results(subtests):
 def test_repr_pickle_and_engine_replacement_ignore_constructor_only_parameters(
     monkeypatch,
 ):
+    from kiyosi import _native
+    from kiyosi._serialization import install
+
     objects = (
         p.AnalyticEuropeanEngine(),
         p.FiniteDifferenceVanillaEngine(asset_step_count=123, time_step_count=456),
@@ -375,6 +378,7 @@ def test_repr_pickle_and_engine_replacement_ignore_constructor_only_parameters(
             ),
             raising=False,
         )
+    install(_native)
     for value, expected in zip(objects, representations, strict=True):
         assert repr(value) == expected
         restored = pickle.loads(pickle.dumps(value))
