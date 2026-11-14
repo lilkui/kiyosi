@@ -16,7 +16,7 @@ impl FiniteDifferenceBarrierEngine {
     /// Prior at-hit rebates are already paid; resolved vanilla payoffs use the selected model.
     /// Local volatility supports price, delta and gamma, holding the surface fixed.
     /// Continuous barriers are exact domain edges; scheduled dates are inserted unchanged.
-    /// See [`Self::price_with_greeks`] for an example.
+    /// See [`Self::price`] for an example.
     ///
     /// # Errors
     ///
@@ -27,17 +27,9 @@ impl FiniteDifferenceBarrierEngine {
     /// impossible history, clipped or
     /// degenerate grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
-    pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        Ok(native_barrier(
-            option,
-            context,
-            self.settings,
-            GreeksRequest::new([]),
-            Default::default(),
-        )?
-        .price())
-    }
-
+    ///
+    /// # Greeks
+    ///
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
     /// Uses [`NumericalShiftSettings`] for bumps and fixes the central BSM spatial domain.
@@ -45,13 +37,13 @@ impl FiniteDifferenceBarrierEngine {
     /// Stencils crossing observations or barriers leave affected Greeks absent; all are
     /// based on terminal payoffs at expiry and absent at a current barrier equality without a prior touch.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// Leaves other local-volatility Greeks absent. Validates shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
     /// Inputs and engine settings remain unchanged on success and failure.
     ///
-    /// # Examples
+    /// ## Examples
     ///
     /// ```rust
     /// use kiyosi::*;
@@ -70,13 +62,15 @@ impl FiniteDifferenceBarrierEngine {
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
-    pub fn price_with_greeks(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
+    pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        Ok(native_barrier(
+            option,
+            context,
+            self.settings,
+            GreeksRequest::new([]),
+            Default::default(),
+        )?
+        .price())
     }
 }
 
@@ -173,7 +167,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// Projects scheduled boundary events simultaneously on the full spatial grid.
     /// Resolves current touches and known history before grid validation.
     /// Local volatility supports price, delta and gamma, holding the surface fixed.
-    /// See [`Self::price_with_greeks`] for an example.
+    /// See [`Self::price`] for an example.
     ///
     /// # Errors
     ///
@@ -184,17 +178,9 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// including explicit upper-domain coverage checks when a full-domain grid is needed.
     /// Continuous barriers fix the barrier grid's edges independently of that upper bound.
     ///
-    pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-        Ok(native_barrier(
-            option,
-            context,
-            self.settings,
-            GreeksRequest::new([]),
-            Default::default(),
-        )?
-        .price())
-    }
-
+    ///
+    /// # Greeks
+    ///
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
     /// Fixes the central BSM spatial domain for bumps. Local volatility accepts only
@@ -202,12 +188,12 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// either boundary or an observation omit affected measures; expiry Greeks follow terminal payoffs. Before expiry, current boundary
     /// equality without a prior touch suppresses Greeks.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// Validates shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors.
     ///
-    /// # Examples
+    /// ## Examples
     ///
     /// ```rust
     /// use kiyosi::*;
@@ -224,13 +210,15 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
-    pub fn price_with_greeks(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
+    pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+        Ok(native_barrier(
+            option,
+            context,
+            self.settings,
+            GreeksRequest::new([]),
+            Default::default(),
+        )?
+        .price())
     }
 }
 impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {

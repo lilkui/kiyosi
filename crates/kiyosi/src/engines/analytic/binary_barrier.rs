@@ -2,8 +2,7 @@ use crate::engines::analytic::barrier::{analytic_log_shift, barrier_terms, hit_v
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
-    AnalyticDigitalEngine, DigitalOption, GreeksRequest, OptionContract, OptionType,
-    PricingContext, PricingEngine, PricingResult, Result,
+    AnalyticDigitalEngine, DigitalOption, OptionType, PricingContext, PricingEngine, Result,
 };
 use crate::{BinaryBarrierOption, SettlementTiming, TouchOption};
 
@@ -44,30 +43,22 @@ impl AnalyticBinaryBarrierEngine {
     /// assert_eq!(AnalyticBinaryBarrierEngine.price(&option, &context)?, 10.0);
     /// # Ok(()) }
     /// ```
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        <Self as PricingEngine<I>>::price(self, option, context)
-    }
+    ///
+    /// # Greeks
+    ///
     /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
     ///
     /// Expiry Greeks follow terminal payoffs. Before expiry, Greeks at a current barrier equality are absent. Stencils crossing
     /// observations or barriers leave affected Greeks absent.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing errors.
-    pub fn price_with_greeks<I: OptionContract>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
+    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
     {
-        PricingEngine::price_with_greeks(self, option, context, request)
+        <Self as PricingEngine<I>>::price(self, option, context)
     }
 }
 

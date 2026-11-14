@@ -13,8 +13,8 @@ use rayon::prelude::*;
 use super::greeks;
 use crate::numerics::log_ratio;
 use crate::{
-    Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
-    PricingContext, PricingEngine, PricingResult, Result,
+    Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
+    PricingEngine, PricingResult, Result,
 };
 
 const BLOCK_SIZE: usize = 256;
@@ -799,35 +799,6 @@ impl MonteCarloVanillaEngine {
         self.settings.step_count
     }
 
-    /// Returns finite-difference Greeks using shared normal samples.
-    ///
-    /// Pins one request-local seed, including when the engine has no configured seed.
-    /// Replays identical normal draws for every feasible bump; no samples or state
-    /// survive the request. At expiry, time Greeks are absent and other Greeks follow terminal payoffs. Uses
-    /// [`NumericalShiftSettings`] and [`crate::numerical_greeks`] availability rules.
-    /// American calls whose rate stencil crosses zero use the exercise grid on both
-    /// rate legs. For American spot bumps, use [`Self::default_american_spot_shift`].
-    ///
-    /// # Errors
-    ///
-    /// Rejects nonconstant rate curves before validating shifts, then propagates
-    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
-    ///
-    /// # Examples
-    ///
-    /// See [`Self::price`] for a shared-sample delta example.
-    pub fn price_with_greeks<I: OptionContract>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
-    where
-        Self: PricingEngine<I>,
-    {
-        PricingEngine::price_with_greeks(self, option, context, request)
-    }
-
     /// Returns a discounted sample mean, or intrinsic value at expiry.
     ///
     /// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
@@ -864,6 +835,7 @@ impl MonteCarloVanillaEngine {
     /// # Examples
     ///
     /// ```rust
+    /// use kiyosi::PricingEngine;
     /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine, EuropeanOption,
     ///     OptionType, Date, BlackScholesMertonParameters, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
@@ -881,6 +853,26 @@ impl MonteCarloVanillaEngine {
     /// assert!(analysis.require(kiyosi::Greek::Delta)? > 0.0);
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Returns finite-difference Greeks using shared normal samples.
+    ///
+    /// Pins one request-local seed, including when the engine has no configured seed.
+    /// Replays identical normal draws for every feasible bump; no samples or state
+    /// survive the request. At expiry, time Greeks are absent and other Greeks follow terminal payoffs. Uses
+    /// [`NumericalShiftSettings`] and [`crate::numerical_greeks`] availability rules.
+    /// American calls whose rate stencil crosses zero use the exercise grid on both
+    /// rate legs. For American spot bumps, use [`Self::default_american_spot_shift`].
+    ///
+    /// ## Errors
+    ///
+    /// Rejects nonconstant rate curves before validating shifts, then propagates
+    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
+    ///
+    /// ## Examples
+    ///
+    /// See [`Self::price`] for a shared-sample delta example.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,

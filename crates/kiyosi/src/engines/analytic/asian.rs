@@ -1,6 +1,6 @@
 use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash};
 use crate::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
-use crate::{Error, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result};
+use crate::{Error, PricingContext, PricingEngine, Result};
 
 /// Prices continuously monitored geometric average-price Asian options under BSM.
 ///
@@ -44,6 +44,19 @@ impl AnalyticGeometricAveragePriceEngine {
     /// assert!((AnalyticGeometricAveragePriceEngine.price(&option, &context)? - 5.035867546515384).abs() < 1e-12);
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Returns requested Greeks using shared scalar finite differences.
+    ///
+    /// Time Greeks are unavailable when a stencil crosses the history boundary;
+    /// expiry Greeks follow terminal payoffs, with time Greeks absent. See [`Self::price`] for a setup example.
+    ///
+    /// ## Errors
+    ///
+    /// Returns [`Error::ComputationFailure`] for non-finite derivatives,
+    /// and propagates pricing and feasible bumped-pricing errors.
+    /// Inputs remain unchanged; unavailable stencils leave measures absent.
     pub fn price(
         &self,
         option: &GeometricAveragePriceOption,
@@ -182,6 +195,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// # Examples
     ///
     /// ```rust
+    /// use kiyosi::PricingEngine;
     /// use kiyosi::{TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption,
     ///     BlackScholesMertonParameters, PricingContext, Date, OptionType, GreeksRequest, Greek};
     /// # fn main() -> kiyosi::Result<()> {
@@ -195,6 +209,19 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Returns requested Greeks using shared scalar finite differences.
+    ///
+    /// Time Greeks are unavailable when a stencil crosses the history boundary;
+    /// expiry Greeks follow terminal payoffs, with time Greeks absent. See [`Self::price`] for a setup example.
+    ///
+    /// ## Errors
+    ///
+    /// Returns [`Error::ComputationFailure`] for non-finite derivatives,
+    /// and propagates pricing and feasible bumped-pricing errors.
+    /// Inputs remain unchanged; unavailable stencils leave measures absent.
     pub fn price(
         &self,
         option: &ArithmeticAveragePriceOption,
@@ -318,38 +345,6 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         )
     }
 }
-macro_rules! asian_analytics {
-    ($engine:ident, $option:ident) => {
-        impl $engine {
-            /// Returns requested Greeks using shared scalar finite differences.
-            ///
-            /// Time Greeks are unavailable when a stencil crosses the history boundary;
-            /// expiry Greeks follow terminal payoffs, with time Greeks absent. See [`Self::price`] for a setup example.
-            ///
-            /// # Errors
-            ///
-            /// Returns [`Error::ComputationFailure`] for non-finite derivatives,
-            /// and propagates pricing and feasible bumped-pricing errors.
-            /// Inputs remain unchanged; unavailable stencils leave measures absent.
-            pub fn price_with_greeks(
-                &self,
-                option: &$option,
-                context: &PricingContext,
-                request: GreeksRequest,
-            ) -> Result<PricingResult> {
-                PricingEngine::price_with_greeks(self, option, context, request)
-            }
-        }
-    };
-}
-asian_analytics!(
-    AnalyticGeometricAveragePriceEngine,
-    GeometricAveragePriceOption
-);
-asian_analytics!(
-    TurnbullWakemanArithmeticAveragePriceEngine,
-    ArithmeticAveragePriceOption
-);
 impl PricingEngine<GeometricAveragePriceOption> for AnalyticGeometricAveragePriceEngine {
     fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)

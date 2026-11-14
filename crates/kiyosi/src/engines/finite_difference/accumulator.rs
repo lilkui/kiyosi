@@ -12,7 +12,7 @@ impl FiniteDifferenceAccumulatorEngine {
     /// direction-dependent acceleration. Supports flat and nonconstant rate curves.
     /// Accepts BSM or local volatility; surface coverage is required only for
     /// remaining stochastic evolution, after immediate settlement is resolved.
-    /// See [`Self::price_with_greeks`] for an example.
+    /// See [`Self::price`] for an example.
     ///
     /// # Errors
     ///
@@ -22,18 +22,9 @@ impl FiniteDifferenceAccumulatorEngine {
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside contract life or curve coverage,
     /// for impossible history, clipped domains or unstable explicit steps.
     /// Numerical failures return [`Error::ComputationFailure`][crate::Error::ComputationFailure].
-    pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        Ok(native(
-            option,
-            context,
-            self.settings,
-            GreeksRequest::new([]),
-            Default::default(),
-        )?
-        .0
-        .price())
-    }
-
+    ///
+    /// # Greeks
+    ///
     /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
     ///
     /// Fixes the central upper domain for bumped prices. At expiry Greeks follow
@@ -41,13 +32,13 @@ impl FiniteDifferenceAccumulatorEngine {
     /// thresholds or trading events are unavailable.
     /// Local volatility supports only delta and gamma with the absolute surface fixed.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// Validates shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
     /// Unsupported local-volatility Greeks are absent.
     ///
-    /// # Examples
+    /// ## Examples
     ///
     /// ```rust
     /// use kiyosi::*;
@@ -64,13 +55,16 @@ impl FiniteDifferenceAccumulatorEngine {
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
-    pub fn price_with_greeks(
-        &self,
-        option: &Accumulator,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
+    pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+        Ok(native(
+            option,
+            context,
+            self.settings,
+            GreeksRequest::new([]),
+            Default::default(),
+        )?
+        .0
+        .price())
     }
 }
 

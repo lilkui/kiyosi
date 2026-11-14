@@ -28,7 +28,7 @@ enum Contract<'a> {
 /// instances support concurrent calls with request-owned samples and shared workers.
 /// Near-strike payoffs retain movements even when terminal spot rounds to strike.
 /// Returns likelihood-ratio delta/gamma; scalar numerical analysis is available
-/// through [`crate::numerical_greeks`]. See [`Self::price_with_greeks`].
+/// through [`crate::numerical_greeks`]. See [`Self::price`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloBarrierEngine {
     settings: MonteCarloSettings,
@@ -72,7 +72,7 @@ impl MonteCarloBarrierEngine {
     ///
     /// Current hits and resolved payments precede sampling; resolved vanilla payoffs
     /// use analytic pricing. Prior at-hit rebates are already paid. Cancellation
-    /// follows [`crate::CancellationToken`]. See [`Self::price_with_greeks`].
+    /// follows [`crate::CancellationToken`]. See [`Self::price`].
     ///
     /// # Errors
     ///
@@ -94,42 +94,9 @@ impl MonteCarloBarrierEngine {
     /// # Aborts
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        PricingEngine::price(self, option, context)
-    }
-
-    /// Returns a price with sampling standard error and an asymptotic 95% interval.
     ///
-    /// Uncertainty follows [`MonteCarloEstimate`]. Resolved analytic branches have
-    /// zero pseudorandom uncertainty; an analytic at-hit rebate adds no sampling
-    /// variance. See [`Self::price_with_greeks`] for an example.
+    /// # Greeks
     ///
-    /// # Errors
-    ///
-    /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
-    /// for non-finite uncertainty or confidence bounds.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics as in [`Self::price`].
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
-    pub fn price_with_statistics<I>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate>
-    where
-        Self: PricingEngine<I>,
-    {
-        PricingEngine::price_with_statistics(self, option, context)
-    }
-
     /// Returns requested delta/gamma using the price's normal samples.
     ///
     /// Other Greeks are absent. Expiry and spot stencils crossing a current
@@ -141,18 +108,18 @@ impl MonteCarloBarrierEngine {
     /// [`crate::numerical_greeks`] for stencil requirements.
     /// Near-expiry likelihood estimates can have substantial sampling error.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// Checks flat rates and request support before estimating with default controls,
     /// then propagates [`Self::price`] errors. Request handling follows
     /// [`GreeksRequest`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`].
     ///
-    /// # Panics
+    /// ## Panics
     ///
     /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
     ///
-    /// # Examples
+    /// ## Examples
     ///
     /// ```rust
     /// use kiyosi::*;
@@ -183,16 +150,40 @@ impl MonteCarloBarrierEngine {
     /// assert!((engine.price(&double, &context)? - 1.0838814592583166).abs() < 0.003);
     /// # Ok(()) }
     /// ```
-    pub fn price_with_greeks<I: OptionContract>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
+    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
     {
-        PricingEngine::price_with_greeks(self, option, context, request)
+        PricingEngine::price(self, option, context)
+    }
+
+    /// Returns a price with sampling standard error and an asymptotic 95% interval.
+    ///
+    /// Uncertainty follows [`MonteCarloEstimate`]. Resolved analytic branches have
+    /// zero pseudorandom uncertainty; an analytic at-hit rebate adds no sampling
+    /// variance. See [`Self::price`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
+    /// for non-finite uncertainty or confidence bounds.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics as in [`Self::price`].
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
+    pub fn price_with_statistics<I>(
+        &self,
+        option: &I,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate>
+    where
+        Self: PricingEngine<I>,
+    {
+        PricingEngine::price_with_statistics(self, option, context)
     }
 
     fn native(

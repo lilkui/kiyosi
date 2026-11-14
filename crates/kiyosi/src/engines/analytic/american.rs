@@ -3,8 +3,8 @@ use std::sync::LazyLock;
 
 use crate::numerics::log_normal_cdf;
 use crate::{
-    AmericanOption, AnalyticEuropeanEngine, Error, GreeksRequest, OptionType, PricingContext,
-    PricingEngine, PricingResult, Result,
+    AmericanOption, AnalyticEuropeanEngine, Error, OptionType, PricingContext, PricingEngine,
+    Result,
 };
 
 fn exponential_cdf(weight: f64, argument: f64) -> f64 {
@@ -308,6 +308,34 @@ impl BjerksundStenslandVanillaEngine {
     /// assert!((price - 6.932464292493037).abs() < 1e-11);
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Returns the price and requested finite-difference Greeks with core bump defaults.
+    ///
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Feasible bumped domain failures propagate.
+    ///
+    /// ## Errors
+    ///
+    /// Checks flat-rate applicability before shift validation, then reuses
+    /// [`Self::price`] and [`crate::numerical_greeks`] errors.
+    ///
+    /// ## Examples
+    ///
+    /// ```rust
+    /// use kiyosi::PricingEngine;
+    /// use kiyosi::{AmericanOption, BjerksundStenslandVanillaEngine,
+    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
+    /// let context = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.03, 0.2)?, 100.0, start.into())?;
+    /// let result = BjerksundStenslandVanillaEngine.price_with_greeks(&option, &context,
+    ///     GreeksRequest::new([Greek::Delta]))?;
+    /// assert!(result.require(Greek::Delta)? < 0.0);
+    /// # Ok(()) }
+    /// ```
     pub fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         crate::engines::flat_rates(context)?;
@@ -362,39 +390,6 @@ impl BjerksundStenslandVanillaEngine {
         }
         let intrinsic = (if call { spot - strike } else { strike - spot }).max(0.0);
         Ok(value.max(intrinsic).max(continuation))
-    }
-
-    /// Returns the price and requested finite-difference Greeks with core bump defaults.
-    ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Feasible bumped domain failures propagate.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] and [`crate::numerical_greeks`] errors.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{AmericanOption, BjerksundStenslandVanillaEngine,
-    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.03, 0.2)?, 100.0, start.into())?;
-    /// let result = BjerksundStenslandVanillaEngine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]))?;
-    /// assert!(result.require(Greek::Delta)? < 0.0);
-    /// # Ok(()) }
-    /// ```
-    pub fn price_with_greeks(
-        &self,
-        option: &AmericanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 

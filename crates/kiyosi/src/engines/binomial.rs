@@ -54,7 +54,7 @@ impl BinomialSettings {
 ///
 /// Returns node delta/gamma and completes other requested Greeks numerically.
 /// Values own their settings; shared instances support concurrent pricing.
-/// See [`Self::price_with_greeks`] for an example.
+/// See [`Self::price`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CoxRossRubinsteinVanillaEngine {
     settings: BinomialSettings,
@@ -88,34 +88,30 @@ impl CoxRossRubinsteinVanillaEngine {
 
     /// Prices a supported vanilla contract.
     ///
-    /// See [`Self::price_with_greeks`] for an example.
+    /// See [`Self::price`] for an example.
     ///
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
     /// validation, [`Error::InvalidInput`] outside permitted valuation bounds, and
     /// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price(self, option, context)
-    }
-
+    ///
+    /// # Greeks
+    ///
     /// Returns node delta/gamma and numerically completes missing requested Greeks.
     ///
     /// Expiry Greeks follow terminal payoffs; time Greeks are absent. One-step gamma uses scalar differences.
     /// Bumps use [`crate::NumericalShiftSettings`]; feasible bumped failures propagate.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// Checks flat-rate applicability before shift validation, then reuses
     /// [`Self::price`] and [`crate::numerical_greeks`] errors.
     ///
-    /// # Examples
+    /// ## Examples
     ///
     /// ```rust
+    /// use kiyosi::PricingEngine;
     /// use kiyosi::{AmericanOption, CoxRossRubinsteinVanillaEngine,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi::Result<()> {
@@ -128,16 +124,12 @@ impl CoxRossRubinsteinVanillaEngine {
     /// assert!(result.require(Greek::Delta)? < 0.0);
     /// # Ok(()) }
     /// ```
-    pub fn price_with_greeks<I: OptionContract>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
+    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
     {
-        PricingEngine::price_with_greeks(self, option, context, request)
+        context.bsm_parameters()?;
+        <Self as PricingEngine<I>>::price(self, option, context)
     }
 }
 

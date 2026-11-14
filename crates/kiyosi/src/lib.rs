@@ -5,6 +5,8 @@
 //! Carlo sampling statistics. [`numerical_greeks`] selects scalar BSM differences;
 //! [`implied_volatility`] and the coupon solvers invert an engine's price curve.
 //! Engine documentation specifies model support and numerical controls.
+//! Import [`PricingEngine`] to call [`PricingEngine::price_with_greeks`]; each
+//! engine's pricing documentation describes its Greek estimators and boundaries.
 //!
 //! # Conventions
 //!

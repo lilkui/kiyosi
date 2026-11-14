@@ -1,8 +1,8 @@
 use super::{Moments, estimate, path_samples, scaled_value, transition, unstable};
 use crate::numerics::log_ratio;
 use crate::{
-    Accumulator, GreeksRequest, MonteCarloEstimate, MonteCarloSettings, OptionType, PricingContext,
-    PricingEngine, PricingResult, Result,
+    Accumulator, MonteCarloEstimate, MonteCarloSettings, OptionType, PricingContext, PricingEngine,
+    Result,
 };
 
 /// Prices accumulators with exact lognormal transitions between trading dates.
@@ -100,6 +100,30 @@ impl MonteCarloAccumulatorEngine {
     /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
+    ///
+    /// # Greeks
+    ///
+    /// Computes requested finite-difference Greeks with shared normal draws.
+    ///
+    /// Pins a request-local seed when none is configured. At expiry Greeks follow
+    /// terminal payoffs, with time Greeks absent. Stencils crossing active
+    /// spot/time events are unavailable, following
+    /// [`crate::numerical_greeks`]. Small bumps can be noisy for discontinuous
+    /// payoffs; shifts control the sampled curve, not statistical accuracy.
+    /// See [`Self::new`] for an example.
+    ///
+    /// ## Errors
+    ///
+    /// Checks flat rates before shift validation, then propagates
+    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
+    ///
+    /// ## Panics
+    ///
+    /// Propagates worker panics after the call's parallel work has finished.
+    ///
+    /// ## Aborts
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
@@ -247,36 +271,6 @@ impl MonteCarloAccumulatorEngine {
                 )?])
             })?;
         Ok((moments, pairs, false, Some(seed)))
-    }
-
-    /// Computes requested finite-difference Greeks with shared normal draws.
-    ///
-    /// Pins a request-local seed when none is configured. At expiry Greeks follow
-    /// terminal payoffs, with time Greeks absent. Stencils crossing active
-    /// spot/time events are unavailable, following
-    /// [`crate::numerical_greeks`]. Small bumps can be noisy for discontinuous
-    /// payoffs; shifts control the sampled curve, not statistical accuracy.
-    /// See [`Self::new`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat rates before shift validation, then propagates
-    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    pub fn price_with_greeks(
-        &self,
-        option: &Accumulator,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 

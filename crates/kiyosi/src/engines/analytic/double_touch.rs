@@ -3,8 +3,8 @@ use crate::instruments::binary_barrier::Settlement;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, scaled_cash};
 use crate::{
-    DoubleTouchOption, Error, GreeksRequest, ObservationMode, PricingContext, PricingEngine,
-    PricingResult, Result, SettlementTiming,
+    DoubleTouchOption, Error, ObservationMode, PricingContext, PricingEngine, Result,
+    SettlementTiming,
 };
 
 /// Prices continuous cash double-touch and double-no-touch contracts with flat rates.
@@ -53,6 +53,23 @@ impl AnalyticDoubleTouchEngine {
     /// assert!(result.require(Greek::Delta)? < 0.0);
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
+    ///
+    /// Expiry Greeks follow terminal payoffs. Current touches retain rate and volatility Greeks
+    /// of the resolved payoff; spot derivatives remain absent at equality.
+    /// Stencils crossing either boundary or changing monitoring or history regimes
+    /// omit affected measures.
+    ///
+    /// ## Errors
+    ///
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
+    ///
+    /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
+    ///
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
@@ -91,29 +108,6 @@ impl AnalyticDoubleTouchEngine {
         } else {
             density.cash_value(option.payout(), rate, option.is_one_touch())
         }
-    }
-
-    /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
-    ///
-    /// Expiry Greeks follow terminal payoffs. Current touches retain rate and volatility Greeks
-    /// of the resolved payoff; spot derivatives remain absent at equality.
-    /// Stencils crossing either boundary or changing monitoring or history regimes
-    /// omit affected measures.
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
-    ///
-    pub fn price_with_greeks(
-        &self,
-        option: &DoubleTouchOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 

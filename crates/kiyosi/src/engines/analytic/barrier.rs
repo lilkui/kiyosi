@@ -2,10 +2,7 @@ use crate::instruments::monitoring::{Monitoring, validate_life};
 use crate::numerics::{
     adaptive_simpson, checked, checked_with_scale, log_ratio, scaled_cash, scaled_cdf, standardize,
 };
-use crate::{
-    AnalyticEuropeanEngine, Error, GreeksRequest, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result,
-};
+use crate::{AnalyticEuropeanEngine, Error, OptionType, PricingContext, PricingEngine, Result};
 use crate::{BarrierOption, RebateTiming};
 
 /// Prices single-barrier vanilla options analytically with flat rates.
@@ -51,6 +48,18 @@ impl AnalyticBarrierEngine {
     /// assert_eq!(AnalyticBarrierEngine.price(&option, &context)?, 0.0);
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Computes requested scalar numerical Greeks with shared bump defaults.
+    ///
+    /// Expiry Greeks follow terminal payoffs. Current touches retain rate and volatility Greeks
+    /// of the resolved payoff; spot derivatives remain absent at equality. Stencils crossing
+    /// observations or spot barriers leave affected measures absent; see [`Self::price`].
+    ///
+    /// ## Errors
+    ///
+    /// Reuses [`crate::numerical_greeks`] validation and propagates [`Self::price`] errors.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         self.validate_applicability(context)?;
         validate_life(option, context)?;
@@ -62,23 +71,6 @@ impl AnalyticBarrierEngine {
         }
         context.validate_curve_horizon(option.expiry_time())?;
         analytic_price(option, context)
-    }
-    /// Computes requested scalar numerical Greeks with shared bump defaults.
-    ///
-    /// Expiry Greeks follow terminal payoffs. Current touches retain rate and volatility Greeks
-    /// of the resolved payoff; spot derivatives remain absent at equality. Stencils crossing
-    /// observations or spot barriers leave affected measures absent; see [`Self::price`].
-    ///
-    /// # Errors
-    ///
-    /// Reuses [`crate::numerical_greeks`] validation and propagates [`Self::price`] errors.
-    pub fn price_with_greeks(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 pub(crate) fn resolved_price(

@@ -5,7 +5,7 @@ use crate::{
     ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, Greek, GreeksRequest,
     MonteCarloEstimate, MonteCarloSampling, PricingContext, PricingEngine, PricingResult, Result,
 };
-use crate::{OptionContract, Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
+use crate::{Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
 
 /// Prices geometric and arithmetic continuous averages using CPU Monte Carlo.
 ///
@@ -106,6 +106,7 @@ impl MonteCarloAsianEngine {
     /// # Examples
     ///
     /// ```rust
+    /// use kiyosi::PricingEngine;
     /// use kiyosi::{MonteCarloAsianEngine, MonteCarloSettings,
     ///     GeometricAveragePriceOption, Date, OptionType,
     ///     BlackScholesMertonParameters, PricingContext};
@@ -128,6 +129,29 @@ impl MonteCarloAsianEngine {
     /// assert!(estimate.standard_error().is_some());
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Returns requested delta and gamma directly from the price's shared normal draws.
+    ///
+    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
+    /// Terminal stencils use engine-default spot bumps.
+    /// Only delta and gamma are supported, including terminal-payoff Greeks at expiry. Before expiry, no numerical bumps are
+    /// required. For scalar differences and history-boundary stencil rules, use
+    /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
+    /// engines. See [`Self::price`].
+    ///
+    /// ## Errors
+    ///
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
+    ///
+    /// Propagates [`Self::price`] errors.
+    /// Non-finite requested Greeks return [`Error::ComputationFailure`].
+    ///
+    /// ## Panics
+    ///
+    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
@@ -165,38 +189,6 @@ impl MonteCarloAsianEngine {
     {
         context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_statistics(self, option, context)
-    }
-
-    /// Returns requested delta and gamma directly from the price's shared normal draws.
-    ///
-    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
-    /// Terminal stencils use engine-default spot bumps.
-    /// Only delta and gamma are supported, including terminal-payoff Greeks at expiry. Before expiry, no numerical bumps are
-    /// required. For scalar differences and history-boundary stencil rules, use
-    /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
-    /// engines. See [`Self::price`].
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Propagates [`Self::price`] errors.
-    /// Non-finite requested Greeks return [`Error::ComputationFailure`].
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
-    pub fn price_with_greeks<I: OptionContract>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult>
-    where
-        Self: PricingEngine<I>,
-    {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 
     #[expect(

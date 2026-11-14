@@ -686,7 +686,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     ///
     /// Coupon solves validate their settings and endpoint replacements before pricing.
     /// The default requires BSM; engines supporting another model override it. See
-    /// [`crate::MonteCarloVanillaEngine::price_with_greeks`] for flat-rate restrictions.
+    /// [`crate::MonteCarloVanillaEngine::price`] for flat-rate restrictions.
     ///
     /// # Errors
     ///
@@ -716,7 +716,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// Returns `None` when this engine already evaluates one consistent price
     /// function, as deterministic engines do by default. Returned handles are used
     /// directly for the request's evaluations without further preparation.
-    /// See [`crate::MonteCarloVanillaEngine::price_with_greeks`].
+    /// See [`crate::MonteCarloVanillaEngine::price`].
     /// Prepared handles support sequential use within the calling thread; they
     /// need not implement [`Send`] or [`Sync`]. Independent requests prepare their
     /// own handles, leaving the original engine's concurrency contract unchanged.

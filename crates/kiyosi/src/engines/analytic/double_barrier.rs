@@ -7,8 +7,8 @@ use crate::numerics::{
     scaled_cdf, scaled_signed_cash,
 };
 use crate::{
-    AnalyticEuropeanEngine, Error, GreeksRequest, ObservationMode, OptionType, PricingContext,
-    PricingEngine, PricingResult, RebateTiming, Result,
+    AnalyticEuropeanEngine, Error, ObservationMode, OptionType, PricingContext, PricingEngine,
+    RebateTiming, Result,
 };
 use std::f64::consts::PI;
 
@@ -47,6 +47,22 @@ impl AnalyticDoubleBarrierEngine {
     /// assert!((AnalyticDoubleBarrierEngine.price(&option, &context)? - 1.0838814592583166).abs() < 1e-9);
     /// # Ok(()) }
     /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Computes all requested numerical Greeks using the shared core bump defaults.
+    ///
+    /// Expiry Greeks follow terminal payoffs. Current touches retain rate and volatility Greeks
+    /// of the resolved payoff; spot derivatives remain absent at equality. Stencils reaching
+    /// boundaries or changing observation/history regimes omit affected measures.
+    /// See [`Self::price`] for a construction example.
+    ///
+    /// ## Errors
+    ///
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
+    ///
+    /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
@@ -63,27 +79,6 @@ impl AnalyticDoubleBarrierEngine {
             ));
         }
         analytic_price(option, context)
-    }
-    /// Computes all requested numerical Greeks using the shared core bump defaults.
-    ///
-    /// Expiry Greeks follow terminal payoffs. Current touches retain rate and volatility Greeks
-    /// of the resolved payoff; spot derivatives remain absent at equality. Stencils reaching
-    /// boundaries or changing observation/history regimes omit affected measures.
-    /// See [`Self::price`] for a construction example.
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
-    pub fn price_with_greeks(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
     }
 }
 impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {

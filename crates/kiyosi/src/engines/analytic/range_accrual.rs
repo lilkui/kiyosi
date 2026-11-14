@@ -1,6 +1,6 @@
 use crate::RangeAccrualOption;
 use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, standardize};
-use crate::{Error, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result};
+use crate::{Error, PricingContext, PricingEngine, Result};
 
 /// Prices range coupons by summing exact BSM marginal probabilities with deterministic curves.
 ///
@@ -9,24 +9,6 @@ use crate::{Error, GreeksRequest, PricingContext, PricingEngine, PricingResult, 
 pub struct AnalyticRangeAccrualEngine;
 
 impl AnalyticRangeAccrualEngine {
-    /// Computes requested numerical Greeks from exact prices with core bump defaults.
-    ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Spot stencils reaching current bounds and time
-    /// stencils touching any observation are unavailable; vega/rho remain valid at bounds.
-    /// See [`Self::price`] for contract construction and pricing.
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`crate::numerical_greeks`] validation and pricing errors.
-    ///
-    pub fn price_with_greeks(
-        &self,
-        option: &RangeAccrualOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
-    }
     /// Prices the coupon, using spot for a current observation and explicit prior hit history.
     ///
     /// Valuation must lie within the inclusive effective and expiry times.
@@ -61,6 +43,19 @@ impl AnalyticRangeAccrualEngine {
         clippy::cast_sign_loss,
         reason = "Hit counts are validated nonnegative; calendar-bounded observation counts fit exactly in f64."
     )]
+    ///
+    /// # Greeks
+    ///
+    /// Computes requested numerical Greeks from exact prices with core bump defaults.
+    ///
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Spot stencils reaching current bounds and time
+    /// stencils touching any observation are unavailable; vega/rho remain valid at bounds.
+    /// See [`Self::price`] for contract construction and pricing.
+    ///
+    /// ## Errors
+    ///
+    /// Propagates [`crate::numerical_greeks`] validation and pricing errors.
+    ///
     pub fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         crate::instruments::monitoring::validate_life(option, context)?;

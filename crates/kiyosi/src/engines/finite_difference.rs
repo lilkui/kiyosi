@@ -567,7 +567,7 @@ macro_rules! engine_settings {
         ///
         /// Distinct and shared instances support concurrent pricing.
         ///
-        /// See [`Self::price_with_greeks`] for usage.
+        /// See [`Self::price`] for usage.
         #[derive(Clone, Copy, Debug, Default, PartialEq)]
         pub struct $engine {
             settings: FiniteDifferenceSettings,
@@ -580,7 +580,7 @@ macro_rules! engine_settings {
             /// Returns [`Error::InvalidInput`] for fewer than three asset steps,
             /// nonpositive time steps, or a nonpositive or non-finite upper boundary or spot bump.
             /// Validation precedes storing settings; no grid is allocated here.
-            /// See [`Self::price_with_greeks`] for engine-specific usage.
+            /// See [`Self::price`] for engine-specific usage.
             ///
             /// # Examples
             ///

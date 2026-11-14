@@ -15,7 +15,7 @@ impl FiniteDifferenceAutocallableEngine {
     /// Current events use actual spot with strict knock-in and inclusive knock-out/coupon levels.
     /// Accepts BSM or local volatility. Surface coverage is required only for remaining
     /// stochastic evolution, after settlement and fixed cash flows are resolved.
-    /// See [`Self::price_with_greeks`] for an example.
+    /// See [`Self::price`] for an example.
     ///
     /// # Errors
     ///
@@ -26,22 +26,9 @@ impl FiniteDifferenceAutocallableEngine {
     /// impossible history, clipped
     /// grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
-    pub fn price<T: AutocallableTerms>(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> Result<f64> {
-        Ok(native(
-            option,
-            context,
-            self.settings,
-            GreeksRequest::new([]),
-            Default::default(),
-        )?
-        .0
-        .price())
-    }
-
+    ///
+    /// # Greeks
+    ///
     /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
     ///
     /// Native delta/gamma do not require feasible spot bumps; speed requires a symmetric
@@ -50,13 +37,13 @@ impl FiniteDifferenceAutocallableEngine {
     /// are unavailable; before expiry BSM vega and rho are available at current thresholds.
     /// Local volatility supports only delta and gamma with the absolute surface fixed.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// Validates shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
     /// Unsupported local-volatility Greeks are absent.
     ///
-    /// # Examples
+    /// ## Examples
     ///
     /// ```rust
     /// use kiyosi::*;
@@ -74,13 +61,20 @@ impl FiniteDifferenceAutocallableEngine {
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
-    pub fn price_with_greeks<T: AutocallableTerms>(
+    pub fn price<T: AutocallableTerms>(
         &self,
         option: &AutocallableNote<T>,
         context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        PricingEngine::price_with_greeks(self, option, context, request)
+    ) -> Result<f64> {
+        Ok(native(
+            option,
+            context,
+            self.settings,
+            GreeksRequest::new([]),
+            Default::default(),
+        )?
+        .0
+        .price())
     }
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
