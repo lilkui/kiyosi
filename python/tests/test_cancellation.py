@@ -93,8 +93,9 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             elif case == "numerical_greeks":
                                 p.numerical_greeks(engine, option, context, "all")
                             elif case == "analytic_solver":
+                                # Zero volatility scans the curve, keeping the solve active until SIGINT.
                                 p.implied_volatility(engine, option, context, 10,
-                                    lower_bound=0.01, upper_bound=1)
+                                    lower_bound=0, upper_bound=1)
                             else:
                                 engine.price(option, context)
                         except expected:
