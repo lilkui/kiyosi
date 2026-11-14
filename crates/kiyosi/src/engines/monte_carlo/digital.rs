@@ -72,7 +72,6 @@ impl MonteCarloDigitalEngine {
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Ok(self
             .native(option, context, GreeksRequest::new([]), false)?
             .0
@@ -278,7 +277,6 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
     ) -> Result<(f64, Option<u64>)> {
-        context.bsm_parameters()?;
         let (result, _) = self.native(option, context, GreeksRequest::new([]), false)?;
         Ok((result.price(), result.seed()))
     }
