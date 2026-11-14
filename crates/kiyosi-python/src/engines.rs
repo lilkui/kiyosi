@@ -200,9 +200,12 @@ pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
     short: bool,
 ) -> PyResult<R> {
     let context = &context.0;
+    let model = context.model_parameters();
     crate::error::domain(request.run(
         py,
-        short || instrument.expiry_time() == context.valuation_time(),
+        short
+            && model.risk_free_curve().nodes().is_empty()
+            && model.dividend_curve().nodes().is_empty(),
         || request.evaluate(engine, instrument, context),
     )?)
 }
@@ -248,12 +251,7 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
 
 impl PricingRequest<f64> for ScalarRequest {
     fn is_short(self) -> bool {
-        match self {
-            Self::Price => true,
-            Self::ImpliedVolatility { settings, .. } => {
-                settings.max_iterations <= kiyosi::ImpliedVolatilitySettings::DEFAULT_MAX_ITERATIONS
-            }
-        }
+        matches!(self, Self::Price)
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -366,10 +364,6 @@ impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
 }
 
 impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
-    fn is_short(self) -> bool {
-        true
-    }
-
     fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
@@ -384,16 +378,8 @@ impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
 pub(crate) struct GreekMethodRequest;
 
 impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
-    fn run(
-        self,
-        py: pyo3::Python<'_>,
-        _short: bool,
-        operation: impl FnOnce() -> kiyosi::Result<kiyosi::GreekMethod> + Send,
-    ) -> pyo3::PyResult<kiyosi::Result<kiyosi::GreekMethod>> {
-        py.check_signals()?;
-        let result = operation();
-        py.check_signals()?;
-        Ok(result)
+    fn is_short(self) -> bool {
+        true
     }
 
     fn evaluate<I: kiyosi::OptionContract>(

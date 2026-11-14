@@ -18,6 +18,9 @@ import pytest
         "quadrature",
         "heston_fd",
         "custom_handler",
+        "analytic_greeks",
+        "numerical_greeks",
+        "analytic_solver",
     ),
 )
 def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
@@ -29,7 +32,8 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                         import signal
                         import threading
                         import sys
-                        from datetime import datetime
+                        from datetime import datetime, timedelta
+                        from math import exp
                         from kiyosi import instruments as i, market as m, pricing as p
 
                         case = sys.argv[1]
@@ -55,6 +59,15 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             engine = p.FiniteDifferenceVanillaEngine(asset_step_count=4000, time_step_count=100_000)
                         elif case == "quadrature":
                             engine = p.QuadratureVanillaEngine(asset_step_count=100_000_000)
+                        elif case in ("analytic_greeks", "numerical_greeks", "analytic_solver"):
+                            count = 1_000_000
+                            times = [start + timedelta(seconds=j) for j in range(1, count + 1)]
+                            factors = [exp(-0.05 * j / (365 * 86400)) for j in range(1, count + 1)]
+                            curve = m.RateTermStructure(reference_time=start,
+                                times=[*times, end], factors=[*factors, exp(-0.05)])
+                            context = context.replace(model_parameters=model.replace(
+                                risk_free_rate=curve, volatility=0 if case != "analytic_solver" else 0.2))
+                            engine = p.AnalyticEuropeanEngine()
                         else:
                             context = context.replace(model_parameters=m.HestonParameters(
                                 risk_free_rate=0.05, dividend_yield=0.02, initial_variance=0.04,
@@ -69,11 +82,19 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                                 raise StopCalculation("requested stop")
                             signal.signal(signal.SIGINT, stop)
                         expected = StopCalculation if case == "custom_handler" else KeyboardInterrupt
-                        timer = threading.Timer(0.05, lambda: signal.raise_signal(signal.SIGINT))
+                        delay = 0.001 if case in ("analytic_greeks", "numerical_greeks", "analytic_solver") else 0.05
+                        timer = threading.Timer(delay, lambda: signal.raise_signal(signal.SIGINT))
                         timer.start()
                         try:
                             if case == "seeded_mc":
                                 engine.price_with_seed(option, context)
+                            elif case == "analytic_greeks":
+                                engine.price_with_greeks(option, context, "all")
+                            elif case == "numerical_greeks":
+                                p.numerical_greeks(engine, option, context, "all")
+                            elif case == "analytic_solver":
+                                p.implied_volatility(engine, option, context, 10,
+                                    lower_bound=0.01, upper_bound=1)
                             else:
                                 engine.price(option, context)
                         except expected:
