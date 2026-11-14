@@ -273,7 +273,7 @@ pub(crate) fn python_clock_time(
     at: kiyosi::TimeOfDay,
 ) -> PyResult<Bound<'_, PyAny>> {
     let micros = at.micros_since_midnight();
-    py.import("datetime")?.getattr("time")?.call1((
+    py.get_type::<PyTime>().call1((
         micros / 3_600_000_000,
         micros / 60_000_000 % 60,
         micros / 1_000_000 % 60,
@@ -324,10 +324,9 @@ pub(crate) fn python_timestamp(
     py: Python<'_>,
     at: kiyosi::Timestamp,
 ) -> PyResult<Bound<'_, PyAny>> {
-    let module = py.import("datetime")?;
     let date = at.date();
     let micros = at.micros_since_midnight();
-    module.getattr("datetime")?.call1((
+    py.get_type::<PyDateTime>().call1((
         date.year(),
         date.month(),
         date.day(),
