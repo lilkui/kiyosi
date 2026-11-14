@@ -11,27 +11,15 @@ pub(super) fn project_in_coordinates(
     if index == 0 || index == space.count {
         return value_at(center);
     }
-    let lower = space.coordinate(space.asset(index - 1)).midpoint(center);
-    let upper = center.midpoint(space.coordinate(space.asset(index + 1)));
-    let coordinates = || breaks.iter().map(|&b| space.coordinate(b));
-    if !coordinates().any(|b| b > lower && b < upper) {
-        return value_at(center);
-    }
-    let mut edges = vec![lower, center, upper];
-    edges.extend(coordinates().filter(|&b| b > lower && b < upper));
-    edges.sort_by(f64::total_cmp);
-    edges.dedup();
-    let mut result = [0.0; 2];
-    for e in edges.windows(2) {
-        let middle = e[0].midpoint(e[1]);
-        let radius = (e[1] - e[0]) / (2.0 * 3.0_f64.sqrt());
-        let low = value_at(middle - radius);
-        let high = value_at(middle + radius);
-        for layer in 0..2 {
-            result[layer] += (e[1] - e[0]) / (upper - lower) * low[layer].midpoint(high[layer]);
-        }
-    }
-    result
+    project_interval(
+        [
+            space.coordinate(space.asset(index - 1)).midpoint(center),
+            center,
+            center.midpoint(space.coordinate(space.asset(index + 1))),
+        ],
+        breaks.iter().map(|&b| space.coordinate(b)),
+        value_at,
+    )
 }
 
 pub(super) fn project_in_spot(
@@ -44,28 +32,41 @@ pub(super) fn project_in_spot(
     if index == 0 || index == space.count {
         return value(center);
     }
-    let lower = space.asset(index - 1).midpoint(center);
-    let upper = space.asset(index + 1).midpoint(center);
-    let mut points: Vec<_> = breaks
-        .iter()
-        .copied()
-        .filter(|&v| v > lower && v < upper)
-        .collect();
+    project_interval(
+        [
+            space.asset(index - 1).midpoint(center),
+            center,
+            space.asset(index + 1).midpoint(center),
+        ],
+        breaks.iter().copied(),
+        |spot| [value(spot)],
+    )[0]
+}
+
+fn project_interval<const N: usize>(
+    [lower, center, upper]: [f64; 3],
+    breaks: impl Iterator<Item = f64>,
+    value: impl Fn(f64) -> [f64; N],
+) -> [f64; N] {
+    let mut points: Vec<_> = breaks.filter(|&v| v > lower && v < upper).collect();
     if points.is_empty() {
         return value(center);
     }
     points.extend([lower, center, upper]);
     points.sort_by(f64::total_cmp);
     points.dedup();
-    points
-        .windows(2)
-        .map(|pair| {
-            let middle = pair[0].midpoint(pair[1]);
-            let radius = 0.5 * (pair[1] - pair[0]) / 3.0_f64.sqrt();
-            (pair[1] - pair[0]) / (upper - lower)
-                * value(middle - radius).midpoint(value(middle + radius))
-        })
-        .sum()
+    let mut result = [0.0; N];
+    for pair in points.windows(2) {
+        let middle = pair[0].midpoint(pair[1]);
+        let radius = (pair[1] - pair[0]) / (2.0 * 3.0_f64.sqrt());
+        let low = value(middle - radius);
+        let high = value(middle + radius);
+        for layer in 0..N {
+            result[layer] +=
+                (pair[1] - pair[0]) / (upper - lower) * low[layer].midpoint(high[layer]);
+        }
+    }
+    result
 }
 
 pub(super) struct SpatialGrid {
@@ -574,6 +575,25 @@ impl TimeGrid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn projection_integrates_split_polynomials_and_payoffs_but_samples_smooth_cells() {
+        let cell = [0.0, 0.5, 1.0];
+        assert_eq!(project_interval(cell, [].into_iter(), |x| [x * x]), [0.25]);
+        let moments = project_interval(cell, [0.25].into_iter(), |x| [x * x, x * x * x]);
+        assert!((moments[0] - 1.0 / 3.0).abs() < 1e-15);
+        assert!((moments[1] - 0.25).abs() < 1e-15);
+        let payoff = project_interval(cell, [1.0, 0.75, -1.0, 0.25, 0.25].into_iter(), |x| {
+            if x < 0.25 {
+                [2.0, 0.0]
+            } else if x < 0.75 {
+                [0.0, 3.0]
+            } else {
+                [4.0, 0.0]
+            }
+        });
+        assert_eq!(payoff, [1.5, 1.5]);
+    }
 
     #[test]
     fn time_grid_preserves_events_and_only_replaces_uniform_nodes_within_tolerance() {
