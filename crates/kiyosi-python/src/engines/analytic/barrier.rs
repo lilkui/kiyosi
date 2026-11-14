@@ -16,9 +16,9 @@ analytic_engine!(
     AnalyticBarrierEngine,
     PyRef<'_, BarrierOption>,
     with_contract,
-    |option, context| (option.0.rebate() == 0.0
-        || option.0.rebate_timing() == kiyosi::RebateTiming::AtExpiry)
-        && option.0.observation_times().is_none()
-        && matches!(context.model_parameters(), kiyosi::ModelParameters::BlackScholesMerton(model)
-            if model.volatility() > 0.0)
+    |option, context| super::short_barrier(
+        option.0.observation_times(),
+        option.0.rebate() == 0.0 || option.0.rebate_timing() == kiyosi::RebateTiming::AtExpiry,
+        context,
+    )
 );

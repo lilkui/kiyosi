@@ -67,3 +67,48 @@ pub(crate) mod double_touch;
 pub(crate) mod european;
 pub(crate) mod heston;
 pub(crate) mod range_accrual;
+
+fn short_barrier(
+    observations: Option<&[kiyosi::Timestamp]>,
+    closed_form: bool,
+    context: &kiyosi::PricingContext,
+) -> bool {
+    // Bound time-stencil scans; integration and deterministic paths need cancellation.
+    closed_form
+        && observations.is_none_or(|times| times.len() <= 1024)
+        && matches!(context.model_parameters(), kiyosi::ModelParameters::BlackScholesMerton(model)
+            if model.volatility() > 0.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_barrier_calls_bound_schedules_and_exclude_long_pricing_paths() -> kiyosi::Result<()> {
+        let start = kiyosi::Date::new(2025, 1, 1)?.start_of_day();
+        let context = kiyosi::PricingContext::new(
+            kiyosi::BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+            100.0,
+            start,
+        )?;
+        let times = (0..1025)
+            .map(|offset| start.add_micros(offset))
+            .collect::<kiyosi::Result<Vec<_>>>()?;
+        assert!(short_barrier(None, true, &context));
+        assert!(short_barrier(Some(&times[..1]), true, &context));
+        assert!(short_barrier(Some(&times[..1024]), true, &context));
+        assert!(!short_barrier(Some(&times), true, &context));
+        assert!(!short_barrier(None, false, &context));
+        assert!(!short_barrier(Some(&times[..1]), false, &context));
+        let deterministic = context.replace(kiyosi::PricingContextChanges {
+            model_parameters: Some(
+                kiyosi::BlackScholesMertonParameters::new(0.05, 0.02, 0.0)?.into(),
+            ),
+            ..Default::default()
+        })?;
+        assert!(!short_barrier(None, true, &deterministic));
+        assert!(!short_barrier(Some(&times[..1]), true, &deterministic));
+        Ok(())
+    }
+}
