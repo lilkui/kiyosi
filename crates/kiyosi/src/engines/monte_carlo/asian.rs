@@ -465,162 +465,97 @@ fn result(means: [f64; 3], request: GreeksRequest) -> Result<PricingResult> {
     Ok(result)
 }
 
-impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
-    fn price_with_seed(
-        &self,
-        option: &GeometricAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<(f64, Option<u64>)> {
-        context.bsm_parameters()?;
-        let (result, _) = self.native(&option.0, context, true, GreeksRequest::new([]), false)?;
-        Ok((result.price(), result.seed()))
-    }
-    fn greek_method(
-        &self,
-        option: &GeometricAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        <Self as PricingEngine<GeometricAveragePriceOption>>::validate_applicability(
-            self, context,
-        )?;
-        if context.valuation_time() != option.expiry_time() {
-            Self::require_geometric_flat_rates(context)?;
+macro_rules! asian_pricing {
+    ($option:ty, $geometric:literal) => {
+        impl PricingEngine<$option> for MonteCarloAsianEngine {
+            fn price_with_seed(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<(f64, Option<u64>)> {
+                context.bsm_parameters()?;
+                let (result, _) = self.native(
+                    &option.0,
+                    context,
+                    $geometric,
+                    GreeksRequest::new([]),
+                    false,
+                )?;
+                Ok((result.price(), result.seed()))
+            }
+            fn greek_method(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<crate::GreekMethod> {
+                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                if $geometric && context.valuation_time() != option.expiry_time() {
+                    Self::require_geometric_flat_rates(context)?;
+                }
+                Ok(crate::GreekMethod::for_valuation(
+                    option,
+                    context,
+                    if crate::engines::deterministic::enabled(context) {
+                        crate::GreekMethod::NativeWithSpotControl
+                    } else {
+                        crate::GreekMethod::Native
+                    },
+                ))
+            }
+
+            fn price_with_statistics(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<MonteCarloEstimate> {
+                context.bsm_parameters()?;
+                let (result, error) =
+                    self.native(&option.0, context, $geometric, GreeksRequest::new([]), true)?;
+                MonteCarloEstimate::from_sampling(
+                    result.price(),
+                    error,
+                    self.settings.sampling,
+                    result.seed(),
+                )
+            }
+            fn validate_solver_seed(&self) -> Result<()> {
+                self.settings.sampling.validate_solver_seed()
+            }
+
+            fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<$option> + '_>>> {
+                prepare_seeded_request!(self, self.settings.sampling)
+            }
+            fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
+                context.bsm_parameters()?;
+                Ok(self
+                    .native(
+                        &option.0,
+                        context,
+                        $geometric,
+                        GreeksRequest::new([]),
+                        false,
+                    )?
+                    .0
+                    .price())
+            }
+
+            fn price_with_greeks_with_settings(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                request: GreeksRequest,
+                settings: crate::NumericalShiftSettings,
+            ) -> Result<PricingResult> {
+                super::greeks(self, option, context, request, settings, || {
+                    self.native(&option.0, context, $geometric, request, false)
+                        .map(|result| result.0)
+                })
+            }
         }
-        Ok(crate::GreekMethod::for_valuation(
-            option,
-            context,
-            if crate::engines::deterministic::enabled(context) {
-                crate::GreekMethod::NativeWithSpotControl
-            } else {
-                crate::GreekMethod::Native
-            },
-        ))
-    }
-
-    fn price_with_statistics(
-        &self,
-        option: &GeometricAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate> {
-        context.bsm_parameters()?;
-        let (result, error) =
-            self.native(&option.0, context, true, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(
-            result.price(),
-            error,
-            self.settings.sampling,
-            result.seed(),
-        )
-    }
-    fn validate_solver_seed(&self) -> Result<()> {
-        self.settings.sampling.validate_solver_seed()
-    }
-
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<GeometricAveragePriceOption> + '_>>> {
-        prepare_seeded_request!(self, self.settings.sampling)
-    }
-    fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
-        Ok(self
-            .native(&option.0, context, true, GreeksRequest::new([]), false)?
-            .0
-            .price())
-    }
-
-    fn price_with_greeks_with_settings(
-        &self,
-        option: &GeometricAveragePriceOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        super::greeks(self, option, context, request, settings, || {
-            self.native(&option.0, context, true, request, false)
-                .map(|result| result.0)
-        })
-    }
+    };
 }
-
-impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
-    fn price_with_seed(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<(f64, Option<u64>)> {
-        context.bsm_parameters()?;
-        let (result, _) = self.native(&option.0, context, false, GreeksRequest::new([]), false)?;
-        Ok((result.price(), result.seed()))
-    }
-    fn greek_method(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        <Self as PricingEngine<ArithmeticAveragePriceOption>>::validate_applicability(
-            self, context,
-        )?;
-        Ok(crate::GreekMethod::for_valuation(
-            option,
-            context,
-            if crate::engines::deterministic::enabled(context) {
-                crate::GreekMethod::NativeWithSpotControl
-            } else {
-                crate::GreekMethod::Native
-            },
-        ))
-    }
-
-    fn price_with_statistics(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate> {
-        context.bsm_parameters()?;
-        let (result, error) =
-            self.native(&option.0, context, false, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(
-            result.price(),
-            error,
-            self.settings.sampling,
-            result.seed(),
-        )
-    }
-    fn validate_solver_seed(&self) -> Result<()> {
-        self.settings.sampling.validate_solver_seed()
-    }
-
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<ArithmeticAveragePriceOption> + '_>>> {
-        prepare_seeded_request!(self, self.settings.sampling)
-    }
-    fn price(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<f64> {
-        context.bsm_parameters()?;
-        Ok(self
-            .native(&option.0, context, false, GreeksRequest::new([]), false)?
-            .0
-            .price())
-    }
-
-    fn price_with_greeks_with_settings(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        super::greeks(self, option, context, request, settings, || {
-            self.native(&option.0, context, false, request, false)
-                .map(|result| result.0)
-        })
-    }
-}
+asian_pricing!(GeometricAveragePriceOption, true);
+asian_pricing!(ArithmeticAveragePriceOption, false);
 
 fn log_average_forward(
     model: &crate::BlackScholesMertonParameters,
