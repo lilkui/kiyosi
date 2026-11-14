@@ -1,7 +1,6 @@
 use crate::conversions::{integer_index, real};
 use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
-use crate::market::PricingContext;
 use pyo3::prelude::*;
 
 fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
@@ -119,19 +118,4 @@ engine_methods!(
     }
 );
 
-impl AnalyticHestonEuropeanEngine {
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "retain the Python borrow during core evaluation"
-    )]
-    pub(crate) fn evaluate<R: Send>(
-        &self,
-        py: Python<'_>,
-        instrument: PyRef<'_, EuropeanOption>,
-        context: &PricingContext,
-        request: impl crate::engines::PricingRequest<R>,
-    ) -> PyResult<R> {
-        let option = &instrument.0;
-        crate::engines::evaluate(py, &self.0, option, context, request)
-    }
-}
+engine_methods!(@evaluate AnalyticHestonEuropeanEngine, PyRef<'_, EuropeanOption>, with_contract);

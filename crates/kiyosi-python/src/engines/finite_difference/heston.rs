@@ -1,7 +1,6 @@
 use crate::conversions::{integer, real};
 use crate::engines::binomial;
 use crate::error::domain;
-use crate::market::PricingContext;
 use pyo3::prelude::*;
 
 /// Finite-difference prices for European and American options under Heston.
@@ -145,18 +144,4 @@ engine_methods!(
     }
 );
 
-impl FiniteDifferenceHestonVanillaEngine {
-    pub(crate) fn evaluate<R: Send>(
-        &self,
-        py: Python<'_>,
-        instrument: binomial::VanillaInstrument<'_>,
-        context: &PricingContext,
-        request: impl crate::engines::PricingRequest<R>,
-    ) -> PyResult<R> {
-        binomial::with_vanilla!(
-            instrument,
-            option,
-            crate::engines::evaluate(py, &self.0, option, context, request)
-        )
-    }
-}
+engine_methods!(@evaluate FiniteDifferenceHestonVanillaEngine, binomial::VanillaInstrument<'_>, binomial::with_vanilla);

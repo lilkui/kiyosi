@@ -2,6 +2,19 @@ use pyo3::prelude::*;
 
 // Expand the complete method block before PyO3 parses the implementation.
 macro_rules! engine_methods {
+    (@evaluate $name:ident, $instrument:ty, $with:path) => {
+        impl $name {
+            pub(crate) fn evaluate<R: Send>(
+                &self,
+                py: pyo3::Python<'_>,
+                instrument: $instrument,
+                context: &$crate::market::PricingContext,
+                request: impl $crate::engines::PricingRequest<R>,
+            ) -> pyo3::PyResult<R> {
+                $with!(&instrument, option, $crate::engines::evaluate(py, &self.0, option, context, request))
+            }
+        }
+    };
     (@price $name:ident, $instrument:ty, $greeks_doc:tt, [$(#[$price_extra:meta])*], {$($method:item)*}) => {
         engine_methods!(
             /// Return the price.

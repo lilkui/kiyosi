@@ -8,7 +8,6 @@ use crate::instruments::binary_barrier;
 use crate::instruments::digital;
 use crate::instruments::double_barrier;
 use crate::instruments::double_touch;
-use crate::market::PricingContext;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -195,17 +194,7 @@ macro_rules! fd_engine {
                 }
             }
         );
-        impl $name {
-            pub(crate) fn evaluate<R: Send>(
-                &self,
-                py: Python<'_>,
-                instrument: $instrument,
-                context: &PricingContext,
-                request: impl crate::engines::PricingRequest<R>,
-            ) -> PyResult<R> {
-                $with!(&instrument, option, crate::engines::evaluate(py, &self.0, option, context, request))
-            }
-        }
+        engine_methods!(@evaluate $name, $instrument, $with);
     };
 }
 

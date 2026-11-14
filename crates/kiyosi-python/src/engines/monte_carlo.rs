@@ -150,17 +150,7 @@ macro_rules! sampling_settings {
                 ///
             ]
         );
-        impl $engine {
-            pub(crate) fn evaluate<R: Send>(
-                &self,
-                py: Python<'_>,
-                instrument: $instrument,
-                context: &PricingContext,
-                request: impl crate::engines::PricingRequest<R>,
-            ) -> PyResult<R> {
-                $with!(&instrument, option, crate::engines::evaluate(py, &self.0, option, context, request))
-            }
-        }
+        engine_methods!(@evaluate $engine, $instrument, $with);
     };
     ($engine:ident, $instrument:ty, [$($step:ident)?], [$(#[$greeks_doc:meta])*]) => {
         engine_methods!(@price $engine, $instrument, [$(#[$greeks_doc])*], [
@@ -515,21 +505,7 @@ sampling_settings!(
     with_contract
 );
 
-impl MonteCarloVanillaEngine {
-    pub(crate) fn evaluate<R: Send>(
-        &self,
-        py: Python<'_>,
-        instrument: binomial::VanillaInstrument<'_>,
-        context: &PricingContext,
-        request: impl crate::engines::PricingRequest<R>,
-    ) -> PyResult<R> {
-        binomial::with_vanilla!(
-            instrument,
-            option,
-            crate::engines::evaluate(py, &self.0, option, context, request)
-        )
-    }
-}
+engine_methods!(@evaluate MonteCarloVanillaEngine, binomial::VanillaInstrument<'_>, binomial::with_vanilla);
 
 impl MonteCarloDigitalEngine {
     #[expect(
@@ -548,21 +524,7 @@ impl MonteCarloDigitalEngine {
     }
 }
 
-impl MonteCarloAsianEngine {
-    pub(crate) fn evaluate<R: Send>(
-        &self,
-        py: Python<'_>,
-        instrument: asian::AsianInstrument<'_>,
-        context: &PricingContext,
-        request: impl crate::engines::PricingRequest<R>,
-    ) -> PyResult<R> {
-        asian::with_asian!(
-            instrument,
-            option,
-            crate::engines::evaluate(py, &self.0, option, context, request)
-        )
-    }
-}
+engine_methods!(@evaluate MonteCarloAsianEngine, asian::AsianInstrument<'_>, asian::with_asian);
 
 #[pyfunction]
 #[pyo3(signature = (*, price, standard_error, uncertainty_status, seed=None))]
