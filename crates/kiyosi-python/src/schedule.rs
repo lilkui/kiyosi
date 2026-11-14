@@ -137,14 +137,10 @@ impl ObservationSchedule {
             .ok_or_else(|| PyIndexError::new_err("schedule index out of range"))?;
         python_timestamp(py, *timestamp)
     }
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "PyO3 extracts an owned PyRef guard"
-    )]
-    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, PyAny>> {
-        // SAFETY: slf is live under the GIL and has a sequence slot from __getitem__.
-        // PySeqIter_New returns a new reference (or null) and retains the schedule.
-        unsafe { Bound::from_owned_ptr_or_err(slf.py(), pyo3::ffi::PySeqIter_New(slf.as_ptr())) }
+    fn __iter__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+        let builtins = slf.py().import("builtins")?;
+        let indices = builtins.call_method1("range", (slf.borrow().0.len(),))?;
+        builtins.call_method1("map", (slf.getattr("__getitem__")?, indices))
     }
 }
 

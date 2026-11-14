@@ -378,22 +378,26 @@ def test_schedule_iteration_indexing_and_owning_copies():
             next(first)
 
 
-def test_schedule_reverse_iteration_preserves_order_and_owns_timestamps(subtests):
+@pytest.mark.parametrize("iterate,step", ((iter, 1), (reversed, -1)))
+def test_schedule_iteration_preserves_order_and_owns_timestamps(
+    iterate, step, subtests
+):
     start = datetime(2025, 1, 2, 15, 0, 0, 123456)
     end = datetime(2025, 1, 3, 15)
     for times in ((), (start,), (start, end)):
         with subtests.test(times=times):
             schedule = ObservationSchedule(times=times, start_time=start, end_time=end)
-            reverse = reversed(schedule)
-            assert iter(reverse) is reverse
+            iterator = iterate(schedule)
+            assert iter(iterator) is iterator
             assert schedule.times == times
             del schedule
-            assert list(reverse) == list(times)[::-1]
+            assert list(iterator) == list(times)[::step]
             with pytest.raises(StopIteration):
-                next(reverse)
+                next(iterator)
 
 
-def test_schedule_reverse_iteration_uses_bounded_memory():
+@pytest.mark.parametrize("iterate,first_offset", ((iter, 0), (reversed, 49_999)))
+def test_schedule_iteration_uses_bounded_memory(iterate, first_offset):
     import tracemalloc
 
     start = datetime(2025, 1, 1)
@@ -406,8 +410,8 @@ def test_schedule_reverse_iteration_uses_bounded_memory():
     )
     tracemalloc.start()
     try:
-        reverse = reversed(schedule)
-        assert next(reverse) == end
+        iterator = iterate(schedule)
+        assert next(iterator) == start + timedelta(minutes=first_offset)
         _, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()
