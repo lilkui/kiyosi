@@ -1,0 +1,431 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "mc-american-put",
+      "value": 6.660684545893456,
+      "uncertainty": 5e-05,
+      "provenance": {
+        "method": "Independent Kiyosi and QuantLib finite differences; separate time/space/domain refinements; first-order temporal extrapolation",
+        "source": "calibration/american.json",
+        "evidence": {
+          "scenario": {
+            "spot": 100,
+            "strike": 100,
+            "rate": 0.05,
+            "dividend": 0.02,
+            "volatility": 0.2,
+            "maturity_years": 1,
+            "option": "put",
+            "exercise": "american"
+          },
+          "quantlib_version": "1.44",
+          "quantlib_build_command": [
+            "c++",
+            "-std=c++17",
+            "-O3",
+            "-DNDEBUG",
+            "-I/usr/local/include",
+            "/tmp/kiyosi-bench-04/benchmarks/quantlib/calibration/american_reference.cpp",
+            "-o",
+            "/tmp/kiyosi-bench-04/benchmarks/quantlib/build/american_reference",
+            "-L/usr/local/lib",
+            "-lQuantLib"
+          ],
+          "quantlib_source": "benchmarks/quantlib/calibration/american_reference.cpp",
+          "kiyosi_source": "crates/kiyosi/examples/quantlib_bench_references.rs",
+          "quantlib_controls": "CrankNicolson; dampingSteps=2; automatic mesher domain (not publicly adjustable)",
+          "kiyosi_controls": "Rannacher; nonuniform sinh grid; domain refinements scale interval count with upper boundary",
+          "quantlib_fd": [
+            {
+              "space": 800,
+              "time": 6400,
+              "price": 6.6605852558508225
+            },
+            {
+              "space": 1600,
+              "time": 6400,
+              "price": 6.660609862343994
+            },
+            {
+              "space": 3200,
+              "time": 6400,
+              "price": 6.660615958552998
+            },
+            {
+              "space": 3200,
+              "time": 12800,
+              "price": 6.660650520988351
+            },
+            {
+              "space": 3200,
+              "time": 25600,
+              "price": 6.660667533440903
+            }
+          ],
+          "kiyosi_fd": [
+            {
+              "space": 1600,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.660567324950622
+            },
+            {
+              "space": 3200,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.660612043576917
+            },
+            {
+              "space": 6400,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.66061689212674
+            },
+            {
+              "space": 6400,
+              "time": 12800,
+              "upper": 400,
+              "price": 6.6606495941339645
+            },
+            {
+              "space": 6400,
+              "time": 25600,
+              "upper": 400,
+              "price": 6.66066584176103
+            },
+            {
+              "space": 8000,
+              "time": 25600,
+              "upper": 500,
+              "price": 6.660667018354879
+            },
+            {
+              "space": 9600,
+              "time": 25600,
+              "upper": 600,
+              "price": 6.660668507129701
+            }
+          ],
+          "quantlib_first_order_time_extrapolation": 6.660684545893456,
+          "kiyosi_first_order_time_extrapolation": 6.660682089388095,
+          "independent_extrapolation_difference": 2.4565053609038046e-06,
+          "quantlib_last_space_delta": 6.096209003381148e-06,
+          "kiyosi_last_space_delta": 4.848549822966675e-06,
+          "kiyosi_domain_span": 2.6653686715505387e-06,
+          "uncertainty_policy": "5e-5 conservative numerical uncertainty; covers independent extrapolation difference, last temporal changes, spatial changes and domain span; not a rigorous error bound"
+        },
+        "lsm_refinement": {
+          "source": "calibration/american_monte_carlo.json",
+          "experiments": [
+            {
+              "backend": "kiyosi",
+              "dimension": "baseline",
+              "profile": {
+                "path_count": 65536,
+                "step_count": 50,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial"
+              },
+              "timing_seed_accuracy": {
+                "price": 6.657499766030953,
+                "absolute_error": 0.0031847798625026513,
+                "error_including_reference_uncertainty": 0.0032347798625026515,
+                "passed": true
+              },
+              "metrics": {
+                "rmse": 0.040521882998067485,
+                "signed_bias": -0.024145864916154974,
+                "sample_stddev": 0.03306299300168604,
+                "mean_standard_error": 0.00584476663945389,
+                "max_absolute_error": 0.07951921954398511,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            },
+            {
+              "backend": "kiyosi",
+              "dimension": "pricing_paths",
+              "profile": {
+                "path_count": 131072,
+                "step_count": 50,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial"
+              },
+              "timing_seed_accuracy": {
+                "price": 6.646926123209467,
+                "absolute_error": 0.013758422683988414,
+                "error_including_reference_uncertainty": 0.013808422683988414,
+                "passed": true
+              },
+              "metrics": {
+                "rmse": 0.033226243098431876,
+                "signed_bias": -0.026693889841819113,
+                "sample_stddev": 0.02010089326980382,
+                "mean_standard_error": 0.003553369484746329,
+                "max_absolute_error": 0.06745757441389166,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            },
+            {
+              "backend": "kiyosi",
+              "dimension": "coarser_exercise",
+              "profile": {
+                "path_count": 131072,
+                "step_count": 25,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial"
+              },
+              "timing_seed_accuracy": {
+                "price": 6.615327985924598,
+                "absolute_error": 0.0453565599688579,
+                "error_including_reference_uncertainty": 0.0454065599688579,
+                "passed": true
+              },
+              "difference_from_pricing_paths": {
+                "mean": -0.0021133183015363544,
+                "mean_standard_error": 0.003731399205757742,
+                "maximum_absolute": 0.05424513341921777
+              },
+              "metrics": {
+                "rmse": 0.03738435026089429,
+                "signed_bias": -0.028807208143355467,
+                "sample_stddev": 0.02420843688526783,
+                "mean_standard_error": 0.004279487470874857,
+                "max_absolute_error": 0.09399677639819437,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            },
+            {
+              "backend": "kiyosi",
+              "dimension": "finer_exercise",
+              "profile": {
+                "path_count": 131072,
+                "step_count": 100,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial"
+              },
+              "timing_seed_accuracy": {
+                "price": 6.65888225651745,
+                "absolute_error": 0.0018022893760054615,
+                "error_including_reference_uncertainty": 0.0018522893760054614,
+                "passed": true
+              },
+              "difference_from_pricing_paths": {
+                "mean": -0.0014072147926617873,
+                "mean_standard_error": 0.0033953531640731937,
+                "maximum_absolute": 0.03961048763142827
+              },
+              "metrics": {
+                "rmse": 0.03422476326152478,
+                "signed_bias": -0.0281011046344809,
+                "sample_stddev": 0.01984877897937944,
+                "mean_standard_error": 0.0035088015536480503,
+                "max_absolute_error": 0.07291587187570858,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            },
+            {
+              "backend": "quantlib",
+              "dimension": "baseline",
+              "profile": {
+                "path_count": 65536,
+                "step_count": 50,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial",
+                "calibration_path_count": 32768,
+                "calibration_seed": 11729
+              },
+              "timing_seed_accuracy": {
+                "price": 6.604884299594973,
+                "absolute_error": 0.05580024629848257,
+                "error_including_reference_uncertainty": 0.05585024629848257,
+                "passed": true
+              },
+              "metrics": {
+                "rmse": 0.04016695689342588,
+                "signed_bias": -0.025447931419399744,
+                "sample_stddev": 0.03157438263471212,
+                "mean_standard_error": 0.005581615018195927,
+                "max_absolute_error": 0.09566212294235577,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            },
+            {
+              "backend": "quantlib",
+              "dimension": "pricing_paths",
+              "profile": {
+                "path_count": 131072,
+                "step_count": 50,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial",
+                "calibration_path_count": 32768,
+                "calibration_seed": 11729
+              },
+              "timing_seed_accuracy": {
+                "price": 6.5993553171058705,
+                "absolute_error": 0.061329228787585066,
+                "error_including_reference_uncertainty": 0.06137922878758507,
+                "passed": true
+              },
+              "metrics": {
+                "rmse": 0.031522549848965964,
+                "signed_bias": -0.023908009487944026,
+                "sample_stddev": 0.020873276171248505,
+                "mean_standard_error": 0.003689908781567348,
+                "max_absolute_error": 0.05991254488468556,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            },
+            {
+              "backend": "quantlib",
+              "dimension": "coarser_exercise",
+              "profile": {
+                "path_count": 131072,
+                "step_count": 25,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial",
+                "calibration_path_count": 32768,
+                "calibration_seed": 11729
+              },
+              "timing_seed_accuracy": {
+                "price": 6.632090255397902,
+                "absolute_error": 0.028594290495553842,
+                "error_including_reference_uncertainty": 0.028644290495553844,
+                "passed": true
+              },
+              "difference_from_pricing_paths": {
+                "mean": -0.00982286014062464,
+                "mean_standard_error": 0.0029931836601680933,
+                "maximum_absolute": 0.04862026198411851
+              },
+              "metrics": {
+                "rmse": 0.0399595502469222,
+                "signed_bias": -0.033730869628568666,
+                "sample_stddev": 0.02176695548315688,
+                "mean_standard_error": 0.003847890456981483,
+                "max_absolute_error": 0.08664490410716752,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            },
+            {
+              "backend": "quantlib",
+              "dimension": "finer_exercise",
+              "profile": {
+                "path_count": 131072,
+                "step_count": 100,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial",
+                "calibration_path_count": 32768,
+                "calibration_seed": 11729
+              },
+              "timing_seed_accuracy": {
+                "price": 6.601469103506071,
+                "absolute_error": 0.05921544238738452,
+                "error_including_reference_uncertainty": 0.05926544238738452,
+                "passed": true
+              },
+              "difference_from_pricing_paths": {
+                "mean": 0.0007455524175453421,
+                "mean_standard_error": 0.002966980543405374,
+                "maximum_absolute": 0.04337580308413003
+              },
+              "metrics": {
+                "rmse": 0.030294412013203896,
+                "signed_bias": -0.023162457070398684,
+                "sample_stddev": 0.01983810557260632,
+                "mean_standard_error": 0.003506914744071142,
+                "max_absolute_error": 0.07227348987026794,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            },
+            {
+              "backend": "quantlib",
+              "dimension": "calibration_paths",
+              "profile": {
+                "path_count": 131072,
+                "step_count": 50,
+                "seed": 1729,
+                "workers": 1,
+                "sampling": "pseudo_random",
+                "antithetic": "false",
+                "control_variate": "false",
+                "basis": "quadratic_monomial",
+                "calibration_path_count": 65536,
+                "calibration_seed": 11729
+              },
+              "timing_seed_accuracy": {
+                "price": 6.595101344224111,
+                "absolute_error": 0.0655832016693445,
+                "error_including_reference_uncertainty": 0.0656332016693445,
+                "passed": true
+              },
+              "difference_from_pricing_paths": {
+                "mean": 4.5599610594082574e-05,
+                "mean_standard_error": 0.0007163806261613923,
+                "maximum_absolute": 0.011655637865570334
+              },
+              "metrics": {
+                "rmse": 0.03121896840788505,
+                "signed_bias": -0.023862409877349944,
+                "sample_stddev": 0.02045191075980042,
+                "mean_standard_error": 0.003615421196619248,
+                "max_absolute_error": 0.06053343565953373,
+                "accuracy_passed": true,
+                "precision_passed": true,
+                "passed": true
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

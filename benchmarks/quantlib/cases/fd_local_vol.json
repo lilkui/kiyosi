@@ -1,0 +1,590 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "fd-local-vol-european-call",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceVanillaEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesVanillaEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "vanilla",
+        "option": "call",
+        "strike": 100,
+        "exercise": "european",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-american-put",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceVanillaEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesVanillaEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "vanilla",
+        "option": "put",
+        "strike": 100,
+        "exercise": "american",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-cash-digital-call",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceDigitalEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesVanillaEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "digital",
+        "option": "call",
+        "strike": 100,
+        "payout": "cash",
+        "cash": 10,
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-asset-digital-put",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceDigitalEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesVanillaEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "digital",
+        "option": "put",
+        "strike": 105,
+        "payout": "asset",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-down-out-call",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceBarrierEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "barrier",
+        "option": "call",
+        "strike": 100,
+        "barrier": 80,
+        "barrier_type": "down_out",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-terminal-down-out-cash",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "binary_barrier",
+        "option": "call",
+        "strike": 100,
+        "barrier": 80,
+        "barrier_type": "down_out",
+        "payout": "cash",
+        "cash": 10,
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-terminal-up-in-asset",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "binary_barrier",
+        "option": "put",
+        "strike": 100,
+        "barrier": 120,
+        "barrier_type": "up_in",
+        "payout": "asset",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-down-no-touch-cash-expiry",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "touch",
+        "barrier": 80,
+        "barrier_type": "down_out",
+        "payout": "cash",
+        "cash": 10,
+        "settlement": "at_expiry",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-up-no-touch-asset-expiry",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "touch",
+        "barrier": 120,
+        "barrier_type": "up_out",
+        "payout": "asset",
+        "settlement": "at_expiry",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 16000,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-up-one-touch-cash-hit",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "touch",
+        "barrier": 120,
+        "barrier_type": "up_in",
+        "payout": "cash",
+        "cash": 10,
+        "settlement": "at_hit",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 1600,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    },
+    {
+      "id": "fd-local-vol-down-one-touch-asset-hit",
+      "family": "fd_local_vol",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "local_volatility",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "touch",
+        "barrier": 80,
+        "barrier_type": "down_in",
+        "payout": "asset",
+        "settlement": "at_hit",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic",
+          "mesher_vol": 0.5
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
+        "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",
+        "quantlib_local_vol": "external FixedLocalVolSurface; localVol=true; BlackConstantVol is mesher-only"
+      }
+    }
+  ]
+}

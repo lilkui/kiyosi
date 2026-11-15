@@ -1,0 +1,452 @@
+{
+  "schema_version": 1,
+  "quantlib_version": "1.44",
+  "records": [
+    {
+      "id": "heston-analytic-call",
+      "backend": "kiyosi",
+      "variant": "committed",
+      "profile": {
+        "absolute_tolerance": 1e-09,
+        "relative_tolerance": 1e-09,
+        "max_evaluations": 10000
+      },
+      "accuracy": {
+        "price": 9.011278407541715,
+        "absolute_error": 2.3092638912203256e-14,
+        "error_including_reference_uncertainty": 1.0023092638912203e-11,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-analytic-call",
+      "backend": "kiyosi",
+      "variant": "tight_integration",
+      "profile": {
+        "absolute_tolerance": 1e-11,
+        "relative_tolerance": 1e-11,
+        "max_evaluations": 10000
+      },
+      "accuracy": {
+        "price": 9.011278407541717,
+        "absolute_error": 2.1316282072803006e-14,
+        "error_including_reference_uncertainty": 1.0021316282072802e-11,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-analytic-call",
+      "backend": "quantlib",
+      "variant": "committed",
+      "profile": {
+        "relative_tolerance": 1e-09,
+        "max_evaluations": 10000
+      },
+      "accuracy": {
+        "price": 9.011278407541758,
+        "absolute_error": 1.9539925233402755e-14,
+        "error_including_reference_uncertainty": 1.0019539925233402e-11,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-analytic-call",
+      "backend": "quantlib",
+      "variant": "tight_integration",
+      "profile": {
+        "relative_tolerance": 1e-11,
+        "max_evaluations": 10000
+      },
+      "accuracy": {
+        "price": 9.01127840754174,
+        "absolute_error": 1.7763568394002505e-15,
+        "error_including_reference_uncertainty": 1.00017763568394e-11,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "kiyosi",
+      "variant": "committed",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 50,
+        "time_steps": 200,
+        "asset_upper": 400,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 9.010789535755631,
+        "absolute_error": 0.0004888717861071257,
+        "error_including_reference_uncertainty": 0.0004888717961071256,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "kiyosi",
+      "variant": "asset_refinement",
+      "profile": {
+        "asset_steps": 400,
+        "variance_steps": 50,
+        "time_steps": 200,
+        "asset_upper": 400,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 9.011168773594816,
+        "absolute_error": 0.0001096339469217611,
+        "error_including_reference_uncertainty": 0.0001096339569217611,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "kiyosi",
+      "variant": "variance_refinement",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 100,
+        "time_steps": 200,
+        "asset_upper": 400,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 9.010798675096076,
+        "absolute_error": 0.00047973244566179574,
+        "error_including_reference_uncertainty": 0.00047973245566179575,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "kiyosi",
+      "variant": "time_refinement",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 50,
+        "time_steps": 400,
+        "asset_upper": 400,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 9.010785678770603,
+        "absolute_error": 0.0004927287711353756,
+        "error_including_reference_uncertainty": 0.0004927287811353756,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "kiyosi",
+      "variant": "asset_domain",
+      "profile": {
+        "asset_steps": 400,
+        "variance_steps": 50,
+        "time_steps": 200,
+        "asset_upper": 800,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 9.011136835510964,
+        "absolute_error": 0.0001415720307740287,
+        "error_including_reference_uncertainty": 0.00014157204077402868,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "kiyosi",
+      "variant": "variance_domain",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 100,
+        "time_steps": 200,
+        "asset_upper": 400,
+        "variance_upper": 1.2
+      },
+      "accuracy": {
+        "price": 9.01079360385272,
+        "absolute_error": 0.00048480368901770987,
+        "error_including_reference_uncertainty": 0.0004848036990177099,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "quantlib",
+      "variant": "committed",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 100,
+        "time_steps": 200,
+        "damping_steps": 0,
+        "scheme": "hundsdorfer"
+      },
+      "accuracy": {
+        "price": 9.012182974121952,
+        "absolute_error": 0.0009045665802140945,
+        "error_including_reference_uncertainty": 0.0009045665902140945,
+        "passed": true
+      },
+      "automatic_mesh": {
+        "price": 9.012182974121952,
+        "asset_domain": [
+          24.29755175524076,
+          399.4005418011683
+        ],
+        "variance_domain": [
+          0,
+          0.2430081440062407
+        ],
+        "quantlib_version": "1.44"
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "quantlib",
+      "variant": "asset_refinement",
+      "profile": {
+        "asset_steps": 400,
+        "variance_steps": 100,
+        "time_steps": 200,
+        "damping_steps": 0,
+        "scheme": "hundsdorfer"
+      },
+      "accuracy": {
+        "price": 9.011355185769386,
+        "absolute_error": 7.677822764762254e-05,
+        "error_including_reference_uncertainty": 7.677823764762254e-05,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "quantlib",
+      "variant": "variance_refinement",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 200,
+        "time_steps": 200,
+        "damping_steps": 0,
+        "scheme": "hundsdorfer"
+      },
+      "accuracy": {
+        "price": 9.012342685991458,
+        "absolute_error": 0.00106427844971968,
+        "error_including_reference_uncertainty": 0.00106427845971968,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "backend": "quantlib",
+      "variant": "time_refinement",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 100,
+        "time_steps": 400,
+        "damping_steps": 0,
+        "scheme": "hundsdorfer"
+      },
+      "accuracy": {
+        "price": 9.012151621621086,
+        "absolute_error": 0.0008732140793483723,
+        "error_including_reference_uncertainty": 0.0008732140893483722,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "kiyosi",
+      "variant": "committed",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 50,
+        "time_steps": 200,
+        "asset_upper": 400,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 6.449434828320507,
+        "absolute_error": 0.0011201785536210096,
+        "error_including_reference_uncertainty": 0.0012484959268572737,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "kiyosi",
+      "variant": "asset_refinement",
+      "profile": {
+        "asset_steps": 400,
+        "variance_steps": 50,
+        "time_steps": 200,
+        "asset_upper": 400,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 6.4498122542409675,
+        "absolute_error": 0.0007427526331609258,
+        "error_including_reference_uncertainty": 0.0008710700063971899,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "kiyosi",
+      "variant": "variance_refinement",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 100,
+        "time_steps": 200,
+        "asset_upper": 400,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 6.45006629672515,
+        "absolute_error": 0.000488710148978555,
+        "error_including_reference_uncertainty": 0.0006170275222148192,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "kiyosi",
+      "variant": "time_refinement",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 50,
+        "time_steps": 400,
+        "asset_upper": 400,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 6.449305668331862,
+        "absolute_error": 0.0012493385422667203,
+        "error_including_reference_uncertainty": 0.0013776559155029844,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "kiyosi",
+      "variant": "asset_domain",
+      "profile": {
+        "asset_steps": 400,
+        "variance_steps": 50,
+        "time_steps": 200,
+        "asset_upper": 800,
+        "variance_upper": 0.6
+      },
+      "accuracy": {
+        "price": 6.449781431310426,
+        "absolute_error": 0.0007735755637021668,
+        "error_including_reference_uncertainty": 0.000901892936938431,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "kiyosi",
+      "variant": "variance_domain",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 100,
+        "time_steps": 200,
+        "asset_upper": 400,
+        "variance_upper": 1.2
+      },
+      "accuracy": {
+        "price": 6.450009326145388,
+        "absolute_error": 0.0005456807287407273,
+        "error_including_reference_uncertainty": 0.0006739981019769914,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "quantlib",
+      "variant": "committed",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 100,
+        "time_steps": 200,
+        "damping_steps": 0,
+        "scheme": "hundsdorfer"
+      },
+      "accuracy": {
+        "price": 6.447012441351575,
+        "absolute_error": 0.003542565522553609,
+        "error_including_reference_uncertainty": 0.003670882895789873,
+        "passed": true
+      },
+      "automatic_mesh": {
+        "price": 6.447012441351575,
+        "asset_domain": [
+          24.29755175524076,
+          399.4005418011683
+        ],
+        "variance_domain": [
+          0,
+          0.2430081440062407
+        ],
+        "quantlib_version": "1.44"
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "quantlib",
+      "variant": "asset_refinement",
+      "profile": {
+        "asset_steps": 400,
+        "variance_steps": 100,
+        "time_steps": 200,
+        "damping_steps": 0,
+        "scheme": "hundsdorfer"
+      },
+      "accuracy": {
+        "price": 6.4475871462577325,
+        "absolute_error": 0.0029678606163958676,
+        "error_including_reference_uncertainty": 0.0030961779896321318,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "quantlib",
+      "variant": "variance_refinement",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 200,
+        "time_steps": 200,
+        "damping_steps": 0,
+        "scheme": "hundsdorfer"
+      },
+      "accuracy": {
+        "price": 6.447370720306085,
+        "absolute_error": 0.0031842865680431487,
+        "error_including_reference_uncertainty": 0.003312603941279413,
+        "passed": true
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "backend": "quantlib",
+      "variant": "time_refinement",
+      "profile": {
+        "asset_steps": 200,
+        "variance_steps": 100,
+        "time_steps": 400,
+        "damping_steps": 0,
+        "scheme": "hundsdorfer"
+      },
+      "accuracy": {
+        "price": 6.448045505746166,
+        "absolute_error": 0.0025095011279621104,
+        "error_including_reference_uncertainty": 0.0026378185011983746,
+        "passed": true
+      }
+    }
+  ]
+}

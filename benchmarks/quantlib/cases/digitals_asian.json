@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "digital-bsm-cash-call",
+      "family": "digital_bsm",
+      "engine": "AnalyticDigitalEngine",
+      "model": "bsm",
+      "counterpart": "AnalyticEuropeanEngine",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "payout": "cash",
+        "cash": 10
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "closed form; no numerical controls",
+        "averaging": "terminal European binary",
+        "quantlib_extra_work": "native engine may compute Greeks; retained in timing"
+      }
+    },
+    {
+      "id": "digital-bsm-asset-put",
+      "family": "digital_bsm",
+      "engine": "AnalyticDigitalEngine",
+      "model": "bsm",
+      "counterpart": "AnalyticEuropeanEngine",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 110,
+        "strike": 105,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "payout": "asset"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "closed form; no numerical controls",
+        "averaging": "terminal European binary",
+        "quantlib_extra_work": "native engine may compute Greeks; retained in timing"
+      }
+    },
+    {
+      "id": "geometric-asian-bsm-call",
+      "family": "geometric_asian_bsm",
+      "engine": "AnalyticGeometricAveragePriceEngine",
+      "model": "bsm",
+      "counterpart": "AnalyticContinuousGeometricAveragePriceAsianEngine",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "averaging_start": "2025-01-01"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "closed form; no numerical controls",
+        "averaging": "continuous, inception to expiry; no history",
+        "quantlib_extra_work": "native engine may compute Greeks; retained in timing"
+      }
+    },
+    {
+      "id": "geometric-asian-bsm-put",
+      "family": "geometric_asian_bsm",
+      "engine": "AnalyticGeometricAveragePriceEngine",
+      "model": "bsm",
+      "counterpart": "AnalyticContinuousGeometricAveragePriceAsianEngine",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 110,
+        "strike": 105,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "averaging_start": "2025-01-01"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "closed form; no numerical controls",
+        "averaging": "continuous, inception to expiry; no history",
+        "quantlib_extra_work": "native engine may compute Greeks; retained in timing"
+      }
+    },
+    {
+      "id": "arithmetic-asian-bsm-call",
+      "family": "arithmetic_asian_bsm",
+      "engine": "TurnbullWakemanArithmeticAveragePriceEngine",
+      "model": "bsm",
+      "counterpart": "ContinuousArithmeticAsianLevyEngine",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "averaging_start": "2025-01-01"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "closed form; no numerical controls",
+        "averaging": "continuous, inception to expiry; no history",
+        "quantlib_extra_work": "native engine may compute Greeks; retained in timing"
+      }
+    },
+    {
+      "id": "arithmetic-asian-bsm-put",
+      "family": "arithmetic_asian_bsm",
+      "engine": "TurnbullWakemanArithmeticAveragePriceEngine",
+      "model": "bsm",
+      "counterpart": "ContinuousArithmeticAsianLevyEngine",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 110,
+        "strike": 105,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "averaging_start": "2025-01-01"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "closed form; no numerical controls",
+        "averaging": "continuous, inception to expiry; no history",
+        "quantlib_extra_work": "native engine may compute Greeks; retained in timing"
+      }
+    }
+  ]
+}

@@ -1,0 +1,359 @@
+{
+  "schema_version": 1,
+  "versions": {
+    "kiyosi": {
+      "library": "kiyosi",
+      "version": "0.19.0",
+      "families": [
+        "european_bsm",
+        "single_barrier_bsm",
+        "binary_barrier_bsm",
+        "touch_bsm",
+        "double_barrier_bsm",
+        "double_touch_bsm"
+      ]
+    },
+    "quantlib": {
+      "library": "QuantLib",
+      "version": "1.44",
+      "runtime_version": "unavailable: QuantLib exposes no runtime version API",
+      "families": [
+        "european_bsm",
+        "single_barrier_bsm",
+        "binary_barrier_bsm",
+        "touch_bsm",
+        "double_barrier_bsm",
+        "double_touch_bsm"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "barrier-down-out-call-rebate",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 9.714051476061742,
+            "absolute_error": 5.329070518200751e-15
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 9.71405147606175,
+            "absolute_error": 1.7763568394002505e-15
+          }
+        ]
+      }
+    },
+    {
+      "id": "barrier-up-in-put-rebate",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 1.4269586705891217,
+            "absolute_error": 2.220446049250313e-16
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 1.4269586705891186,
+            "absolute_error": 3.3306690738754696e-15
+          }
+        ]
+      }
+    },
+    {
+      "id": "binary-down-out-cash-call",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 4.870260731348064,
+            "absolute_error": 1.7763568394002505e-15
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 4.870260731348063,
+            "absolute_error": 8.881784197001252e-16
+          }
+        ]
+      }
+    },
+    {
+      "id": "binary-up-in-asset-put",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 2.979202428579618,
+            "absolute_error": 4.440892098500626e-16
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 2.979202428579618,
+            "absolute_error": 4.440892098500626e-16
+          }
+        ]
+      }
+    },
+    {
+      "id": "touch-up-in-cash-hit",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 3.7121465904813364,
+            "absolute_error": 2.220446049250313e-15
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 3.712146590481336,
+            "absolute_error": 1.7763568394002505e-15
+          }
+        ]
+      }
+    },
+    {
+      "id": "touch-up-in-cash-expiry",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 3.6377560935653976,
+            "absolute_error": 8.881784197001252e-16
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 3.637756093565398,
+            "absolute_error": 1.3322676295501878e-15
+          }
+        ]
+      }
+    },
+    {
+      "id": "touch-up-out-cash-expiry",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 5.9701382979578375,
+            "absolute_error": 1.7763568394002505e-15
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 5.970138297957833,
+            "absolute_error": 2.6645352591003757e-15
+          }
+        ]
+      }
+    },
+    {
+      "id": "touch-up-in-asset-hit",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 44.545759085776,
+            "absolute_error": 1.4210854715202004e-14
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 44.545759085776034,
+            "absolute_error": 2.1316282072803006e-14
+          }
+        ]
+      }
+    },
+    {
+      "id": "touch-up-in-asset-expiry",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 44.320494503618264,
+            "absolute_error": 3.552713678800501e-14
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 44.32049450361824,
+            "absolute_error": 1.4210854715202004e-14
+          }
+        ]
+      }
+    },
+    {
+      "id": "touch-up-out-asset-expiry",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 54.684488871298626,
+            "absolute_error": 4.973799150320701e-14
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 54.68448887129856,
+            "absolute_error": 1.4210854715202004e-14
+          }
+        ]
+      }
+    },
+    {
+      "id": "double-barrier-out-call",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 1.0838814592582349,
+            "absolute_error": 3.397282455352979e-14
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {
+              "series": 3
+            },
+            "price": 1.0838814592583166,
+            "absolute_error": 4.773959005888173e-14
+          },
+          {
+            "profile": {
+              "series": 5
+            },
+            "price": 1.0838814592583166,
+            "absolute_error": 4.773959005888173e-14
+          },
+          {
+            "profile": {
+              "series": 10
+            },
+            "price": 1.0838814592583166,
+            "absolute_error": 4.773959005888173e-14
+          },
+          {
+            "profile": {
+              "series": 20
+            },
+            "price": 1.0838814592583166,
+            "absolute_error": 4.773959005888173e-14
+          }
+        ]
+      }
+    },
+    {
+      "id": "double-barrier-in-put",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 4.817655480736498,
+            "absolute_error": 3.730349362740526e-14
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {
+              "series": 3
+            },
+            "price": 4.817655480736513,
+            "absolute_error": 2.220446049250313e-14
+          },
+          {
+            "profile": {
+              "series": 5
+            },
+            "price": 4.817655480736513,
+            "absolute_error": 2.220446049250313e-14
+          },
+          {
+            "profile": {
+              "series": 10
+            },
+            "price": 4.817655480736513,
+            "absolute_error": 2.220446049250313e-14
+          },
+          {
+            "profile": {
+              "series": 20
+            },
+            "price": 4.817655480736513,
+            "absolute_error": 2.220446049250313e-14
+          }
+        ]
+      }
+    },
+    {
+      "id": "double-touch-in-cash-expiry",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 5.993182088599994,
+            "absolute_error": 8.881784197001252e-16
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 5.993182088599992,
+            "absolute_error": 8.881784197001252e-16
+          }
+        ]
+      }
+    },
+    {
+      "id": "double-touch-out-cash-expiry",
+      "error_budget": 1e-09,
+      "backends": {
+        "kiyosi": [
+          {
+            "profile": {},
+            "price": 3.6147123029232398,
+            "absolute_error": 8.881784197001252e-16
+          }
+        ],
+        "quantlib": [
+          {
+            "profile": {},
+            "price": 3.6147123029232393,
+            "absolute_error": 4.440892098500626e-16
+          }
+        ]
+      }
+    }
+  ],
+  "protocol": "Native public price requests after construction; QuantLib forced recalculate+NPV; 3 warmups, iterations=1; full 15-pair timing verified separately through test_barriers.py."
+}

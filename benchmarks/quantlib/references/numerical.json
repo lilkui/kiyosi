@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "quadrature-bsm-european-call",
+      "value": 9.227005508154047,
+      "uncertainty": 1e-13,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form; Gaussian power-series CDF; binary formula or down-out call reflection formula as applicable",
+        "source": "benchmarks/quantlib/calibrate_numerical.py",
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "9.227005508154047544221059618310330191815220250542783224576057944266921515110715",
+          "precision_difference": "7.832245760579442669215151107E-49"
+        },
+        "native_calibration": "benchmarks/quantlib/calibration/numerical.json"
+      }
+    },
+    {
+      "id": "quadrature-bsm-cash-call",
+      "value": 3.978167738574893,
+      "uncertainty": 1e-13,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form; Gaussian power-series CDF; binary formula or down-out call reflection formula as applicable",
+        "source": "benchmarks/quantlib/calibrate_numerical.py",
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "3.9781677385748929529990112320374717162026711138497009455793612979522602846450453",
+          "precision_difference": "9.455793612979522602846450453E-52"
+        },
+        "native_calibration": "benchmarks/quantlib/calibration/numerical.json"
+      }
+    },
+    {
+      "id": "quadrature-bsm-asset-put",
+      "value": 25.203418573555833,
+      "uncertainty": 1e-13,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form; Gaussian power-series CDF; binary formula or down-out call reflection formula as applicable",
+        "source": "benchmarks/quantlib/calibrate_numerical.py",
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "25.203418573555832184631795683975057188768432085838884587102325242739911885006161",
+          "precision_difference": "1.154128976747572600881149938E-49"
+        },
+        "native_calibration": "benchmarks/quantlib/calibration/numerical.json"
+      }
+    },
+    {
+      "id": "crr-bsm-european-call",
+      "value": 9.227005508154047,
+      "uncertainty": 1e-13,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form; Gaussian power-series CDF; binary formula or down-out call reflection formula as applicable",
+        "source": "benchmarks/quantlib/calibrate_numerical.py",
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "9.227005508154047544221059618310330191815220250542783224576057944266921515110715",
+          "precision_difference": "7.832245760579442669215151107E-49"
+        },
+        "native_calibration": "benchmarks/quantlib/calibration/numerical.json"
+      }
+    },
+    {
+      "id": "crr-bsm-american-put",
+      "value": 6.660684545893456,
+      "uncertainty": 5e-05,
+      "provenance": {
+        "method": "QuantLib 1.44 FD first-order time extrapolation, independently checked against Rust FD with separate space/time/domain refinements",
+        "source": "benchmarks/quantlib/calibration/american.json",
+        "evidence": {
+          "scenario": {
+            "spot": 100,
+            "strike": 100,
+            "rate": 0.05,
+            "dividend": 0.02,
+            "volatility": 0.2,
+            "maturity_years": 1,
+            "option": "put",
+            "exercise": "american"
+          },
+          "quantlib_version": "1.44",
+          "quantlib_build_command": [
+            "c++",
+            "-std=c++17",
+            "-O3",
+            "-DNDEBUG",
+            "-I/usr/local/include",
+            "/tmp/kiyosi-bench-04/benchmarks/quantlib/calibration/american_reference.cpp",
+            "-o",
+            "/tmp/kiyosi-bench-04/benchmarks/quantlib/build/american_reference",
+            "-L/usr/local/lib",
+            "-lQuantLib"
+          ],
+          "quantlib_source": "benchmarks/quantlib/calibration/american_reference.cpp",
+          "kiyosi_source": "crates/kiyosi/examples/quantlib_bench_references.rs",
+          "quantlib_controls": "CrankNicolson; dampingSteps=2; automatic mesher domain (not publicly adjustable)",
+          "kiyosi_controls": "Rannacher; nonuniform sinh grid; domain refinements scale interval count with upper boundary",
+          "quantlib_fd": [
+            {
+              "space": 800,
+              "time": 6400,
+              "price": 6.6605852558508225
+            },
+            {
+              "space": 1600,
+              "time": 6400,
+              "price": 6.660609862343994
+            },
+            {
+              "space": 3200,
+              "time": 6400,
+              "price": 6.660615958552998
+            },
+            {
+              "space": 3200,
+              "time": 12800,
+              "price": 6.660650520988351
+            },
+            {
+              "space": 3200,
+              "time": 25600,
+              "price": 6.660667533440903
+            }
+          ],
+          "kiyosi_fd": [
+            {
+              "space": 1600,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.660567324950622
+            },
+            {
+              "space": 3200,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.660612043576917
+            },
+            {
+              "space": 6400,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.66061689212674
+            },
+            {
+              "space": 6400,
+              "time": 12800,
+              "upper": 400,
+              "price": 6.6606495941339645
+            },
+            {
+              "space": 6400,
+              "time": 25600,
+              "upper": 400,
+              "price": 6.66066584176103
+            },
+            {
+              "space": 8000,
+              "time": 25600,
+              "upper": 500,
+              "price": 6.660667018354879
+            },
+            {
+              "space": 9600,
+              "time": 25600,
+              "upper": 600,
+              "price": 6.660668507129701
+            }
+          ],
+          "quantlib_first_order_time_extrapolation": 6.660684545893456,
+          "kiyosi_first_order_time_extrapolation": 6.660682089388095,
+          "independent_extrapolation_difference": 2.4565053609038046e-06,
+          "quantlib_last_space_delta": 6.096209003381148e-06,
+          "kiyosi_last_space_delta": 4.848549822966675e-06,
+          "kiyosi_domain_span": 2.6653686715505387e-06,
+          "uncertainty_policy": "5e-5 conservative numerical uncertainty; covers independent extrapolation difference, last temporal changes, spatial changes and domain span; not a rigorous error bound"
+        },
+        "native_calibration": "benchmarks/quantlib/calibration/numerical.json"
+      }
+    },
+    {
+      "id": "crr-bsm-down-out-call",
+      "value": 9.13330643649812,
+      "uncertainty": 1e-13,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form; Gaussian power-series CDF; binary formula or down-out call reflection formula as applicable",
+        "source": "benchmarks/quantlib/calibrate_numerical.py",
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "9.1333064364981211079023420294467706499671821353861998210526474638215764937291056",
+          "precision_difference": "4.399821052647463821576493729E-48"
+        },
+        "native_calibration": "benchmarks/quantlib/calibration/numerical.json"
+      }
+    }
+  ]
+}

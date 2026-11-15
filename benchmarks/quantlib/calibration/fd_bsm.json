@@ -1,0 +1,1243 @@
+{
+  "schema_version": 1,
+  "budgets_declared_before_profile_selection": 0.003,
+  "quantlib_domain": "native automatic mesher, no public independent boundary control; Rust upper-bound enlargement supplies independent domain evidence",
+  "cases": [
+    {
+      "id": "fd-bsm-european-call",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 9.226400344234525,
+            "absolute_error": 0.0006051639195217007,
+            "error_including_reference_uncertainty": 0.0006051639205217007,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 9.226850189780457,
+            "absolute_error": 0.00015531837359006317,
+            "error_including_reference_uncertainty": 0.00015531837459006317,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 9.22640438511635,
+            "absolute_error": 0.0006011230376969934,
+            "error_including_reference_uncertainty": 0.0006011230386969934,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 9.226400344234525,
+            "absolute_error": 0.0006051639195217007,
+            "error_including_reference_uncertainty": 0.0006051639205217007,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 9.227076284904529,
+            "absolute_error": 7.077675048172694e-05,
+            "error_including_reference_uncertainty": 7.077675148172693e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 9.22701399938725,
+            "absolute_error": 8.491233202789772e-06,
+            "error_including_reference_uncertainty": 8.491234202789771e-06,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 9.227085440599485,
+            "absolute_error": 7.993244543769151e-05,
+            "error_including_reference_uncertainty": 7.993244643769151e-05,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 9.227062723497525,
+            "absolute_error": 5.721534347813417e-05,
+            "error_including_reference_uncertainty": 5.7215344478134176e-05,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-american-put",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 6.659485075175704,
+            "absolute_error": 0.0011994707177516162,
+            "error_including_reference_uncertainty": 0.001249470717751616,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 6.659568580331976,
+            "absolute_error": 0.001115965561479193,
+            "error_including_reference_uncertainty": 0.001165965561479193,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 6.660013402885364,
+            "absolute_error": 0.0006711430080912351,
+            "error_including_reference_uncertainty": 0.0007211430080912351,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 6.659539875788108,
+            "absolute_error": 0.0011446701053472452,
+            "error_including_reference_uncertainty": 0.0011946701053472451,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 6.6594818250572665,
+            "absolute_error": 0.0012027208361891084,
+            "error_including_reference_uncertainty": 0.0012527208361891083,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 6.659504024406651,
+            "absolute_error": 0.0011805214868045866,
+            "error_including_reference_uncertainty": 0.0012305214868045865,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 6.6600803908160175,
+            "absolute_error": 0.0006041550774380511,
+            "error_including_reference_uncertainty": 0.0006541550774380511,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 6.659365843836687,
+            "absolute_error": 0.0013187020567686503,
+            "error_including_reference_uncertainty": 0.0013687020567686502,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-cash-digital-call",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.945855427111908,
+            "absolute_error": 4.451657967319278e-05,
+            "error_including_reference_uncertainty": 4.451658067319278e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.94582196348807,
+            "absolute_error": 1.1052955835033629e-05,
+            "error_including_reference_uncertainty": 1.1052956835033628e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.945855500982792,
+            "absolute_error": 4.459045055682509e-05,
+            "error_including_reference_uncertainty": 4.459045155682509e-05,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 4.945855427111908,
+            "absolute_error": 4.451657967319278e-05,
+            "error_including_reference_uncertainty": 4.451658067319278e-05,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 4.945742536055872,
+            "absolute_error": 6.837447636343086e-05,
+            "error_including_reference_uncertainty": 6.837447736343085e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 4.945771877016483,
+            "absolute_error": 3.903351575207381e-05,
+            "error_including_reference_uncertainty": 3.9033516752073814e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 4.945742712143932,
+            "absolute_error": 6.819838830285363e-05,
+            "error_including_reference_uncertainty": 6.819838930285363e-05,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 4.945742265309288,
+            "absolute_error": 6.864522294680597e-05,
+            "error_including_reference_uncertainty": 6.864522394680597e-05,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-asset-digital-put",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 48.77324443072833,
+            "absolute_error": 0.0001419460291174346,
+            "error_including_reference_uncertainty": 0.0001419460301174346,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 48.77336594189964,
+            "absolute_error": 2.0434857809448204e-05,
+            "error_including_reference_uncertainty": 2.0434858809448203e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 48.7732293843144,
+            "absolute_error": 0.00015699244305267257,
+            "error_including_reference_uncertainty": 0.00015699244405267257,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 48.77324443072833,
+            "absolute_error": 0.0001419460291174346,
+            "error_including_reference_uncertainty": 0.0001419460301174346,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 48.774187168497555,
+            "absolute_error": 0.0008007917401045006,
+            "error_including_reference_uncertainty": 0.0008007917411045006,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 48.7726927172984,
+            "absolute_error": 0.0006936594590527534,
+            "error_including_reference_uncertainty": 0.0006936594600527534,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 48.77414922275156,
+            "absolute_error": 0.0007628459941102506,
+            "error_including_reference_uncertainty": 0.0007628459951102506,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 48.77424789713806,
+            "absolute_error": 0.000861520380610159,
+            "error_including_reference_uncertainty": 0.000861520381610159,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-down-out-call",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 9.13287016929646,
+            "absolute_error": 0.0004362672016604563,
+            "error_including_reference_uncertainty": 0.0004362672026604563,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 9.133191729280856,
+            "absolute_error": 0.00011470721726425381,
+            "error_including_reference_uncertainty": 0.00011470721826425381,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 9.132875813321295,
+            "absolute_error": 0.0004306231768254065,
+            "error_including_reference_uncertainty": 0.0004306231778254065,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 9.133008214402299,
+            "absolute_error": 0.00029822209582164305,
+            "error_including_reference_uncertainty": 0.00029822209682164305,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 9.133304824112098,
+            "absolute_error": 1.612386022031842e-06,
+            "error_including_reference_uncertainty": 1.612387022031842e-06,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 9.133306221902114,
+            "absolute_error": 2.1459600674234025e-07,
+            "error_including_reference_uncertainty": 2.1459700674234025e-07,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 9.133308788551357,
+            "absolute_error": 2.352053236620577e-06,
+            "error_including_reference_uncertainty": 2.352054236620577e-06,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 9.133286885281274,
+            "absolute_error": 1.9551216846380726e-05,
+            "error_including_reference_uncertainty": 1.9551217846380725e-05,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-terminal-down-out-cash",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.8217651012204366,
+            "absolute_error": 3.572616581415389e-05,
+            "error_including_reference_uncertainty": 3.572616681415389e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.821791418092353,
+            "absolute_error": 9.409293897810755e-06,
+            "error_including_reference_uncertainty": 9.409294897810755e-06,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.821765576202221,
+            "absolute_error": 3.525118402958327e-05,
+            "error_including_reference_uncertainty": 3.5251185029583274e-05,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 4.821759394123951,
+            "absolute_error": 4.143326229932853e-05,
+            "error_including_reference_uncertainty": 4.1433263299328535e-05,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 4.821947756512207,
+            "absolute_error": 0.00014692912595659635,
+            "error_including_reference_uncertainty": 0.00014692912695659635,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 4.8218225873418,
+            "absolute_error": 2.1759955549427445e-05,
+            "error_including_reference_uncertainty": 2.1759956549427445e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 4.8219391594092995,
+            "absolute_error": 0.00013833202304880388,
+            "error_including_reference_uncertainty": 0.00013833202404880387,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 4.8219454087551235,
+            "absolute_error": 0.00014458136887274264,
+            "error_including_reference_uncertainty": 0.00014458136987274264,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-terminal-up-in-asset",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 2.9495692791363415,
+            "absolute_error": 1.0410015972794895e-05,
+            "error_including_reference_uncertainty": 1.0410016972794894e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 2.949559395249775,
+            "absolute_error": 5.261294062641753e-07,
+            "error_including_reference_uncertainty": 5.261304062641753e-07,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 2.949571355420181,
+            "absolute_error": 1.2486299812319857e-05,
+            "error_including_reference_uncertainty": 1.2486300812319856e-05,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 2.9495619576826613,
+            "absolute_error": 3.088562292585806e-06,
+            "error_including_reference_uncertainty": 3.0885632925858057e-06,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 2.9496148723056947,
+            "absolute_error": 5.600318532605897e-05,
+            "error_including_reference_uncertainty": 5.600318632605897e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 2.9465831285755684,
+            "absolute_error": 0.0029757405448003205,
+            "error_including_reference_uncertainty": 0.0029757405458003205,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 2.9494332621882933,
+            "absolute_error": 0.00012560693207541718,
+            "error_including_reference_uncertainty": 0.00012560693307541717,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 2.9495939972944853,
+            "absolute_error": 3.5128174116660915e-05,
+            "error_including_reference_uncertainty": 3.512817511666092e-05,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-down-no-touch-cash-expiry",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 7.13400509948948,
+            "absolute_error": 8.333147467354252e-05,
+            "error_including_reference_uncertainty": 8.333147567354251e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 7.134071590143366,
+            "absolute_error": 1.6840820787678012e-05,
+            "error_including_reference_uncertainty": 1.6840821787678012e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 7.1340011131166525,
+            "absolute_error": 8.731784750093396e-05,
+            "error_including_reference_uncertainty": 8.731784850093396e-05,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 7.133989703354056,
+            "absolute_error": 9.872761009788178e-05,
+            "error_including_reference_uncertainty": 9.872761109788178e-05,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 7.134237910460824,
+            "absolute_error": 0.0001494794966703239,
+            "error_including_reference_uncertainty": 0.0001494794976703239,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 7.134240886817109,
+            "absolute_error": 0.00015245585295531328,
+            "error_including_reference_uncertainty": 0.00015245585395531327,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 7.13415608078414,
+            "absolute_error": 6.764981998674813e-05,
+            "error_including_reference_uncertainty": 6.764982098674812e-05,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 7.134260168654134,
+            "absolute_error": 0.00017173768998013372,
+            "error_including_reference_uncertainty": 0.00017173769098013372,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-up-no-touch-asset-expiry",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 54.140511850076514,
+            "absolute_error": 0.00014273438912937308,
+            "error_including_reference_uncertainty": 0.00014273439012937308,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 54.14046025650069,
+            "absolute_error": 9.114081330352519e-05,
+            "error_including_reference_uncertainty": 9.114081430352519e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 54.140456392758125,
+            "absolute_error": 8.727707074029922e-05,
+            "error_including_reference_uncertainty": 8.727707174029922e-05,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 54.140473632787696,
+            "absolute_error": 0.00010451710031134098,
+            "error_including_reference_uncertainty": 0.00010451710131134098,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 16000,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 54.1421426552442,
+            "absolute_error": 0.0017735395568152512,
+            "error_including_reference_uncertainty": 0.0017735395578152512,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 16000,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 54.142123351116126,
+            "absolute_error": 0.0017542354287414241,
+            "error_including_reference_uncertainty": 0.0017542354297414241,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 32000,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 54.14126871351113,
+            "absolute_error": 0.0008995978237464897,
+            "error_including_reference_uncertainty": 0.0008995978247464897,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 16000,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 54.142141989102036,
+            "absolute_error": 0.001772873414651599,
+            "error_including_reference_uncertainty": 0.001772873415651599,
+            "passed": true
+          },
+          "initial_time_400": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 54.21000977163943,
+            "absolute_error": 0.06964065595204261,
+            "error_including_reference_uncertainty": 0.06964065595304261,
+            "passed": false
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-up-one-touch-cash-hit",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.6939002989819447,
+            "absolute_error": 1.152162790196698e-05,
+            "error_including_reference_uncertainty": 1.152162890196698e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.6939044132913716,
+            "absolute_error": 7.407318475038949e-06,
+            "error_including_reference_uncertainty": 7.407319475038949e-06,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.6939048258818716,
+            "absolute_error": 6.994727975051518e-06,
+            "error_including_reference_uncertainty": 6.994728975051518e-06,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 3.6939033466029487,
+            "absolute_error": 8.474006897962738e-06,
+            "error_including_reference_uncertainty": 8.474007897962737e-06,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 1600,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 3.692433415841325,
+            "absolute_error": 0.0014784047685219015,
+            "error_including_reference_uncertainty": 0.0014784047695219015,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 1600,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 3.692434416241417,
+            "absolute_error": 0.0014774043684298022,
+            "error_including_reference_uncertainty": 0.0014774043694298022,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 3.693171645290164,
+            "absolute_error": 0.0007401753196827343,
+            "error_including_reference_uncertainty": 0.0007401753206827343,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 1600,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 3.692435966352043,
+            "absolute_error": 0.0014758542578037215,
+            "error_including_reference_uncertainty": 0.0014758542588037215,
+            "passed": true
+          },
+          "initial_time_400": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 3.6880188857602536,
+            "absolute_error": 0.005892934849593079,
+            "error_including_reference_uncertainty": 0.005892934850593079,
+            "passed": false
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-down-one-touch-asset-hit",
+      "error_budget": 0.003,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 19.44998947121518,
+            "absolute_error": 0.0007727066540077487,
+            "error_including_reference_uncertainty": 0.0007727066550077487,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 19.449380022516305,
+            "absolute_error": 0.00016325795513338903,
+            "error_including_reference_uncertainty": 0.00016325795613338903,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 19.450019346855715,
+            "absolute_error": 0.0008025822945434413,
+            "error_including_reference_uncertainty": 0.0008025822955434413,
+            "passed": true
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 19.450130582281453,
+            "absolute_error": 0.000913817720281429,
+            "error_including_reference_uncertainty": 0.000913817721281429,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 19.447396373689436,
+            "absolute_error": 0.0018203908717353556,
+            "error_including_reference_uncertainty": 0.0018203908727353556,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 19.447366609850764,
+            "absolute_error": 0.0018501547104072813,
+            "error_including_reference_uncertainty": 0.0018501547114072813,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic"
+            },
+            "price": 19.448367879228336,
+            "absolute_error": 0.0008488853328358914,
+            "error_including_reference_uncertainty": 0.0008488853338358914,
+            "passed": true
+          },
+          "damping": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 4,
+              "domain": "automatic"
+            },
+            "price": 19.447219598494495,
+            "absolute_error": 0.0019971660666762148,
+            "error_including_reference_uncertainty": 0.0019971660676762148,
+            "passed": true
+          }
+        }
+      }
+    }
+  ]
+}

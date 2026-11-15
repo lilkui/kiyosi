@@ -1,0 +1,369 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "barrier-down-out-call-rebate",
+      "family": "single_barrier_bsm",
+      "engine": "AnalyticBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "option": "call",
+        "strike": 100,
+        "barrier": 80,
+        "direction": "down",
+        "activation": "out",
+        "rebate": 2
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "barrier-up-in-put-rebate",
+      "family": "single_barrier_bsm",
+      "engine": "AnalyticBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "option": "put",
+        "strike": 100,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "in",
+        "rebate": 2
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "binary-down-out-cash-call",
+      "family": "binary_barrier_bsm",
+      "engine": "AnalyticBinaryBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "option": "call",
+        "strike": 100,
+        "barrier": 80,
+        "direction": "down",
+        "activation": "out",
+        "payoff": "cash",
+        "payout": 10
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "binary-up-in-asset-put",
+      "family": "binary_barrier_bsm",
+      "engine": "AnalyticBinaryBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "option": "put",
+        "strike": 100,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "in",
+        "payoff": "asset"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "touch-up-in-cash-hit",
+      "family": "touch_bsm",
+      "engine": "AnalyticBinaryBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "in",
+        "payoff": "cash",
+        "settlement": "hit",
+        "payout": 10
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "touch-up-in-cash-expiry",
+      "family": "touch_bsm",
+      "engine": "AnalyticBinaryBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "in",
+        "payoff": "cash",
+        "settlement": "expiry",
+        "payout": 10
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "touch-up-out-cash-expiry",
+      "family": "touch_bsm",
+      "engine": "AnalyticBinaryBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "out",
+        "payoff": "cash",
+        "settlement": "expiry",
+        "payout": 10
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "touch-up-in-asset-hit",
+      "family": "touch_bsm",
+      "engine": "AnalyticBinaryBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "in",
+        "payoff": "asset",
+        "settlement": "hit"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "touch-up-in-asset-expiry",
+      "family": "touch_bsm",
+      "engine": "AnalyticBinaryBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "in",
+        "payoff": "asset",
+        "settlement": "expiry"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "touch-up-out-asset-expiry",
+      "family": "touch_bsm",
+      "engine": "AnalyticBinaryBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "out",
+        "payoff": "asset",
+        "settlement": "expiry"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation."
+    },
+    {
+      "id": "double-barrier-out-call",
+      "family": "double_barrier_bsm",
+      "engine": "AnalyticDoubleBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "lower": 80,
+        "upper": 120,
+        "strike": 100,
+        "option": "call",
+        "activation": "out"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {
+          "series": 5
+        }
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation.",
+      "numerical_work": "Kiyosi: adaptive absorbing image/spectral series, fixed internal limits 64/256; QuantLib: explicitly configured image series=5."
+    },
+    {
+      "id": "double-barrier-in-put",
+      "family": "double_barrier_bsm",
+      "engine": "AnalyticDoubleBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "lower": 80,
+        "upper": 120,
+        "strike": 100,
+        "option": "put",
+        "activation": "in"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {
+          "series": 5
+        }
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation.",
+      "numerical_work": "Kiyosi: adaptive absorbing image/spectral series, fixed internal limits 64/256; QuantLib: explicitly configured image series=5."
+    },
+    {
+      "id": "double-touch-in-cash-expiry",
+      "family": "double_touch_bsm",
+      "engine": "AnalyticDoubleTouchEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "lower": 80,
+        "upper": 120,
+        "payout": 10,
+        "activation": "in"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation.",
+      "numerical_work": "Kiyosi: adaptive absorbing image/spectral series, fixed internal limits 64/256; QuantLib: fixed 99 Hui terms, internal final-term convergence threshold 1e-8; neither exposes a public control."
+    },
+    {
+      "id": "double-touch-out-cash-expiry",
+      "family": "double_touch_bsm",
+      "engine": "AnalyticDoubleTouchEngine",
+      "model": "bsm",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.2,
+        "lower": 80,
+        "upper": 120,
+        "payout": 10,
+        "activation": "out"
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "contract": "Continuous monitoring; initially untouched; effective date equals valuation.",
+      "numerical_work": "Kiyosi: adaptive absorbing image/spectral series, fixed internal limits 64/256; QuantLib: fixed 99 Hui terms, internal final-term convergence threshold 1e-8; neither exposes a public control."
+    }
+  ]
+}

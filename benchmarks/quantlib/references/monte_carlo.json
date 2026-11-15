@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "mc-european-call",
+      "value": 9.227005508154047,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form / absorbing Brownian image-density integral",
+        "source": "generate_mc_references.py; generate_european_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "decimal_values": [
+            "9.2270055081540475442210596183103301918152202505427832245760579442669215151107144044520007",
+            "9.227005508154047544221059618310330191815220250542783224576057944266921515110714404452000813018617609222508370"
+          ],
+          "precision_delta": "1.13018617609222508370E-88"
+        }
+      }
+    },
+    {
+      "id": "mc-european-put",
+      "value": 6.330080627549918,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form / absorbing Brownian image-density integral",
+        "source": "generate_mc_references.py; generate_european_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "decimal_values": [
+            "6.3300806275499182312821811737446596275527251376656889050806214451305528765572061108808031",
+            "6.330080627549918231282181173744659627552725137665688905080621445130552876557206110880803199505718714762638186"
+          ],
+          "precision_delta": "9.9505718714762638186E-89"
+        }
+      }
+    },
+    {
+      "id": "mc-barrier-down-out-call",
+      "value": 7.586953969736415,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form / absorbing Brownian image-density integral",
+        "source": "generate_mc_references.py; generate_european_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "decimal_values": [
+            "7.58695396973641475441781435692887048070904201380914181429993432476793340257921666010028288",
+            "7.5869539697364147544178143569288704807090420138091418142999343247679334025792166601002827443690152452545093455"
+          ],
+          "precision_delta": "1.356309847547454906545E-88"
+        }
+      }
+    },
+    {
+      "id": "mc-barrier-up-in-put",
+      "value": 0.23061330871315489,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form / absorbing Brownian image-density integral",
+        "source": "generate_mc_references.py; generate_european_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "decimal_values": [
+            "0.230613308713154888434046743341794460244487170559473241745373447799144093462938578250848446",
+            "0.23061330871315488843404674334179446024448717055947324174537344779914409346293857825084903448976794549097963099"
+          ],
+          "precision_delta": "5.8848976794549097963099E-88"
+        }
+      }
+    }
+  ]
+}

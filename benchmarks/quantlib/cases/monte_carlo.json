@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "mc-european-call",
+      "family": "mc_european_bsm",
+      "engine": "MonteCarloVanillaEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "path_count": 131072,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false"
+        },
+        "quantlib": {
+          "path_count": 262144,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false"
+        }
+      },
+      "error_budget": 0.1,
+      "mc_validation": {
+        "seeds": [
+          1009,
+          1106,
+          1203,
+          1300,
+          1397,
+          1494,
+          1591,
+          1688,
+          1785,
+          1882,
+          1979,
+          2076,
+          2173,
+          2270,
+          2367,
+          2464,
+          2561,
+          2658,
+          2755,
+          2852,
+          2949,
+          3046,
+          3143,
+          3240,
+          3337,
+          3434,
+          3531,
+          3628,
+          3725,
+          3822,
+          3919,
+          4016
+        ],
+        "timing_seed": 1729,
+        "max_rmse": 0.05,
+        "max_abs_bias": 0.025,
+        "max_sample_stddev": 0.05
+      },
+      "estimator_work": {
+        "kiyosi": "PCG32 / Box-Muller; exact terminal; conditional bridge survival for barrier; no variance in price",
+        "quantlib": "MT19937 / inverse normal; variance accumulation; sampled bridge crossing uses auxiliary uniform seed5 for barrier",
+        "physical_paths_per_call": {
+          "kiyosi": 131072,
+          "quantlib": 262144
+        },
+        "samples_per_call": {
+          "kiyosi": 131072,
+          "quantlib": 262144
+        },
+        "antithetic_pairs": 0,
+        "quantlib_brownian_bridge_path_construction": false,
+        "exact_terminal_steps": 1
+      },
+      "validation_seed_policy": "1009+97*i, i=0..31; fixed before replacement-ensemble outputs; avoids structural crossing RNG seed5 coupling; initial1..32 evidence retained in calibration/monte_carlo_seed_collision.json",
+      "quantlib_engine": "MCEuropeanEngine"
+    },
+    {
+      "id": "mc-european-put",
+      "family": "mc_european_bsm",
+      "engine": "MonteCarloVanillaEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "path_count": 65536,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false"
+        },
+        "quantlib": {
+          "path_count": 65536,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false"
+        }
+      },
+      "error_budget": 0.1,
+      "mc_validation": {
+        "seeds": [
+          1009,
+          1106,
+          1203,
+          1300,
+          1397,
+          1494,
+          1591,
+          1688,
+          1785,
+          1882,
+          1979,
+          2076,
+          2173,
+          2270,
+          2367,
+          2464,
+          2561,
+          2658,
+          2755,
+          2852,
+          2949,
+          3046,
+          3143,
+          3240,
+          3337,
+          3434,
+          3531,
+          3628,
+          3725,
+          3822,
+          3919,
+          4016
+        ],
+        "timing_seed": 1729,
+        "max_rmse": 0.05,
+        "max_abs_bias": 0.025,
+        "max_sample_stddev": 0.05
+      },
+      "estimator_work": {
+        "kiyosi": "PCG32 / Box-Muller; exact terminal; conditional bridge survival for barrier; no variance in price",
+        "quantlib": "MT19937 / inverse normal; variance accumulation; sampled bridge crossing uses auxiliary uniform seed5 for barrier",
+        "physical_paths_per_call": {
+          "kiyosi": 65536,
+          "quantlib": 65536
+        },
+        "samples_per_call": {
+          "kiyosi": 65536,
+          "quantlib": 65536
+        },
+        "antithetic_pairs": 0,
+        "quantlib_brownian_bridge_path_construction": false,
+        "exact_terminal_steps": 1
+      },
+      "validation_seed_policy": "1009+97*i, i=0..31; fixed before replacement-ensemble outputs; avoids structural crossing RNG seed5 coupling; initial1..32 evidence retained in calibration/monte_carlo_seed_collision.json",
+      "quantlib_engine": "MCEuropeanEngine"
+    },
+    {
+      "id": "mc-barrier-down-out-call",
+      "family": "mc_barrier_bsm",
+      "engine": "MonteCarloBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "barrier": 90,
+        "direction": "down",
+        "activation": "out",
+        "rebate": 0
+      },
+      "profiles": {
+        "kiyosi": {
+          "path_count": 65536,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false"
+        },
+        "quantlib": {
+          "path_count": 131072,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false",
+          "step_count": 1
+        }
+      },
+      "error_budget": 0.1,
+      "mc_validation": {
+        "seeds": [
+          1009,
+          1106,
+          1203,
+          1300,
+          1397,
+          1494,
+          1591,
+          1688,
+          1785,
+          1882,
+          1979,
+          2076,
+          2173,
+          2270,
+          2367,
+          2464,
+          2561,
+          2658,
+          2755,
+          2852,
+          2949,
+          3046,
+          3143,
+          3240,
+          3337,
+          3434,
+          3531,
+          3628,
+          3725,
+          3822,
+          3919,
+          4016
+        ],
+        "timing_seed": 1729,
+        "max_rmse": 0.05,
+        "max_abs_bias": 0.025,
+        "max_sample_stddev": 0.05
+      },
+      "estimator_work": {
+        "kiyosi": "PCG32 / Box-Muller; exact terminal; conditional bridge survival for barrier; no variance in price",
+        "quantlib": "MT19937 / inverse normal; variance accumulation; sampled bridge crossing uses auxiliary uniform seed5 for barrier",
+        "physical_paths_per_call": {
+          "kiyosi": 65536,
+          "quantlib": 131072
+        },
+        "samples_per_call": {
+          "kiyosi": 65536,
+          "quantlib": 131072
+        },
+        "antithetic_pairs": 0,
+        "quantlib_brownian_bridge_path_construction": false,
+        "quantlib_auxiliary_crossing_seed": 5,
+        "continuous_barrier_correction": {
+          "kiyosi": "conditional_survival",
+          "quantlib": "sampled_bridge_crossing; withBias(false)"
+        }
+      },
+      "validation_seed_policy": "1009+97*i, i=0..31; fixed before replacement-ensemble outputs; avoids structural crossing RNG seed5 coupling; initial1..32 evidence retained in calibration/monte_carlo_seed_collision.json",
+      "quantlib_engine": "MCBarrierEngine"
+    },
+    {
+      "id": "mc-barrier-up-in-put",
+      "family": "mc_barrier_bsm",
+      "engine": "MonteCarloBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "barrier": 120,
+        "direction": "up",
+        "activation": "in",
+        "rebate": 0
+      },
+      "profiles": {
+        "kiyosi": {
+          "path_count": 65536,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false"
+        },
+        "quantlib": {
+          "path_count": 65536,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false",
+          "step_count": 1
+        }
+      },
+      "error_budget": 0.1,
+      "mc_validation": {
+        "seeds": [
+          1009,
+          1106,
+          1203,
+          1300,
+          1397,
+          1494,
+          1591,
+          1688,
+          1785,
+          1882,
+          1979,
+          2076,
+          2173,
+          2270,
+          2367,
+          2464,
+          2561,
+          2658,
+          2755,
+          2852,
+          2949,
+          3046,
+          3143,
+          3240,
+          3337,
+          3434,
+          3531,
+          3628,
+          3725,
+          3822,
+          3919,
+          4016
+        ],
+        "timing_seed": 1729,
+        "max_rmse": 0.05,
+        "max_abs_bias": 0.025,
+        "max_sample_stddev": 0.05
+      },
+      "estimator_work": {
+        "kiyosi": "PCG32 / Box-Muller; exact terminal; conditional bridge survival for barrier; no variance in price",
+        "quantlib": "MT19937 / inverse normal; variance accumulation; sampled bridge crossing uses auxiliary uniform seed5 for barrier",
+        "physical_paths_per_call": {
+          "kiyosi": 65536,
+          "quantlib": 65536
+        },
+        "samples_per_call": {
+          "kiyosi": 65536,
+          "quantlib": 65536
+        },
+        "antithetic_pairs": 0,
+        "quantlib_brownian_bridge_path_construction": false,
+        "quantlib_auxiliary_crossing_seed": 5,
+        "continuous_barrier_correction": {
+          "kiyosi": "conditional_survival",
+          "quantlib": "sampled_bridge_crossing; withBias(false)"
+        }
+      },
+      "validation_seed_policy": "1009+97*i, i=0..31; fixed before replacement-ensemble outputs; avoids structural crossing RNG seed5 coupling; initial1..32 evidence retained in calibration/monte_carlo_seed_collision.json",
+      "quantlib_engine": "MCBarrierEngine"
+    }
+  ]
+}

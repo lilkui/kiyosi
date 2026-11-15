@@ -1,0 +1,397 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "barrier-down-out-call-rebate",
+      "value": 9.714051476061748,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "9.71405147606174840322234758628337013069955980984292340300893029007036157768527397568662836",
+            "9.7140514760617484032223475862833701306995598098429234030089302900703615776852739756866284613078292826706166676"
+          ],
+          "precision_delta": 1.0130782928267061e-88,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "9.7140514760617484032223475862833701306995598098429234030089302900703615776852739756866284613078292826706166676",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "barrier-up-in-put-rebate",
+      "value": 1.426958670589122,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "1.42695867058912197299006369179340884597139500194020898387967974126617713166750004761146510",
+            "1.4269586705891219729900636917934088459713950019402089838796797412661771316675000476114657165595031941924366050"
+          ],
+          "precision_delta": 6.165595031941924e-88,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "1.4269586705891219729900636917934088459713950019402089838796797412661771316675000476114657165595031941924366050",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "binary-down-out-cash-call",
+      "value": 4.870260731348062,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "4.87026073134806245866964046155753241679960284137389398102186878892497463457751627238455022",
+            "4.8702607313480624586696404615575324167996028413738939810218687889249746345775162723845502037814585707329549040"
+          ],
+          "precision_delta": 1.6218541429267047e-89,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "4.8702607313480624586696404615575324167996028413738939810218687889249746345775162723845502037814585707329549040",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "binary-up-in-asset-put",
+      "value": 2.9792024285796184,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "2.97920242857961821183160953143293011732922445360280134889834558388055674002108423036207285",
+            "2.9792024285796182118316095314329301173292244536028013488983455838805567400210842303620720725731440885036502759"
+          ],
+          "precision_delta": 7.774268559114963e-88,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "2.9792024285796182118316095314329301173292244536028013488983455838805567400210842303620720725731440885036502759",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "touch-up-in-cash-hit",
+      "value": 3.712146590481334,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "3.71214659048133424013703997987539738796964858271741379287465958809148704647344328891944657",
+            "3.7121465904813342401370399798753973879696485827174137928746595880914870464734432889194464725537735053131659611"
+          ],
+          "precision_delta": 9.744622649468684e-89,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "3.7121465904813342401370399798753973879696485827174137928746595880914870464734432889194464725537735053131659611",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "touch-up-in-cash-expiry",
+      "value": 3.6377560935653968,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "3.63775609356539685142895479818580989378042798409533789590515859574187746376344825212623508",
+            "3.6377560935653968514289547981858098937804279840953378959051585957418774637634482521262349627160087267118853558"
+          ],
+          "precision_delta": 1.1728399127328812e-88,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "3.6377560935653968514289547981858098937804279840953378959051585957418774637634482521262349627160087267118853558",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "touch-up-out-cash-expiry",
+      "value": 5.970138297957836,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "5.97013829795783524296315211504664896649929295308382782032923774236854408044474899023477493",
+            "5.9701382979578352429631521150466489664992929530838278203292377423685440804447489902347750443845270137472669659"
+          ],
+          "precision_delta": 1.1438452701374727e-88,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "5.9701382979578352429631521150466489664992929530838278203292377423685440804447489902347750443845270137472669659",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "touch-up-in-asset-hit",
+      "value": 44.54575908577601,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "44.5457590857760108816444797585047686556357829926089655144959150570978445576813194670333588",
+            "44.545759085776010881644479758504768655635782992608965514495915057097844557681319467033357670645282063757991533"
+          ],
+          "precision_delta": 1.129354717936242e-87,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "44.545759085776010881644479758504768655635782992608965514495915057097844557681319467033357670645282063757991533",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "touch-up-in-asset-expiry",
+      "value": 44.32049450361823,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "44.3204945036182301056569023009090576067208557889390237448760276147035557160253521468747094",
+            "44.320494503618230105656902300909057606720855788939023744876027614703555716025352146874708546773938058163490749"
+          ],
+          "precision_delta": 8.532260619418365e-88,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "44.320494503618230105656902300909057606720855788939023744876027614703555716025352146874708546773938058163490749",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "touch-up-out-asset-expiry",
+      "value": 54.684488871298576,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "54.6844888712985752517336954170945981704870523364447229435118469146112170008491773549468437",
+            "54.684488871298575251733695417094598170487052336444722943511846914611217000849177354946844531164443041132842626"
+          ],
+          "precision_delta": 8.311644430411328e-88,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "54.684488871298575251733695417094598170487052336444722943511846914611217000849177354946844531164443041132842626",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "double-barrier-out-call",
+      "value": 1.0838814592582688,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "1.08388145925826888416962787789788654687324532452578704333073503286443588229958799540183076",
+            "1.0838814592582688841696278778978865456833098017783976259658857787461653266553343026636573301898706803198638596"
+          ],
+          "precision_delta": 1.1899355227473894e-36,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "1.0838814592582688841696278778978865456833098017783976259658857787461653266553343026636573301898706803198638596",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "double-barrier-in-put",
+      "value": 4.817655480736535,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "4.81765548073653493677061905084934504528491895220226620206556129530592178542930387842446258",
+            "4.8176554807365349367706190508493450450260959085441753851697554311311520203313800733551174087750025684514047764"
+          ],
+          "precision_delta": 2.5882304365809083e-37,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "4.8176554807365349367706190508493450450260959085441753851697554311311520203313800733551174087750025684514047764",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "double-touch-in-cash-expiry",
+      "value": 5.993182088599993,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "5.99318208859999332290450993091552909644894949724001835151757799643527075090257587020922995",
+            "5.9931820885999933229045099309155290964493703462542092172257630061886329393874729920966751417341991781092621703"
+          ],
+          "precision_delta": 4.208490141908657e-40,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "5.9931820885999933229045099309155290964493703462542092172257630061886329393874729920966751417341991781092621703",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "double-touch-out-cash-expiry",
+      "value": 3.614712302923239,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
+        "source": "generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "decimal_precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "3.61471230292323877148759698231692976383077143993914736471681834167515079330562137215178006",
+            "3.6147123029232387714875969823169297638303505909249564990086333319217886048207242502643348653663365623498901514"
+          ],
+          "precision_delta": 4.208490141908657e-40,
+          "image_terms_each_side": [
+            8,
+            12
+          ],
+          "refined_value": "3.6147123029232387714875969823169297638303505909249564990086333319217886048207242502643348653663365623498901514",
+          "image_refinement_delta": 0.0,
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    }
+  ]
+}

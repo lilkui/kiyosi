@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "european-bsm-atm-call",
+      "value": 9.227005508154047,
+      "uncertainty": 1e-13,
+      "provenance": {
+        "method": "BSM closed form with independent Python Decimal Gaussian power-series integration",
+        "source": "benchmarks/quantlib/generate_european_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "native_calibration": "benchmarks/quantlib/calibration/european.json",
+          "decimal_value": "9.227005508154047544221059618310330191815220250542783224576057944266921515110715",
+          "precision_difference": "7.832245760579442669215151107E-49",
+          "uncertainty_policy": "1e-13 conservative absolute allowance for double conversion; budget 1e-9"
+        }
+      }
+    },
+    {
+      "id": "european-bsm-itm-call",
+      "value": 23.982520213145463,
+      "uncertainty": 1e-13,
+      "provenance": {
+        "method": "BSM closed form with independent Python Decimal Gaussian power-series integration",
+        "source": "benchmarks/quantlib/generate_european_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "native_calibration": "benchmarks/quantlib/calibration/european.json",
+          "decimal_value": "23.982520213145462733856448842313639235390821125998323898179386541333155578263543",
+          "precision_difference": "3.238981793865413331555782635E-49",
+          "uncertainty_policy": "1e-13 conservative absolute allowance for double conversion; budget 1e-9"
+        }
+      }
+    },
+    {
+      "id": "european-bsm-otm-put",
+      "value": 3.2623834038885056,
+      "uncertainty": 1e-13,
+      "provenance": {
+        "method": "BSM closed form with independent Python Decimal Gaussian power-series integration",
+        "source": "benchmarks/quantlib/generate_european_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "native_calibration": "benchmarks/quantlib/calibration/european.json",
+          "decimal_value": "3.262383403888505618546409026317256464140181636779353979679700400340732420928420",
+          "precision_difference": "6.460203202995996592675790716E-49",
+          "uncertainty_policy": "1e-13 conservative absolute allowance for double conversion; budget 1e-9"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,503 @@
+{
+  "schema_version": 1,
+  "source": "calibration/local_vol_reference.cpp; native CLI parameters are family=fd_local_vol, iterations=1 plus inputs and observation profile",
+  "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences plus 1e-10",
+  "attempts": [
+    {
+      "id": "fd-local-vol-asset-digital-put",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "digital",
+        "option": "put",
+        "strike": 105,
+        "payout": "asset",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "quantlib_version": "1.44",
+      "observations": {
+        "time_coarse": {
+          "price": 40.53164990496864,
+          "profile": {
+            "space": 3200,
+            "time": 3200,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_middle": {
+          "price": 40.53164910817125,
+          "profile": {
+            "space": 3200,
+            "time": 6400,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_fine": {
+          "price": 40.531648908768766,
+          "profile": {
+            "space": 3200,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "space_refined": {
+          "price": 40.53042710149686,
+          "profile": {
+            "space": 6400,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "mesher_040": {
+          "price": 40.53051560855853,
+          "profile": {
+            "space": 6400,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.4
+          }
+        },
+        "mesher_060": {
+          "price": 40.529970870346276,
+          "profile": {
+            "space": 6400,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.6
+          }
+        }
+      },
+      "observed_shifts": {
+        "time_extrapolation": 3.979924159125403e-07,
+        "space": 0.0012218072719036854,
+        "domain": 0.00045623115058646135
+      },
+      "uncertainty": 0.0033568729298121187,
+      "limit": 0.0005,
+      "result": "rejected_reference_refinement"
+    },
+    {
+      "id": "fd-local-vol-asset-digital-put",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "digital",
+        "option": "put",
+        "strike": 105,
+        "payout": "asset",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "quantlib_version": "1.44",
+      "observations": {
+        "time_coarse": {
+          "price": 40.53016326479241,
+          "profile": {
+            "space": 12800,
+            "time": 3200,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_middle": {
+          "price": 40.53016246810634,
+          "profile": {
+            "space": 12800,
+            "time": 6400,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_fine": {
+          "price": 40.530162268734436,
+          "profile": {
+            "space": 12800,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "space_refined": {
+          "price": 40.530377908244006,
+          "profile": {
+            "space": 25600,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "mesher_040": {
+          "price": 40.530451360074935,
+          "profile": {
+            "space": 25600,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.4
+          }
+        },
+        "mesher_060": {
+          "price": 40.53055705952392,
+          "profile": {
+            "space": 25600,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.6
+          }
+        }
+      },
+      "observed_shifts": {
+        "time_extrapolation": 3.97942258700823e-07,
+        "space": 0.00021563950956959843,
+        "domain": 0.00017915127991585678
+      },
+      "uncertainty": 0.0007903775634883121,
+      "limit": 0.0005,
+      "result": "rejected_reference_refinement"
+    },
+    {
+      "id": "fd-local-vol-terminal-up-in-asset",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "binary_barrier",
+        "option": "put",
+        "strike": 100,
+        "barrier": 120,
+        "barrier_type": "up_in",
+        "payout": "asset",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "quantlib_version": "1.44",
+      "observations": {
+        "time_coarse": {
+          "price": 3.4803043756617598,
+          "profile": {
+            "space": 3200,
+            "time": 3200,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_middle": {
+          "price": 3.4802597612740414,
+          "profile": {
+            "space": 3200,
+            "time": 6400,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_fine": {
+          "price": 3.4802373192820006,
+          "profile": {
+            "space": 3200,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "space_refined": {
+          "price": 3.4809107577337457,
+          "profile": {
+            "space": 6400,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "mesher_040": {
+          "price": 3.4804295192670764,
+          "profile": {
+            "space": 6400,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.4
+          }
+        },
+        "mesher_060": {
+          "price": 3.4801414032259963,
+          "profile": {
+            "space": 6400,
+            "time": 12800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.6
+          }
+        }
+      },
+      "observed_shifts": {
+        "time_extrapolation": 2.6959636301171486e-07,
+        "space": 0.0006734384517450565,
+        "domain": 0.000769354507749398
+      },
+      "uncertainty": 0.0028861252117149323,
+      "limit": 0.0005,
+      "result": "rejected_reference_refinement"
+    },
+    {
+      "id": "fd-local-vol-terminal-up-in-asset",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "binary_barrier",
+        "option": "put",
+        "strike": 100,
+        "barrier": 120,
+        "barrier_type": "up_in",
+        "payout": "asset",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "quantlib_version": "1.44",
+      "observations": {
+        "time_coarse": {
+          "price": 3.8722419058616886,
+          "profile": {
+            "space": 12800,
+            "time": 800,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_middle": {
+          "price": 3.5021978007391965,
+          "profile": {
+            "space": 12800,
+            "time": 1600,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_fine": {
+          "price": 3.4802088236680824,
+          "profile": {
+            "space": 12800,
+            "time": 3200,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "space_refined": {
+          "price": 3.4472091003354137,
+          "profile": {
+            "space": 25600,
+            "time": 3200,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "mesher_040": {
+          "price": 3.00529700005902,
+          "profile": {
+            "space": 25600,
+            "time": 3200,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.4
+          }
+        },
+        "mesher_060": {
+          "price": 3.452478261984215,
+          "profile": {
+            "space": 25600,
+            "time": 3200,
+            "scheme": "crank_nicolson",
+            "damping": 2,
+            "domain": "automatic",
+            "mesher_vol": 0.6
+          }
+        }
+      },
+      "observed_shifts": {
+        "time_extrapolation": 0.3260661509802638,
+        "space": 0.03299972333266865,
+        "domain": 0.4419121002763937
+      },
+      "uncertainty": 1.6019559492786524,
+      "limit": 0.0005,
+      "result": "rejected_underdamped_reference_refinement"
+    },
+    {
+      "id": "fd-local-vol-terminal-up-in-asset",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "product": "binary_barrier",
+        "option": "put",
+        "strike": 100,
+        "barrier": 120,
+        "barrier_type": "up_in",
+        "payout": "asset",
+        "operation": "price",
+        "surface_low": 80,
+        "surface_high": 120,
+        "surface_start_low": 0.3,
+        "surface_start_high": 0.15,
+        "surface_end_low": 0.35,
+        "surface_end_high": 0.2
+      },
+      "quantlib_version": "1.44",
+      "observations": {
+        "time_coarse": {
+          "price": 3.4798539018971724,
+          "profile": {
+            "space": 12800,
+            "time": 800,
+            "scheme": "implicit_euler",
+            "damping": 0,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_middle": {
+          "price": 3.47998541725536,
+          "profile": {
+            "space": 12800,
+            "time": 1600,
+            "scheme": "implicit_euler",
+            "damping": 0,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "time_fine": {
+          "price": 3.4800517096157115,
+          "profile": {
+            "space": 12800,
+            "time": 3200,
+            "scheme": "implicit_euler",
+            "damping": 0,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "space_refined": {
+          "price": 3.4802401066843522,
+          "profile": {
+            "space": 25600,
+            "time": 3200,
+            "scheme": "implicit_euler",
+            "damping": 0,
+            "domain": "automatic",
+            "mesher_vol": 0.5
+          }
+        },
+        "mesher_040": {
+          "price": 3.48018499912072,
+          "profile": {
+            "space": 25600,
+            "time": 3200,
+            "scheme": "implicit_euler",
+            "damping": 0,
+            "domain": "automatic",
+            "mesher_vol": 0.4
+          }
+        },
+        "mesher_060": {
+          "price": 3.48031477191471,
+          "profile": {
+            "space": 25600,
+            "time": 3200,
+            "scheme": "implicit_euler",
+            "damping": 0,
+            "domain": "automatic",
+            "mesher_vol": 0.6
+          }
+        }
+      },
+      "observed_shifts": {
+        "time_extrapolation": 1.0693625149826858e-06,
+        "space": 0.00018839706864071104,
+        "domain": 7.466523035759565e-05
+      },
+      "uncertainty": 0.0005282634230265788,
+      "limit": 0.0005,
+      "result": "rejected_reference_refinement"
+    }
+  ]
+}

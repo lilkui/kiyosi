@@ -1,0 +1,341 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "fd-bsm-european-call",
+      "value": 9.227005508154047,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "9.2270055081540475442210596183103301918152202505427832245760579442669215151107144044520007",
+            "9.227005508154047544221059618310330191815220250542783224576057944266921515110714404452000813018617609222508370"
+          ],
+          "precision_delta": "1.13018617609222508370E-88",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-american-put",
+      "value": 6.660684545893456,
+      "uncertainty": 5e-05,
+      "provenance": {
+        "method": "Independent Rust/QuantLib FD space, time and domain refinement with first-order time extrapolation",
+        "source": "calibration/american.json; calibration/american_reference.cpp; crates/kiyosi/examples/quantlib_bench_references.rs",
+        "evidence": {
+          "scenario": {
+            "spot": 100,
+            "strike": 100,
+            "rate": 0.05,
+            "dividend": 0.02,
+            "volatility": 0.2,
+            "maturity_years": 1,
+            "option": "put",
+            "exercise": "american"
+          },
+          "quantlib_version": "1.44",
+          "quantlib_build_command": [
+            "c++",
+            "-std=c++17",
+            "-O3",
+            "-DNDEBUG",
+            "-I/usr/local/include",
+            "/tmp/kiyosi-bench-04/benchmarks/quantlib/calibration/american_reference.cpp",
+            "-o",
+            "/tmp/kiyosi-bench-04/benchmarks/quantlib/build/american_reference",
+            "-L/usr/local/lib",
+            "-lQuantLib"
+          ],
+          "quantlib_source": "benchmarks/quantlib/calibration/american_reference.cpp",
+          "kiyosi_source": "crates/kiyosi/examples/quantlib_bench_references.rs",
+          "quantlib_controls": "CrankNicolson; dampingSteps=2; automatic mesher domain (not publicly adjustable)",
+          "kiyosi_controls": "Rannacher; nonuniform sinh grid; domain refinements scale interval count with upper boundary",
+          "quantlib_fd": [
+            {
+              "space": 800,
+              "time": 6400,
+              "price": 6.6605852558508225
+            },
+            {
+              "space": 1600,
+              "time": 6400,
+              "price": 6.660609862343994
+            },
+            {
+              "space": 3200,
+              "time": 6400,
+              "price": 6.660615958552998
+            },
+            {
+              "space": 3200,
+              "time": 12800,
+              "price": 6.660650520988351
+            },
+            {
+              "space": 3200,
+              "time": 25600,
+              "price": 6.660667533440903
+            }
+          ],
+          "kiyosi_fd": [
+            {
+              "space": 1600,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.660567324950622
+            },
+            {
+              "space": 3200,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.660612043576917
+            },
+            {
+              "space": 6400,
+              "time": 6400,
+              "upper": 400,
+              "price": 6.66061689212674
+            },
+            {
+              "space": 6400,
+              "time": 12800,
+              "upper": 400,
+              "price": 6.6606495941339645
+            },
+            {
+              "space": 6400,
+              "time": 25600,
+              "upper": 400,
+              "price": 6.66066584176103
+            },
+            {
+              "space": 8000,
+              "time": 25600,
+              "upper": 500,
+              "price": 6.660667018354879
+            },
+            {
+              "space": 9600,
+              "time": 25600,
+              "upper": 600,
+              "price": 6.660668507129701
+            }
+          ],
+          "quantlib_first_order_time_extrapolation": 6.660684545893456,
+          "kiyosi_first_order_time_extrapolation": 6.660682089388095,
+          "independent_extrapolation_difference": 2.4565053609038046e-06,
+          "quantlib_last_space_delta": 6.096209003381148e-06,
+          "kiyosi_last_space_delta": 4.848549822966675e-06,
+          "kiyosi_domain_span": 2.6653686715505387e-06,
+          "uncertainty_policy": "5e-5 conservative numerical uncertainty; covers independent extrapolation difference, last temporal changes, spatial changes and domain span; not a rigorous error bound"
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-cash-digital-call",
+      "value": 4.945810910532235,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "4.94581091053223517695270646983813200623296913598339739602021819712343952572879352055194428",
+            "4.9458109105322351769527064698381320062329691359833973960202181971234395257287935205519442735184884249514440717"
+          ],
+          "precision_delta": "6.4815115750485559283E-90",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-asset-digital-put",
+      "value": 48.77338637675745,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "48.7733863767574473621533445684304361295618148040327854868961968722775835360933483523730355",
+            "48.773386376757447362153344568430436129561814804032785486896196872277583536093348352373035527601175496348272124"
+          ],
+          "precision_delta": "2.7601175496348272124E-89",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-down-out-call",
+      "value": 9.13330643649812,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "9.13330643649812110790234202944677064996718213538619982105264746382157649372910984042870099",
+            "9.1333064364981211079023420294467706499671821353861998210526474638215764937291098404287010999864310693019725556"
+          ],
+          "precision_delta": "1.099864310693019725556E-88",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-terminal-down-out-cash",
+      "value": 4.821800827386251,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "4.82180082738625085458090270276487469386386678968129023214468601139340607066183799391882558",
+            "4.8218008273862508545809027027648746938638667896812902321446860113934060706618379939188255621254850074675064121"
+          ],
+          "precision_delta": "1.78745149925324935879E-89",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-terminal-up-in-asset",
+      "value": 2.9495588691203687,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "2.94955886912036872244928985294873305217822519717270694260746489110556221123686184718492690",
+            "2.9495588691203687224492898529487330521782251971727069426074648911055622112368618471849261377763330258908593308"
+          ],
+          "precision_delta": "7.622236669741091406692E-88",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-down-no-touch-cash-expiry",
+      "value": 7.1340884309641535,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "7.13408843096415327355006760789953733938992943014136438519846970039004748095675812625546301",
+            "7.1340884309641532735500676078995373393899294301413643851984697003900474809567581262554630706594900991209483008"
+          ],
+          "precision_delta": "6.06594900991209483008E-89",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-up-no-touch-asset-expiry",
+      "value": 54.140369115687385,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "54.1403691156873850095115543334561329624810036686440488826927243321932165650148188776837729",
+            "54.140369115687385009511554333456132962481003668644048882692724332193216565014818877683773723445823251077047051"
+          ],
+          "precision_delta": "8.23445823251077047051E-88",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-up-one-touch-cash-hit",
+      "value": 3.6939118206098467,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "3.69391182060984677868949925074310289429362655544163884433958309433612595304329025295217071",
+            "3.6939118206098467786894992507431028942936265554416388443395830943361259530432902529521706500659549468575322173"
+          ],
+          "precision_delta": "5.99340450531424677827E-89",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-down-one-touch-asset-hit",
+      "value": 19.44921676456117,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+        "evidence": {
+          "precisions": [
+            90,
+            110
+          ],
+          "values": [
+            "19.4492167645611705007907625500499102344114443511383351659057238334720213473025611792383170",
+            "19.449216764561170500790762550049910234411444351138335165905723833472021347302561179238314873642388262680816558"
+          ],
+          "precision_delta": "2.126357611737319183442E-87",
+          "normal_tail_cutoff": 16,
+          "normal_tail_bound": 6.4e-58
+        }
+      }
+    }
+  ]
+}

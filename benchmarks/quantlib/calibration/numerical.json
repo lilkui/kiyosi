@@ -1,0 +1,1433 @@
+{
+  "quantlib_version": "1.44",
+  "source_revision": "a23bae2a8468f55f4422d9e147d32972a1fa3404",
+  "cases": [
+    {
+      "id": "quadrature-bsm-european-call",
+      "budget": 1e-05,
+      "reference": 9.227005508154047,
+      "reference_uncertainty": 1e-13,
+      "backends": {
+        "kiyosi": {
+          "selected_profile": {
+            "asset_step_count": 512,
+            "integration_standard_deviations": 8,
+            "time_step_count": 1
+          },
+          "selected_price": 9.22700551645186,
+          "absolute_error": 8.297812215118938e-09,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "asset_step_count": 256,
+                "integration_standard_deviations": 8,
+                "time_step_count": 1
+              },
+              "price": 9.227005640979662,
+              "absolute_error": 1.3282561539540438e-07
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 8,
+                "time_step_count": 1
+              },
+              "price": 9.22700551645186,
+              "absolute_error": 8.297812215118938e-09
+            },
+            {
+              "profile": {
+                "asset_step_count": 1024,
+                "integration_standard_deviations": 8,
+                "time_step_count": 1
+              },
+              "price": 9.227005508672562,
+              "absolute_error": 5.185150087072543e-10
+            },
+            {
+              "profile": {
+                "asset_step_count": 2048,
+                "integration_standard_deviations": 8,
+                "time_step_count": 1
+              },
+              "price": 9.227005508186414,
+              "absolute_error": 3.2366997970711964e-11
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 8,
+                "time_step_count": 1
+              },
+              "price": 9.22700551645186,
+              "absolute_error": 8.297812215118938e-09
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 10,
+                "time_step_count": 1
+              },
+              "price": 9.227005527927439,
+              "absolute_error": 1.977339181280513e-08
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 12,
+                "time_step_count": 1
+              },
+              "price": 9.227005548497514,
+              "absolute_error": 4.0343467233583397e-08
+            }
+          ]
+        },
+        "quantlib": {
+          "selected_profile": {},
+          "selected_price": 9.227010561648509,
+          "absolute_error": 5.053494462003982e-06,
+          "passed": true,
+          "refinements": [],
+          "fixed_integration": "5000 trapezoid intervals; native IntegralEngine exposes no controls; actual error checked independently"
+        }
+      }
+    },
+    {
+      "id": "quadrature-bsm-cash-call",
+      "budget": 0.02,
+      "reference": 3.978167738574893,
+      "reference_uncertainty": 1e-13,
+      "backends": {
+        "kiyosi": {
+          "selected_profile": {
+            "asset_step_count": 512,
+            "integration_standard_deviations": 8
+          },
+          "selected_price": 3.9781677378982785,
+          "absolute_error": 6.766143201275554e-10,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "asset_step_count": 256,
+                "integration_standard_deviations": 8
+              },
+              "price": 3.9781677277447094,
+              "absolute_error": 1.0830183416743466e-08
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 8
+              },
+              "price": 3.9781677378982785,
+              "absolute_error": 6.766143201275554e-10
+            },
+            {
+              "profile": {
+                "asset_step_count": 1024,
+                "integration_standard_deviations": 8
+              },
+              "price": 3.9781677385326044,
+              "absolute_error": 4.228839500797221e-11
+            },
+            {
+              "profile": {
+                "asset_step_count": 2048,
+                "integration_standard_deviations": 8
+              },
+              "price": 3.9781677385722456,
+              "absolute_error": 2.6472157799162233e-12
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 8
+              },
+              "price": 3.9781677378982785,
+              "absolute_error": 6.766143201275554e-10
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 10
+              },
+              "price": 3.9781677368875936,
+              "absolute_error": 1.687299189256919e-09
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 12
+              },
+              "price": 3.978167735026329,
+              "absolute_error": 3.548563665134452e-09
+            }
+          ]
+        },
+        "quantlib": {
+          "selected_profile": {},
+          "selected_price": 3.9799001747235727,
+          "absolute_error": 0.0017324361486799056,
+          "passed": true,
+          "refinements": [],
+          "fixed_integration": "5000 trapezoid intervals; native IntegralEngine exposes no controls; actual error checked independently"
+        }
+      }
+    },
+    {
+      "id": "quadrature-bsm-asset-put",
+      "budget": 0.2,
+      "reference": 25.203418573555833,
+      "reference_uncertainty": 1e-13,
+      "backends": {
+        "kiyosi": {
+          "selected_profile": {
+            "asset_step_count": 512,
+            "integration_standard_deviations": 8
+          },
+          "selected_price": 25.203418560128803,
+          "absolute_error": 1.3427030154389286e-08,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "asset_step_count": 256,
+                "integration_standard_deviations": 8
+              },
+              "price": 25.20341835866173,
+              "absolute_error": 2.1489410428898736e-07
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 8
+              },
+              "price": 25.203418560128803,
+              "absolute_error": 1.3427030154389286e-08
+            },
+            {
+              "profile": {
+                "asset_step_count": 1024,
+                "integration_standard_deviations": 8
+              },
+              "price": 25.203418572716657,
+              "absolute_error": 8.391758399284299e-10
+            },
+            {
+              "profile": {
+                "asset_step_count": 2048,
+                "integration_standard_deviations": 8
+              },
+              "price": 25.203418573503328,
+              "absolute_error": 5.2505555458992603e-11
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 8
+              },
+              "price": 25.203418560128803,
+              "absolute_error": 1.3427030154389286e-08
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 10
+              },
+              "price": 25.203418538073876,
+              "absolute_error": 3.5481956928151703e-08
+            },
+            {
+              "profile": {
+                "asset_step_count": 512,
+                "integration_standard_deviations": 12
+              },
+              "price": 25.203418496055683,
+              "absolute_error": 7.750015029728274e-08
+            }
+          ]
+        },
+        "quantlib": {
+          "selected_profile": {},
+          "selected_price": 25.22160582600987,
+          "absolute_error": 0.018187252454037406,
+          "passed": true,
+          "refinements": [],
+          "fixed_integration": "5000 trapezoid intervals; native IntegralEngine exposes no controls; actual error checked independently"
+        }
+      }
+    },
+    {
+      "id": "crr-bsm-european-call",
+      "budget": 0.005,
+      "reference": 9.227005508154047,
+      "reference_uncertainty": 1e-13,
+      "backends": {
+        "kiyosi": {
+          "selected_profile": {
+            "step_count": 512
+          },
+          "selected_price": 9.223209535667928,
+          "absolute_error": 0.003795972486118515,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "step_count": 255
+              },
+              "price": 9.234248460897561,
+              "absolute_error": 0.007242952743514053
+            },
+            {
+              "profile": {
+                "step_count": 256
+              },
+              "price": 9.219415430133282,
+              "absolute_error": 0.0075900780207653895
+            },
+            {
+              "profile": {
+                "step_count": 511
+              },
+              "price": 9.230619065750256,
+              "absolute_error": 0.0036135575962088495
+            },
+            {
+              "profile": {
+                "step_count": 512
+              },
+              "price": 9.223209535667928,
+              "absolute_error": 0.003795972486118515
+            },
+            {
+              "profile": {
+                "step_count": 1023
+              },
+              "price": 9.228810312809873,
+              "absolute_error": 0.0018048046558263309
+            },
+            {
+              "profile": {
+                "step_count": 1024
+              },
+              "price": 9.225107289388465,
+              "absolute_error": 0.0018982187655822713
+            },
+            {
+              "profile": {
+                "step_count": 2047
+              },
+              "price": 9.227907417634299,
+              "absolute_error": 0.0009019094802518168
+            },
+            {
+              "profile": {
+                "step_count": 2048
+              },
+              "price": 9.226056340743268,
+              "absolute_error": 0.0009491674107788839
+            },
+            {
+              "profile": {
+                "step_count": 4095
+              },
+              "price": 9.227456339778977,
+              "absolute_error": 0.00045083162492964846
+            },
+            {
+              "profile": {
+                "step_count": 4096
+              },
+              "price": 9.22653090995041,
+              "absolute_error": 0.0004745982036364893
+            }
+          ]
+        },
+        "quantlib": {
+          "selected_profile": {
+            "step_count": 512
+          },
+          "selected_price": 9.22317324359916,
+          "absolute_error": 0.003832264554887388,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "step_count": 255
+              },
+              "price": 9.234175604974977,
+              "absolute_error": 0.007170096820930283
+            },
+            {
+              "profile": {
+                "step_count": 256
+              },
+              "price": 9.219342854115386,
+              "absolute_error": 0.007662654038661287
+            },
+            {
+              "profile": {
+                "step_count": 511
+              },
+              "price": 9.230582703819456,
+              "absolute_error": 0.0035771956654091497
+            },
+            {
+              "profile": {
+                "step_count": 512
+              },
+              "price": 9.22317324359916,
+              "absolute_error": 0.003832264554887388
+            },
+            {
+              "profile": {
+                "step_count": 1023
+              },
+              "price": 9.228792148305192,
+              "absolute_error": 0.001786640151145491
+            },
+            {
+              "profile": {
+                "step_count": 1024
+              },
+              "price": 9.22508914234003,
+              "absolute_error": 0.0019163658140168849
+            },
+            {
+              "profile": {
+                "step_count": 2047
+              },
+              "price": 9.227898339495502,
+              "absolute_error": 0.0008928313414546807
+            },
+            {
+              "profile": {
+                "step_count": 2048
+              },
+              "price": 9.22604726697018,
+              "absolute_error": 0.0009582411838664484
+            },
+            {
+              "profile": {
+                "step_count": 4095
+              },
+              "price": 9.227451801726003,
+              "absolute_error": 0.00044629357195624664
+            },
+            {
+              "profile": {
+                "step_count": 4096
+              },
+              "price": 9.22652637300432,
+              "absolute_error": 0.00047913514972641735
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "crr-bsm-american-put",
+      "budget": 0.005,
+      "reference": 6.660684545893456,
+      "reference_uncertainty": 5e-05,
+      "backends": {
+        "kiyosi": {
+          "selected_profile": {
+            "step_count": 512
+          },
+          "selected_price": 6.658861951346935,
+          "absolute_error": 0.0018225945465202287,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "step_count": 255
+              },
+              "price": 6.667551007109399,
+              "absolute_error": 0.006866461215943254
+            },
+            {
+              "profile": {
+                "step_count": 256
+              },
+              "price": 6.65700815929338,
+              "absolute_error": 0.003676386600075965
+            },
+            {
+              "profile": {
+                "step_count": 511
+              },
+              "price": 6.664127637010452,
+              "absolute_error": 0.0034430911169964773
+            },
+            {
+              "profile": {
+                "step_count": 512
+              },
+              "price": 6.658861951346935,
+              "absolute_error": 0.0018225945465202287
+            },
+            {
+              "profile": {
+                "step_count": 1023
+              },
+              "price": 6.662411834367835,
+              "absolute_error": 0.001727288474379307
+            },
+            {
+              "profile": {
+                "step_count": 1024
+              },
+              "price": 6.659780248091998,
+              "absolute_error": 0.0009042978014575098
+            },
+            {
+              "profile": {
+                "step_count": 2047
+              },
+              "price": 6.661551951486684,
+              "absolute_error": 0.0008674055932287317
+            },
+            {
+              "profile": {
+                "step_count": 2048
+              },
+              "price": 6.660236527695089,
+              "absolute_error": 0.00044801819836681744
+            },
+            {
+              "profile": {
+                "step_count": 4095
+              },
+              "price": 6.661119600533006,
+              "absolute_error": 0.00043505463955018087
+            },
+            {
+              "profile": {
+                "step_count": 4096
+              },
+              "price": 6.6604619734654635,
+              "absolute_error": 0.00022257242799206267
+            }
+          ]
+        },
+        "quantlib": {
+          "selected_profile": {
+            "step_count": 512
+          },
+          "selected_price": 6.65888065671518,
+          "absolute_error": 0.001803889178275675,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "step_count": 255
+              },
+              "price": 6.667588644078425,
+              "absolute_error": 0.006904098184969065
+            },
+            {
+              "profile": {
+                "step_count": 256
+              },
+              "price": 6.6570455411984035,
+              "absolute_error": 0.0036390046950520727
+            },
+            {
+              "profile": {
+                "step_count": 511
+              },
+              "price": 6.6641464097729735,
+              "absolute_error": 0.003461863879517857
+            },
+            {
+              "profile": {
+                "step_count": 512
+              },
+              "price": 6.65888065671518,
+              "absolute_error": 0.001803889178275675
+            },
+            {
+              "profile": {
+                "step_count": 1023
+              },
+              "price": 6.6624212063496575,
+              "absolute_error": 0.0017366604562019106
+            },
+            {
+              "profile": {
+                "step_count": 1024
+              },
+              "price": 6.659789603035611,
+              "absolute_error": 0.0008949428578448604
+            },
+            {
+              "profile": {
+                "step_count": 2047
+              },
+              "price": 6.66155663443307,
+              "absolute_error": 0.0008720885396140687
+            },
+            {
+              "profile": {
+                "step_count": 2048
+              },
+              "price": 6.660241206461652,
+              "absolute_error": 0.0004433394318033024
+            },
+            {
+              "profile": {
+                "step_count": 4095
+              },
+              "price": 6.661121941175612,
+              "absolute_error": 0.0004373952821561389
+            },
+            {
+              "profile": {
+                "step_count": 4096
+              },
+              "price": 6.660464313062855,
+              "absolute_error": 0.0002202328306006862
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "crr-bsm-down-out-call",
+      "budget": 0.02,
+      "reference": 9.13330643649812,
+      "reference_uncertainty": 1e-13,
+      "backends": {
+        "kiyosi": {
+          "selected_profile": {
+            "step_count": 2048
+          },
+          "selected_price": 9.138495032229448,
+          "absolute_error": 0.005188595731327794,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "step_count": 255
+              },
+              "price": 9.147159063771657,
+              "absolute_error": 0.0138526272735362
+            },
+            {
+              "profile": {
+                "step_count": 256
+              },
+              "price": 9.132366829937656,
+              "absolute_error": 0.0009396065604647674
+            },
+            {
+              "profile": {
+                "step_count": 511
+              },
+              "price": 9.15429657896413,
+              "absolute_error": 0.020990142466009942
+            },
+            {
+              "profile": {
+                "step_count": 512
+              },
+              "price": 9.146903949420725,
+              "absolute_error": 0.013597512922604693
+            },
+            {
+              "profile": {
+                "step_count": 1023
+              },
+              "price": 9.140452595698218,
+              "absolute_error": 0.007146159200097202
+            },
+            {
+              "profile": {
+                "step_count": 1024
+              },
+              "price": 9.136759931025592,
+              "absolute_error": 0.00345349452747179
+            },
+            {
+              "profile": {
+                "step_count": 2047
+              },
+              "price": 9.140340998195162,
+              "absolute_error": 0.007034561697041752
+            },
+            {
+              "profile": {
+                "step_count": 2048
+              },
+              "price": 9.138495032229448,
+              "absolute_error": 0.005188595731327794
+            },
+            {
+              "profile": {
+                "step_count": 4095
+              },
+              "price": 9.138781677381044,
+              "absolute_error": 0.00547524088292306
+            },
+            {
+              "profile": {
+                "step_count": 4096
+              },
+              "price": 9.13785884722838,
+              "absolute_error": 0.004552410730259027
+            },
+            {
+              "profile": {
+                "step_count": 8191
+              },
+              "price": 9.133686694253903,
+              "absolute_error": 0.00038025775578276466
+            },
+            {
+              "profile": {
+                "step_count": 8192
+              },
+              "price": 9.133225406342607,
+              "absolute_error": 8.103015551341741e-05
+            }
+          ]
+        },
+        "quantlib": {
+          "selected_profile": {
+            "step_count": 2048
+          },
+          "selected_price": 9.138485999863484,
+          "absolute_error": 0.005179563365363293,
+          "passed": true,
+          "refinements": [
+            {
+              "profile": {
+                "step_count": 255
+              },
+              "price": 9.147086534170452,
+              "absolute_error": 0.013780097672331237
+            },
+            {
+              "profile": {
+                "step_count": 256
+              },
+              "price": 9.132294583973394,
+              "absolute_error": 0.0010118525247264643
+            },
+            {
+              "profile": {
+                "step_count": 511
+              },
+              "price": 9.154260358832131,
+              "absolute_error": 0.0209539223340105
+            },
+            {
+              "profile": {
+                "step_count": 512
+              },
+              "price": 9.146867799990142,
+              "absolute_error": 0.013561363492021528
+            },
+            {
+              "profile": {
+                "step_count": 1023
+              },
+              "price": 9.140434514634805,
+              "absolute_error": 0.007128078136684479
+            },
+            {
+              "profile": {
+                "step_count": 1024
+              },
+              "price": 9.136741867648116,
+              "absolute_error": 0.0034354311499953383
+            },
+            {
+              "profile": {
+                "step_count": 2047
+              },
+              "price": 9.140331961409737,
+              "absolute_error": 0.007025524911616898
+            },
+            {
+              "profile": {
+                "step_count": 2048
+              },
+              "price": 9.138485999863484,
+              "absolute_error": 0.005179563365363293
+            },
+            {
+              "profile": {
+                "step_count": 4095
+              },
+              "price": 9.138777160314442,
+              "absolute_error": 0.00547072381632141
+            },
+            {
+              "profile": {
+                "step_count": 4096
+              },
+              "price": 9.137854331266434,
+              "absolute_error": 0.004547894768313299
+            },
+            {
+              "profile": {
+                "step_count": 8191
+              },
+              "price": 9.133684436614066,
+              "absolute_error": 0.000378000115945909
+            },
+            {
+              "profile": {
+                "step_count": 8192
+              },
+              "price": 9.133223148978786,
+              "absolute_error": 8.328751933461831e-05
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "validation": {
+    "utc": "2026-11-15T15:47:44.647350+00:00",
+    "wall_seconds": 6.5498490580012,
+    "libraries": {
+      "kiyosi": {
+        "library": "kiyosi",
+        "version": "0.19.0",
+        "families": [
+          "european_bsm",
+          "quadrature_vanilla",
+          "quadrature_digital",
+          "crr_vanilla",
+          "crr_barrier"
+        ]
+      },
+      "quantlib": {
+        "library": "QuantLib",
+        "version": "1.44",
+        "runtime_version": "unavailable: QuantLib exposes no runtime version API",
+        "families": [
+          "european_bsm",
+          "quadrature_vanilla",
+          "quadrature_digital",
+          "crr_vanilla",
+          "crr_barrier"
+        ]
+      }
+    },
+    "build": {
+      "rust_command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "-p",
+        "kiyosi",
+        "--example",
+        "quantlib_bench"
+      ],
+      "cpp_command": [
+        "c++",
+        "-std=c++17",
+        "-I/usr/local/include",
+        "-O3",
+        "-DNDEBUG",
+        "/tmp/kiyosi-bench-04/benchmarks/quantlib/quantlib.cpp",
+        "-o",
+        "/tmp/kiyosi-bench-04/benchmarks/quantlib/build/quantlib_bench",
+        "-L/usr/local/lib",
+        "-lQuantLib"
+      ],
+      "quantlib_config_version": "1.44",
+      "rust_profile": "Cargo release; thin LTO",
+      "installed_quantlib_build_flags": "unavailable: verify optimized installation manually",
+      "executables": {
+        "kiyosi": {
+          "path": "/tmp/kiyosi-bench-04/target/release/examples/quantlib_bench",
+          "sha256": "59f9410c3a9fdfbc012acf5affd04155e1835f5fdf28058cf9b4b46dfd8a851d"
+        },
+        "quantlib": {
+          "path": "/tmp/kiyosi-bench-04/benchmarks/quantlib/build/quantlib_bench",
+          "sha256": "17382905560f6e84ce67810999c0bdd6409297c88d4736ef4bcbc396ae3fd902"
+        }
+      },
+      "rustflags": "unset",
+      "cxx_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+    },
+    "machine": {
+      "os": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+      "architecture": "x86_64",
+      "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           48 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  24\nOn-line CPU(s) list:                     0-23\nVendor ID:                               AuthenticAMD\nModel name:                              AMD Ryzen 9 5900X 12-Core Processor\nCPU family:                              25\nModel:                                   33\nThread(s) per core:                      2\nCore(s) per socket:                      12\nSocket(s):                               1\nStepping:                                0\nBogoMIPS:                                7400.07\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology tsc_reliable nonstop_tsc cpuid extd_apicid tsc_known_freq pni pclmulqdq ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext perfctr_core ssbd ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves clzero xsaveerptr arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm\nVirtualization:                          AMD-V\nHypervisor vendor:                       Microsoft\nVirtualization type:                     full\nL1d cache:                               384 KiB (12 instances)\nL1i cache:                               384 KiB (12 instances)\nL2 cache:                                6 MiB (12 instances)\nL3 cache:                                32 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-23\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Vulnerable: Safe RET, no microcode\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP always-on; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Vulnerable: No microcode\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Not affected"
+    },
+    "toolchains": {
+      "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+      "cargo": "cargo 1.100.0 (3acc79c0c 2026-11-05)",
+      "python": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]"
+    },
+    "source": {
+      "revision": "a23bae2a8468f55f4422d9e147d32972a1fa3404",
+      "dirty_state": "M benchmarks/quantlib/quantlib.cpp\n M crates/kiyosi/examples/quantlib_bench.rs\n?? benchmarks/quantlib/calibrate_numerical.py\n?? benchmarks/quantlib/calibration/american.json\n?? benchmarks/quantlib/calibration/american_reference.cpp\n?? benchmarks/quantlib/calibration/numerical.json\n?? benchmarks/quantlib/cases/numerical.json\n?? benchmarks/quantlib/crr.hpp\n?? benchmarks/quantlib/quadrature.hpp\n?? benchmarks/quantlib/references/numerical.json\n?? benchmarks/quantlib/test_numerical.py\n?? crates/kiyosi/examples/quantlib_bench/crr.rs\n?? crates/kiyosi/examples/quantlib_bench/quadrature.rs\n?? crates/kiyosi/examples/quantlib_bench_references.rs"
+    },
+    "protocol": {
+      "paired_samples": 15,
+      "target_ms": 20,
+      "workers_per_backend": 1,
+      "quartiles": "inclusive linear interpolation",
+      "price_only": false
+    },
+    "raw_report_path": "/tmp/kiyosi-ticket04-full.json",
+    "cases": [
+      {
+        "id": "quadrature-bsm-european-call",
+        "status": "passed",
+        "ratio": 4.101190605883736,
+        "sample_order": [
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ]
+        ],
+        "backends": {
+          "kiyosi": {
+            "accuracy": {
+              "price": 9.22700551645186,
+              "absolute_error": 8.297812215118938e-09,
+              "error_including_reference_uncertainty": 8.297912215118939e-09,
+              "passed": true
+            },
+            "median_ns": 16365.29757531227,
+            "iqr_ns": 891.5044085231439,
+            "sample_count": 15
+          },
+          "quantlib": {
+            "accuracy": {
+              "price": 9.227010561648509,
+              "absolute_error": 5.053494462003982e-06,
+              "error_including_reference_uncertainty": 5.053494562003982e-06,
+              "passed": true
+            },
+            "median_ns": 67117.20467836257,
+            "iqr_ns": 4195.906432748539,
+            "sample_count": 15
+          }
+        }
+      },
+      {
+        "id": "quadrature-bsm-cash-call",
+        "status": "passed",
+        "ratio": 19.595531442082226,
+        "sample_order": [
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ]
+        ],
+        "backends": {
+          "kiyosi": {
+            "accuracy": {
+              "price": 3.9781677378982785,
+              "absolute_error": 6.766143201275554e-10,
+              "error_including_reference_uncertainty": 6.767143201275554e-10,
+              "passed": true
+            },
+            "median_ns": 3413.620434353406,
+            "iqr_ns": 131.51373807173377,
+            "sample_count": 15
+          },
+          "quantlib": {
+            "accuracy": {
+              "price": 3.9799001747235727,
+              "absolute_error": 0.0017324361486799056,
+              "error_including_reference_uncertainty": 0.0017324361487799057,
+              "passed": true
+            },
+            "median_ns": 66891.70655270656,
+            "iqr_ns": 1942.7307692307659,
+            "sample_count": 15
+          }
+        }
+      },
+      {
+        "id": "quadrature-bsm-asset-put",
+        "status": "passed",
+        "ratio": 19.58464567374863,
+        "sample_order": [
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ]
+        ],
+        "backends": {
+          "kiyosi": {
+            "accuracy": {
+              "price": 25.203418560128803,
+              "absolute_error": 1.3427030154389286e-08,
+              "error_including_reference_uncertainty": 1.3427130154389286e-08,
+              "passed": true
+            },
+            "median_ns": 3404.236279784781,
+            "iqr_ns": 34.51006917755558,
+            "sample_count": 15
+          },
+          "quantlib": {
+            "accuracy": {
+              "price": 25.22160582600987,
+              "absolute_error": 0.018187252454037406,
+              "error_including_reference_uncertainty": 0.018187252454137406,
+              "passed": true
+            },
+            "median_ns": 66670.76132930514,
+            "iqr_ns": 2128.542296072512,
+            "sample_count": 15
+          }
+        }
+      },
+      {
+        "id": "crr-bsm-european-call",
+        "status": "passed",
+        "ratio": 7.520274790198145,
+        "sample_order": [
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ]
+        ],
+        "backends": {
+          "kiyosi": {
+            "accuracy": {
+              "price": 9.223209535667928,
+              "absolute_error": 0.003795972486118515,
+              "error_including_reference_uncertainty": 0.003795972486218515,
+              "passed": true
+            },
+            "median_ns": 15984.960965223563,
+            "iqr_ns": 860.7310149041859,
+            "sample_count": 15
+          },
+          "quantlib": {
+            "accuracy": {
+              "price": 9.22317324359916,
+              "absolute_error": 0.003832264554887388,
+              "error_including_reference_uncertainty": 0.003832264554987388,
+              "passed": true
+            },
+            "median_ns": 120211.29896907216,
+            "iqr_ns": 9754.873711340217,
+            "sample_count": 15
+          }
+        }
+      },
+      {
+        "id": "crr-bsm-american-put",
+        "status": "passed",
+        "ratio": 5.810064187463227,
+        "sample_order": [
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ]
+        ],
+        "backends": {
+          "kiyosi": {
+            "accuracy": {
+              "price": 6.658861951346935,
+              "absolute_error": 0.0018225945465202287,
+              "error_including_reference_uncertainty": 0.0018725945465202286,
+              "passed": true
+            },
+            "median_ns": 189295.79166666666,
+            "iqr_ns": 3230.0916666666744,
+            "sample_count": 15
+          },
+          "quantlib": {
+            "accuracy": {
+              "price": 6.65888065671518,
+              "absolute_error": 0.001803889178275675,
+              "error_including_reference_uncertainty": 0.0018538891782756749,
+              "passed": true
+            },
+            "median_ns": 1099820.7,
+            "iqr_ns": 37428.55000000005,
+            "sample_count": 15
+          }
+        }
+      },
+      {
+        "id": "crr-bsm-down-out-call",
+        "status": "passed",
+        "ratio": 1.6911616262227323,
+        "sample_order": [
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ],
+          [
+            "quantlib",
+            "kiyosi"
+          ],
+          [
+            "kiyosi",
+            "quantlib"
+          ]
+        ],
+        "backends": {
+          "kiyosi": {
+            "accuracy": {
+              "price": 9.138495032229448,
+              "absolute_error": 0.005188595731327794,
+              "error_including_reference_uncertainty": 0.005188595731427794,
+              "passed": true
+            },
+            "median_ns": 6808138.75,
+            "iqr_ns": 136601.75,
+            "sample_count": 15
+          },
+          "quantlib": {
+            "accuracy": {
+              "price": 9.138485999863484,
+              "absolute_error": 0.005179563365363293,
+              "error_including_reference_uncertainty": 0.005179563365463293,
+              "passed": true
+            },
+            "median_ns": 11513663.0,
+            "iqr_ns": 402605.75,
+            "sample_count": 15
+          }
+        }
+      }
+    ]
+  }
+}

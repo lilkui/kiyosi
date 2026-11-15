@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "digital-bsm-cash-call",
+      "value": 4.995517136549785,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM binary/continuous geometric formula or arithmetic two-moment lognormal fit",
+        "source": "benchmarks/quantlib/generate_digitals_asian_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "4.9955171365497854966747026237370056736210196703114107544637981795178950362059715",
+          "precision_difference": "8.924553620182048210496379403E-50",
+          "native_calibration": "benchmarks/quantlib/calibration/digitals_asian.json",
+          "uncertainty_policy": "1e-12 absolute allowance exceeds precision refinement and double rounding; budget 1e-9"
+        }
+      }
+    },
+    {
+      "id": "digital-bsm-asset-put",
+      "value": 34.271450989328564,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM binary/continuous geometric formula or arithmetic two-moment lognormal fit",
+        "source": "benchmarks/quantlib/generate_digitals_asian_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "34.271450989328565566221306104498197171833214564228639723034575355272945063648332",
+          "precision_difference": "7.360276965424644727054936352E-48",
+          "native_calibration": "benchmarks/quantlib/calibration/digitals_asian.json",
+          "uncertainty_policy": "1e-12 absolute allowance exceeds precision refinement and double rounding; budget 1e-9"
+        }
+      }
+    },
+    {
+      "id": "geometric-asian-bsm-call",
+      "value": 5.035867546515377,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM binary/continuous geometric formula or arithmetic two-moment lognormal fit",
+        "source": "benchmarks/quantlib/generate_digitals_asian_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "5.0358675465153767388303185358700760005338703954658239704584636944715960201352884",
+          "precision_difference": "2.076029541536305528403979865E-48",
+          "native_calibration": "benchmarks/quantlib/calibration/digitals_asian.json",
+          "uncertainty_policy": "1e-12 absolute allowance exceeds precision refinement and double rounding; budget 1e-9"
+        }
+      }
+    },
+    {
+      "id": "geometric-asian-bsm-put",
+      "value": 2.3556936178500534,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM binary/continuous geometric formula or arithmetic two-moment lognormal fit",
+        "source": "benchmarks/quantlib/generate_digitals_asian_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "2.3556936178500534756604852099689462894312865682791421695489286351046983224276838",
+          "precision_difference": "1.142169548928635104698322428E-48",
+          "native_calibration": "benchmarks/quantlib/calibration/digitals_asian.json",
+          "uncertainty_policy": "1e-12 absolute allowance exceeds precision refinement and double rounding; budget 1e-9"
+        }
+      }
+    },
+    {
+      "id": "arithmetic-asian-bsm-call",
+      "value": 5.246501860362811,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM binary/continuous geometric formula or arithmetic two-moment lognormal fit",
+        "source": "benchmarks/quantlib/generate_digitals_asian_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "5.2465018603628109035075429265751776545059073987294557894757953570415736706435679",
+          "precision_difference": "2.860144210524204642958426329E-45",
+          "native_calibration": "benchmarks/quantlib/calibration/digitals_asian.json",
+          "uncertainty_policy": "1e-12 absolute allowance exceeds precision refinement and double rounding; budget 1e-9"
+        }
+      }
+    },
+    {
+      "id": "arithmetic-asian-bsm-put",
+      "value": 2.276320528271724,
+      "uncertainty": 1e-12,
+      "provenance": {
+        "method": "Independent Decimal BSM binary/continuous geometric formula or arithmetic two-moment lognormal fit",
+        "source": "benchmarks/quantlib/generate_digitals_asian_references.py",
+        "version": 1,
+        "evidence": {
+          "precision_digits": [
+            50,
+            80
+          ],
+          "decimal_value": "2.2763205282717239552734749881911997704575319763272599927418121704784136694408297",
+          "precision_difference": "2.773840007258187829521586331E-45",
+          "native_calibration": "benchmarks/quantlib/calibration/digitals_asian.json",
+          "uncertainty_policy": "1e-12 absolute allowance exceeds precision refinement and double rounding; budget 1e-9"
+        }
+      }
+    }
+  ]
+}

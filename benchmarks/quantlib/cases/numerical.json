@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "quadrature-bsm-european-call",
+      "family": "quadrature_vanilla",
+      "engine": "QuadratureVanillaEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "asset_step_count": 512,
+          "integration_standard_deviations": 8,
+          "time_step_count": 1
+        },
+        "quantlib": {}
+      },
+      "error_budget": 1e-05,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_rule": "composite Simpson split at payoff strike",
+        "quantlib_rule": "IntegralEngine fixed 5000 trapezoid intervals; no exposed settings",
+        "kiyosi_time_step_count": "1; ignored for European exercise"
+      }
+    },
+    {
+      "id": "quadrature-bsm-cash-call",
+      "family": "quadrature_digital",
+      "engine": "QuadratureDigitalEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 95,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "payoff": "cash",
+        "cash": 10
+      },
+      "profiles": {
+        "kiyosi": {
+          "asset_step_count": 512,
+          "integration_standard_deviations": 8
+        },
+        "quantlib": {}
+      },
+      "error_budget": 0.02,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_rule": "composite Simpson split at payoff strike",
+        "quantlib_rule": "IntegralEngine fixed 5000 trapezoid intervals; no exposed settings"
+      }
+    },
+    {
+      "id": "quadrature-bsm-asset-put",
+      "family": "quadrature_digital",
+      "engine": "QuadratureDigitalEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 110,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "payoff": "asset"
+      },
+      "profiles": {
+        "kiyosi": {
+          "asset_step_count": 512,
+          "integration_standard_deviations": 8
+        },
+        "quantlib": {}
+      },
+      "error_budget": 0.2,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_rule": "composite Simpson split at payoff strike",
+        "quantlib_rule": "IntegralEngine fixed 5000 trapezoid intervals; no exposed settings"
+      }
+    },
+    {
+      "id": "crr-bsm-european-call",
+      "family": "crr_vanilla",
+      "engine": "CoxRossRubinsteinVanillaEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "exercise": "european"
+      },
+      "profiles": {
+        "kiyosi": {
+          "step_count": 512
+        },
+        "quantlib": {
+          "step_count": 512
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "CRR; distinct finite-step probabilities calibrated separately"
+      }
+    },
+    {
+      "id": "crr-bsm-american-put",
+      "family": "crr_vanilla",
+      "engine": "CoxRossRubinsteinVanillaEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "exercise": "american"
+      },
+      "profiles": {
+        "kiyosi": {
+          "step_count": 512
+        },
+        "quantlib": {
+          "step_count": 512
+        }
+      },
+      "error_budget": 0.005,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "CRR; early exercise at every tree layer including valuation"
+      }
+    },
+    {
+      "id": "crr-bsm-down-out-call",
+      "family": "crr_barrier",
+      "engine": "CoxRossRubinsteinBarrierEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "barrier": 80,
+        "barrier_type": "down_out"
+      },
+      "profiles": {
+        "kiyosi": {
+          "step_count": 2048
+        },
+        "quantlib": {
+          "step_count": 2048
+        }
+      },
+      "error_budget": 0.02,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "CRR; unadjusted discrete tree approximates continuous monitoring",
+        "rebate": 0,
+        "monitoring": "continuous",
+        "quantlib_boyle_lau": "disabled: maxTimeSteps == timeSteps",
+        "quantlib_derman_kani": "disabled: DiscretizedBarrierOption template argument",
+        "quantlib_actual_step_count": 2048
+      }
+    }
+  ]
+}

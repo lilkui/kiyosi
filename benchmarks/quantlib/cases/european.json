@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "european-bsm-atm-call",
+      "family": "european_bsm",
+      "engine": "AnalyticEuropeanEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "analytic closed form; no numerical controls"
+      }
+    },
+    {
+      "id": "european-bsm-itm-call",
+      "family": "european_bsm",
+      "engine": "AnalyticEuropeanEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "call",
+        "valuation": "2025-01-01",
+        "expiry": "2027-01-01",
+        "spot": 115,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "analytic closed form; no numerical controls"
+      }
+    },
+    {
+      "id": "european-bsm-otm-put",
+      "family": "european_bsm",
+      "engine": "AnalyticEuropeanEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 110,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2
+      },
+      "profiles": {
+        "kiyosi": {},
+        "quantlib": {}
+      },
+      "error_budget": 1e-09,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "algorithm": "analytic closed form; no numerical controls"
+      }
+    }
+  ]
+}

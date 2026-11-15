@@ -1,0 +1,467 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "heston-analytic-call",
+      "value": 9.011278407541738,
+      "uncertainty": 1e-11,
+      "provenance": {
+        "quantlib_version": "1.44",
+        "source": "native installed QuantLib; heston_reference.cpp",
+        "inputs": {
+          "option": "call",
+          "valuation": "2025-01-01",
+          "expiry": "2026-01-01",
+          "spot": 100,
+          "strike": 100,
+          "rate": 0.05,
+          "dividend": 0.02,
+          "initial_variance": 0.04,
+          "long_run_variance": 0.04,
+          "mean_reversion_speed": 1.5,
+          "vol_of_vol": 0.3,
+          "correlation": -0.7
+        },
+        "method": "Gatheral adaptive Lobatto and independent exp-sinh Fourier integration",
+        "evidence": {
+          "integration": [
+            {
+              "parameters": {
+                "method": "analytic",
+                "quadrature": "lobatto",
+                "tolerance": 1e-10
+              },
+              "price": 9.01127840754174,
+              "evaluations": 800,
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "analytic",
+                "quadrature": "lobatto",
+                "tolerance": 1e-12
+              },
+              "price": 9.01127840754174,
+              "evaluations": 1190,
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "analytic",
+                "quadrature": "exp_sinh",
+                "tolerance": 1e-10
+              },
+              "price": 9.011278407541738,
+              "evaluations": 968,
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "analytic",
+                "quadrature": "exp_sinh",
+                "tolerance": 1e-12
+              },
+              "price": 9.011278407541738,
+              "evaluations": 1448,
+              "quantlib_version": "1.44"
+            }
+          ],
+          "fd_european": [
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "european",
+                "time_steps": 400,
+                "asset_steps": 400,
+                "variance_steps": 200
+              },
+              "price": 9.011493825577551,
+              "asset_domain": [
+                24.279288112903572,
+                399.70098342082434
+              ],
+              "variance_domain": [
+                0,
+                0.24022127404236474
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "european",
+                "time_steps": 800,
+                "asset_steps": 400,
+                "variance_steps": 200
+              },
+              "price": 9.011485887159054,
+              "asset_domain": [
+                24.263856726449042,
+                399.9551862217626
+              ],
+              "variance_domain": [
+                0,
+                0.23627700202103966
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "european",
+                "time_steps": 400,
+                "asset_steps": 800,
+                "variance_steps": 200
+              },
+              "price": 9.01128775710365,
+              "asset_domain": [
+                24.279288112903572,
+                399.70098342082434
+              ],
+              "variance_domain": [
+                0,
+                0.24022127404236474
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "european",
+                "time_steps": 400,
+                "asset_steps": 400,
+                "variance_steps": 400
+              },
+              "price": 9.011542195654805,
+              "asset_domain": [
+                24.338301397973613,
+                398.73182506865794
+              ],
+              "variance_domain": [
+                0,
+                0.2429092985557708
+              ],
+              "quantlib_version": "1.44"
+            }
+          ]
+        },
+        "controls": {
+          "analytic_max_evaluations": 100000,
+          "fd_scheme": "hundsdorfer",
+          "damping_steps": 0,
+          "mesher": "standard FdHestonVanillaEngine automatic domains"
+        }
+      }
+    },
+    {
+      "id": "heston-fd-european-call",
+      "value": 9.011278407541738,
+      "uncertainty": 1e-11,
+      "provenance": {
+        "quantlib_version": "1.44",
+        "source": "native installed QuantLib; heston_reference.cpp",
+        "inputs": {
+          "option": "call",
+          "valuation": "2025-01-01",
+          "expiry": "2026-01-01",
+          "spot": 100,
+          "strike": 100,
+          "rate": 0.05,
+          "dividend": 0.02,
+          "initial_variance": 0.04,
+          "long_run_variance": 0.04,
+          "mean_reversion_speed": 1.5,
+          "vol_of_vol": 0.3,
+          "correlation": -0.7
+        },
+        "method": "Gatheral adaptive Lobatto and independent exp-sinh Fourier integration",
+        "evidence": {
+          "integration": [
+            {
+              "parameters": {
+                "method": "analytic",
+                "quadrature": "lobatto",
+                "tolerance": 1e-10
+              },
+              "price": 9.01127840754174,
+              "evaluations": 800,
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "analytic",
+                "quadrature": "lobatto",
+                "tolerance": 1e-12
+              },
+              "price": 9.01127840754174,
+              "evaluations": 1190,
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "analytic",
+                "quadrature": "exp_sinh",
+                "tolerance": 1e-10
+              },
+              "price": 9.011278407541738,
+              "evaluations": 968,
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "analytic",
+                "quadrature": "exp_sinh",
+                "tolerance": 1e-12
+              },
+              "price": 9.011278407541738,
+              "evaluations": 1448,
+              "quantlib_version": "1.44"
+            }
+          ],
+          "fd_european": [
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "european",
+                "time_steps": 400,
+                "asset_steps": 400,
+                "variance_steps": 200
+              },
+              "price": 9.011493825577551,
+              "asset_domain": [
+                24.279288112903572,
+                399.70098342082434
+              ],
+              "variance_domain": [
+                0,
+                0.24022127404236474
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "european",
+                "time_steps": 800,
+                "asset_steps": 400,
+                "variance_steps": 200
+              },
+              "price": 9.011485887159054,
+              "asset_domain": [
+                24.263856726449042,
+                399.9551862217626
+              ],
+              "variance_domain": [
+                0,
+                0.23627700202103966
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "european",
+                "time_steps": 400,
+                "asset_steps": 800,
+                "variance_steps": 200
+              },
+              "price": 9.01128775710365,
+              "asset_domain": [
+                24.279288112903572,
+                399.70098342082434
+              ],
+              "variance_domain": [
+                0,
+                0.24022127404236474
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "european",
+                "time_steps": 400,
+                "asset_steps": 400,
+                "variance_steps": 400
+              },
+              "price": 9.011542195654805,
+              "asset_domain": [
+                24.338301397973613,
+                398.73182506865794
+              ],
+              "variance_domain": [
+                0,
+                0.2429092985557708
+              ],
+              "quantlib_version": "1.44"
+            }
+          ]
+        },
+        "controls": {
+          "analytic_max_evaluations": 100000,
+          "fd_scheme": "hundsdorfer",
+          "damping_steps": 0,
+          "mesher": "standard FdHestonVanillaEngine automatic domains"
+        }
+      }
+    },
+    {
+      "id": "heston-fd-american-put",
+      "value": 6.450555006874128,
+      "uncertainty": 0.00012831737323626413,
+      "provenance": {
+        "quantlib_version": "1.44",
+        "source": "native installed QuantLib; heston_reference.cpp",
+        "inputs": {
+          "option": "put",
+          "valuation": "2025-01-01",
+          "expiry": "2026-01-01",
+          "spot": 100,
+          "strike": 100,
+          "rate": 0.05,
+          "dividend": 0.02,
+          "initial_variance": 0.04,
+          "long_run_variance": 0.04,
+          "mean_reversion_speed": 1.5,
+          "vol_of_vol": 0.3,
+          "correlation": -0.7
+        },
+        "method": "Hundsdorfer American projection; first-order joint and independent-dimension extrapolation",
+        "evidence": {
+          "raw": [
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "american",
+                "time_steps": 400,
+                "asset_steps": 400,
+                "variance_steps": 200
+              },
+              "price": 6.449056109973752,
+              "asset_domain": [
+                24.279288112903572,
+                399.70098342082434
+              ],
+              "variance_domain": [
+                0,
+                0.24022127404236474
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "american",
+                "time_steps": 800,
+                "asset_steps": 800,
+                "variance_steps": 400
+              },
+              "price": 6.449869717110558,
+              "asset_domain": [
+                24.227856745628614,
+                400.5494764713781
+              ],
+              "variance_domain": [
+                0,
+                0.23989260095815815
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "american",
+                "time_steps": 1600,
+                "asset_steps": 1600,
+                "variance_steps": 800
+              },
+              "price": 6.450212361992343,
+              "asset_domain": [
+                24.197179578848385,
+                401.0572928081295
+              ],
+              "variance_domain": [
+                0,
+                0.24304418132630587
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "american",
+                "time_steps": 1600,
+                "asset_steps": 800,
+                "variance_steps": 400
+              },
+              "price": 6.450131325999854,
+              "asset_domain": [
+                24.20129023593457,
+                400.98917210106896
+              ],
+              "variance_domain": [
+                0,
+                0.23834170951582104
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "american",
+                "time_steps": 800,
+                "asset_steps": 1600,
+                "variance_steps": 400
+              },
+              "price": 6.449905266261428,
+              "asset_domain": [
+                24.227856745628614,
+                400.5494764713781
+              ],
+              "variance_domain": [
+                0,
+                0.23989260095815815
+              ],
+              "quantlib_version": "1.44"
+            },
+            {
+              "parameters": {
+                "method": "fd",
+                "exercise": "american",
+                "time_steps": 800,
+                "asset_steps": 800,
+                "variance_steps": 800
+              },
+              "price": 6.449908418390173,
+              "asset_domain": [
+                24.22533682996245,
+                400.59114156391814
+              ],
+              "variance_domain": [
+                0,
+                0.24446708176705892
+              ],
+              "quantlib_version": "1.44"
+            }
+          ],
+          "extrapolated_prices": [
+            6.450683324247365,
+            6.450555006874128
+          ],
+          "independent_extrapolate": 6.450541435750119,
+          "dimension_corrections": [
+            0.00026160888929549486,
+            3.5549150870117785e-05,
+            3.870127961480563e-05
+          ]
+        },
+        "controls": {
+          "analytic_max_evaluations": 100000,
+          "fd_scheme": "hundsdorfer",
+          "damping_steps": 0,
+          "mesher": "standard FdHestonVanillaEngine automatic domains"
+        }
+      }
+    }
+  ]
+}

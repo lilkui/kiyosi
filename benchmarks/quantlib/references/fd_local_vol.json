@@ -1,0 +1,1072 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "fd-local-vol-european-call",
+      "value": 11.001742706191068,
+      "uncertainty": 1.102296046616996e-05,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "mesher_040": {
+            "price": 11.001742406159238,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 11.001742691131355,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          },
+          "time_coarse": {
+            "price": 11.001747461840964,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 11.001747722306511,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 11.0017477874891,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 11.00174264100848,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 1.3010037136496067e-07,
+          "space": 5.14648061944456e-06,
+          "domain": 2.348492422754589e-07
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-american-put",
+      "value": 8.361066428225419,
+      "uncertainty": 1.355893109610545e-05,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "mesher_040": {
+            "price": 8.361033562722291,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 8.361032725003973,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          },
+          "time_coarse": {
+            "price": 8.360927652711869,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 8.360995903651194,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 8.361029043515083,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 8.36103328836153,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 1.971211545992446e-06,
+          "space": 4.244846445899952e-06,
+          "domain": 5.633575561603266e-07
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-cash-digital-call",
+      "value": 5.390939499852457,
+      "uncertainty": 0.00015114617023569705,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "mesher_040": {
+            "price": 5.390941424518846,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 5.390980423226823,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          },
+          "time_coarse": {
+            "price": 5.390974151168253,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 5.390974149856378,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 5.390974149525369,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 5.390939500183466,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 6.498570570556694e-10,
+          "space": 3.464934190322566e-05,
+          "domain": 4.09230433575658e-05
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-asset-digital-put",
+      "value": 40.53039714159531,
+      "uncertainty": 0.00018617963578825564,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "time_coarse": {
+            "price": 40.5303947582168,
+            "profile": {
+              "space": 25600,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 40.53038208500358,
+            "profile": {
+              "space": 25600,
+              "time": 1600,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 40.53037890431796,
+            "profile": {
+              "space": 25600,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 40.530400322280926,
+            "profile": {
+              "space": 51200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "mesher_040": {
+            "price": 40.53046568224387,
+            "profile": {
+              "space": 51200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 40.53038100005605,
+            "profile": {
+              "space": 51200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 6.311841985962019e-06,
+          "space": 2.141796296228904e-05,
+          "domain": 6.535996294587676e-05
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-down-out-call",
+      "value": 10.381742384961965,
+      "uncertainty": 1.3554856561543398e-06,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "time_coarse": {
+            "price": 10.38172726818648,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 10.3817350922758,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 10.381738915508757,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 10.381738561729009,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "mesher_040": {
+            "price": 10.381738621075383,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 10.381738708018682,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 1.776234057615511e-07,
+          "space": 3.5377974860750783e-07,
+          "domain": 1.4628967370811097e-07
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-terminal-down-out-cash",
+      "value": 4.8346268070227305,
+      "uncertainty": 0.0002326406180586022,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "time_coarse": {
+            "price": 4.834636880807614,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 4.83464288052148,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 4.834645886211738,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 4.834623801332472,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "mesher_040": {
+            "price": 4.8346424481975925,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 4.834718025045587,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 1.1666648980224181e-08,
+          "space": 2.2084879265804602e-05,
+          "domain": 9.422371311451627e-05
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-terminal-up-in-asset",
+      "value": 3.480326831716443,
+      "uncertainty": 0.00021137107832024666,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "time_coarse": {
+            "price": 3.4800422941596523,
+            "profile": {
+              "space": 25600,
+              "time": 800,
+              "scheme": "implicit_euler",
+              "damping": 0,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 3.4801738128064486,
+            "profile": {
+              "space": 25600,
+              "time": 1600,
+              "scheme": "implicit_euler",
+              "damping": 0,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 3.4802401066843522,
+            "profile": {
+              "space": 25600,
+              "time": 3200,
+              "scheme": "implicit_euler",
+              "damping": 0,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 3.4802605378385394,
+            "profile": {
+              "space": 51200,
+              "time": 3200,
+              "scheme": "implicit_euler",
+              "damping": 0,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "mesher_040": {
+            "price": 3.4801763526125775,
+            "profile": {
+              "space": 51200,
+              "time": 3200,
+              "scheme": "implicit_euler",
+              "damping": 0,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 3.4802434430529416,
+            "profile": {
+              "space": 51200,
+              "time": 3200,
+              "scheme": "implicit_euler",
+              "damping": 0,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 1.069109011098135e-06,
+          "space": 2.043115418715047e-05,
+          "domain": 8.418522596187472e-05
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-down-no-touch-cash-expiry",
+      "value": 5.907712621868798,
+      "uncertainty": 3.6126165312483885e-06,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "time_coarse": {
+            "price": 5.907681587080458,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 5.907697913028219,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 5.907705961269082,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 5.907704573627934,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "mesher_040": {
+            "price": 5.907704384476851,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 5.907704727679942,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 2.2946603461804216e-07,
+          "space": 1.3876411477653505e-06,
+          "domain": 1.8915108324080165e-07
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-up-no-touch-asset-expiry",
+      "value": 44.39912253087002,
+      "uncertainty": 1.840933376050796e-05,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "time_coarse": {
+            "price": 44.41009072960398,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 44.40460510456678,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 44.401860974859034,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 44.40186666057775,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "mesher_040": {
+            "price": 44.40186733497516,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 44.401865776057875,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 2.6343782835169804e-06,
+          "space": 5.6857187189507385e-06,
+          "domain": 8.845198777862606e-07
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-up-one-touch-cash-hit",
+      "value": 4.512617754167588,
+      "uncertainty": 2.3662121080209566e-06,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "time_coarse": {
+            "price": 4.511692109797023,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 4.512155248623309,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 4.512386924279587,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 4.512386078511309,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "mesher_040": {
+            "price": 4.512385979768731,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 4.512386203312815,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 2.124862694685703e-07,
+          "space": 8.45768278523451e-07,
+          "domain": 1.2480150601845708e-07
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-down-one-touch-asset-hit",
+      "value": 29.603138156021934,
+      "uncertainty": 2.8057858896693486e-05,
+      "provenance": {
+        "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+        "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+        "quantlib_version": "1.44",
+        "compile_command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-I/usr/local/include",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+          "-o",
+          "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+          "-L/usr/local/lib",
+          "-lQuantLib"
+        ],
+        "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+        "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+        "evidence": {
+          "time_coarse": {
+            "price": 29.60327964259661,
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_middle": {
+            "price": 29.60320262273708,
+            "profile": {
+              "space": 3200,
+              "time": 6400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "time_fine": {
+            "price": 29.603164999825147,
+            "profile": {
+              "space": 3200,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "space_refined": {
+            "price": 29.603175778933867,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            }
+          },
+          "mesher_040": {
+            "price": 29.60317725466893,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            }
+          },
+          "mesher_060": {
+            "price": 29.60317459401288,
+            "profile": {
+              "space": 6400,
+              "time": 12800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            }
+          }
+        },
+        "observed_shifts": {
+          "time_extrapolation": 1.7740356668127788e-06,
+          "space": 1.0779108720271324e-05,
+          "domain": 1.4757350612626396e-06
+        }
+      }
+    }
+  ]
+}

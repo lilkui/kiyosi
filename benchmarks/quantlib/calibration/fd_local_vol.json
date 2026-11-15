@@ -1,0 +1,1886 @@
+{
+  "schema_version": 1,
+  "declared_budget": 0.005,
+  "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust explicit domain enlarged at constant spacing",
+  "cases": [
+    {
+      "id": "fd-local-vol-european-call",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 11.001263337125293,
+            "absolute_error": 0.00047936906577561444,
+            "error_including_reference_uncertainty": 0.0004903920262417844,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 11.001613705498244,
+            "absolute_error": 0.00012900069282473225,
+            "error_including_reference_uncertainty": 0.00014002365329090222,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 11.001270885458073,
+            "absolute_error": 0.0004718207329954538,
+            "error_including_reference_uncertainty": 0.00048284369346162373,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 11.672665740032887,
+            "absolute_error": 0.6709230338418184,
+            "error_including_reference_uncertainty": 0.6709340568022846,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 11.001263337125293,
+            "absolute_error": 0.00047936906577561444,
+            "error_including_reference_uncertainty": 0.0004903920262417844,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 11.001844483949684,
+            "absolute_error": 0.00010177775861563987,
+            "error_including_reference_uncertainty": 0.00011280071908180983,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 11.001749931914334,
+            "absolute_error": 7.225723265946726e-06,
+            "error_including_reference_uncertainty": 1.8248683732116686e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 11.001860921167559,
+            "absolute_error": 0.00011821497649044943,
+            "error_including_reference_uncertainty": 0.0001292379369566194,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 12.134914344980007,
+            "absolute_error": 1.133171638788939,
+            "error_including_reference_uncertainty": 1.1331826617494052,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 11.001836836531815,
+            "absolute_error": 9.413034074690074e-05,
+            "error_including_reference_uncertainty": 0.00010515330121307071,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 11.001843551253067,
+            "absolute_error": 0.00010084506199881105,
+            "error_including_reference_uncertainty": 0.00011186802246498101,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-american-put",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 8.359948835591679,
+            "absolute_error": 0.0011175926337401165,
+            "error_including_reference_uncertainty": 0.001131151564836222,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 8.360001770609587,
+            "absolute_error": 0.0010646576158315213,
+            "error_including_reference_uncertainty": 0.0010782165469276268,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 8.36046934235613,
+            "absolute_error": 0.0005970858692894154,
+            "error_including_reference_uncertainty": 0.0006106448003855209,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 7.993838277833971,
+            "absolute_error": 0.3672281503914476,
+            "error_including_reference_uncertainty": 0.36724170932254374,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 8.359999126494033,
+            "absolute_error": 0.0010673017313855837,
+            "error_including_reference_uncertainty": 0.0010808606624816892,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 8.35982636171712,
+            "absolute_error": 0.001240066508298554,
+            "error_including_reference_uncertainty": 0.0012536254393946595,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 8.359875043373762,
+            "absolute_error": 0.0011913848516567072,
+            "error_including_reference_uncertainty": 0.0012049437827528126,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 8.360432870220084,
+            "absolute_error": 0.0006335580053349332,
+            "error_including_reference_uncertainty": 0.0006471169364310387,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 8.03726725520326,
+            "absolute_error": 0.32379917302215944,
+            "error_including_reference_uncertainty": 0.32381273195325555,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 8.359848911134106,
+            "absolute_error": 0.0012175170913124589,
+            "error_including_reference_uncertainty": 0.0012310760224085644,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 8.35978891833097,
+            "absolute_error": 0.0012775098944484142,
+            "error_including_reference_uncertainty": 0.0012910688255445197,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-cash-digital-call",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.390927204632115,
+            "absolute_error": 1.2295220341407287e-05,
+            "error_including_reference_uncertainty": 0.00016344139057710433,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.390945950623758,
+            "absolute_error": 6.450771301125258e-06,
+            "error_including_reference_uncertainty": 0.0001575969415368223,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.3909270794661035,
+            "absolute_error": 1.2420386353184654e-05,
+            "error_including_reference_uncertainty": 0.0001635665565888817,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.410117517710371,
+            "absolute_error": 0.019178017857914398,
+            "error_including_reference_uncertainty": 0.019329164028150096,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 5.390927204632115,
+            "absolute_error": 1.2295220341407287e-05,
+            "error_including_reference_uncertainty": 0.00016344139057710433,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 5.3908178684694175,
+            "absolute_error": 0.00012163138303922238,
+            "error_including_reference_uncertainty": 0.00027277755327491946,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 5.391041545603995,
+            "absolute_error": 0.00010204575153860418,
+            "error_including_reference_uncertainty": 0.00025319192177430125,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 5.390817795982697,
+            "absolute_error": 0.00012170386975984826,
+            "error_including_reference_uncertainty": 0.00027285003999554533,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 5.686105678362949,
+            "absolute_error": 0.29516617851049265,
+            "error_including_reference_uncertainty": 0.29531732468072835,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 5.390896958756367,
+            "absolute_error": 4.254109608936574e-05,
+            "error_including_reference_uncertainty": 0.00019368726632506278,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 5.390883070598848,
+            "absolute_error": 5.642925360849205e-05,
+            "error_including_reference_uncertainty": 0.0002075754238441891,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-asset-digital-put",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 40.530993178918735,
+            "absolute_error": 0.0005960373234259464,
+            "error_including_reference_uncertainty": 0.0007822169592142021,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 40.530598737739766,
+            "absolute_error": 0.000201596144457028,
+            "error_including_reference_uncertainty": 0.00038777578024528367,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 40.5309724888008,
+            "absolute_error": 0.0005753472054905728,
+            "error_including_reference_uncertainty": 0.0007615268412788285,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 38.99424168728165,
+            "absolute_error": 1.5361554543136577,
+            "error_including_reference_uncertainty": 1.536341633949446,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 40.530993178918735,
+            "absolute_error": 0.0005960373234259464,
+            "error_including_reference_uncertainty": 0.0007822169592142021,
+            "passed": true
+          },
+          "reference_time_1600": {
+            "profile": {
+              "space": 6400,
+              "time": 1600,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 40.53044965842862,
+            "absolute_error": 5.251683331408685e-05,
+            "error_including_reference_uncertainty": 0.0002386964691023425,
+            "passed": true
+          },
+          "reference_time_3200": {
+            "profile": {
+              "space": 6400,
+              "time": 3200,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 40.53044836582791,
+            "absolute_error": 5.122423259962261e-05,
+            "error_including_reference_uncertainty": 0.00023740386838787825,
+            "passed": true
+          },
+          "reference_time_6400": {
+            "profile": {
+              "space": 6400,
+              "time": 6400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 40.530448042685194,
+            "absolute_error": 5.090108988525799e-05,
+            "error_including_reference_uncertainty": 0.00023708072567351363,
+            "passed": true
+          },
+          "reference_space_12800": {
+            "profile": {
+              "space": 12800,
+              "time": 6400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 40.530441880151876,
+            "absolute_error": 4.4738556567835985e-05,
+            "error_including_reference_uncertainty": 0.00023091819235609163,
+            "passed": true
+          },
+          "reference_domain_600": {
+            "profile": {
+              "space": 19200,
+              "time": 6400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 40.530441880151876,
+            "absolute_error": 4.4738556567835985e-05,
+            "error_including_reference_uncertainty": 0.00023091819235609163,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 40.53234220096616,
+            "absolute_error": 0.0019450593708540964,
+            "error_including_reference_uncertainty": 0.002131239006642352,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 40.531410179408915,
+            "absolute_error": 0.001013037813606843,
+            "error_including_reference_uncertainty": 0.0011992174493950986,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 40.532291889528814,
+            "absolute_error": 0.001894747933505414,
+            "error_including_reference_uncertainty": 0.0020809275692936697,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 41.33172011919083,
+            "absolute_error": 0.8013229775955182,
+            "error_including_reference_uncertainty": 0.8015091572313064,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 40.53465945598716,
+            "absolute_error": 0.0042623143918518736,
+            "error_including_reference_uncertainty": 0.004448494027640129,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 40.525004559762365,
+            "absolute_error": 0.005392581832943222,
+            "error_including_reference_uncertainty": 0.005578761468731477,
+            "passed": false
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-down-out-call",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 10.381436568327675,
+            "absolute_error": 0.0003058166342899682,
+            "error_including_reference_uncertainty": 0.0003071721199461225,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 10.381656203984663,
+            "absolute_error": 8.618097730206387e-05,
+            "error_including_reference_uncertainty": 8.75364629582182e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 10.381446274546958,
+            "absolute_error": 0.0002961104150074334,
+            "error_including_reference_uncertainty": 0.0002974659006635877,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 9.87928747430338,
+            "absolute_error": 0.5024549106585852,
+            "error_including_reference_uncertainty": 0.5024562661442413,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 10.38153103141919,
+            "absolute_error": 0.00021135354277568297,
+            "error_including_reference_uncertainty": 0.00021270902843183731,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 10.381602148314165,
+            "absolute_error": 0.00014023664780005163,
+            "error_including_reference_uncertainty": 0.00014159213345620597,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 10.381591269726814,
+            "absolute_error": 0.00015111523515187741,
+            "error_including_reference_uncertainty": 0.00015247072080803176,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 10.381683452025808,
+            "absolute_error": 5.893293615777395e-05,
+            "error_including_reference_uncertainty": 6.028842181392829e-05,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 10.036143331824432,
+            "absolute_error": 0.3455990531375335,
+            "error_including_reference_uncertainty": 0.34560040862318964,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 10.381598448305901,
+            "absolute_error": 0.00014393665606426964,
+            "error_including_reference_uncertainty": 0.000145292141720424,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 10.381568776775865,
+            "absolute_error": 0.0001736081861007932,
+            "error_including_reference_uncertainty": 0.00017496367175694755,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-terminal-down-out-cash",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.834628924513625,
+            "absolute_error": 2.117490894626428e-06,
+            "error_including_reference_uncertainty": 0.00023475810895322863,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.834655874382421,
+            "absolute_error": 2.90673596907709e-05,
+            "error_including_reference_uncertainty": 0.00026170797774937313,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.834627595672381,
+            "absolute_error": 7.886496504738716e-07,
+            "error_including_reference_uncertainty": 0.00023342926770907608,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.0211755534768665,
+            "absolute_error": 0.186548746454136,
+            "error_including_reference_uncertainty": 0.1867813870721946,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 4.834612071390386,
+            "absolute_error": 1.4735632344553551e-05,
+            "error_including_reference_uncertainty": 0.0002473762504031558,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 4.834378419792843,
+            "absolute_error": 0.00024838722988729245,
+            "error_including_reference_uncertainty": 0.0004810278479458947,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 4.834595486454011,
+            "absolute_error": 3.132056871990585e-05,
+            "error_including_reference_uncertainty": 0.0002639611867785081,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 4.834424377860222,
+            "absolute_error": 0.0002024291625088992,
+            "error_including_reference_uncertainty": 0.00043506978056750143,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 6.159504911750834,
+            "absolute_error": 1.3248781047281035,
+            "error_including_reference_uncertainty": 1.3251107453461621,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 4.834690079370067,
+            "absolute_error": 6.327234733660703e-05,
+            "error_including_reference_uncertainty": 0.00029591296539520926,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 4.834786546273166,
+            "absolute_error": 0.00015973925043510917,
+            "error_including_reference_uncertainty": 0.0003923798684937114,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-terminal-up-in-asset",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.4802901647324096,
+            "absolute_error": 3.666698403348434e-05,
+            "error_including_reference_uncertainty": 0.000248038062353731,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.4803026968946744,
+            "absolute_error": 2.4134821768662107e-05,
+            "error_including_reference_uncertainty": 0.00023550590008890876,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.4803013587382847,
+            "absolute_error": 2.5472978158358472e-05,
+            "error_including_reference_uncertainty": 0.00023684405647860513,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 1.618785068037146,
+            "absolute_error": 1.861541763679297,
+            "error_including_reference_uncertainty": 1.8617531347576173,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 3.4802788624942824,
+            "absolute_error": 4.79692221606598e-05,
+            "error_including_reference_uncertainty": 0.0002593403004809065,
+            "passed": true
+          },
+          "reference_time_800": {
+            "profile": {
+              "space": 3200,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.4803170362475977,
+            "absolute_error": 9.795468845386068e-06,
+            "error_including_reference_uncertainty": 0.00022116654716563272,
+            "passed": true
+          },
+          "reference_time_1600": {
+            "profile": {
+              "space": 3200,
+              "time": 1600,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.4803198316771407,
+            "absolute_error": 7.000039302429428e-06,
+            "error_including_reference_uncertainty": 0.00021837111762267608,
+            "passed": true
+          },
+          "reference_time_3200": {
+            "profile": {
+              "space": 3200,
+              "time": 3200,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.480320530081536,
+            "absolute_error": 6.301634907224241e-06,
+            "error_including_reference_uncertainty": 0.0002176727132274709,
+            "passed": true
+          },
+          "reference_space_6400": {
+            "profile": {
+              "space": 6400,
+              "time": 3200,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 3.4803213166773803,
+            "absolute_error": 5.515039062764515e-06,
+            "error_including_reference_uncertainty": 0.00021688611738301117,
+            "passed": true
+          },
+          "reference_domain_600": {
+            "profile": {
+              "space": 9600,
+              "time": 3200,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 3.4803211403844783,
+            "absolute_error": 5.691331964818858e-06,
+            "error_including_reference_uncertainty": 0.00021706241028506551,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 3.480312030888424,
+            "absolute_error": 1.4800828019190249e-05,
+            "error_including_reference_uncertainty": 0.0002261719063394369,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 3.478512824375265,
+            "absolute_error": 0.00181400734117787,
+            "error_including_reference_uncertainty": 0.002025378419498117,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 3.479988771513824,
+            "absolute_error": 0.00033806020261906156,
+            "error_including_reference_uncertainty": 0.0005494312809393082,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": -3.419769269980989,
+            "absolute_error": 6.900096101697432,
+            "error_including_reference_uncertainty": 6.9003074727757525,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 3.480165632787351,
+            "absolute_error": 0.0001611989290921656,
+            "error_including_reference_uncertainty": 0.0003725700074124123,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 3.483314145799003,
+            "absolute_error": 0.002987314082560033,
+            "error_including_reference_uncertainty": 0.0031986851608802797,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-down-no-touch-cash-expiry",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.907745559105993,
+            "absolute_error": 3.293723719455244e-05,
+            "error_including_reference_uncertainty": 3.654985372580083e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.907725926059712,
+            "absolute_error": 1.330419091338797e-05,
+            "error_including_reference_uncertainty": 1.691680744463636e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.907740018881695,
+            "absolute_error": 2.739701289655727e-05,
+            "error_including_reference_uncertainty": 3.100962942780566e-05,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 5.626707572060176,
+            "absolute_error": 0.2810050498086225,
+            "error_including_reference_uncertainty": 0.28100866242515377,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 5.907743172937096,
+            "absolute_error": 3.055106829741305e-05,
+            "error_including_reference_uncertainty": 3.416368482866144e-05,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 5.907477826834387,
+            "absolute_error": 0.00023479503441148353,
+            "error_including_reference_uncertainty": 0.00023840765094273192,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 5.907454115575024,
+            "absolute_error": 0.0002585062937745519,
+            "error_including_reference_uncertainty": 0.0002621189103058003,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 5.907610486179938,
+            "absolute_error": 0.00010213568886019431,
+            "error_including_reference_uncertainty": 0.00010574830539144269,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 6.159504911750834,
+            "absolute_error": 0.2517922898820357,
+            "error_including_reference_uncertainty": 0.251795902498567,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 5.907467373852913,
+            "absolute_error": 0.00024524801588565737,
+            "error_including_reference_uncertainty": 0.00024886063241690574,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 5.907502414647054,
+            "absolute_error": 0.00021020722174469597,
+            "error_including_reference_uncertainty": 0.00021381983827594437,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-up-no-touch-asset-expiry",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 44.39931619444559,
+            "absolute_error": 0.00019366357557260017,
+            "error_including_reference_uncertainty": 0.00021207290933310813,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 44.39929012481681,
+            "absolute_error": 0.00016759394679155548,
+            "error_including_reference_uncertainty": 0.00018600328055206345,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 44.39919822870904,
+            "absolute_error": 7.569783902283689e-05,
+            "error_including_reference_uncertainty": 9.410717278334485e-05,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 44.61576139517286,
+            "absolute_error": 0.21663886430284407,
+            "error_including_reference_uncertainty": 0.21665727363660459,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 44.3992943911033,
+            "absolute_error": 0.0001718602332800856,
+            "error_including_reference_uncertainty": 0.00019026956704059356,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 16000,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 44.401166668813694,
+            "absolute_error": 0.0020441379436775264,
+            "error_including_reference_uncertainty": 0.0020625472774380344,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 16000,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 44.40128514468728,
+            "absolute_error": 0.0021626138172621268,
+            "error_including_reference_uncertainty": 0.0021810231510226348,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 32000,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 44.40006828033632,
+            "absolute_error": 0.0009457494663038801,
+            "error_including_reference_uncertainty": 0.0009641588000643881,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 37.85913971305026,
+            "absolute_error": 6.539982817819755,
+            "error_including_reference_uncertainty": 6.540001227153516,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 16000,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 44.40122876237227,
+            "absolute_error": 0.0021062315022533085,
+            "error_including_reference_uncertainty": 0.0021246408360138165,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 16000,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 44.4011239185659,
+            "absolute_error": 0.0020013876958842047,
+            "error_including_reference_uncertainty": 0.0020197970296447127,
+            "passed": true
+          },
+          "initial_time_400": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 44.486552587330856,
+            "absolute_error": 0.08743005646083901,
+            "error_including_reference_uncertainty": 0.08744846579459951,
+            "passed": false
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-up-one-touch-cash-hit",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.512602228364067,
+            "absolute_error": 1.5525803520155534e-05,
+            "error_including_reference_uncertainty": 1.789201562817649e-05,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.512603976620177,
+            "absolute_error": 1.3777547410498414e-05,
+            "error_including_reference_uncertainty": 1.614375951851937e-05,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.512611928866286,
+            "absolute_error": 5.8253013017761646e-06,
+            "error_including_reference_uncertainty": 8.191513409797122e-06,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 4.4970766477444455,
+            "absolute_error": 0.015541106423142104,
+            "error_including_reference_uncertainty": 0.015543472635250124,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 4.5126037320103,
+            "absolute_error": 1.402215728774081e-05,
+            "error_including_reference_uncertainty": 1.6388369395761768e-05,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 1600,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 4.510785304007077,
+            "absolute_error": 0.0018324501605109234,
+            "error_including_reference_uncertainty": 0.0018348163726189443,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 1600,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 4.510769940494597,
+            "absolute_error": 0.0018478136729909167,
+            "error_including_reference_uncertainty": 0.0018501798850989377,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 3200,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 4.511711361474951,
+            "absolute_error": 0.0009063926926362598,
+            "error_including_reference_uncertainty": 0.0009087589047442808,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 5.34848965371417,
+            "absolute_error": 0.8358718995465821,
+            "error_including_reference_uncertainty": 0.8358742657586902,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 1600,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 4.51077758218819,
+            "absolute_error": 0.0018401719793974536,
+            "error_including_reference_uncertainty": 0.0018425381915054746,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 1600,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 4.510791985220539,
+            "absolute_error": 0.001825768947048445,
+            "error_including_reference_uncertainty": 0.001828135159156466,
+            "passed": true
+          },
+          "initial_time_400": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 4.505243288329245,
+            "absolute_error": 0.007374465838342559,
+            "error_including_reference_uncertainty": 0.007376832050450579,
+            "passed": false
+          }
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-down-one-touch-asset-hit",
+      "error_budget": 0.005,
+      "backends": {
+        "kiyosi": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 29.60290560295943,
+            "absolute_error": 0.00023255306250291596,
+            "error_including_reference_uncertainty": 0.00026061092139960943,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 29.60304158740541,
+            "absolute_error": 9.656861652374005e-05,
+            "error_including_reference_uncertainty": 0.00012462647542043354,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 29.602947712595373,
+            "absolute_error": 0.00019044342656115987,
+            "error_including_reference_uncertainty": 0.00021850128545785336,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "price": 32.41161425381521,
+            "absolute_error": 2.8084760977932746,
+            "error_including_reference_uncertainty": 2.8085041556521713,
+            "passed": false
+          },
+          "domain_constant_spacing": {
+            "profile": {
+              "space": 1200,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 600
+            },
+            "price": 29.60293012591526,
+            "absolute_error": 0.00020803010667336252,
+            "error_including_reference_uncertainty": 0.00023608796557005602,
+            "passed": true
+          }
+        },
+        "quantlib": {
+          "selected": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 29.604166175335813,
+            "absolute_error": 0.0010280193138783034,
+            "error_including_reference_uncertainty": 0.0010560771727749969,
+            "passed": true
+          },
+          "space": {
+            "profile": {
+              "space": 1600,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 29.604347887588535,
+            "absolute_error": 0.001209731566600425,
+            "error_including_reference_uncertainty": 0.0012377894254971184,
+            "passed": true
+          },
+          "time": {
+            "profile": {
+              "space": 800,
+              "time": 800,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 29.603533616765173,
+            "absolute_error": 0.0003954607432383739,
+            "error_including_reference_uncertainty": 0.00042351860213506734,
+            "passed": true
+          },
+          "coarse_rejected": {
+            "profile": {
+              "space": 10,
+              "time": 10,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.5
+            },
+            "price": 27.81293138050242,
+            "absolute_error": 1.7902067755195148,
+            "error_including_reference_uncertainty": 1.7902348333784115,
+            "passed": false
+          },
+          "mesher_040": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.4
+            },
+            "price": 29.604246955643188,
+            "absolute_error": 0.0011087996212530982,
+            "error_including_reference_uncertainty": 0.0011368574801497917,
+            "passed": true
+          },
+          "mesher_060": {
+            "profile": {
+              "space": 800,
+              "time": 400,
+              "scheme": "crank_nicolson",
+              "damping": 2,
+              "domain": "automatic",
+              "mesher_vol": 0.6
+            },
+            "price": 29.603971566840148,
+            "absolute_error": 0.0008334108182133093,
+            "error_including_reference_uncertainty": 0.0008614686771100028,
+            "passed": true
+          }
+        }
+      }
+    }
+  ],
+  "surface_points": [
+    {
+      "spot": 60,
+      "date": "2025-07-02",
+      "expected": 0.32493150684931504,
+      "kiyosi": 0.32493150684931504,
+      "quantlib": 0.32493150684931504
+    },
+    {
+      "spot": 80,
+      "date": "2025-07-02",
+      "expected": 0.32493150684931504,
+      "kiyosi": 0.32493150684931504,
+      "quantlib": 0.32493150684931504
+    },
+    {
+      "spot": 100,
+      "date": "2025-07-02",
+      "expected": 0.24993150684931506,
+      "kiyosi": 0.24993150684931506,
+      "quantlib": 0.24993150684931506
+    },
+    {
+      "spot": 120,
+      "date": "2025-07-02",
+      "expected": 0.17493150684931508,
+      "kiyosi": 0.17493150684931508,
+      "quantlib": 0.17493150684931508
+    },
+    {
+      "spot": 160,
+      "date": "2025-07-02",
+      "expected": 0.17493150684931508,
+      "kiyosi": 0.17493150684931508,
+      "quantlib": 0.17493150684931508
+    }
+  ]
+}

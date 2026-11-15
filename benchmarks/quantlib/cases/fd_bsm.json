@@ -1,0 +1,491 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "fd-bsm-european-call",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceVanillaEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesVanillaEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "vanilla",
+        "option": "call",
+        "strike": 100,
+        "exercise": "european"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-american-put",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceVanillaEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesVanillaEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "vanilla",
+        "option": "put",
+        "strike": 100,
+        "exercise": "american"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-cash-digital-call",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceDigitalEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesVanillaEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "digital",
+        "option": "call",
+        "strike": 100,
+        "payout": "cash",
+        "cash": 10
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-asset-digital-put",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceDigitalEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesVanillaEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "digital",
+        "option": "put",
+        "strike": 105,
+        "payout": "asset"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-down-out-call",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceBarrierEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "barrier",
+        "option": "call",
+        "strike": 100,
+        "barrier": 80,
+        "barrier_type": "down_out"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-terminal-down-out-cash",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "binary_barrier",
+        "option": "call",
+        "strike": 100,
+        "barrier": 80,
+        "barrier_type": "down_out",
+        "payout": "cash",
+        "cash": 10
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-terminal-up-in-asset",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "binary_barrier",
+        "option": "put",
+        "strike": 100,
+        "barrier": 120,
+        "barrier_type": "up_in",
+        "payout": "asset"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-down-no-touch-cash-expiry",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "touch",
+        "barrier": 80,
+        "barrier_type": "down_out",
+        "payout": "cash",
+        "cash": 10,
+        "settlement": "at_expiry"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-up-no-touch-asset-expiry",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "touch",
+        "barrier": 120,
+        "barrier_type": "up_out",
+        "payout": "asset",
+        "settlement": "at_expiry"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 16000,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-up-one-touch-cash-hit",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "touch",
+        "barrier": 120,
+        "barrier_type": "up_in",
+        "payout": "cash",
+        "cash": 10,
+        "settlement": "at_hit"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 1600,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    },
+    {
+      "id": "fd-bsm-down-one-touch-asset-hit",
+      "family": "fd_bsm",
+      "engine": "FiniteDifferenceBinaryBarrierEngine",
+      "model": "bsm",
+      "counterpart": "FdBlackScholesBarrierEngine",
+      "inputs": {
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2,
+        "product": "touch",
+        "barrier": 80,
+        "barrier_type": "down_in",
+        "payout": "asset",
+        "settlement": "at_hit"
+      },
+      "profiles": {
+        "kiyosi": {
+          "space": 800,
+          "time": 400,
+          "scheme": "rannacher",
+          "upper": 400
+        },
+        "quantlib": {
+          "space": 800,
+          "time": 400,
+          "scheme": "crank_nicolson",
+          "damping": 2,
+          "domain": "automatic"
+        }
+      },
+      "error_budget": 0.003,
+      "conventions": {
+        "day_count": "Actual/365 Fixed",
+        "rates": "continuously compounded",
+        "workers": 1,
+        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
+        "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
+      }
+    }
+  ]
+}
