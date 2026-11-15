@@ -60,8 +60,8 @@ def require(condition, message):
 
 def require_version():
     require(
-        version("QuantLib") == ql.__version__ == "1.43",
-        "QuantLib 1.43 is required for pricing reference tests",
+        version("QuantLib") == ql.__version__ == "1.44",
+        "QuantLib 1.44 is required for pricing reference tests",
     )
 
 

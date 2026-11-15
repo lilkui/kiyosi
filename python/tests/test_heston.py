@@ -68,7 +68,7 @@ def option(**changes):
 
 
 def reference(parameters, instrument, tolerance, *, exp_sinh=False):
-    """Price a Heston option with QuantLib 1.43 Gatheral integration.
+    """Price a Heston option with QuantLib 1.44 Gatheral integration.
 
     Parameters
     ----------
@@ -86,7 +86,7 @@ def reference(parameters, instrument, tolerance, *, exp_sinh=False):
     float
         Independent reference price.
     """
-    assert ql.__version__ == "1.43"
+    assert ql.__version__ == "1.44"
     qstart = ql.Date(START.day, START.month, START.year)
     end = instrument.expiry_time
     with ql.SavedSettings():
@@ -119,7 +119,7 @@ def reference(parameters, instrument, tolerance, *, exp_sinh=False):
             engine = ql.AnalyticHestonEngine(
                 qmodel,
                 ql.AnalyticHestonEngine.Gatheral,
-                ql.AnalyticHestonEngine_Integration.expSinh(tolerance),
+                ql.FourierIntegration.expSinh(tolerance),
             )
         else:
             engine = ql.AnalyticHestonEngine(qmodel, tolerance, 100_000)

@@ -22,8 +22,8 @@ import QuantLib as ql
 
 
 def reference():
-    if ql.__version__ != "1.43":
-        raise RuntimeError("reference requires QuantLib 1.43")
+    if ql.__version__ != "1.44":
+        raise RuntimeError("reference requires QuantLib 1.44")
     with ql.SavedSettings():
         start, end = ql.Date(1, 1, 2025), ql.Date(1, 1, 2026)
         ql.Settings.instance().evaluationDate = start
