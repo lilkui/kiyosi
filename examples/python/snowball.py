@@ -38,9 +38,14 @@ edited = note.with_coupon(
 assert all(abs(coupon - 0.15) < 1e-14 for coupon in edited.knock_out_coupon_rates)
 assert abs(edited.maturity_coupon_rate - 0.15) < 1e-14
 
+# 波动率使用交易时间；利率和连续股息率仍使用自然时间。
 context = PricingContext(
     model_parameters=BlackScholesMertonParameters(
-        risk_free_rate=0.02, dividend_yield=0, volatility=0.20
+        risk_free_rate=0.02,
+        dividend_yield=0,
+        volatility=0.20,
+        time_convention="business",
+        calendar=calendar,
     ),
     spot_price=100,
     valuation_time=start,
