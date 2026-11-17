@@ -1,174 +1,83 @@
-# Benchmark methodology
+# 基准测试方法
 
-Budgets, numerical profiles and Monte Carlo validation limits are explicit in
-`cases/*.json`. Reference provenance and refinement results live in
-`references/*.json` and `calibration/*.json`; measured errors and timing results
-belong in those artifacts rather than this guide. Ordinary runs use committed
-profiles and references without tuning or reference generation.
+误差预算、数值参数配置与蒙特卡洛验证门限均在 `cases/*.json` 中显式声明。参考值来源与收敛验证结果位于 `references/*.json` 和 `calibration/*.json`；实测误差与计时结果记录在这些产物文件中，不在本文档赘述。常规运行直接使用已提交的参数配置与参考值，不执行参数调优或参考值生成。
 
-Both adapters use Actual/365 Fixed and continuously compounded rates. Numerical
-methods, mesh domains, interval/node counts and random streams can differ;
-each backend must pass the shared accuracy gates before latency is compared.
+两个适配器均采用 Actual/365 Fixed 日计数与连续复利利率。两端的数值方法、网格区域、区间/节点数以及随机数流可以不同，但各自都必须先通过共同的精度门限，随后才能对比延迟。
 
-## Digitals and Asians
+## 数字期权与亚式期权
 
-QuantLib uses `AnalyticEuropeanEngine` for cash/asset terminal digitals,
-`AnalyticContinuousGeometricAveragePriceAsianEngine` for continuous geometric
-averages and `ContinuousArithmeticAsianLevyEngine` for continuous arithmetic
-averages. Its Turnbull–Wakeman engine uses discrete averaging.
+QuantLib 对到期结算的现金/资产数字期权使用 `AnalyticEuropeanEngine`，对连续几何平均亚式期权使用 `AnalyticContinuousGeometricAveragePriceAsianEngine`，对连续算术平均亚式期权使用 `ContinuousArithmeticAsianLevyEngine`。其 Turnbull–Wakeman 引擎采用离散平均。
 
-Averaging starts at valuation with no history. The geometric instrument uses
-the unseasoned constructor; an explicit start date selects an unsupported
-seasoned path. The arithmetic instrument supplies inception and zero current
-average. Arithmetic cases require `abs(r-q)`, `abs(r-q+sigma²)` and
-`abs(2(r-q)+sigma²)` each at least `1e-6`. The comparison checks the shared
-two-moment lognormal approximation, rather than error against the true
-arithmetic Asian price. Independent Decimal formulas are refined at 50/80
-digits; the budget is `1e-9` with `1e-12` reference uncertainty.
+平均期自估值日起算，不含历史记录。几何平均合约使用新起算（unseasoned）构造函数；若显式传入起算日，则会进入不支持的已起算（seasoned）路径。算术平均合约传入起算日，并将当前累计均值设为零。算术平均用例要求 `abs(r-q)`、`abs(r-q+sigma²)` 和 `abs(2(r-q)+sigma²)` 均不小于 `1e-6`。该对比校验双方共用的双矩对数正态近似，而非相对真实算术平均亚式期权价格的误差。独立 Decimal 公式在 50/80 位有效数字下做精度收敛核验；误差预算为 `1e-9`，参考值不确定度为 `1e-12`。
 
-## Barriers and touches
+## 障碍期权与触碰期权
 
-| Contract | Native QuantLib instrument/engine | Settlement |
+| 合约 | QuantLib 原生工具/引擎 | 结算方式 |
 | --- | --- | --- |
-| Single vanilla barrier | `BarrierOption` / `AnalyticBarrierEngine` | KO rebate at hit; KI rebate at expiry |
-| Terminal cash/asset binary barrier | `BarrierOption` / `AnalyticBinaryBarrierEngine` | `AmericanExercise(..., payoffAtExpiry=true)` retains terminal strike condition |
-| Single touch | `VanillaOption` / `AnalyticDigitalAmericanEngine` | Payoff strike equals barrier; exercise flag selects hit/expiry |
-| Single no-touch | `VanillaOption` / `AnalyticDigitalAmericanKOEngine` | Expiry payment on survival |
-| Double vanilla barrier | `DoubleBarrierOption` / `AnalyticDoubleBarrierEngine` | Zero rebate; strike inside barriers |
-| Double cash touch/no-touch | `DoubleBarrierOption` / `AnalyticDoubleBarrierBinaryEngine` | European exercise; expiry payment |
+| 单障碍香草期权 | `BarrierOption` / `AnalyticBarrierEngine` | 敲出返还金在触碰时支付；敲入返还金在到期支付 |
+| 到期现金/资产二元障碍期权 | `BarrierOption` / `AnalyticBinaryBarrierEngine` | `AmericanExercise(..., payoffAtExpiry=true)` 保留到期行权价条件 |
+| 单触碰期权 | `VanillaOption` / `AnalyticDigitalAmericanEngine` | 收益行权价等于障碍价；由行权标志选择触碰即付或到期支付 |
+| 单不触碰期权 | `VanillaOption` / `AnalyticDigitalAmericanKOEngine` | 未触碰存续时在到期支付 |
+| 双障碍香草期权 | `DoubleBarrierOption` / `AnalyticDoubleBarrierEngine` | 零返还金；行权价位于上下障碍之间 |
+| 双障碍现金触碰/不触碰期权 | `DoubleBarrierOption` / `AnalyticDoubleBarrierBinaryEngine` | 欧式行权；到期支付 |
 
-Continuous asset payment at hit equals the barrier, so a native cash binary
-paying that amount represents it. A terminal binary additionally retains its
-terminal strike condition; it is distinct from an unconditional touch.
+连续监控下触碰即付的资产价值等于障碍水平，因此可用支付该金额的原生现金二元期权表示。到期二元障碍期权还会保留到期行权价条件，有别于无条件触碰期权。
 
-[generate_barrier_references.py](generate_barrier_references.py) integrates
-absorbing Brownian log-price densities against cash, asset and vanilla payoffs;
-at-hit payments use the first-passage Laplace transform. Decimal calculations
-use 90/110 digits, 8/12 images per side for double barriers and a normal-tail
-cutoff of 16 standard deviations. Refinement evidence supports the `1e-12`
-scenario-specific reference uncertainty and `1e-9` analytic budget.
-QuantLib's double-barrier series count is explicit in the profile; its double
-binary engine has a fixed 99-term Hui series without a public convergence
-control. Independent price gates remain necessary.
+[generate_barrier_references.py](generate_barrier_references.py) 将吸收壁布朗运动的对数价格密度与现金、资产和香草收益函数积分；触碰即付部分采用首达时间的拉普拉斯变换。Decimal 计算采用 90/110 位有效数字，双障碍每侧取 8/12 个镜像项，正态尾部截断设为 16 个标准差。收敛验证证据支撑各场景 `1e-12` 的参考值不确定度与 `1e-9` 的解析误差预算。QuantLib 双障碍引擎的级数项数在参数配置中显式指定；其双障碍二元引擎固定使用 99 项 Hui 级数，没有公开的收敛控制参数，因此仍须保留独立价格门限。
 
-## Finite differences
+## 有限差分
 
-BSM and supplied local-volatility cases cover European/American vanilla,
-cash/asset digitals, single vanilla and terminal binary barriers, no-touch at
-expiry and one-touch at hit. Native digital payoff types are used directly.
-FD touches use a payoff strike equal to the barrier:
+BSM 与给定局部波动率用例涵盖欧式/美式香草期权、现金/资产数字期权、单障碍香草期权与到期二元障碍期权、到期结算单不触碰期权以及触碰即付单触碰期权。数字期权直接使用原生数字收益类型。有限差分触碰期权将收益行权价设为障碍水平：
 
-| Contract | Native barrier | Binary orientation | Rebate |
+| 合约 | 原生障碍类型 | 二元期权方向 | 返还金 |
 | --- | --- | --- | --- |
-| Down no-touch | DownOut | Call | 0 |
-| Up no-touch | UpOut | Put | 0 |
-| Down one-touch at hit | DownOut | Put | Cash payout or barrier for asset |
-| Up one-touch at hit | UpOut | Call | Cash payout or barrier for asset |
+| 向下不触碰 | DownOut | Call | 0 |
+| 向上不触碰 | UpOut | Put | 0 |
+| 向下单触碰（触碰即付） | DownOut | Put | 现金赔付额，或资产赔付对应的障碍价 |
+| 向上单触碰（触碰即付） | UpOut | Call | 现金赔付额，或资产赔付对应的障碍价 |
 
-The opposite binary pays zero on survival; the rebate supplies at-hit payment.
-Both adapters reject already touched barriers and unsupported settlements.
-Kiyosi uses uniform asset intervals and an explicit upper boundary; QuantLib
-uses automatic log-space meshing. Damping and sensitivities differ between
-implementations and remain part of the measured price work.
+反向二元收益在未触碰存续时支付为零，触碰即付金额由返还金提供。两个适配器均拒绝已触碰的障碍和不支持的结算方式。Kiyosi 采用均匀标的资产区间并显式指定上界；QuantLib 采用自动对数空间网格。阻尼步与敏感度计算在两种实现间存在差异，这些开销保留在实测定价工作量中。
 
-BSM cases have budget `0.003`. European references reuse independent Decimal
-formulas; the American put shares the Rust/QuantLib time, space and domain
-refinement in [calibration/american.json](calibration/american.json), with `5e-5`
-empirical uncertainty. QuantLib up asset no-touch and up cash one-touch need
-more time steps to resolve terminal-boundary error; spatial refinement alone
-does not fix it. Exact profiles and separate space/time/domain checks are
-recorded in `cases/fd_bsm.json` and `calibration/fd_bsm.json`.
+BSM 用例的误差预算为 `0.003`。欧式参考值复用独立 Decimal 公式；美式看跌期权共用 [calibration/american.json](calibration/american.json) 中 Rust 与 QuantLib 在时间、空间和求解域上的收敛结果，经验不确定度为 `5e-5`。QuantLib 的向上资产不触碰与向上现金单触碰需要更多时间步来消除终端边界误差，仅加密空间网格无法修复该误差。精确参数配置以及独立的空间、时间和求解域检查记录在 `cases/fd_bsm.json` 和 `calibration/fd_bsm.json` 中。
 
-Local-volatility cases have budget `0.005`. The supplied surface interpolates
-linearly in time and spot, clamps spot endpoints and requires date coverage.
-QuantLib transposes the time-row input into `FixedLocalVolSurface` and enables
-`localVol=true`. Its `mesher_vol` controls automatic mesh size only; no implied
-volatility or Dupire conversion supplies the differential operator's volatility.
+局部波动率用例的误差预算为 `0.005`。给定的波动率曲面在时间与现货维度上做线性插值，对现货端点做截断，并要求日期在覆盖范围内。QuantLib 将按时间行组织的输入转置后填入 `FixedLocalVolSurface`，并启用 `localVol=true`。其 `mesher_vol` 仅控制自动网格尺寸；微分算子的波动率不来自隐含波动率或 Dupire 转换。
 
-Local-volatility references use a separate QuantLib refinement driver, varying
-time, space and mesher domain. The asset digital and asset terminal binary need
-especially fine spatial grids; the latter uses implicit Euler references to
-avoid terminal-jump oscillations. Uncertainty is twice the sum of observed
-time/space/domain shifts plus `1e-10`, capped at 10% of the case budget.
-These are empirical estimates. Rejected refinements are retained in
-`calibration/local_vol_rejected_references.json`; asset digital/binary checks
-also refine Rust grids and domains independently.
+局部波动率参考值通过独立的 QuantLib 收敛驱动程序生成，分别调整时间步数、空间网格和网格器求解域。资产数字期权与资产到期二元障碍期权需要格外细密的空间网格；后者使用隐式欧拉格式生成参考值，以避免终端跳变振荡。不确定度取观测到的时间、空间与求解域偏移量之和的两倍再加 `1e-10`，上限为用例误差预算的 10%。这些均为经验估计。未通过的收敛方案保留在 `calibration/local_vol_rejected_references.json` 中；资产数字与资产二元障碍的检查还对 Rust 的网格与求解域做了独立收敛验证。
 
 ## Heston
 
-Cases cover an analytic European call and FD European call/American put, with
-budgets `1e-7` and `0.005`. These ordinary ATM cases are not a tail/stability
-survey. Kiyosi's adaptive Fourier integration uses a deterministic variance
-control variate; QuantLib uses Gatheral with adaptive Lobatto. Independent
-Lobatto and exp-sinh refinements supply the European reference.
+用例涵盖解析欧式看涨期权，以及有限差分欧式看涨期权和美式看跌期权，误差预算分别为 `1e-7` 和 `0.005`。这些常规平值（ATM）用例并非尾部或稳定性普查。Kiyosi 的自适应傅里叶积分使用确定性方差控制变量；QuantLib 使用 Gatheral 表示配合自适应 Lobatto 积分。欧式参考值由独立的 Lobatto 与 exp-sinh 积分收敛计算提供。
 
-Kiyosi FD uses modified Craig–Sneyd ADI and Ikonen–Toivanen American splitting,
-with explicit asset/variance bounds. QuantLib uses Hundsdorfer, native American
-payoff projection and automatic domains. Reference probes record those domain
-bounds; calibration varies Kiyosi bounds separately at fixed spacing.
-American references combine joint-grid and independent-dimension extrapolation
-evidence. Their empirical uncertainty must be at most 10% of the case budget.
+Kiyosi 有限差分采用改进 Craig–Sneyd ADI 格式与 Ikonen–Toivanen 美式分裂，并显式设置标的资产与方差边界。QuantLib 采用 Hundsdorfer 格式、原生美式收益投影与自动求解域。参考值探针会记录这些自动求解域边界；校准阶段在固定步长下分别调整 Kiyosi 的边界。美式参考值结合了联合网格与各维度独立外推证据，其经验不确定度不超过用例误差预算的 10%。
 
-## Monte Carlo
+## 蒙特卡洛
 
-Both backends use one worker, pseudorandom sampling, no antithetic pairs and no
-control variates. Seeds are nonzero 32-bit integers; equal seeds do not imply
-equal paths. Validation uses 32 predetermined seeds `1009 + 97*i`, `i=0..31`,
-and separate timing seed `1729`. Ensembles run before timing, including with
-`--price-only`; limits are empirical finite-ensemble checks, not population
-error bounds. Every fresh call regenerates its samples.
+两个后端均使用单工作线程、伪随机抽样，不启用对偶路径和控制变量。随机种子为非零 32 位整数；相同种子并不意味着路径相同。验证使用 32 个预设种子 `1009 + 97*i`（`i=0..31`），计时使用独立种子 `1729`。种子集在计时前运行（含 `--price-only` 模式）；门限为有限种子集的经验检查，而非总体误差界。每次新调用都会重新生成样本。
 
-European/barrier cases require absolute error plus reference uncertainty at
-most `0.10`, RMSE at most `0.05`, absolute signed bias at most `0.025` and
-sample standard deviation at most `0.05`. References reuse independent Decimal
-BSM and absorbing-density formulas. Path/time refinements accompany seed-level
-results in `calibration/monte_carlo.json`.
+欧式与障碍用例要求绝对误差加参考值不确定度不超过 `0.10`、RMSE 不超过 `0.05`、有符号偏差绝对值不超过 `0.025`、样本标准差不超过 `0.05`。参考值复用独立的 Decimal BSM 公式与吸收密度公式。路径数与时间步数的收敛结果随逐种子结果记录在 `calibration/monte_carlo.json` 中。
 
-Kiyosi uses PCG32/Box–Muller and conditional bridge survival; QuantLib uses MT /
-inverse-normal draws and samples barrier crossings with a separate MT stream
-fixed to seed 5. Both barrier protocols reject primary seed 5 to avoid stream
-dependence. The initial seed-1-through-32 collision evidence is retained in
-`calibration/monte_carlo_seed_collision.json`; the replacement seed formula
-was fixed before observing its outputs. Path counts mean physical paths.
+Kiyosi 使用 PCG32/Box–Muller 与条件桥存续概率；QuantLib 使用 MT/逆正态抽样，并用固定种子为 5 的独立 MT 随机流抽样障碍穿越。两端的障碍协议均拒绝主种子 5，以避免随机流耦合。最初使用种子 1 至 32 发生冲突的证据保留在 `calibration/monte_carlo_seed_collision.json` 中；替代种子公式在查看其输出前即已确定。路径数均指物理路径数。
 
-### American least-squares Monte Carlo
+### 美式最小二乘蒙特卡洛
 
-The American put uses the shared refined FD reference. Gates require absolute
-error plus uncertainty at most `0.15`, RMSE and sample standard deviation at
-most `0.075`, and absolute signed bias at most `0.05`.
+美式看跌期权使用共用的细化有限差分参考值。门限要求绝对误差加不确定度不超过 `0.15`，RMSE 与样本标准差不超过 `0.075`，有符号偏差绝对值不超过 `0.05`。
 
-Kiyosi fits in-the-money pricing paths with basis `1, S/K, (S/K)^2` and
-lower-degree fallback. QuantLib uses independent calibration paths, quadratic
-monomials plus its built-in payoff basis, and calibration seeds offset by
-10000. Both refit on every price request. QuantLib's calibration, variance and
-exercise-probability work stays timed. Path, exercise-grid and calibration-path
-refinements are recorded in `calibration/american_monte_carlo.json`; path
-standard error alone does not bound regression/exercise bias.
+Kiyosi 使用基函数 `1, S/K, (S/K)^2` 拟合实值定价路径，并带低阶回退。QuantLib 使用独立的校准路径、二次单项式加内置收益基函数，并将校准种子偏移 10000。两者在每次定价请求时均重新拟合。QuantLib 的校准、方差与行权概率计算保留在计时范围内。路径数、行权网格与校准路径数的收敛结果记录在 `calibration/american_monte_carlo.json` 中；仅靠路径标准误无法约束回归与行权偏差。
 
-## Maintenance
+## 维护
 
-Build companions with `run.py` before native reference generation or calibration.
-Choose budgets and validation seeds before selecting profiles. For changed
-scenarios, regenerate the relevant references, calibrate profiles, then run
-accuracy gates and tests before interpreting timing. Scripts overwrite their
-committed artifacts; review the resulting diffs. Refinement can take minutes.
+执行原生参考值生成或校准前，先用 `run.py` 构建配套程序。应先确定误差预算与验证种子，再选择后端参数配置。场景变更后，先重新生成相应参考值、校准参数配置，再运行精度门限与测试，最后解读计时结果。脚本会覆盖已提交的产物文件，请审阅生成的差异。收敛计算可能耗时数分钟。
 
-| Cases | Reference generation | Calibration evidence |
+| 用例文件 | 参考值生成 | 校准证据 |
 | --- | --- | --- |
-| `european.json` | `generate_european_references.py` | Decimal refinement in references |
-| `digitals_asian.json` | `generate_digitals_asian_references.py` | Precision evidence in references; native evidence in `calibration/digitals_asian.json` and checks in `test_digitals_asian.py` |
+| `european.json` | `generate_european_references.py` | 参考值文件内含 Decimal 精度收敛结果 |
+| `digitals_asian.json` | `generate_digitals_asian_references.py` | 参考值文件内含精度证据；原生证据见 `calibration/digitals_asian.json`，检查见 `test_digitals_asian.py` |
 | `barriers.json` | `generate_barrier_references.py` | `calibrate_barriers.py` |
-| `numerical.json` | `calibrate_numerical.py` | Same script; also refreshes shared `calibration/american.json` |
+| `numerical.json` | `calibrate_numerical.py` | 同一脚本；同时刷新共用的 `calibration/american.json` |
 | `fd_bsm.json` | `generate_fd_references.py` | `calibrate_fd.py` |
 | `fd_local_vol.json` | `generate_local_vol_references.py` | `calibrate_local_vol.py` |
-| `heston.json` | `generate_heston_references.py` | `calibrate_heston.py` writes `heston_calibration.json` |
+| `heston.json` | `generate_heston_references.py` | `calibrate_heston.py` 写入 `heston_calibration.json` |
 | `monte_carlo.json` | `generate_mc_references.py` | `calibrate_monte_carlo.py` |
-| `american_monte_carlo.json` | `calibrate_american_monte_carlo.py` reuses shared American FD evidence | Same script |
+| `american_monte_carlo.json` | `calibrate_american_monte_carlo.py`，复用共用的美式有限差分证据 | 同一脚本 |
 
-Run scripts from the repository root, for example
-`python3 benchmarks/quantlib/generate_fd_references.py`. Refresh shared American
-FD evidence before its dependent FD/CRR/LSM references. Heston generation also
-writes `python/tests/quantlib_reference/heston_finite_difference.json`;
-its partial probe output is `build/heston-refinements.jsonl`. Some offline
-drivers call `quantlib-config` directly, so put the intended installation on
-`PATH` as well as configuring the runtime linker.
+请在仓库根目录下运行脚本，例如 `python3 benchmarks/quantlib/generate_fd_references.py`。刷新依赖美式有限差分结果的 FD/CRR/LSM 参考值前，需先刷新共用的美式有限差分证据。Heston 生成脚本还会写入 `python/tests/quantlib_reference/heston_finite_difference.json`，其增量探针输出为 `build/heston-refinements.jsonl`。部分离线驱动程序会直接调用 `quantlib-config`，因此除配置运行时链接器外，还需将目标安装路径加入 `PATH`。

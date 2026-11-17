@@ -1,33 +1,29 @@
-# Native QuantLib benchmarks
+# QuantLib 原生基准测试
 
-Compare Kiyosi Rust and QuantLib C++ latency after both pass the same accuracy
-gates. See [coverage and exclusions](coverage.md) for the supported subset and
-[methodology](methodology.md) for reference and algorithm details.
+在两者通过相同精度门限的前提下，对比 Kiyosi Rust 与 QuantLib C++ 的延迟。支持的覆盖子集见[覆盖范围与排除项](coverage.md)，参考值与算法细节见[测试方法](methodology.md)。
 
-## Requirements
+## 环境要求
 
-- Linux, Rust/Cargo, Python 3.12+ (standard library only).
-- C++17 compiler and Boost headers.
-- QuantLib C++ **1.44**, built with `-O3 -DNDEBUG`, discoverable through
-  `quantlib-config` and the runtime linker. The Python QuantLib package alone
-  is insufficient. Cargo-only library workflows do not require QuantLib.
+- Linux、Rust/Cargo、Python 3.12+（仅需标准库）。
+- C++17 编译器与 Boost 头文件。
+- 使用 `-O3 -DNDEBUG` 编译的 QuantLib C++ **1.44**，且可通过 `quantlib-config` 和运行时链接器找到。仅安装 Python 版 QuantLib 包无法满足要求。仅使用 Cargo 的库开发工作流不需要 QuantLib。
 
-## Run
+## 运行方式
 
-From the repository root:
+在仓库根目录下执行：
 
 ```sh
-# Build both companions, check accuracy, time all cases, and write report.json.
+# 构建两个配套程序，校验精度，对全部用例计时并写入 report.json
 python3 benchmarks/quantlib/run.py
 
-# Focus on one case; repeat --case to select more.
+# 聚焦单个用例；重复指定 --case 可选择多个用例
 python3 benchmarks/quantlib/run.py --case european-bsm-atm-call --report /tmp/bsm.json
 
-# Check accuracy with existing binaries, without timing.
+# 使用已有二进制文件校验精度，不计时
 python3 benchmarks/quantlib/run.py --no-build --price-only
 ```
 
-For a nonstandard QuantLib installation:
+若 QuantLib 安装在非标准路径：
 
 ```sh
 QUANTLIB_CONFIG=/opt/quantlib-1.44/bin/quantlib-config \
@@ -35,53 +31,37 @@ LD_LIBRARY_PATH=/opt/quantlib-1.44/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
 python3 benchmarks/quantlib/run.py
 ```
 
-| Option | Purpose |
+| 选项 | 用途 |
 | --- | --- |
-| `--case ID` | Select a case; repeatable. Without this option, all required coverage cells must be present, even with a custom manifest. |
-| `--cases PATH`, `--references PATH` | Load a JSON file or directory; defaults to `cases/` and `references/` beside the runner. Use `--case` for a partial manifest. |
-| `--no-build` | Reuse `target/release/examples/quantlib_bench` and `benchmarks/quantlib/build/quantlib_bench`. |
-| `--price-only` | Run accuracy and Monte Carlo ensemble gates without timing. |
-| `--target-ms MS` | Minimum adaptive timing batch duration; default `20`. |
-| `--report PATH` | JSON destination; default `benchmarks/quantlib/report.json`. |
-| `--quantlib-config`, `--cxx`, `--cxxflags` | Build overrides; also available through `QUANTLIB_CONFIG`, `CXX`, `CXXFLAGS`. |
+| `--case ID` | 选择指定用例，可重复传入。未指定该选项时，即使使用自定义清单，也必须包含全部必测覆盖单元。 |
+| `--cases PATH`, `--references PATH` | 加载 JSON 文件或目录，默认为运行脚本同级的 `cases/` 和 `references/`。使用部分清单时需配合 `--case`。 |
+| `--no-build` | 复用 `target/release/examples/quantlib_bench` 和 `benchmarks/quantlib/build/quantlib_bench`。 |
+| `--price-only` | 仅运行精度门限与蒙特卡洛种子集校验，不计时。 |
+| `--target-ms MS` | 自适应计时批次的最短时长，默认为 `20`。 |
+| `--report PATH` | JSON 报告输出路径，默认为 `benchmarks/quantlib/report.json`。 |
+| `--quantlib-config`, `--cxx`, `--cxxflags` | 覆盖构建配置，也可通过 `QUANTLIB_CONFIG`、`CXX`、`CXXFLAGS` 设置。 |
 
-Run `python3 benchmarks/quantlib/run.py --help` for all options.
+运行 `python3 benchmarks/quantlib/run.py --help` 查看全部选项。
 
-## Read results
+## 解读结果
 
-Both prices must satisfy `abs(price - reference) + reference_uncertainty <= error_budget`.
-Monte Carlo also checks empirical error, bias and dispersion across validation
-seeds. Failed gates prevent timing; unsuccessful rows have a null ratio and make
-the command exit unsuccessfully. Other requested cases continue after per-case
-failures.
+两端的价格均须满足 `abs(price - reference) + reference_uncertainty <= error_budget`。蒙特卡洛用例还会跨验证种子检查经验误差、偏差与离散度。门限未通过时跳过计时；未通过行的比值为 `null`，并使命令以失败状态退出。单个用例失败后，其余已请求的用例仍会继续运行。
 
-Timing uses 15 alternating backend pairs on preconstructed contracts, contexts,
-models and engines. Each request recalculates a fresh price; inherent extra
-work, including QuantLib sensitivities and sample variance, stays timed.
-The ratio is `Q/K`: values above one mean lower Kiyosi latency. The JSON retains
-raw samples, profiles, reference evidence, coverage and machine/build metadata.
-Use an idle machine; results apply to the recorded scenarios and profiles.
+计时基于预先构造的合约、定价上下文、模型与引擎，交替采集 15 组双后端样本。每次请求都会重新计算最新价格；后端固有的额外开销（包括 QuantLib 的敏感度与样本方差计算）均保留在计时范围内。比值定义为 `Q/K`，大于 1 表示 Kiyosi 延迟更低。JSON 报告完整保留原始样本、后端参数配置、参考值证据、覆盖情况以及机器与构建元数据。请在空闲机器上运行测量；结果仅适用于所记录的场景与参数配置。
 
-## Tests and maintenance
+## 测试与维护
 
-Coverage/report checks need no QuantLib installation:
+覆盖范围与报告检查无需安装 QuantLib：
 
 ```sh
 python3 -m unittest discover -s benchmarks/quantlib -p test_coverage.py
 ```
 
-For the full suite, build both companions first. Several tests require native
-binaries even without `KIYOSI_QUANTLIB_LIVE`; that flag enables additional
-QuantLib checks:
+运行完整测试套件前，需先构建两个配套程序。即使未设置 `KIYOSI_QUANTLIB_LIVE`，部分测试也依赖原生二进制文件；设置该变量会启用额外的 QuantLib 检查：
 
 ```sh
 python3 benchmarks/quantlib/run.py --price-only --case european-bsm-atm-call
 KIYOSI_QUANTLIB_LIVE=1 python3 -m unittest discover -s benchmarks/quantlib -p 'test_*.py'
 ```
 
-Scenario inputs, budgets and backend profiles live in `cases/*.json`;
-reference values, uncertainty and provenance in `references/*.json`; offline
-convergence evidence in `calibration/*.json` and `heston_calibration.json`.
-Native adapters are [quantlib.cpp](quantlib.cpp) and
-[quantlib_bench.rs](../../crates/kiyosi/examples/quantlib_bench.rs).
-For scenario changes, follow the [reference and calibration workflow](methodology.md#maintenance).
+场景输入、误差预算与后端参数配置位于 `cases/*.json`；参考值、不确定度与来源信息位于 `references/*.json`；离线收敛证据位于 `calibration/*.json` 和 `heston_calibration.json`。原生适配器分别为 [quantlib.cpp](quantlib.cpp) 和 [quantlib_bench.rs](../../crates/kiyosi/examples/quantlib_bench.rs)。修改场景时，请遵循[参考值与校准流程](methodology.md#维护)。
