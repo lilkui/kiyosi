@@ -319,6 +319,34 @@ fn time_varying_sigma_matches_independently_integrated_variance() {
 }
 
 #[test]
+fn skewed_uniform_european_payoff_matches_independent_reference() {
+    let (start, end) = dates();
+    let context = context(surface(vec![vec![0.3, 0.15], vec![0.35, 0.2]]));
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    let engine = engine(800, 400, 400.0);
+    let result = engine
+        .price_with_greeks(
+            &option,
+            &context,
+            GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+        )
+        .unwrap();
+    // QuantLib 1.44 refined reference and empirical uncertainty from the native benchmark.
+    assert!((result.price() - 11.001_742_706_191_068).abs() + 1.102_296_046_616_996e-5 < 1e-4);
+    close(
+        result.require(Greek::Delta).unwrap(),
+        0.515_163_541_339_759_2,
+        2e-5,
+    );
+    close(
+        result.require(Greek::Gamma).unwrap(),
+        0.015_233_318_213_016_668,
+        5e-6,
+    );
+    assert_eq!(result.price(), engine.price(&option, &context).unwrap());
+}
+
+#[test]
 fn skewed_surface_converges_and_greeks_hold_absolute_coordinates_fixed() {
     let c = context(surface(vec![vec![0.3, 0.15], vec![0.35, 0.2]]));
     let option = EuropeanOption::new(OptionType::Call, 100.0, dates().0, dates().1).unwrap();

@@ -65,3 +65,11 @@ KIYOSI_QUANTLIB_LIVE=1 python3 -m unittest discover -s benchmarks/quantlib -p 't
 ```
 
 场景输入、误差预算与后端参数配置位于 `cases/*.json`；参考值、不确定度与来源信息位于 `references/*.json`；离线收敛证据位于 `calibration/*.json` 和 `heston_calibration.json`。原生适配器分别为 [quantlib.cpp](quantlib.cpp) 和 [quantlib_bench.rs](../../crates/kiyosi/examples/quantlib_bench.rs)。修改场景时，请遵循[参考值与校准流程](methodology.md#维护)。
+
+比较 FD 调用策略与核心精度时，基线程序须为 release 构建、支持 `upper=automatic`，且普通欧式与连续单障碍的均匀网格终端收益按节点取值：
+
+```sh
+python3 benchmarks/quantlib/compare_fd_accuracy.py --baseline-executable /path/to/fd-before-core
+```
+
+输出默认为 `calibration/fd_accuracy.json`；用 `--report` 指定复测文件。验收规则与校准探针见[有限差分说明](methodology.md#有限差分)。

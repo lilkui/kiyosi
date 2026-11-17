@@ -208,6 +208,103 @@ fn constant_surface_matches_single_and_double_barrier_states() {
 }
 
 #[test]
+fn continuous_single_barrier_kinks_match_analytic_prices_and_greeks() {
+    let (start, end) = dates();
+    let bsm = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
+        100.0,
+        start,
+    )
+    .unwrap();
+    let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 800,
+        time_step_count: 400,
+        ..settings()
+    })
+    .unwrap();
+    for context in [&bsm, &local(100.0, end, false)] {
+        for direction in [OptionType::Call, OptionType::Put] {
+            for kind in [
+                BarrierType::DownAndOut,
+                BarrierType::DownAndIn,
+                BarrierType::UpAndOut,
+                BarrierType::UpAndIn,
+            ] {
+                let level = if matches!(kind, BarrierType::UpAndIn | BarrierType::UpAndOut) {
+                    120.0
+                } else {
+                    80.0
+                };
+                for strike in [99.9, 100.0, 100.1] {
+                    let option = BarrierOption::new(BarrierOptionTerms::new(
+                        direction, strike, start, end, level, kind,
+                    ))
+                    .unwrap();
+                    let result = engine
+                        .price_with_greeks(&option, context, request())
+                        .unwrap();
+                    let expected = AnalyticBarrierEngine
+                        .price_with_greeks(&option, &bsm, request())
+                        .unwrap();
+                    for ((actual, expected), tolerance) in [
+                        (result.price(), expected.price()),
+                        (
+                            result.require(Greek::Delta).unwrap(),
+                            expected.require(Greek::Delta).unwrap(),
+                        ),
+                        (
+                            result.require(Greek::Gamma).unwrap(),
+                            expected.require(Greek::Gamma).unwrap(),
+                        ),
+                    ]
+                    .into_iter()
+                    .zip([0.00025, 3e-5, 3e-6])
+                    {
+                        assert!(
+                            (actual - expected).abs() < tolerance,
+                            "{direction:?} {kind:?} {strike}: {actual} != {expected}"
+                        );
+                    }
+                    assert!(result.price() >= 0.0);
+                    assert_eq!(result.price(), engine.price(&option, context).unwrap());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn skewed_uniform_down_out_payoff_matches_independent_reference() {
+    let (start, end) = dates();
+    let context = local(100.0, end, true);
+    let option = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        80.0,
+        BarrierType::DownAndOut,
+    ))
+    .unwrap();
+    let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 800,
+        time_step_count: 400,
+        ..settings()
+    })
+    .unwrap();
+    // QuantLib 1.44 refined reference with its empirical discretization uncertainty.
+    let price = engine.price(&option, &context).unwrap();
+    assert!((price - 10.381_742_384_961_965).abs() + 1.355_485_656_154_339_8e-6 < 0.0002);
+    assert_eq!(
+        price,
+        engine
+            .price_with_greeks(&option, &context, request())
+            .unwrap()
+            .price()
+    );
+}
+
+#[test]
 fn skewed_continuous_knock_in_out_parity_includes_native_greeks() {
     let (start, end) = dates();
     let context = local(100.0, end, true);

@@ -12,7 +12,7 @@ from kiyosi.instruments import (
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
-def test_standard_cn_matches_one_unsmoothed_step_with_payoff_averaging(subtests):
+def test_standard_cn_matches_one_undamped_step_with_payoff_averaging(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     parameters = BlackScholesMertonParameters(
         risk_free_rate=0, dividend_yield=0, volatility=0.2
@@ -34,8 +34,8 @@ def test_standard_cn_matches_one_unsmoothed_step_with_payoff_averaging(subtests)
             EuropeanOption(**terms),
             pricing.FiniteDifferenceVanillaEngine,
             pricing.AnalyticEuropeanEngine,
-            1,
-            100,
+            13.25,
+            100.5,
         ),
         (
             CashOrNothingOption(**terms, payout=10),
@@ -59,7 +59,7 @@ def test_standard_cn_matches_one_unsmoothed_step_with_payoff_averaging(subtests)
                 "asset_upper_boundary": 300,
             }
             high = analytic().price(option, upper_context)
-            # Solve the two interior CN equations, including averaged digital payoffs.
+            # Vanilla strike cell averages to h/8=12.5; include digital averages.
             expected = (1.08 * rhs_low + 0.01 * (rhs_high + 0.04 * high)) / (
                 1.02 * 1.08 - 0.0004
             )

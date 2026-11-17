@@ -64,9 +64,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 11.001263337125293,
-            "absolute_error": 0.00047936906577561444,
-            "error_including_reference_uncertainty": 0.0004903920262417844,
+            "price": 11.001703183762976,
+            "absolute_error": 3.952242809290851e-05,
+            "error_including_reference_uncertainty": 5.054538855907847e-05,
             "passed": true
           },
           "domain_constant_spacing": {
@@ -76,9 +76,9 @@
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 11.001263337125293,
-            "absolute_error": 0.00047936906577561444,
-            "error_including_reference_uncertainty": 0.0004903920262417844,
+            "price": 11.001703183762974,
+            "absolute_error": 3.952242809468487e-05,
+            "error_including_reference_uncertainty": 5.054538856085483e-05,
             "passed": true
           }
         },
@@ -740,9 +740,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.381436568327675,
-            "absolute_error": 0.0003058166342899682,
-            "error_including_reference_uncertainty": 0.0003071721199461225,
+            "price": 10.381638632086753,
+            "absolute_error": 0.0001037528752121375,
+            "error_including_reference_uncertainty": 0.00010510836086829183,
             "passed": true
           },
           "space": {
@@ -752,9 +752,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.381656203984663,
-            "absolute_error": 8.618097730206387e-05,
-            "error_including_reference_uncertainty": 8.75364629582182e-05,
+            "price": 10.381706717348315,
+            "absolute_error": 3.56676136501477e-05,
+            "error_including_reference_uncertainty": 3.702309930630204e-05,
             "passed": true
           },
           "time": {
@@ -764,9 +764,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.381446274546958,
-            "absolute_error": 0.0002961104150074334,
-            "error_including_reference_uncertainty": 0.0002974659006635877,
+            "price": 10.381648337513353,
+            "absolute_error": 9.404744861285508e-05,
+            "error_including_reference_uncertainty": 9.540293426900941e-05,
             "passed": true
           },
           "coarse_rejected": {
@@ -776,9 +776,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 9.87928747430338,
-            "absolute_error": 0.5024549106585852,
-            "error_including_reference_uncertainty": 0.5024562661442413,
+            "price": 10.000393878020036,
+            "absolute_error": 0.38134850694192934,
+            "error_including_reference_uncertainty": 0.3813498624275855,
             "passed": false
           },
           "explicit_uniform": {
@@ -788,9 +788,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.381436568327675,
-            "absolute_error": 0.0003058166342899682,
-            "error_including_reference_uncertainty": 0.0003071721199461225,
+            "price": 10.381638632086753,
+            "absolute_error": 0.0001037528752121375,
+            "error_including_reference_uncertainty": 0.00010510836086829183,
             "passed": true
           },
           "domain_constant_spacing": {
@@ -800,9 +800,9 @@
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 10.38143656832766,
-            "absolute_error": 0.0003058166343059554,
-            "error_including_reference_uncertainty": 0.0003071721199621097,
+            "price": 10.38163863208675,
+            "absolute_error": 0.00010375287521569021,
+            "error_including_reference_uncertainty": 0.00010510836087184454,
             "passed": true
           }
         },

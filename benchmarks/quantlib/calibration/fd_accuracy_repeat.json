@@ -1,0 +1,4766 @@
+{
+  "schema_version": 1,
+  "utc": "2026-11-17T03:46:52.342490+00:00",
+  "source_revision": "5442b87d3c5bc7cc8a73384b41857addc9779042",
+  "executables": {
+    "baseline": {
+      "path": "/home/lijp/src/kiyosi/.git/testagent/fd-before-core",
+      "sha256": "3f0a5f6a6d303d7a7088211b7432aaec1583f108d79d0fbcc713d16b6f33f3d0"
+    },
+    "updated": {
+      "path": "/home/lijp/src/kiyosi/target/release/examples/quantlib_bench",
+      "sha256": "f100758949654af1568e2d11eb0ebf74fcddbb1b19a8f378b1a510f3743de15f"
+    }
+  },
+  "cpu_affinity": [
+    0
+  ],
+  "machine": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           46 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  24\nOn-line CPU(s) list:                     0-23\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) Ultra 9 285\nCPU family:                              6\nModel:                                   198\nThread(s) per core:                      1\nCore(s) per socket:                      24\nSocket(s):                               1\nStepping:                                2\nBogoMIPS:                                4991.99\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology tsc_reliable nonstop_tsc cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves avx_vnni vnmi umip waitpkg gfni vaes vpclmulqdq rdpid movdiri movdir64b fsrm md_clear serialize ibt flush_l1d arch_capabilities\nVirtualization:                          VT-x\nHypervisor vendor:                       Microsoft\nVirtualization type:                     full\nL1d cache:                               1.1 MiB (24 instances)\nL1i cache:                               1.5 MiB (24 instances)\nL2 cache:                                72 MiB (24 instances)\nL3 cache:                                36 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-23\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; Enhanced IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Not affected",
+  "protocol": "Cargo release, thin LTO; one thread; 3 warmups per process; 15 alternating pairs, adaptive >=20 ms batches; inclusive IQR; both executables are Kiyosi",
+  "latency_tolerance": 0.05,
+  "cases": [
+    {
+      "id": "fd-bsm-european-call",
+      "comparisons": {
+        "call_policy": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": "automatic"
+            }
+          },
+          "reference": {
+            "id": "fd-bsm-european-call",
+            "value": 9.227005508154047,
+            "uncertainty": 1e-12,
+            "provenance": {
+              "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+              "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; methodology.md#barriers-and-touches",
+              "evidence": {
+                "precisions": [
+                  90,
+                  110
+                ],
+                "values": [
+                  "9.2270055081540475442210596183103301918152202505427832245760579442669215151107144044520007",
+                  "9.227005508154047544221059618310330191815220250542783224576057944266921515110714404452000813018617609222508370"
+                ],
+                "precision_delta": "1.13018617609222508370E-88",
+                "normal_tail_cutoff": 16,
+                "normal_tail_bound": 6.4e-58
+              }
+            }
+          },
+          "error_budget": 0.003,
+          "before": {
+            "accuracy": {
+              "price": 9.226400344234525,
+              "absolute_error": 0.0006051639195217007,
+              "error_including_reference_uncertainty": 0.0006051639205217007,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.226400344234525,
+              "elapsed_ns": 2168194,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 2176187,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 24315019,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 23889773,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22654545,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22600258,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 23154266,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 23843737,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22900700,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22685906,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22847967,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 24003266,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 24414344,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22640624,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 25409187,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22541046,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22604732,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22651280,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2077087.9090909092,
+              "q1_ns": 2058722.9090909092,
+              "q3_ns": 2169705.0,
+              "iqr_ns": 110982.09090909082
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 9.226922148720686,
+              "absolute_error": 8.335943336135188e-05,
+              "error_including_reference_uncertainty": 8.335943436135187e-05,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.226922148720686,
+              "elapsed_ns": 2171541,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 2295263,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 21706316,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 21437570,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 21388397,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 24418886,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 20892082,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 21058192,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 20684603,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 25148233,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 21371648,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 20747660,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 20926785,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 20889846,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 20731561,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22443616,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 21213041,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 20819364,
+                  "iterations": 10,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2105819.2,
+              "q1_ns": 2085460.5,
+              "q3_ns": 2141298.35,
+              "iqr_ns": 55837.85000000009
+            }
+          },
+          "latency_ratio": 1.013832486715339,
+          "latency_passed": true,
+          "accuracy_improved": true,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        },
+        "core_explicit": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            }
+          },
+          "reference": {
+            "id": "fd-bsm-european-call",
+            "value": 9.227005508154047,
+            "uncertainty": 1e-12,
+            "provenance": {
+              "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+              "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; methodology.md#barriers-and-touches",
+              "evidence": {
+                "precisions": [
+                  90,
+                  110
+                ],
+                "values": [
+                  "9.2270055081540475442210596183103301918152202505427832245760579442669215151107144044520007",
+                  "9.227005508154047544221059618310330191815220250542783224576057944266921515110714404452000813018617609222508370"
+                ],
+                "precision_delta": "1.13018617609222508370E-88",
+                "normal_tail_cutoff": 16,
+                "normal_tail_bound": 6.4e-58
+              }
+            }
+          },
+          "error_budget": 0.003,
+          "before": {
+            "accuracy": {
+              "price": 9.226400344234525,
+              "absolute_error": 0.0006051639195217007,
+              "error_including_reference_uncertainty": 0.0006051639205217007,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.226400344234525,
+              "elapsed_ns": 2041355,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 2084993,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 23107165,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22692036,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 23266201,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 23782644,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22458684,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22508073,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22960251,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 24073075,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22948137,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22646357,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22821920,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 23325320,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22744579,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22686375,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 23041342,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226400344234525,
+                  "elapsed_ns": 22623653,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2074720.0,
+              "q1_ns": 2060578.7272727273,
+              "q3_ns": 2104888.3181818184,
+              "iqr_ns": 44309.59090909106
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 9.226992597211149,
+              "absolute_error": 1.291094289790351e-05,
+              "error_including_reference_uncertainty": 1.291094389790351e-05,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.226992597211149,
+              "elapsed_ns": 2094002,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 2054921,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 23334136,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 25326710,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 26871398,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 22978480,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 22771822,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 26080709,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 24502285,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 22803918,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 23334554,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 22646521,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 25814126,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 25208041,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 23262500,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 23273549,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 23195139,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226992597211149,
+                  "elapsed_ns": 22677455,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2115777.1818181816,
+              "q1_ns": 2081018.0909090908,
+              "q3_ns": 2297034.1363636362,
+              "iqr_ns": 216016.0454545454
+            }
+          },
+          "latency_ratio": 1.0197892640058328,
+          "latency_passed": true,
+          "accuracy_improved": true,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        },
+        "core_selected": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": "automatic"
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": "automatic"
+            }
+          },
+          "reference": {
+            "id": "fd-bsm-european-call",
+            "value": 9.227005508154047,
+            "uncertainty": 1e-12,
+            "provenance": {
+              "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+              "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; methodology.md#barriers-and-touches",
+              "evidence": {
+                "precisions": [
+                  90,
+                  110
+                ],
+                "values": [
+                  "9.2270055081540475442210596183103301918152202505427832245760579442669215151107144044520007",
+                  "9.227005508154047544221059618310330191815220250542783224576057944266921515110714404452000813018617609222508370"
+                ],
+                "precision_delta": "1.13018617609222508370E-88",
+                "normal_tail_cutoff": 16,
+                "normal_tail_bound": 6.4e-58
+              }
+            }
+          },
+          "error_budget": 0.003,
+          "before": {
+            "accuracy": {
+              "price": 9.226922148720686,
+              "absolute_error": 8.335943336135188e-05,
+              "error_including_reference_uncertainty": 8.335943436135187e-05,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.226922148720686,
+              "elapsed_ns": 2067412,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 2124566,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 24726703,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 26812253,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22759674,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22710376,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22876717,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22787838,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22644842,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22642963,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23035095,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22852239,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 26320167,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 24101076,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23232048,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 24580554,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22804900,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 25533412,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2079701.5454545454,
+              "q1_ns": 2070341.4545454546,
+              "q3_ns": 2212801.3636363638,
+              "iqr_ns": 142459.90909090918
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 9.226922148720686,
+              "absolute_error": 8.335943336135188e-05,
+              "error_including_reference_uncertainty": 8.335943436135187e-05,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.226922148720686,
+              "elapsed_ns": 2055924,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 2095781,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23069547,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22697571,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23002538,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23027327,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 25142127,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23240232,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23319398,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23179401,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22992980,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23074861,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22896649,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 24492689,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23640652,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 26196242,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 23687552,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.226922148720686,
+                  "elapsed_ns": 22983246,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2107218.272727273,
+              "q1_ns": 2090705.3636363638,
+              "q3_ns": 2151282.0,
+              "iqr_ns": 60576.63636363624
+            }
+          },
+          "latency_ratio": 1.0132310943043097,
+          "latency_passed": true,
+          "accuracy_improved": false,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "fd-bsm-down-out-call",
+      "comparisons": {
+        "call_policy": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            }
+          },
+          "reference": {
+            "id": "fd-bsm-down-out-call",
+            "value": 9.13330643649812,
+            "uncertainty": 1e-12,
+            "provenance": {
+              "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+              "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; methodology.md#barriers-and-touches",
+              "evidence": {
+                "precisions": [
+                  90,
+                  110
+                ],
+                "values": [
+                  "9.13330643649812110790234202944677064996718213538619982105264746382157649372910984042870099",
+                  "9.1333064364981211079023420294467706499671821353861998210526474638215764937291098404287010999864310693019725556"
+                ],
+                "precision_delta": "1.099864310693019725556E-88",
+                "normal_tail_cutoff": 16,
+                "normal_tail_bound": 6.4e-58
+              }
+            }
+          },
+          "error_budget": 0.003,
+          "before": {
+            "accuracy": {
+              "price": 9.13287016929646,
+              "absolute_error": 0.0004362672016604563,
+              "error_including_reference_uncertainty": 0.0004362672026604563,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.13287016929646,
+              "elapsed_ns": 2167304,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 2114550,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23324646,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23034249,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23162588,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 24538381,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22819049,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 25217069,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22679564,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 26619577,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22856830,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23076267,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22742193,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22740953,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22768915,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22694831,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22984790,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22886890,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2080626.3636363635,
+              "q1_ns": 2068686.727272727,
+              "q3_ns": 2101766.1363636367,
+              "iqr_ns": 33079.40909090964
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 9.13287016929646,
+              "absolute_error": 0.0004362672016604563,
+              "error_including_reference_uncertainty": 0.0004362672026604563,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.13287016929646,
+              "elapsed_ns": 2075854,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 2060562,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22888075,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22895616,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 26963962,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 24513392,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22776823,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23391681,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22869878,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23244332,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23094458,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22949167,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23097158,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22782893,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22834028,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23286979,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22828590,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 25332040,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2099496.1818181816,
+              "q1_ns": 2077450.2727272727,
+              "q3_ns": 2121757.2727272725,
+              "iqr_ns": 44306.99999999977
+            }
+          },
+          "latency_ratio": 1.0090692968769457,
+          "latency_passed": true,
+          "accuracy_improved": false,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        },
+        "core_explicit": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            }
+          },
+          "reference": {
+            "id": "fd-bsm-down-out-call",
+            "value": 9.13330643649812,
+            "uncertainty": 1e-12,
+            "provenance": {
+              "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+              "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; methodology.md#barriers-and-touches",
+              "evidence": {
+                "precisions": [
+                  90,
+                  110
+                ],
+                "values": [
+                  "9.13330643649812110790234202944677064996718213538619982105264746382157649372910984042870099",
+                  "9.1333064364981211079023420294467706499671821353861998210526474638215764937291098404287010999864310693019725556"
+                ],
+                "precision_delta": "1.099864310693019725556E-88",
+                "normal_tail_cutoff": 16,
+                "normal_tail_bound": 6.4e-58
+              }
+            }
+          },
+          "error_budget": 0.003,
+          "before": {
+            "accuracy": {
+              "price": 9.13287016929646,
+              "absolute_error": 0.0004362672016604563,
+              "error_including_reference_uncertainty": 0.0004362672026604563,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.13287016929646,
+              "elapsed_ns": 2047695,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 2114070,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23122913,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22826868,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22995703,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23209228,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23028560,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23722421,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23139554,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23196758,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22715475,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22869407,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22857367,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23234218,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22840712,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 26830903,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 25070574,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 24175471,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2103595.8181818184,
+              "q1_ns": 2078489.7272727273,
+              "q3_ns": 2134392.6818181816,
+              "iqr_ns": 55902.954545454355
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 9.133217765386828,
+              "absolute_error": 8.867111129262639e-05,
+              "error_including_reference_uncertainty": 8.867111229262639e-05,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.133217765386828,
+              "elapsed_ns": 2098929,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 2058862,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 25467115,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23174416,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22947887,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 24034124,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22823150,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23026895,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22689110,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23697486,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23587083,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23352727,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22890468,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22895470,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23381117,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23132927,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23261226,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23356142,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2106765.090909091,
+              "q1_ns": 2083788.9545454546,
+              "q3_ns": 2124420.8636363633,
+              "iqr_ns": 40631.90909090871
+            }
+          },
+          "latency_ratio": 1.0015065977503281,
+          "latency_passed": true,
+          "accuracy_improved": true,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        },
+        "core_selected": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            }
+          },
+          "reference": {
+            "id": "fd-bsm-down-out-call",
+            "value": 9.13330643649812,
+            "uncertainty": 1e-12,
+            "provenance": {
+              "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
+              "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; methodology.md#barriers-and-touches",
+              "evidence": {
+                "precisions": [
+                  90,
+                  110
+                ],
+                "values": [
+                  "9.13330643649812110790234202944677064996718213538619982105264746382157649372910984042870099",
+                  "9.1333064364981211079023420294467706499671821353861998210526474638215764937291098404287010999864310693019725556"
+                ],
+                "precision_delta": "1.099864310693019725556E-88",
+                "normal_tail_cutoff": 16,
+                "normal_tail_bound": 6.4e-58
+              }
+            }
+          },
+          "error_budget": 0.003,
+          "before": {
+            "accuracy": {
+              "price": 9.13287016929646,
+              "absolute_error": 0.0004362672016604563,
+              "error_including_reference_uncertainty": 0.0004362672026604563,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.13287016929646,
+              "elapsed_ns": 2149100,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 2136469,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23463847,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22917210,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23148652,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22682387,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23124625,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22672246,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 25621133,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23399185,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22934765,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22871057,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22721912,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 25840690,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23082793,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22822451,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 22823559,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.13287016929646,
+                  "elapsed_ns": 23406313,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2084978.6363636365,
+              "q1_ns": 2074818.6363636362,
+              "q3_ns": 2115810.7727272725,
+              "iqr_ns": 40992.13636363624
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 9.133217765386828,
+              "absolute_error": 8.867111129262639e-05,
+              "error_including_reference_uncertainty": 8.867111229262639e-05,
+              "passed": true
+            },
+            "warmup": {
+              "price": 9.133217765386828,
+              "elapsed_ns": 2062107,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 2065563,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22966014,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 27152462,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22860531,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22903726,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22775743,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22789825,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 24489838,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23285706,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23215066,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 25654334,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22931904,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22704527,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22867801,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 22950038,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 23273637,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 9.133217765386828,
+                  "elapsed_ns": 24830408,
+                  "iterations": 11,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 2086367.0909090908,
+              "q1_ns": 2078560.5454545454,
+              "q3_ns": 2171615.6363636367,
+              "iqr_ns": 93055.09090909129
+            }
+          },
+          "latency_ratio": 1.0006659322648388,
+          "latency_passed": true,
+          "accuracy_improved": true,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-european-call",
+      "comparisons": {
+        "call_policy": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": "automatic"
+            }
+          },
+          "reference": {
+            "id": "fd-local-vol-european-call",
+            "value": 11.001742706191068,
+            "uncertainty": 1.102296046616996e-05,
+            "provenance": {
+              "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+              "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+              "quantlib_version": "1.44",
+              "compile_command": [
+                "c++",
+                "-std=c++17",
+                "-O3",
+                "-DNDEBUG",
+                "-I/usr/local/include",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+                "-o",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+                "-L/usr/local/lib",
+                "-lQuantLib"
+              ],
+              "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+              "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+              "evidence": {
+                "mesher_040": {
+                  "price": 11.001742406159238,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.4
+                  }
+                },
+                "mesher_060": {
+                  "price": 11.001742691131355,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.6
+                  }
+                },
+                "time_coarse": {
+                  "price": 11.001747461840964,
+                  "profile": {
+                    "space": 3200,
+                    "time": 3200,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_middle": {
+                  "price": 11.001747722306511,
+                  "profile": {
+                    "space": 3200,
+                    "time": 6400,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_fine": {
+                  "price": 11.0017477874891,
+                  "profile": {
+                    "space": 3200,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "space_refined": {
+                  "price": 11.00174264100848,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                }
+              },
+              "observed_shifts": {
+                "time_extrapolation": 1.3010037136496067e-07,
+                "space": 5.14648061944456e-06,
+                "domain": 2.348492422754589e-07
+              }
+            }
+          },
+          "error_budget": 0.005,
+          "before": {
+            "accuracy": {
+              "price": 11.001263337125293,
+              "absolute_error": 0.00047936906577561444,
+              "error_including_reference_uncertainty": 0.0004903920262417844,
+              "passed": true
+            },
+            "warmup": {
+              "price": 11.001263337125293,
+              "elapsed_ns": 6682113,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 6663025,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26219265,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 25911229,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26452565,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26188790,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26249568,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26341860,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26223408,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26663093,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 28819485,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26190943,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26284849,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 25953475,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26031863,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 25952953,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 29233734,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26252493,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6562392.0,
+              "q1_ns": 6527581.625,
+              "q3_ns": 6599303.125,
+              "iqr_ns": 71721.5
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 11.001639406090021,
+              "absolute_error": 0.00010330010104731002,
+              "error_including_reference_uncertainty": 0.00011432306151347999,
+              "passed": true
+            },
+            "warmup": {
+              "price": 11.001639406090021,
+              "elapsed_ns": 6546309,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 6574670,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 29942442,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26248416,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26182675,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26453064,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 27740477,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26514611,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26180146,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26170800,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26465014,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26917911,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26649994,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26034073,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26199572,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 29376506,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26411521,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 28523651,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6613266.0,
+              "q1_ns": 6547780.875,
+              "q3_ns": 6695988.125,
+              "iqr_ns": 148207.25
+            }
+          },
+          "latency_ratio": 1.0077523561530612,
+          "latency_passed": true,
+          "accuracy_improved": true,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        },
+        "core_explicit": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            }
+          },
+          "reference": {
+            "id": "fd-local-vol-european-call",
+            "value": 11.001742706191068,
+            "uncertainty": 1.102296046616996e-05,
+            "provenance": {
+              "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+              "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+              "quantlib_version": "1.44",
+              "compile_command": [
+                "c++",
+                "-std=c++17",
+                "-O3",
+                "-DNDEBUG",
+                "-I/usr/local/include",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+                "-o",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+                "-L/usr/local/lib",
+                "-lQuantLib"
+              ],
+              "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+              "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+              "evidence": {
+                "mesher_040": {
+                  "price": 11.001742406159238,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.4
+                  }
+                },
+                "mesher_060": {
+                  "price": 11.001742691131355,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.6
+                  }
+                },
+                "time_coarse": {
+                  "price": 11.001747461840964,
+                  "profile": {
+                    "space": 3200,
+                    "time": 3200,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_middle": {
+                  "price": 11.001747722306511,
+                  "profile": {
+                    "space": 3200,
+                    "time": 6400,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_fine": {
+                  "price": 11.0017477874891,
+                  "profile": {
+                    "space": 3200,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "space_refined": {
+                  "price": 11.00174264100848,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                }
+              },
+              "observed_shifts": {
+                "time_extrapolation": 1.3010037136496067e-07,
+                "space": 5.14648061944456e-06,
+                "domain": 2.348492422754589e-07
+              }
+            }
+          },
+          "error_budget": 0.005,
+          "before": {
+            "accuracy": {
+              "price": 11.001263337125293,
+              "absolute_error": 0.00047936906577561444,
+              "error_including_reference_uncertainty": 0.0004903920262417844,
+              "passed": true
+            },
+            "warmup": {
+              "price": 11.001263337125293,
+              "elapsed_ns": 6491336,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 6498738,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 29719533,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 27008805,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26548887,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 28214876,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 29764713,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26443082,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 25985224,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26141338,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 27279658,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 25942700,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26712699,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 25953757,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26009582,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26306331,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26075188,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001263337125293,
+                  "elapsed_ns": 26191900,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6576582.75,
+              "q1_ns": 6510596.25,
+              "q3_ns": 6715188.0,
+              "iqr_ns": 204591.75
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 11.001703183762976,
+              "absolute_error": 3.952242809290851e-05,
+              "error_including_reference_uncertainty": 5.054538855907847e-05,
+              "passed": true
+            },
+            "warmup": {
+              "price": 11.001703183762976,
+              "elapsed_ns": 6508758,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 6502214,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26104498,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 27742914,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26709765,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26366386,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26527396,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 30221231,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26939614,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 30515481,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26211675,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26081184,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26088305,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26354712,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26341557,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26223693,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 29936883,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001703183762976,
+                  "elapsed_ns": 26056055,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6591596.5,
+              "q1_ns": 6554421.0,
+              "q3_ns": 6835316.0,
+              "iqr_ns": 280895.0
+            }
+          },
+          "latency_ratio": 1.0022829105282678,
+          "latency_passed": true,
+          "accuracy_improved": true,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        },
+        "core_selected": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": "automatic"
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": "automatic"
+            }
+          },
+          "reference": {
+            "id": "fd-local-vol-european-call",
+            "value": 11.001742706191068,
+            "uncertainty": 1.102296046616996e-05,
+            "provenance": {
+              "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+              "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+              "quantlib_version": "1.44",
+              "compile_command": [
+                "c++",
+                "-std=c++17",
+                "-O3",
+                "-DNDEBUG",
+                "-I/usr/local/include",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+                "-o",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+                "-L/usr/local/lib",
+                "-lQuantLib"
+              ],
+              "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+              "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+              "evidence": {
+                "mesher_040": {
+                  "price": 11.001742406159238,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.4
+                  }
+                },
+                "mesher_060": {
+                  "price": 11.001742691131355,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.6
+                  }
+                },
+                "time_coarse": {
+                  "price": 11.001747461840964,
+                  "profile": {
+                    "space": 3200,
+                    "time": 3200,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_middle": {
+                  "price": 11.001747722306511,
+                  "profile": {
+                    "space": 3200,
+                    "time": 6400,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_fine": {
+                  "price": 11.0017477874891,
+                  "profile": {
+                    "space": 3200,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "space_refined": {
+                  "price": 11.00174264100848,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                }
+              },
+              "observed_shifts": {
+                "time_extrapolation": 1.3010037136496067e-07,
+                "space": 5.14648061944456e-06,
+                "domain": 2.348492422754589e-07
+              }
+            }
+          },
+          "error_budget": 0.005,
+          "before": {
+            "accuracy": {
+              "price": 11.001639406090021,
+              "absolute_error": 0.00010330010104731002,
+              "error_including_reference_uncertainty": 0.00011432306151347999,
+              "passed": true
+            },
+            "warmup": {
+              "price": 11.001639406090021,
+              "elapsed_ns": 6656602,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 6637993,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26133347,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26266021,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 27407941,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 25991643,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26196998,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 29038095,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26215196,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26179108,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26392900,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 28769861,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 29989757,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26892711,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26627792,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26006884,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 27424178,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 27688453,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6656948.0,
+              "q1_ns": 6551524.25,
+              "q3_ns": 6889078.875,
+              "iqr_ns": 337554.625
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 11.001639406090021,
+              "absolute_error": 0.00010330010104731002,
+              "error_including_reference_uncertainty": 0.00011432306151347999,
+              "passed": true
+            },
+            "warmup": {
+              "price": 11.001639406090021,
+              "elapsed_ns": 6527714,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 6469924,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 27216350,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26016207,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 29719438,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26626804,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26143946,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26426027,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 27796759,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26276249,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 29758325,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26187913,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 25947740,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26543062,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 25994742,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26113907,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26089413,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 11.001639406090021,
+                  "elapsed_ns": 26103542,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6546978.25,
+              "q1_ns": 6524119.375,
+              "q3_ns": 6646233.25,
+              "iqr_ns": 122113.875
+            }
+          },
+          "latency_ratio": 0.9834804553077476,
+          "latency_passed": true,
+          "accuracy_improved": false,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "fd-local-vol-down-out-call",
+      "comparisons": {
+        "call_policy": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            }
+          },
+          "reference": {
+            "id": "fd-local-vol-down-out-call",
+            "value": 10.381742384961965,
+            "uncertainty": 1.3554856561543398e-06,
+            "provenance": {
+              "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+              "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+              "quantlib_version": "1.44",
+              "compile_command": [
+                "c++",
+                "-std=c++17",
+                "-O3",
+                "-DNDEBUG",
+                "-I/usr/local/include",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+                "-o",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+                "-L/usr/local/lib",
+                "-lQuantLib"
+              ],
+              "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+              "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+              "evidence": {
+                "time_coarse": {
+                  "price": 10.38172726818648,
+                  "profile": {
+                    "space": 3200,
+                    "time": 3200,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_middle": {
+                  "price": 10.3817350922758,
+                  "profile": {
+                    "space": 3200,
+                    "time": 6400,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_fine": {
+                  "price": 10.381738915508757,
+                  "profile": {
+                    "space": 3200,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "space_refined": {
+                  "price": 10.381738561729009,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "mesher_040": {
+                  "price": 10.381738621075383,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.4
+                  }
+                },
+                "mesher_060": {
+                  "price": 10.381738708018682,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.6
+                  }
+                }
+              },
+              "observed_shifts": {
+                "time_extrapolation": 1.776234057615511e-07,
+                "space": 3.5377974860750783e-07,
+                "domain": 1.4628967370811097e-07
+              }
+            }
+          },
+          "error_budget": 0.005,
+          "before": {
+            "accuracy": {
+              "price": 10.381436568327675,
+              "absolute_error": 0.0003058166342899682,
+              "error_including_reference_uncertainty": 0.0003071721199461225,
+              "passed": true
+            },
+            "warmup": {
+              "price": 10.381436568327675,
+              "elapsed_ns": 6617100,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 6442849,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26199887,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26511117,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26206495,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 30144464,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 27535272,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 25964276,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 28533478,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 28185560,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 28294562,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26504119,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26482268,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 28035706,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 29590454,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26455316,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26402449,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 28012947,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6883818.0,
+              "q1_ns": 6617198.0,
+              "q3_ns": 7060015.25,
+              "iqr_ns": 442817.25
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 10.381436568327675,
+              "absolute_error": 0.0003058166342899682,
+              "error_including_reference_uncertainty": 0.0003071721199461225,
+              "passed": true
+            },
+            "warmup": {
+              "price": 10.381436568327675,
+              "elapsed_ns": 6555608,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 6495355,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26230109,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 29874039,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 27488535,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 28292535,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26277987,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26089095,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26050713,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 27973339,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26201270,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 29608275,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26001951,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26417575,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26130377,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 29174841,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 27634917,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26347631,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6604393.75,
+              "q1_ns": 6541455.875,
+              "q3_ns": 7033234.25,
+              "iqr_ns": 491778.375
+            }
+          },
+          "latency_ratio": 0.9594085360769271,
+          "latency_passed": true,
+          "accuracy_improved": false,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        },
+        "core_explicit": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            }
+          },
+          "reference": {
+            "id": "fd-local-vol-down-out-call",
+            "value": 10.381742384961965,
+            "uncertainty": 1.3554856561543398e-06,
+            "provenance": {
+              "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+              "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+              "quantlib_version": "1.44",
+              "compile_command": [
+                "c++",
+                "-std=c++17",
+                "-O3",
+                "-DNDEBUG",
+                "-I/usr/local/include",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+                "-o",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+                "-L/usr/local/lib",
+                "-lQuantLib"
+              ],
+              "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+              "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+              "evidence": {
+                "time_coarse": {
+                  "price": 10.38172726818648,
+                  "profile": {
+                    "space": 3200,
+                    "time": 3200,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_middle": {
+                  "price": 10.3817350922758,
+                  "profile": {
+                    "space": 3200,
+                    "time": 6400,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_fine": {
+                  "price": 10.381738915508757,
+                  "profile": {
+                    "space": 3200,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "space_refined": {
+                  "price": 10.381738561729009,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "mesher_040": {
+                  "price": 10.381738621075383,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.4
+                  }
+                },
+                "mesher_060": {
+                  "price": 10.381738708018682,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.6
+                  }
+                }
+              },
+              "observed_shifts": {
+                "time_extrapolation": 1.776234057615511e-07,
+                "space": 3.5377974860750783e-07,
+                "domain": 1.4628967370811097e-07
+              }
+            }
+          },
+          "error_budget": 0.005,
+          "before": {
+            "accuracy": {
+              "price": 10.381436568327675,
+              "absolute_error": 0.0003058166342899682,
+              "error_including_reference_uncertainty": 0.0003071721199461225,
+              "passed": true
+            },
+            "warmup": {
+              "price": 10.381436568327675,
+              "elapsed_ns": 6498058,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 6489478,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26214744,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26843109,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 27823053,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26493874,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 27815276,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 27310081,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 28721535,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26193306,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26175110,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26168035,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26206710,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26166680,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 29349468,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26647699,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 28594853,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26361724,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6661924.75,
+              "q1_ns": 6550002.0,
+              "q3_ns": 6954791.125,
+              "iqr_ns": 404789.125
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 10.381638632086753,
+              "absolute_error": 0.0001037528752121375,
+              "error_including_reference_uncertainty": 0.00010510836086829183,
+              "passed": true
+            },
+            "warmup": {
+              "price": 10.381638632086753,
+              "elapsed_ns": 6510377,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 6465047,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26177192,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 25977066,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 28082606,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26537999,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 27375699,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 30732253,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 28364575,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 25989239,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 29219032,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26483271,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26448735,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26236303,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26170077,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26286571,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 30128549,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26081525,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6620817.75,
+              "q1_ns": 6550797.5,
+              "q3_ns": 7055897.625,
+              "iqr_ns": 505100.125
+            }
+          },
+          "latency_ratio": 0.993829561043901,
+          "latency_passed": true,
+          "accuracy_improved": true,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        },
+        "core_selected": {
+          "profiles": {
+            "before": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            },
+            "after": {
+              "space": 800,
+              "time": 400,
+              "scheme": "rannacher",
+              "upper": 400
+            }
+          },
+          "reference": {
+            "id": "fd-local-vol-down-out-call",
+            "value": 10.381742384961965,
+            "uncertainty": 1.3554856561543398e-06,
+            "provenance": {
+              "method": "QuantLib 1.44 external supplied local volatility; first-order time extrapolation plus independently refined space correction",
+              "source": "generate_local_vol_references.py; calibration/local_vol_reference.cpp",
+              "quantlib_version": "1.44",
+              "compile_command": [
+                "c++",
+                "-std=c++17",
+                "-O3",
+                "-DNDEBUG",
+                "-I/usr/local/include",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/calibration/local_vol_reference.cpp",
+                "-o",
+                "/tmp/kiyosi-bench-06/benchmarks/quantlib/build/local_vol_reference",
+                "-L/usr/local/lib",
+                "-lQuantLib"
+              ],
+              "uncertainty_method": "twice sum of consecutive time-extrapolate, spatial refinement and mesh-domain sensitivity differences; empirical discretization estimate",
+              "domain": "public native automatic mesh; vary mesher-only Black volatility .4/.5/.6 independently of local model",
+              "evidence": {
+                "time_coarse": {
+                  "price": 10.38172726818648,
+                  "profile": {
+                    "space": 3200,
+                    "time": 3200,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_middle": {
+                  "price": 10.3817350922758,
+                  "profile": {
+                    "space": 3200,
+                    "time": 6400,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "time_fine": {
+                  "price": 10.381738915508757,
+                  "profile": {
+                    "space": 3200,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "space_refined": {
+                  "price": 10.381738561729009,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.5
+                  }
+                },
+                "mesher_040": {
+                  "price": 10.381738621075383,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.4
+                  }
+                },
+                "mesher_060": {
+                  "price": 10.381738708018682,
+                  "profile": {
+                    "space": 6400,
+                    "time": 12800,
+                    "scheme": "crank_nicolson",
+                    "damping": 2,
+                    "domain": "automatic",
+                    "mesher_vol": 0.6
+                  }
+                }
+              },
+              "observed_shifts": {
+                "time_extrapolation": 1.776234057615511e-07,
+                "space": 3.5377974860750783e-07,
+                "domain": 1.4628967370811097e-07
+              }
+            }
+          },
+          "error_budget": 0.005,
+          "before": {
+            "accuracy": {
+              "price": 10.381436568327675,
+              "absolute_error": 0.0003058166342899682,
+              "error_including_reference_uncertainty": 0.0003071721199461225,
+              "passed": true
+            },
+            "warmup": {
+              "price": 10.381436568327675,
+              "elapsed_ns": 6592302,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 6590392,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 25932298,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 29502438,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26446869,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26305999,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 30078388,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26589361,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26353239,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 27781907,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26444541,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26278073,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26051129,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26266482,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26127017,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26526541,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 26077260,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381436568327675,
+                  "elapsed_ns": 25952358,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6588309.75,
+              "q1_ns": 6549187.375,
+              "q3_ns": 6639487.75,
+              "iqr_ns": 90300.375
+            }
+          },
+          "after": {
+            "accuracy": {
+              "price": 10.381638632086753,
+              "absolute_error": 0.0001037528752121375,
+              "error_including_reference_uncertainty": 0.00010510836086829183,
+              "passed": true
+            },
+            "warmup": {
+              "price": 10.381638632086753,
+              "elapsed_ns": 6662103,
+              "iterations": 1,
+              "warmup_iterations": 3
+            },
+            "timing": {
+              "adaptation": [
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 6468766,
+                  "iterations": 1,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26381598,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "samples": [
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26169695,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26326605,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 29402829,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26074325,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26281174,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26212458,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26250427,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26210251,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 30115078,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 25992514,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26661511,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26149945,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26773937,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 25997891,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                },
+                {
+                  "price": 10.381638632086753,
+                  "elapsed_ns": 26123561,
+                  "iterations": 4,
+                  "warmup_iterations": 3
+                }
+              ],
+              "median_ns": 6553114.5,
+              "q1_ns": 6534188.25,
+              "q3_ns": 6623514.5,
+              "iqr_ns": 89326.25
+            }
+          },
+          "latency_ratio": 0.9946579242118967,
+          "latency_passed": true,
+          "accuracy_improved": true,
+          "sample_order": [
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ],
+            [
+              "after",
+              "before"
+            ],
+            [
+              "before",
+              "after"
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "passed": true
+}

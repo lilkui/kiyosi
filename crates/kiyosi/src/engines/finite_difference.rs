@@ -322,7 +322,11 @@ fn native_model<D: Diffusion>(
             }
             let asset = space.asset(i);
             if !payoff.is_digital() {
-                return payoff.value(asset);
+                return if payoff.is_american() {
+                    payoff.value(asset)
+                } else {
+                    grid::project_in_spot(&space, &[payoff.strike], i, |s| payoff.value(s))
+                };
             }
             let low = asset - 0.5 * space.spacing;
             let high = asset + 0.5 * space.spacing;
@@ -626,8 +630,9 @@ engine_settings!(
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
     /// Accepts flat or nonconstant rate curves. American automatic domains expand with volatility
     /// and maturity and use sinh coordinates. With automatic domains, non-explicit
-    /// European grids concentrate nodes around the strike and average the payoff kink.
+    /// European grids concentrate nodes around the strike.
     /// Explicit upper boundaries retain uniform European spot grids.
+    /// Both grids use cell-averaged terminal payoff kinks.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// ## Errors

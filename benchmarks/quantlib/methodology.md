@@ -38,11 +38,15 @@ BSM 与给定局部波动率用例涵盖欧式/美式香草期权、现金/资�
 
 反向二元收益在未触碰存续时支付为零，触碰即付金额由返还金提供。两个适配器均拒绝已触碰的障碍和不支持的结算方式。Kiyosi 普通欧式用例使用 `upper=automatic`（`asset_upper_boundary=None`），自动选域并集中行权价附近的节点；其余一维 FD 用例显式指定上界，连续障碍为网格端点。QuantLib 使用自动对数网格，阻尼与敏感度计算的差异保留在计时中。
 
+普通欧式和连续单障碍普通期权在行权价折点使用终端收益单元平均，包含局部波动率敲入的香草延续价值。
+
 `calibration/fd_bsm.json` 与 `calibration/fd_local_vol.json` 保留 `selected` 主配置和 `explicit_uniform` 显式上界对照。扩域探针以 `explicit_uniform` 为基线；对于均匀标的网格，`domain_constant_spacing` 保持步长，例如下障碍 80 的 `[80,400]`、800 区间扩展为 `[80,600]`、1300 区间。
 
 局部波动率敲入另有 `continuation_constant_spacing` 探针保持全域延续价值网格步长。两个网格共用区间数，扩域时无法同时固定两者步长，因此探针仍含另一网格的空间误差。
 
 固定网格规模的计时不代表达到任意误差预算的最低耗时；不同网格策略的相同节点数也不代表相同局部分辨率。
+
+`compare_fd_accuracy.py` 分别验证调用策略、显式网格核心算法及主配置的影响。它沿用用例误差预算与参考不确定度，要求欧式自动网格调用及 BSM/局部波动率欧式看涨、下敲出看涨的显式网格误差下降，延迟增幅不超过 5%。运行方式见 [README](README.md)，构建、采样协议与原始样本保存在 `calibration/fd_accuracy*.json`。
 
 BSM 用例的误差预算为 `0.003`。欧式参考值复用独立 Decimal 公式；美式看跌期权共用 [calibration/american.json](calibration/american.json) 中 Rust 与 QuantLib 在时间、空间和求解域上的收敛结果，经验不确定度为 `5e-5`。QuantLib 的向上资产不触碰与向上现金单触碰需要更多时间步来消除终端边界误差，仅加密空间网格无法修复该误差。精确参数配置以及独立的空间、时间和求解域检查记录在 `cases/fd_bsm.json` 和 `calibration/fd_bsm.json` 中。
 

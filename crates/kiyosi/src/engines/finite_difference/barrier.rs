@@ -16,6 +16,8 @@ impl FiniteDifferenceBarrierEngine {
     /// Prior at-hit rebates are already paid; resolved vanilla payoffs use the selected model.
     /// Local volatility supports price, delta and gamma, holding the surface fixed.
     /// Continuous barriers are exact domain edges; scheduled dates are inserted unchanged.
+    /// Continuous single-barrier payoffs and local-volatility knock-in continuations
+    /// use cell averaging at the strike.
     /// See [`Self::price`] for an example.
     ///
     /// # Errors
@@ -505,7 +507,16 @@ fn native_with_model<D: Diffusion>(
         }
         edges
     };
-    let initial: Vec<_> = (0..=space.count).map(|i| payoff(space.asset(i))).collect();
+    let average_payoff = !scheduled && upper_barrier.is_none();
+    let initial: Vec<_> = (0..=space.count)
+        .map(|i| {
+            if average_payoff {
+                project_in_spot(&space, &[terms.strike()], i, payoff)
+            } else {
+                payoff(space.asset(i))
+            }
+        })
+        .collect();
     let levels: Vec<_> = std::iter::once(terms.barrier_level())
         .chain(upper_barrier)
         .collect();
@@ -572,7 +583,13 @@ fn native_with_model<D: Diffusion>(
             context.spot_price().max(terms.strike()),
         )?;
         let continuation: Vec<_> = (0..=full_space.count)
-            .map(|i| payoff(full_space.asset(i)))
+            .map(|i| {
+                if average_payoff {
+                    project_in_spot(&full_space, &[terms.strike()], i, payoff)
+                } else {
+                    payoff(full_space.asset(i))
+                }
+            })
             .collect();
         let mut unactivated = vec![terms.rebate(); space.count + 1];
         let observe_in = |values: &mut [f64], vanilla: &[f64], _: f64| {

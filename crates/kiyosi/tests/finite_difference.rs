@@ -127,6 +127,79 @@ fn coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks() {
 }
 
 #[test]
+fn uniform_european_grids_resolve_strike_phases_and_narrow_payoffs() {
+    let (start, annual) = dates();
+    let short = Date::new(2025, 1, 2).unwrap().start_of_day();
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for (strike, sigma, end, count, tolerances) in [
+        (99.9, 0.2, annual, 800, [5e-5, 1e-5, 3e-6]),
+        (100.0, 0.2, annual, 800, [5e-5, 1e-5, 3e-6]),
+        (100.1, 0.2, annual, 800, [5e-5, 1e-5, 3e-6]),
+        (100.25, 0.2, annual, 800, [5e-5, 1e-5, 3e-6]),
+        (100.0, 0.05, annual, 800, [0.001, 0.0001, 0.0002]),
+        (100.0, 0.2, short, 3200, [0.0001, 0.0002, 0.002]),
+    ] {
+        let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+            asset_step_count: count,
+            time_step_count: 400,
+            asset_upper_boundary: Some(400.0),
+            ..Default::default()
+        })
+        .unwrap();
+        for direction in [OptionType::Call, OptionType::Put] {
+            let option = EuropeanOption::new(direction, strike, start, end).unwrap();
+            let mut previous = None;
+            for spot in [99.75, 100.0, 100.25] {
+                let context = market(spot, 0.05, 0.02, sigma);
+                let actual = engine
+                    .price_with_greeks(&option, &context, request)
+                    .unwrap();
+                let expected = AnalyticEuropeanEngine
+                    .price_with_greeks(&option, &context, request)
+                    .unwrap();
+                for ((a, b), tolerance) in [
+                    (actual.price(), expected.price()),
+                    (
+                        actual.require(Greek::Delta).unwrap(),
+                        expected.require(Greek::Delta).unwrap(),
+                    ),
+                    (
+                        actual.require(Greek::Gamma).unwrap(),
+                        expected.require(Greek::Gamma).unwrap(),
+                    ),
+                ]
+                .into_iter()
+                .zip(tolerances)
+                {
+                    assert!(
+                        (a - b).abs() < tolerance,
+                        "{direction:?} {strike} {sigma} {end:?} {spot}: {a} != {b}"
+                    );
+                }
+                assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
+                let t = if end == annual { 1.0 } else { 1.0 / 365.0 };
+                let asset = spot * (-0.02_f64 * t).exp();
+                let cash = strike * (-0.05_f64 * t).exp();
+                let (lower, upper) = if direction == OptionType::Call {
+                    ((asset - cash).max(0.0), asset)
+                } else {
+                    ((cash - asset).max(0.0), cash)
+                };
+                assert!(actual.price() >= lower && actual.price() <= upper);
+                if let Some(old) = previous {
+                    assert!(if direction == OptionType::Call {
+                        actual.price() > old
+                    } else {
+                        actual.price() < old
+                    });
+                }
+                previous = Some(actual.price());
+            }
+        }
+    }
+}
+
+#[test]
 fn automatic_mesh_policy_is_preserved_for_bumped_greeks() {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
@@ -230,7 +303,7 @@ fn check_damping<I: OptionContract, E: PricingEngine<I>>(
 }
 
 #[test]
-fn standard_crank_nicolson_matches_one_unsmoothed_step() {
+fn standard_crank_nicolson_matches_one_undamped_step_with_payoff_averaging() {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let context = market(100.0, 0.0, 0.0, 0.2);
@@ -247,8 +320,8 @@ fn standard_crank_nicolson_matches_one_unsmoothed_step() {
     let high = AnalyticEuropeanEngine
         .price(&option, &market(300.0, 0.0, 0.0, 0.2))
         .unwrap();
-    // Solve the two interior CN equations directly: [1.02, -0.01; -0.04, 1.08].
-    let expected = (1.08 + 0.01 * (100.0 + 0.04 * high)) / (1.02 * 1.08 - 0.0004);
+    // The strike cell averages to h/8=12.5; solve [1.02, -0.01; -0.04, 1.08].
+    let expected = (1.08 * 13.25 + 0.01 * (100.5 + 0.04 * high)) / (1.02 * 1.08 - 0.0004);
     assert!((actual - expected).abs() < 1e-12);
     let damped = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
         scheme: FiniteDifferenceScheme::Rannacher,
