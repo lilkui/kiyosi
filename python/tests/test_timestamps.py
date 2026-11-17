@@ -11,8 +11,10 @@ from kiyosi.instruments import (
     Accumulator,
     BarrierOption,
     BinarySnowballOption,
+    CouponObservation,
     EuropeanOption,
     KnockInObservation,
+    KnockOutObservation,
     PhoenixOption,
     RangeAccrualOption,
     SnowballOption,
@@ -228,10 +230,19 @@ def test_contract_schedules_expose_effective_observations(subtests):
         PhoenixOption(
             coupon_per_period=0.1,
             **dict(
-                terms,
-                autocall_observations=autocallable_observations(
-                    [expiry], [110], coupon_barrier_levels=[0]
-                ),
+                {
+                    key: value
+                    for key, value in terms.items()
+                    if key != "autocall_observations"
+                },
+                knock_out_observations=[
+                    KnockOutObservation(at, level)
+                    for at, level in zip([expiry], [110], strict=True)
+                ],
+                coupon_observations=[
+                    CouponObservation(at, level)
+                    for at, level in zip([expiry], [0], strict=True)
+                ],
             ),
         ),
         TernarySnowballOption(
@@ -619,9 +630,14 @@ def test_finite_difference_rejects_unresolvable_microsecond_events():
         lower_strike=1,
         effective_time=start,
         expiry_time=last,
-        autocall_observations=autocallable_observations(
-            [first, last], [1000, 1000], coupon_barrier_levels=[0] * 2
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([first, last], [1000, 1000], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([first, last], [0] * 2, strict=True)
+        ],
         knock_in_observation=KnockInObservation.at_expiry(),
     )
     context = market(start, 100)

@@ -4,13 +4,14 @@ use super::gaussian::{
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::Coupon;
+use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_times, initial, validate,
 };
 use crate::numerics::{finite_price, log_ratio, scaled_signed_cash};
 use crate::{
-    AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
-    Error, PricingContext, PricingEngine, Result, Timestamp,
+    AutocallableNote, AutocallableTerms, BlackScholesMertonParameters, Error, PricingContext,
+    PricingEngine, Result, Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes by quadrature between event dates.
@@ -143,15 +144,15 @@ struct PreparedCurve<T: AutocallableTerms> {
 fn event<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     date: Timestamp,
-) -> Option<&AutocallableObservation> {
-    note.autocall_observations()
-        .binary_search_by_key(&date, crate::AutocallableObservation::time)
+) -> Option<&ObservationEvent> {
+    note.events()
+        .binary_search_by_key(&date, ObservationEvent::time)
         .ok()
-        .map(|i| &note.autocall_observations()[i])
+        .map(|i| &note.events()[i])
 }
 fn terminal<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
-    record: Option<&AutocallableObservation>,
+    record: Option<&ObservationEvent>,
     breaks: &[f64],
     knocked_in: bool,
 ) -> Vec<TerminalPiece> {
@@ -172,9 +173,9 @@ fn terminal<T: AutocallableTerms>(
             };
             let mut cash;
             let mut asset = 0.0;
-            if let Some(r) = record.filter(|r| {
-                note.knock_out_enabled(r) && point > log_ratio(r.knock_out_level(), anchor)
-            }) {
+            if let Some(r) = record
+                .filter(|r| r.has_knock_out() && point > log_ratio(r.knock_out_level(), anchor))
+            {
                 cash = note.knock_out_payment(r);
             } else if knocked_in
                 || note.observes_knock_in(note.expiry_time())
@@ -198,8 +199,8 @@ fn terminal<T: AutocallableTerms>(
                 cash = note.terminal(anchor, false);
             }
             if record.is_some_and(|r| {
-                r.coupon_barrier_level().unwrap_or(0.0) == 0.0
-                    || point > log_ratio(r.coupon_barrier_level().unwrap_or(0.0), anchor)
+                r.coupon_barrier_level()
+                    .is_some_and(|level| level == 0.0 || point > log_ratio(level, anchor))
             }) {
                 cash += note.period_coupon();
             }
@@ -226,12 +227,12 @@ fn apply_event<T: AutocallableTerms>(
     let coupon = |point: f64| {
         record
             .filter(|r| {
-                r.coupon_barrier_level().unwrap_or(0.0) == 0.0
-                    || point >= log_ratio(r.coupon_barrier_level().unwrap_or(0.0), anchor)
+                r.coupon_barrier_level()
+                    .is_some_and(|level| level == 0.0 || point >= log_ratio(level, anchor))
             })
             .map_or(0.0, |_| amount)
     };
-    if let Some(r) = record.filter(|r| note.knock_out_enabled(r)) {
+    if let Some(r) = record.filter(|r| r.has_knock_out()) {
         alive.exact[1].cash = note.knock_out_payment(r);
     }
     alive.exact[1].cash += coupon(f64::INFINITY);
@@ -242,8 +243,8 @@ fn apply_event<T: AutocallableTerms>(
     alive.exact[0].cash += coupon(f64::NEG_INFINITY);
     for (i, cell) in alive.cells.iter_mut().enumerate() {
         let point = nodes[i].midpoint(nodes[i + 1]);
-        if let Some(r) = record
-            .filter(|r| note.knock_out_enabled(r) && point > log_ratio(r.knock_out_level(), anchor))
+        if let Some(r) =
+            record.filter(|r| r.has_knock_out() && point > log_ratio(r.knock_out_level(), anchor))
         {
             *cell = [note.knock_out_payment(r), 0.0, 0.0, 0.0];
         } else if let Some(knocked) = knocked.filter(|_| {
@@ -324,11 +325,11 @@ fn price<T: AutocallableTerms>(
         }
     }
     for r in note
-        .autocall_observations()
+        .events()
         .iter()
         .filter(|r| r.time() > context.valuation_time())
     {
-        if note.knock_out_enabled(r) {
+        if r.has_knock_out() {
             breaks.push(log_ratio(r.knock_out_level(), anchor));
         }
         if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level().unwrap_or(0.0) > 0.0 {

@@ -45,16 +45,26 @@ def contract(row):
         calendar=weekdays_calendar(),
         principal_redemption_ratio=number("principal_redemption_ratio"),
         barrier_state=inputs["history"],
-        autocall_observations=instruments.autocallable_observations(
+    )
+    if phoenix:
+        common.update(
+            knock_out_observations=[
+                instruments.KnockOutObservation(
+                    common["expiry_time"], number("knock_out_level")
+                )
+            ],
+            coupon_observations=[
+                instruments.CouponObservation(
+                    common["expiry_time"], number("coupon_barrier_level")
+                )
+            ],
+        )
+    else:
+        common["autocall_observations"] = instruments.autocallable_observations(
             [common["expiry_time"]],
             [number("knock_out_level")],
-            **(
-                {"coupon_barrier_levels": [number("coupon_barrier_level")]}
-                if phoenix
-                else {"knock_out_coupon_rates": [number("coupon_rate")]}
-            ),
-        ),
-    )
+            knock_out_coupon_rates=[number("coupon_rate")],
+        )
     if row["instrument"] != "BinarySnowballOption":
         common.update(
             knock_in_level=number("knock_in_level"),

@@ -238,11 +238,20 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             0.0,
             start,
             end,
-            autocallable_observations(&[end], &[120.0], None, Some(&[0.0]))?,
+            [end]
+                .iter()
+                .zip([120.0].iter())
+                .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()?,
+            [end]
+                .iter()
+                .zip([0.0].iter())
+                .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()?,
             kiyosi::KnockInObservation::EveryTradingDay {
                 observation_clock_time: (end).time_of_day()
             },
-            TradingCalendar::weekdays()
+            TradingCalendar::weekdays(),
         ))?,
         1.1
     );

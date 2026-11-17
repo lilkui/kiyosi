@@ -164,6 +164,8 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         instruments::autocallable::loss_capped_snowball,
     );
     module.add_class::<instruments::autocallable::AutocallableObservation>()?;
+    module.add_class::<instruments::autocallable::KnockOutObservation>()?;
+    module.add_class::<instruments::autocallable::CouponObservation>()?;
     module.add_class::<instruments::autocallable::KnockInObservation>()?;
     register_functions!(
         instruments::autocallable::fixed_coupon_note,

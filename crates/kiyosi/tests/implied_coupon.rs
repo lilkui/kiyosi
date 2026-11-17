@@ -69,7 +69,16 @@ fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
             60.0,
             start,
             end,
-            autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?,
+            [end]
+                .iter()
+                .zip([110.0].iter())
+                .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()?,
+            [end]
+                .iter()
+                .zip([90.0].iter())
+                .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()?,
             kiyosi::KnockInObservation::AtExpiry,
             TradingCalendar::weekdays(),
         );
@@ -134,7 +143,16 @@ fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
             0.0,
             date(1, 1),
             date(4, 1),
-            autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[90.0]))?,
+            [date(4, 1)]
+                .iter()
+                .zip([110.0].iter())
+                .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()?,
+            [date(4, 1)]
+                .iter()
+                .zip([90.0].iter())
+                .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()?,
             kiyosi::KnockInObservation::EveryTradingDay {
                 observation_clock_time: date(1, 1).time_of_day(),
             },
@@ -462,13 +480,18 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         60.0,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(
-            &[date(2, 3), date(4, 1)],
-            &[110.0, 105.0],
-            None,
-            Some(&[95.0, 95.0]),
-        )
-        .unwrap(),
+        [date(2, 3), date(4, 1)]
+            .iter()
+            .zip([110.0, 105.0].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
+        [date(2, 3), date(4, 1)]
+            .iter()
+            .zip([95.0, 95.0].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(4, 1)).time_of_day(),
         },
@@ -948,7 +971,8 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
 fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
     let engine = QuadratureAutocallableEngine::default();
     let context = market(70.0, date(4, 1));
-    let records = autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[90.0])).unwrap();
+    let knock_out = vec![KnockOutObservation::new(date(4, 1), 110.0).unwrap()];
+    let coupons = vec![CouponObservation::new(date(4, 1), 90.0).unwrap()];
     let mut terms = PhoenixTerms::new(
         0.08,
         100.0,
@@ -957,7 +981,8 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         60.0,
         date(1, 1),
         date(4, 1),
-        records,
+        knock_out,
+        coupons,
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(4, 1)).time_of_day(),
         },

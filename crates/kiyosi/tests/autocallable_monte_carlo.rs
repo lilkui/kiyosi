@@ -126,7 +126,18 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         100.0,
         start,
         end,
-        autocallable_observations(&[end], &[1.0], None, Some(&[0.0])).unwrap(),
+        [end]
+            .iter()
+            .zip([1.0].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
+        [end]
+            .iter()
+            .zip([0.0].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },

@@ -15,7 +15,6 @@ from kiyosi import (
     instruments,
 )
 from kiyosi.instruments import (
-    AutocallableObservation,
     BinarySnowballOption,
     KnockInObservation,
     SnowballOption,
@@ -458,8 +457,8 @@ def test_native_representations_validation_timing_and_ownership():
         for records, expected_error in (
             ([], InvalidInputError),
             (
-                [AutocallableObservation.phoenix(END, 110, coupon_barrier_level=1)],
-                InvalidInputError,
+                [instruments.CouponObservation(END, 1)],
+                TypeError,
             ),
         ):
             assert_rejection(

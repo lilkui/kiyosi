@@ -184,10 +184,10 @@ pub use instruments::asian::{
 pub use instruments::autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation,
     AutocallableObservationChanges, AutocallableObservationKind, AutocallableTerms,
-    BinarySnowballOption, BinarySnowballOptionChanges, BinarySnowballTerms,
+    BinarySnowballOption, BinarySnowballOptionChanges, BinarySnowballTerms, CouponObservation,
     DEFAULT_PHOENIX_LOCKOUT_PERIODS, DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation,
-    PhoenixOption, PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms,
-    SnowballCouponTerms, SnowballOption, SnowballOptionChanges, SnowballPreset,
+    KnockOutObservation, PhoenixOption, PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms,
+    PhoenixTerms, SnowballCouponTerms, SnowballOption, SnowballOptionChanges, SnowballPreset,
     SnowballPresetTerms, SnowballTerms, TernarySnowballOption, TernarySnowballOptionChanges,
     TernarySnowballTerms, autocallable_observations,
 };

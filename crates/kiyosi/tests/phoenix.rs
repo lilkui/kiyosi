@@ -12,13 +12,18 @@ fn terms() -> PhoenixTerms {
         60.0,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(
-            &[date(2, 3), date(4, 1)],
-            &[110.0, 110.0],
-            None,
-            Some(&[90.0, 90.0]),
-        )
-        .unwrap(),
+        [date(2, 3), date(4, 1)]
+            .iter()
+            .zip([110.0, 110.0].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
+        [date(2, 3), date(4, 1)]
+            .iter()
+            .zip([90.0, 90.0].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(4, 1)).time_of_day(),
         },
@@ -43,14 +48,21 @@ fn lockout_preserves_conditional_coupons_and_continuation_in_all_engines() {
     let context = market(100.0, date(1, 1));
     let mut input = terms();
     input.lower_strike = 100.0;
-    input.lockout_periods = 2;
-    input.autocall_observations = autocallable_observations(
-        &[date(1, 1), date(2, 3), date(4, 1)],
-        &[100.0; 3],
-        None,
-        Some(&[90.0; 3]),
-    )
-    .unwrap();
+    input.knock_out_observations = ([date(1, 1), date(2, 3), date(4, 1)]
+        .iter()
+        .zip([100.0; 3].iter())
+        .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap())
+    .into_iter()
+    .skip(2)
+    .collect();
+    input.coupon_observations = [date(1, 1), date(2, 3), date(4, 1)]
+        .iter()
+        .zip([90.0; 3].iter())
+        .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap();
     let note = PhoenixOption::new(input).unwrap();
     let mut expected = (-0.04 * date(1, 1).years_until(date(4, 1))).exp() + 0.01;
     for time in [date(2, 3), date(4, 1)] {
@@ -84,18 +96,25 @@ fn lockout_preserves_conditional_coupons_and_continuation_in_all_engines() {
 #[test]
 fn lockout_preserves_daily_knock_in_and_first_eligible_knock_out() {
     let mut input = terms();
-    input.lockout_periods = 1;
     input.lower_strike = 0.0;
     input.knock_in_observation = KnockInObservation::EveryTradingDay {
         observation_clock_time: date(1, 1).time_of_day(),
     };
-    input.autocall_observations = autocallable_observations(
-        &[date(1, 1), date(4, 1)],
-        &[50.0, 200.0],
-        None,
-        Some(&[0.0; 2]),
-    )
-    .unwrap();
+    input.knock_out_observations = ([date(1, 1), date(4, 1)]
+        .iter()
+        .zip([50.0, 200.0].iter())
+        .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap())
+    .into_iter()
+    .skip(1)
+    .collect();
+    input.coupon_observations = [date(1, 1), date(4, 1)]
+        .iter()
+        .zip([0.0; 2].iter())
+        .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap();
     let note = PhoenixOption::new(input).unwrap();
     let horizon = date(1, 1).years_until(date(4, 1));
     let rate = (90.0_f64 / 70.0).ln() / horizon;
@@ -124,17 +143,24 @@ fn lockout_daily_layers_agree_across_engines_and_constant_local_volatility() {
     input.expiry_time = end;
     input.knock_in_level = 99.0;
     input.lower_strike = 0.0;
-    input.lockout_periods = 2;
     input.knock_in_observation = KnockInObservation::EveryTradingDay {
         observation_clock_time: date(1, 1).time_of_day(),
     };
-    input.autocall_observations = autocallable_observations(
-        &[date(1, 2), date(1, 6), end],
-        &[100.0; 3],
-        None,
-        Some(&[90.0; 3]),
-    )
-    .unwrap();
+    input.knock_out_observations = ([date(1, 2), date(1, 6), end]
+        .iter()
+        .zip([100.0; 3].iter())
+        .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap())
+    .into_iter()
+    .skip(2)
+    .collect();
+    input.coupon_observations = [date(1, 2), date(1, 6), end]
+        .iter()
+        .zip([90.0; 3].iter())
+        .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap();
     let note = PhoenixOption::new(input).unwrap();
     let context = market(100.0, date(1, 1));
     let expected = QuadratureAutocallableEngine::default()
@@ -174,16 +200,23 @@ fn lockout_daily_layers_agree_across_engines_and_constant_local_volatility() {
 #[test]
 fn lockout_history_depends_only_on_eligible_knock_out_observations() {
     let mut input = terms();
-    input.lockout_periods = 1;
     input.barrier_state = None;
 
-    input.autocall_observations = autocallable_observations(
-        &[date(2, 3), date(3, 3), date(4, 1)],
-        &[110.0; 3],
-        None,
-        Some(&[90.0; 3]),
-    )
-    .unwrap();
+    input.knock_out_observations = ([date(2, 3), date(3, 3), date(4, 1)]
+        .iter()
+        .zip([110.0; 3].iter())
+        .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap())
+    .into_iter()
+    .skip(1)
+    .collect();
+    input.coupon_observations = [date(2, 3), date(3, 3), date(4, 1)]
+        .iter()
+        .zip([90.0; 3].iter())
+        .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap();
     let note = PhoenixOption::new(input).unwrap();
     let engine = QuadratureAutocallableEngine::default();
     assert!(engine.price(&note, &market(100.0, date(3, 3))).is_ok());
@@ -200,23 +233,30 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
     assert_eq!(
         known
             .replace(PhoenixOptionChanges {
-                lockout_periods: Some(0),
+                knock_out_observations: Some(
+                    known
+                        .coupon_observations()
+                        .iter()
+                        .map(|r| KnockOutObservation::new(r.time(), 110.0).unwrap())
+                        .collect()
+                ),
                 ..Default::default()
             })
             .unwrap()
             .barrier_state(),
         known.barrier_state()
     );
-    assert_eq!(known.lockout_periods(), 1);
+    assert_eq!(known.knock_out_observations().len(), 2);
     assert_eq!(
         known
             .replace(PhoenixOptionChanges {
-                lockout_periods: Some(2),
+                knock_out_observations: Some(known.knock_out_observations()[1..].to_vec()),
                 ..Default::default()
             })
             .unwrap()
-            .lockout_periods(),
-        2
+            .knock_out_observations()
+            .len(),
+        1
     );
     assert!(matches!(
         engine.price(
@@ -254,30 +294,16 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
 }
 
 #[test]
-fn lockout_validates_counts_and_ignores_disabled_greek_discontinuities() {
+fn coupon_only_dates_do_not_create_knock_out_greek_discontinuities() {
     let mut input = terms();
-    input.lockout_periods = 1;
-    let note = PhoenixOption::new(input.clone()).unwrap();
-    for count in [2, usize::MAX] {
-        input.lockout_periods = count;
-        assert!(matches!(
-            PhoenixOption::new(input.clone()),
-            Err(Error::InvalidInput(_))
-        ));
-        assert!(matches!(
-            note.replace(PhoenixOptionChanges {
-                lockout_periods: Some(count),
-                ..Default::default()
-            }),
-            Err(Error::InvalidInput(_))
-        ));
-    }
+    input.knock_out_observations.remove(0);
+    let note = PhoenixOption::new(input).unwrap();
     let context = market(110.0, date(2, 3));
     let greeks = QuadratureAutocallableEngine::default()
         .price_with_greeks(&note, &context, GreeksRequest::new([Greek::Delta]))
         .unwrap();
     assert!(greeks.require(Greek::Delta).unwrap().is_finite());
-    assert_eq!(note.lockout_periods(), 1);
+    assert_eq!(note.knock_out_observations().len(), 1);
 }
 #[test]
 fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
@@ -289,8 +315,18 @@ fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
     )
     .unwrap();
     let mut input = terms();
-    input.autocall_observations =
-        autocallable_observations(&[date(4, 1)], &[110.0], None, Some(&[0.0])).unwrap();
+    input.knock_out_observations = [date(4, 1)]
+        .iter()
+        .zip([110.0].iter())
+        .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap();
+    input.coupon_observations = [date(4, 1)]
+        .iter()
+        .zip([0.0].iter())
+        .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap();
     let note = PhoenixOption::new(input.clone()).unwrap();
     for coupon in [-0.02, 0.0, 0.02] {
         let quoted = note.with_coupon(coupon).unwrap();
@@ -363,13 +399,18 @@ fn periodic_coupons_ignore_unequal_and_zero_length_periods_in_all_engines() {
     for coupon in [-0.01, 0.0, 0.01] {
         let mut input = terms();
         input.coupon_per_period = coupon;
-        input.autocall_observations = autocallable_observations(
-            &[date(1, 1), date(2, 3), date(4, 1)],
-            &[110.0; 3],
-            None,
-            Some(&[90.0; 3]),
-        )
-        .unwrap();
+        input.knock_out_observations = [date(1, 1), date(2, 3), date(4, 1)]
+            .iter()
+            .zip([110.0; 3].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap();
+        input.coupon_observations = [date(1, 1), date(2, 3), date(4, 1)]
+            .iter()
+            .zip([90.0; 3].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap();
         let note = PhoenixOption::new(input).unwrap();
         for at in [date(1, 1), date(2, 3), date(4, 1)] {
             let context = market(110.0, at);
@@ -396,8 +437,18 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             t.lower_strike = lower;
             t.principal_redemption_ratio = 0.25;
             t.coupon_per_period = coupon;
-            t.autocall_observations =
-                autocallable_observations(&[end], &[100.0], None, Some(&[100.0])).unwrap();
+            t.knock_out_observations = [end]
+                .iter()
+                .zip([100.0].iter())
+                .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()
+                .unwrap();
+            t.coupon_observations = [end]
+                .iter()
+                .zip([100.0].iter())
+                .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()
+                .unwrap();
             let put = |strike| {
                 AnalyticEuropeanEngine
                     .price(
@@ -428,29 +479,15 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
 
 #[test]
 fn phoenix_validation_defaults_and_history_share_core_categories() {
-    let mut t = terms();
-    t.autocall_observations[0] = AutocallableObservation::snowball(
-        t.autocall_observations[0].time(),
-        t.autocall_observations[0].knock_out_level(),
-        0.1,
-    )
-    .unwrap();
-    assert!(matches!(
-        PhoenixOption::new(t).unwrap_err(),
-        Error::InvalidInput(_)
-    ));
     for value in [-1.0, f64::NAN, f64::INFINITY] {
         let t = terms();
         assert!(matches!(
-            t.autocall_observations[0].replace(AutocallableObservationChanges {
-                coupon_barrier_level: Some(value),
-                ..Default::default()
-            }),
+            t.coupon_observations[0].replace(None, Some(value)),
             Err(Error::InvalidInput(_))
         ));
     }
     let mut t = terms();
-    t.autocall_observations.clear();
+    t.knock_out_observations.clear();
     assert!(matches!(
         PhoenixOption::new(t).unwrap_err(),
         Error::InvalidInput(_)
@@ -479,7 +516,10 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(known.autocall_observations(), note.autocall_observations());
+    assert_eq!(
+        known.knock_out_observations(),
+        note.knock_out_observations()
+    );
     assert_eq!(note.barrier_state(), None);
     assert!(engine.price(&known, &ctx).unwrap().is_finite());
     let impossible = note
@@ -572,8 +612,18 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     t.lower_strike = 100.0;
     t.principal_redemption_ratio = 0.25;
     t.expiry_time = end;
-    t.autocall_observations =
-        autocallable_observations(&[middle, end], &[100.0; 2], None, Some(&[0.0; 2])).unwrap();
+    t.knock_out_observations = [middle, end]
+        .iter()
+        .zip([100.0; 2].iter())
+        .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap();
+    t.coupon_observations = [middle, end]
+        .iter()
+        .zip([0.0; 2].iter())
+        .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+        .collect::<kiyosi::Result<Vec<_>>>()
+        .unwrap();
     let note = PhoenixOption::new(t).unwrap();
     let ctx = market(100.0, date(1, 1))
         .replace(PricingContextChanges {
@@ -617,13 +667,18 @@ fn phoenix_daily_layers_converge_with_conditional_coupons() {
         t.knock_in_level = 95.0;
         t.knock_in_observation = mode;
 
-        t.autocall_observations = autocallable_observations(
-            &[date(2, 3), date(3, 3), date(4, 1)],
-            &[110.0, 108.0, 105.0],
-            None,
-            Some(&[95.0; 3]),
-        )
-        .unwrap();
+        t.knock_out_observations = [date(2, 3), date(3, 3), date(4, 1)]
+            .iter()
+            .zip([110.0, 108.0, 105.0].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap();
+        t.coupon_observations = [date(2, 3), date(3, 3), date(4, 1)]
+            .iter()
+            .zip([95.0; 3].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap();
         let note = PhoenixOption::new(t).unwrap();
         let values: Vec<_> = [(512, 8.0), (1024, 8.0), (1024, 10.0)]
             .into_iter()
@@ -642,4 +697,84 @@ fn phoenix_daily_layers_converge_with_conditional_coupons() {
         prices.push(values[0]);
     }
     assert!(prices[1] < prices[0] - 0.001, "{prices:?}");
+}
+
+#[test]
+fn independent_schedules_match_an_early_redemption_cashflow_portfolio() -> Result<()> {
+    let mut input = terms();
+    input.lower_strike = input.upper_strike;
+    input.knock_out_observations = vec![KnockOutObservation::new(date(3, 3), 110.0)?];
+    input.coupon_observations = vec![
+        CouponObservation::new(date(2, 3), 0.0)?,
+        CouponObservation::new(date(4, 1), 0.0)?,
+    ];
+    let note = PhoenixOption::new(input)?;
+    let context = market(100.0, date(1, 1));
+    let discount = |time| (-0.04 * date(1, 1).years_until(time)).exp();
+    let digital =
+        DigitalOption::cash_or_nothing(OptionType::Call, 110.0, 1.0, date(1, 1), date(3, 3))?;
+    let probability = AnalyticDigitalEngine.price(&digital, &context)? / discount(date(3, 3));
+    let expected = 0.01 * discount(date(2, 3))
+        + probability * discount(date(3, 3))
+        + (1.0 - probability) * 1.01 * discount(date(4, 1));
+    for (engine, tolerance) in [
+        (
+            &QuadratureAutocallableEngine::default() as &dyn PricingEngine<PhoenixOption>,
+            1e-9,
+        ),
+        (&FiniteDifferenceAutocallableEngine::default(), 2e-5),
+    ] {
+        let actual = engine.price(&note, &context)?;
+        assert!(
+            (actual - expected).abs() < tolerance,
+            "{actual} != {expected}"
+        );
+        assert_eq!(engine.price(&note, &market(110.0, date(3, 3)))?, 1.0);
+    }
+    let mc = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        path_count: 32768,
+        seed: Some(42),
+        ..Default::default()
+    })?;
+    let estimate = mc.price_with_statistics(&note, &context)?;
+    assert!((estimate.price() - expected).abs() < 5.0 * estimate.standard_error().unwrap());
+    assert_eq!(mc.price(&note, &market(110.0, date(3, 3)))?, 1.0);
+    Ok(())
+}
+
+#[test]
+fn each_schedule_validates_order_life_calendar_and_replacement_atomically() {
+    let note = PhoenixOption::new(terms()).unwrap();
+    for times in [
+        vec![],
+        vec![date(4, 1), date(2, 3)],
+        vec![date(2, 3); 2],
+        vec![date(1, 4)],
+        vec![date(1, 1).add_days(-1).unwrap()],
+        vec![date(4, 2)],
+    ] {
+        let knock_out = times
+            .iter()
+            .map(|&time| KnockOutObservation::new(time, 110.0).unwrap())
+            .collect();
+        let coupons = times
+            .iter()
+            .map(|&time| CouponObservation::new(time, 0.0).unwrap())
+            .collect();
+        assert!(matches!(
+            note.replace(PhoenixOptionChanges {
+                knock_out_observations: Some(knock_out),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            note.replace(PhoenixOptionChanges {
+                coupon_observations: Some(coupons),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+        assert_eq!(note.terms(), &terms());
+    }
 }

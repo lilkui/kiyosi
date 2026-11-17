@@ -1,8 +1,8 @@
 use super::{
-    AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms, Coupon,
-    PricingContext, Result,
+    AutocallableBarrierState, AutocallableNote, AutocallableTerms, Coupon, PricingContext, Result,
 };
 use crate::Timestamp;
+use crate::instruments::autocallable::ObservationEvent;
 
 pub(crate) struct Initial {
     pub knocked_in: bool,
@@ -25,7 +25,7 @@ pub(crate) fn initial<T: AutocallableTerms>(
         knocked_in |= note.view().below_knock_in(context.spot_price());
     }
     let current = note
-        .autocall_observations()
+        .events()
         .iter()
         .find(|r| r.time == context.valuation_time());
     let coupon = current.map_or(0.0, |r| note.observation_coupon(r, context.spot_price()));
@@ -38,7 +38,7 @@ pub(crate) fn initial<T: AutocallableTerms>(
         ))
     } else {
         current
-            .filter(|r| note.knock_out_enabled(r) && context.spot_price() >= r.knock_out_level)
+            .filter(|r| r.has_knock_out() && context.spot_price() >= r.knock_out_level())
             .map(|record| note.knock_out_payment(record) + coupon)
     };
     Initial {
@@ -52,13 +52,11 @@ pub(crate) fn expiry_payment<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     spot: f64,
     knocked_in: bool,
-    record: Option<&AutocallableObservation>,
+    record: Option<&ObservationEvent>,
 ) -> f64 {
     let coupon = record.map_or(0.0, |r| note.observation_coupon(r, spot));
     coupon
-        + if let Some(r) =
-            record.filter(|r| note.knock_out_enabled(r) && spot >= r.knock_out_level())
-        {
+        + if let Some(r) = record.filter(|r| r.has_knock_out() && spot >= r.knock_out_level()) {
             note.knock_out_payment(r)
         } else {
             note.terminal(
@@ -76,7 +74,7 @@ pub(crate) fn future_event_times<T: AutocallableTerms>(
     daily: bool,
 ) -> Result<Vec<Timestamp>> {
     let mut times: Vec<_> = note
-        .autocall_observations()
+        .events()
         .iter()
         .map(|r| r.time)
         .filter(|&time| time > context.valuation_time())
@@ -148,19 +146,19 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
     }
     let mut coupons = 0.0;
     for record in note
-        .autocall_observations()
+        .events()
         .iter()
         .rev()
         .filter(|r| r.time > context.valuation_time())
     {
         let discount = discount(record.time)?;
         if !discount.is_normal()
-            || note.knock_out_enabled(record)
+            || record.has_knock_out()
                 && note.knock_out_payment(record) * discount != value + coupons
         {
             return None;
         }
-        if matches!(t.coupon, Coupon::Phoenix(_)) {
+        if matches!(t.coupon, Coupon::Phoenix(_)) && record.coupon_barrier_level().is_some() {
             let coupon = note.period_coupon();
             if coupon != 0.0 && record.coupon_barrier_level().unwrap_or_default() != 0.0 {
                 return None;

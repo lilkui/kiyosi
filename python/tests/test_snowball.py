@@ -15,6 +15,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import (
     AutocallableObservation,
+    CouponObservation,
     KnockInObservation,
     SnowballOption,
     autocallable_observations,
@@ -141,7 +142,6 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
     for factory, fields in (
         (AutocallableObservation.snowball, {"coupon_rate": None}),
         (AutocallableObservation.snowball, {"coupon_rate": True}),
-        (AutocallableObservation.phoenix, {"coupon_barrier_level": "0"}),
     ):
         with pytest.raises(TypeError):
             factory(END, 110, **fields)
@@ -174,12 +174,8 @@ def test_domain_validation_timing_and_failure_state():
         ({"initial_spot": 0}, InvalidInputError),
         ({"maturity_coupon_rate": math.inf}, InvalidInputError),
         (
-            {
-                "autocall_observations": [
-                    AutocallableObservation.phoenix(END, 110, coupon_barrier_level=1)
-                ]
-            },
-            InvalidInputError,
+            {"autocall_observations": [CouponObservation(END, 1)]},
+            TypeError,
         ),
         ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
     ):

@@ -148,10 +148,19 @@ def cases():
             calendar=weekdays_calendar(),
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             **dict(
-                note,
-                autocall_observations=ins.autocallable_observations(
-                    [END], [120], coupon_barrier_levels=[0]
-                ),
+                {
+                    key: value
+                    for key, value in note.items()
+                    if key != "autocall_observations"
+                },
+                knock_out_observations=[
+                    ins.KnockOutObservation(at, level)
+                    for at, level in zip([END], [120], strict=True)
+                ],
+                coupon_observations=[
+                    ins.CouponObservation(at, level)
+                    for at, level in zip([END], [0], strict=True)
+                ],
             ),
             **downside,
             coupon_per_period=0.1,

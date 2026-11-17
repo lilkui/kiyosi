@@ -45,22 +45,28 @@ Numerical time sensitivities hold supplied history fixed.
 ``None`` clears nullable fields to unknown. Terms and history are validated
 together, and each omitted history field retains its value independently.
 
-Use ``AutocallableObservation.snowball`` or ``AutocallableObservation.phoenix`` to
-construct product-specific observations. ``autocall_observations`` contains the
-contractual knock-out and applicable coupon records; ``autocall_times`` returns
-their timestamps. Knock-in monitoring is defined independently by
-``knock_in_observation`` and ``knock_in_observation_schedule``.
+Use ``AutocallableObservation.snowball`` for snowball knock-out coupons.
+Phoenix uses separate ``KnockOutObservation`` and ``CouponObservation`` records,
+passed through ``knock_out_observations`` and ``coupon_observations``. Each list
+is nonempty and strictly ordered; their times and thresholds are independent.
+``knock_out_times`` and ``coupon_times`` return the respective timestamps.
+Knock-in monitoring is defined independently by ``knock_in_observation`` and
+``knock_in_observation_schedule``.
 
 ``PhoenixOption`` accepts a finite signed ``coupon_per_period`` rate applied at
-each qualifying observation without time accrual. Principal redemption is per
-unit of original notional; scale the complete price and Greeks for position size.
+each qualifying coupon observation without time accrual. A knock-out-only
+observation adds no coupon. Coincident knock-out and coupon barriers are assessed
+independently, and expiry adds no implicit observation. Principal redemption is
+per unit of original notional; scale the complete price and Greeks for position size.
 
-Phoenix ``lockout_periods`` disables knock-out for the first specified number of
-observations, while coupons and knock-in remain active. At least one observation
-must allow knock-out. ``standard_phoenix`` uses a constant knock-out barrier;
-``step_down_phoenix`` starts its absolute barrier ladder at the first eligible
-observation. Both use daily knock-in and initial spot as the upper loss strike.
-Replacing the lockout changes eligibility without regenerating barrier levels.
+The four Phoenix preset factories accept one ``autocall_times`` sequence and a
+``lockout_periods`` count, defaulting to zero. They expand the entire sequence
+into coupon observations and omit the initial count from knock-out observations.
+At least one knock-out observation remains. The resulting contract owns its two
+lists; replacements edit either list directly. ``standard_phoenix`` uses a
+constant knock-out barrier; ``step_down_phoenix`` starts its absolute barrier
+ladder at the first generated knock-out observation. Both use daily knock-in
+and initial spot as the upper loss strike.
 
 ``TouchOption`` pays on a touch with an ``up_and_in`` or ``down_and_in`` barrier,
 or when the barrier is never reached with ``up_and_out`` or ``down_and_out``.
@@ -116,11 +122,13 @@ from ._native import (
     BinaryBarrierOption,
     BinarySnowballOption,
     CashOrNothingOption,
+    CouponObservation,
     DoubleBarrierOption,
     DoubleTouchOption,
     EuropeanOption,
     GeometricAveragePriceOption,
     KnockInObservation,
+    KnockOutObservation,
     PhoenixOption,
     RangeAccrualOption,
     SnowballOption,
@@ -155,11 +163,13 @@ __all__ = [
     "BinaryBarrierOption",
     "BinarySnowballOption",
     "CashOrNothingOption",
+    "CouponObservation",
     "DoubleBarrierOption",
     "DoubleTouchOption",
     "EuropeanOption",
     "GeometricAveragePriceOption",
     "KnockInObservation",
+    "KnockOutObservation",
     "OptionType",
     "PhoenixOption",
     "RangeAccrualOption",

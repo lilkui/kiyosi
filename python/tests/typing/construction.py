@@ -7,8 +7,10 @@ from kiyosi.instruments import (
     Accumulator,
     AutocallableObservation,
     BinaryBarrierOption,
+    CouponObservation,
     DoubleTouchOption,
     KnockInObservation,
+    KnockOutObservation,
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
@@ -116,29 +118,32 @@ def observation_choices(at: datetime) -> None:
         AutocallableObservation,
     )
     assert_type(
-        AutocallableObservation.phoenix(at, 110, coupon_barrier_level=0).kind,
-        Literal["snowball", "phoenix"],
+        AutocallableObservation.snowball(at, 110, coupon_rate=0).kind,
+        Literal["snowball"],
     )
     assert_type(
         AutocallableObservation.snowball(at, 110, coupon_rate=0),
         AutocallableObservation,
     )
     assert_type(
-        AutocallableObservation.phoenix(at, 110, coupon_barrier_level=0),
-        AutocallableObservation,
+        CouponObservation(at, 0),
+        CouponObservation,
     )
     assert_type(
         autocallable_observations([at], [110], knock_out_coupon_rates=[0]),
         list[AutocallableObservation],
     )
     assert_type(
-        autocallable_observations([at], [110], coupon_barrier_levels=[0]),
-        list[AutocallableObservation],
+        KnockOutObservation(at, 110).replace(knock_out_level=120),
+        KnockOutObservation,
     )
-    autocallable_observations([at], [110])  # ty: ignore[no-matching-overload]
+    autocallable_observations([at], [110])  # ty: ignore[missing-argument]
     autocallable_observations(
-        [at], [110], knock_out_coupon_rates=[0], coupon_barrier_levels=[0]
-    )  # ty: ignore[no-matching-overload]
+        [at],
+        [110],
+        knock_out_coupon_rates=[0],
+        coupon_barrier_levels=[0],  # ty: ignore[invalid-argument-type]
+    )
 
 
 def accumulator_history(option: Accumulator) -> None:
@@ -163,7 +168,7 @@ def knock_in_observation_values(note: SnowballOption) -> None:
 
 def phoenix_periodic_coupon() -> None:
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
-    observations = [AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)]
+    observations = [KnockOutObservation(end, 110)]
     assert_type(
         PhoenixOption(
             calendar=weekdays_calendar(),
@@ -175,7 +180,8 @@ def phoenix_periodic_coupon() -> None:
             lower_strike=0,
             effective_time=start,
             expiry_time=end,
-            autocall_observations=observations,
+            knock_out_observations=observations,
+            coupon_observations=[CouponObservation(end, 0)],
         ),
         PhoenixOption,
     )
@@ -188,14 +194,20 @@ def phoenix_periodic_coupon() -> None:
         lower_strike=0,
         effective_time=start,
         expiry_time=end,
-        autocall_observations=observations,
+        knock_out_observations=observations,
+        coupon_observations=[CouponObservation(end, 0)],
     )
 
 
 def phoenix_replacements(note: PhoenixOption) -> None:
-    assert_type(note.lockout_periods, int)
-    assert_type(note.replace(lockout_periods=1), PhoenixOption)
-    note.replace(lockout_periods=1.5)  # ty: ignore[invalid-argument-type]
+    assert_type(note.knock_out_times, tuple[datetime, ...])
+    assert_type(note.coupon_times, tuple[datetime, ...])
+    assert_type(note.knock_out_observations, tuple[KnockOutObservation, ...])
+    assert_type(note.coupon_observations, tuple[CouponObservation, ...])
+    assert_type(
+        note.replace(knock_out_observations=note.knock_out_observations), PhoenixOption
+    )
+    note.replace(lockout_periods=1)  # ty: ignore[unknown-argument]
     assert_type(note.coupon_per_period, float)
     assert_type(note.with_coupon(coupon_per_period=0.01), PhoenixOption)
     note.with_coupon(0.1)  # ty: ignore[too-many-positional-arguments, missing-argument]

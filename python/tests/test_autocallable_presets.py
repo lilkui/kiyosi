@@ -11,9 +11,10 @@ import pytest
 from kiyosi import InvalidInputError
 from kiyosi.instruments import (
     AutocallableObservation,
+    CouponObservation,
     KnockInObservation,
+    KnockOutObservation,
     PhoenixOption,
-    autocallable_observations,
     butterfly_snowball,
     digital_coupon_note,
     early_profit_snowball,
@@ -57,9 +58,14 @@ def phoenix_fields(**changes):
         "effective_time": START,
         "expiry_time": END,
         "barrier_state": "no_event",
-        "autocall_observations": autocallable_observations(
-            [MIDDLE, END], [110, 110], coupon_barrier_levels=[0] * 2
-        ),
+        "knock_out_observations": [
+            KnockOutObservation(at, level)
+            for at, level in zip([MIDDLE, END], [110, 110], strict=True)
+        ],
+        "coupon_observations": [
+            CouponObservation(at, level)
+            for at, level in zip([MIDDLE, END], [0] * 2, strict=True)
+        ],
     }
     fields.update(changes)
     return fields
@@ -101,15 +107,31 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=START,
         expiry_time=END,
-        lockout_periods=2,
-        autocall_observations=autocallable_observations(
-            dates, [110, 110, 110, 108], coupon_barrier_levels=[90] * 4
-        ),
+        knock_out_observations=(
+            [
+                KnockOutObservation(at, level)
+                for at, level in zip(dates, [110, 110, 110, 108], strict=True)
+            ]
+        )[2:],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip(dates, [90] * 4, strict=True)
+        ],
     )
     assert note == expected
     assert note.knock_in_observation.kind == "every_trading_day"
-    assert note.replace(lockout_periods=3).knock_out_levels == note.knock_out_levels
-    assert note.replace(lockout_periods=3).knock_out_levels[-1] == 108
+    assert (
+        note.replace(
+            knock_out_observations=note.knock_out_observations[1:]
+        ).coupon_observations
+        == note.coupon_observations
+    )
+    assert (
+        note.replace(
+            knock_out_observations=note.knock_out_observations[1:]
+        ).knock_out_levels[-1]
+        == 108
+    )
     assert standard_phoenix(knock_out_level=110, **common) == step_down_phoenix(
         initial_knock_out_level=110, knock_out_level_decrement=0, **common
     )
@@ -118,7 +140,8 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         copy.deepcopy(note),
     ):
         assert restored == note
-        assert restored.lockout_periods == 2
+        assert restored.knock_out_times == tuple(dates[2:])
+        assert restored.coupon_times == tuple(dates)
     restored = eval(
         repr(note),
         {
@@ -126,6 +149,8 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
             "PhoenixOption": PhoenixOption,
             "KnockInObservation": KnockInObservation,
             "AutocallableObservation": AutocallableObservation,
+            "KnockOutObservation": KnockOutObservation,
+            "CouponObservation": CouponObservation,
             "weekdays_calendar": weekdays_calendar,
         },
     )
@@ -135,7 +160,8 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         (digital_coupon_note, {"coupon_barrier_level": 90}),
     ):
         locked = factory(coupon_per_period=0.01, lockout_periods=1, **terms(), **extra)
-        assert locked.lockout_periods == 1
+        assert locked.knock_out_times == (END,)
+        assert locked.coupon_times == (MIDDLE, END)
         assert locked.upper_strike == 80
         assert locked.knock_in_observation.kind == "at_expiry"
     for factory in (
@@ -184,9 +210,14 @@ def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, bar
         coupon_per_period=0.01,
         **phoenix_fields(
             barrier_state=None,
-            autocall_observations=autocallable_observations(
-                dates, [110, 110], coupon_barrier_levels=[barrier, barrier]
-            ),
+            knock_out_observations=[
+                KnockOutObservation(at, level)
+                for at, level in zip(dates, [110, 110], strict=True)
+            ],
+            coupon_observations=[
+                CouponObservation(at, level)
+                for at, level in zip(dates, [barrier, barrier], strict=True)
+            ],
         ),
     )
     assert type(note) is PhoenixOption
@@ -198,7 +229,7 @@ def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, bar
     assert note.barrier_state is None
     assert note.principal_redemption_ratio == 1
     dates.clear()
-    assert note.autocall_times == ((MIDDLE, END))
+    assert note.coupon_times == ((MIDDLE, END))
     assert (
         note.replace(
             barrier_state="no_event",
@@ -232,6 +263,8 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
                 "PhoenixOption": PhoenixOption,
                 "KnockInObservation": KnockInObservation,
                 "AutocallableObservation": AutocallableObservation,
+                "KnockOutObservation": KnockOutObservation,
+                "CouponObservation": CouponObservation,
                 "weekdays_calendar": weekdays_calendar,
             },
         )

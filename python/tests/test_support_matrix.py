@@ -247,9 +247,14 @@ def terminal_cases():
                     **dates,
                     **loss,
                     coupon_per_period=0.08,
-                    autocall_observations=ins.autocallable_observations(
-                        [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
-                    ),
+                    knock_out_observations=[
+                        ins.KnockOutObservation(at, level)
+                        for at, level in zip([dates["expiry_time"]], [120], strict=True)
+                    ],
+                    coupon_observations=[
+                        ins.CouponObservation(at, level)
+                        for at, level in zip([dates["expiry_time"]], [90], strict=True)
+                    ],
                 ),
                 notes,
                 1.08,

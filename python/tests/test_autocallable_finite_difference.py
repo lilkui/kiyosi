@@ -163,12 +163,12 @@ def test_event_greeks_node_curves_and_failed_replacement():
     assert result.theta is None
     assert result.vega is not None
     assert result.rho is not None
-    snapshot = note.autocall_observations
+    snapshot = note.knock_out_observations
     with pytest.raises(ValueError):
         note.replace(
             barrier_state="invalid",
         )
-    assert note.autocall_observations == tuple(snapshot)
+    assert note.knock_out_observations == tuple(snapshot)
     context = market()
     curve = RateTermStructure(
         reference_time=START, times=[END], factors=[math.exp(-0.04 * 90 / 365)]

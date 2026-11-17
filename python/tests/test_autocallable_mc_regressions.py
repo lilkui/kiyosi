@@ -8,7 +8,9 @@ import pytest
 from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import (
     BinarySnowballOption,
+    CouponObservation,
     KnockInObservation,
+    KnockOutObservation,
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
@@ -111,11 +113,18 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
                         upper_strike=100,
                         lower_strike=60,
                         **common,
-                        autocall_observations=autocallable_observations(
-                            autocall_times,
-                            knock_out_levels,
-                            coupon_barrier_levels=[100, 99, 98],
-                        ),
+                        knock_out_observations=[
+                            KnockOutObservation(at, level)
+                            for at, level in zip(
+                                autocall_times, knock_out_levels, strict=True
+                            )
+                        ],
+                        coupon_observations=[
+                            CouponObservation(at, level)
+                            for at, level in zip(
+                                autocall_times, [100, 99, 98], strict=True
+                            )
+                        ],
                     ),
                     pricing.MonteCarloAutocallableEngine,
                 ),
@@ -435,9 +444,14 @@ def test_current_knockouts_pay_only_contractual_coupon(subtests):
             knock_in_level=80,
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             barrier_state="knocked_in",
-            autocall_observations=autocallable_observations(
-                [FIRST, END], [100, 100], coupon_barrier_levels=[barrier, 0]
-            ),
+            knock_out_observations=[
+                KnockOutObservation(at, level)
+                for at, level in zip([FIRST, END], [100, 100], strict=True)
+            ],
+            coupon_observations=[
+                CouponObservation(at, level)
+                for at, level in zip([FIRST, END], [barrier, 0], strict=True)
+            ],
         )
         check_autocallable(subtests, note, cashflow_market(100, FIRST), expected)
 
@@ -466,9 +480,14 @@ def test_historical_knockin_and_terminal_caps(subtests, spot, expected):
     phoenix = PhoenixOption(
         **common,
         coupon_per_period=-0.365,
-        autocall_observations=autocallable_observations(
-            [FIRST, END], [110, 110], coupon_barrier_levels=[90, 90]
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([FIRST, END], [110, 110], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([FIRST, END], [90, 90], strict=True)
+        ],
     )
     check_autocallable(subtests, snowball, cashflow_market(spot, END), expected)
     check_autocallable(

@@ -1,7 +1,7 @@
 use super::{
     AutocallableBarrierState, AutocallableObservation, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
-    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation, ObservationCoupon, PhoenixOption,
-    PhoenixTerms, SnowballOption, SnowballTerms,
+    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation, PhoenixOption, PhoenixTerms,
+    SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
 use crate::error::finite;
@@ -195,7 +195,7 @@ impl SnowballPresetTerms {
             .map(|date| AutocallableObservation {
                 time: date,
                 knock_out_level: self.knock_out_level,
-                coupon: ObservationCoupon::Snowball(self.coupon_rate),
+                coupon_rate: self.coupon_rate,
             })
             .collect();
         let mut terms = SnowballTerms::new(
@@ -227,9 +227,7 @@ impl SnowballPresetTerms {
             } => {
                 for (i, r) in terms.autocall_observations.iter_mut().enumerate() {
                     r.knock_out_level -= i as f64 * knock_out_level_decrement;
-                    if let ObservationCoupon::Snowball(rate) = &mut r.coupon {
-                        *rate -= i as f64 * coupon_rate_decrement;
-                    }
+                    r.coupon_rate -= i as f64 * coupon_rate_decrement;
                 }
                 terms.maturity_coupon_rate = terms
                     .autocall_observations
@@ -292,12 +290,10 @@ fn staged_coupons(
         }
     }
     for record in &mut terms.autocall_observations {
-        record.coupon = ObservationCoupon::Snowball(
-            stages
-                .iter()
-                .find(|(end, _)| record.time <= *end)
-                .map_or(final_rate, |(_, rate)| *rate),
-        );
+        record.coupon_rate = stages
+            .iter()
+            .find(|(end, _)| record.time <= *end)
+            .map_or(final_rate, |(_, rate)| *rate);
     }
     terms.maturity_coupon_rate = final_rate;
     Ok(())
@@ -423,8 +419,8 @@ impl PhoenixPresetTerms {
     /// let note = terms.expand(PhoenixPreset::StepDown {
     ///     coupon_barrier_level: 90.0, knock_out_level_decrement: 2.0,
     /// })?;
-    /// assert_eq!(note.lockout_periods(), 1);
-    /// assert_eq!(note.autocall_observations()[1].knock_out_level(), 110.0);
+    /// assert_eq!(note.coupon_observations().len(), 2);
+    /// assert_eq!(note.knock_out_observations()[0].knock_out_level(), 110.0);
     /// # Ok(()) }
     /// ```
     #[expect(
@@ -467,17 +463,25 @@ impl PhoenixPresetTerms {
                     .into(),
             )),
         };
-        let observations = self
+        if self.lockout_periods >= self.autocall_times.len() {
+            return Err(Error::InvalidInput(
+                "lockout_periods must leave at least one knock-out observation".into(),
+            ));
+        }
+        let coupon_observations = self
             .autocall_times
-            .into_iter()
+            .iter()
+            .map(|&time| super::CouponObservation::new(time, coupon_barrier))
+            .collect::<Result<_>>()?;
+        let knock_out_observations = self
+            .autocall_times
+            .iter()
+            .skip(self.lockout_periods)
             .enumerate()
-            .map(|(i, date)| AutocallableObservation {
-                time: date,
-                knock_out_level: self.knock_out_level
-                    - i.saturating_sub(self.lockout_periods) as f64 * decrement,
-                coupon: ObservationCoupon::Phoenix(coupon_barrier),
+            .map(|(i, &time)| {
+                super::KnockOutObservation::new(time, self.knock_out_level - i as f64 * decrement)
             })
-            .collect();
+            .collect::<Result<_>>()?;
         let mut terms = PhoenixTerms::new(
             self.coupon_per_period,
             self.initial_spot,
@@ -490,11 +494,11 @@ impl PhoenixPresetTerms {
             0.0,
             self.effective_time,
             self.expiry_time,
-            observations,
+            knock_out_observations,
+            coupon_observations,
             knock_in_observation,
             self.calendar,
         );
-        terms.lockout_periods = self.lockout_periods;
         terms.barrier_state = self.barrier_state;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
         PhoenixOption::new(terms)

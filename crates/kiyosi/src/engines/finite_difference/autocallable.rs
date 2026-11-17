@@ -5,8 +5,9 @@ use super::{
     diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility,
 };
 use crate::instruments::autocallable::Coupon;
+use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{expiry_payment, fixed_value, initial, validate};
-use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms};
+use crate::{AutocallableNote, AutocallableTerms};
 
 impl FiniteDifferenceAutocallableEngine {
     /// Prices remaining snowball or Phoenix cash flows on exact trading and observation dates.
@@ -115,9 +116,9 @@ fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
     if let Some(d) = t.downside() {
         level = level.max(d.upper_strike).max(d.lower_strike);
     }
-    note.autocall_observations().iter().fold(level, |level, r| {
+    note.events().iter().fold(level, |level, r| {
         level
-            .max(if note.knock_out_enabled(r) {
+            .max(if r.has_knock_out() {
                 r.knock_out_level()
             } else {
                 0.0
@@ -130,8 +131,8 @@ fn event<'a, T: AutocallableTerms>(
     note: &'a AutocallableNote<T>,
     time: f64,
     context: &PricingContext,
-) -> Option<&'a AutocallableObservation> {
-    let observations = note.autocall_observations();
+) -> Option<&'a ObservationEvent> {
+    let observations = note.events();
     observations
         .binary_search_by(|r| {
             context
@@ -218,7 +219,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     let event_times =
         crate::instruments::autocallable::pricing::future_event_times(note, context, daily)?;
     let mut observations: Vec<_> = note
-        .autocall_observations()
+        .events()
         .iter()
         .filter(|r| r.time() > context.valuation_time())
         .map(|r| context.valuation_time().years_until(r.time()))
@@ -303,11 +304,11 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             levels.extend([d.lower_strike, d.upper_strike]);
         }
         for r in note
-            .autocall_observations()
+            .events()
             .iter()
             .filter(|r| r.time() > context.valuation_time())
         {
-            if note.knock_out_enabled(r) {
+            if r.has_knock_out() {
                 levels.push(r.knock_out_level());
             }
             if matches!(t.coupon, Coupon::Phoenix(_)) {
@@ -342,7 +343,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     }
     let end_event = event(note, time, context);
     if let Some(r) = end_event {
-        if note.knock_out_enabled(r) {
+        if r.has_knock_out() {
             breaks.push(r.knock_out_level());
         }
         breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
@@ -405,7 +406,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
                 breaks.push(ki.level);
             }
             if let Some(r) = record {
-                if note.knock_out_enabled(r) {
+                if r.has_knock_out() {
                     breaks.push(r.knock_out_level());
                 }
                 breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
@@ -421,7 +422,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
                     };
                     let coupon = record.map_or(0.0, |r| note.observation_coupon(r, asset));
                     if let Some(r) =
-                        record.filter(|r| note.knock_out_enabled(r) && asset >= r.knock_out_level())
+                        record.filter(|r| r.has_knock_out() && asset >= r.knock_out_level())
                     {
                         let payment = note.knock_out_payment(r) + coupon;
                         [payment - a, payment - k]
@@ -559,11 +560,14 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
             levels.push(ki.level);
         }
         for r in note
-            .autocall_observations()
+            .events()
             .iter()
             .filter(|r| r.time() == context.valuation_time())
         {
-            levels.extend([r.knock_out_level(), r.coupon_barrier_level().unwrap_or(0.0)]);
+            if r.has_knock_out() {
+                levels.push(r.knock_out_level());
+            }
+            levels.extend(r.coupon_barrier_level());
         }
         let mut pending = false;
         let mut starting_knocked = true;
@@ -639,7 +643,7 @@ mod tests {
                 };
                 assert_eq!(
                     event(&note, valuation.years_until(query), &context)
-                        .map(AutocallableObservation::time),
+                        .map(ObservationEvent::time),
                     expected,
                     "valuation={valuation:?}, query={query:?}",
                 );

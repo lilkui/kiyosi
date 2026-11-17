@@ -153,7 +153,7 @@ pub fn implied_snowball_coupon<
 ///     observation_clock_time: TimeOfDay::new(0, 0, 0, 0)?,
 /// };
 /// let note = PhoenixOption::new(PhoenixTerms::new(0.02, 100.0, 80.0, 100.0, 60.0,
-///     start, end, autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?, knock_in_observation, kiyosi::TradingCalendar::weekdays()))?;
+///     start, end, vec![KnockOutObservation::new(end, 110.0)?], vec![CouponObservation::new(end, 90.0)?], knock_in_observation, kiyosi::TradingCalendar::weekdays()))?;
 /// let market = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();

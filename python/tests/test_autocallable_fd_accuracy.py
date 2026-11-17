@@ -9,7 +9,9 @@ from kiyosi import pricing
 from kiyosi.instruments import (
     BinarySnowballOption,
     CashOrNothingOption,
+    CouponObservation,
     KnockInObservation,
+    KnockOutObservation,
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
@@ -285,9 +287,13 @@ def test_projection_preserves_exact_current_event_barrier_comparisons(subtests):
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=start,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
-            [end], [100], coupon_barrier_levels=[100]
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([end], [100], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level) for at, level in zip([end], [100], strict=True)
+        ],
     )
     engine = pricing.FiniteDifferenceAutocallableEngine()
     for spot, expected in (

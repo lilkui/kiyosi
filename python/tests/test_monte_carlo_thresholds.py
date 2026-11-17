@@ -129,9 +129,14 @@ def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(
         upper_strike=100,
         lower_strike=100,
         knock_in_observation=KnockInObservation.at_expiry(),
-        autocall_observations=ins.autocallable_observations(
-            [end], [120], coupon_barrier_levels=[100]
-        ),
+        knock_out_observations=[
+            ins.KnockOutObservation(at, level)
+            for at, level in zip([end], [120], strict=True)
+        ],
+        coupon_observations=[
+            ins.CouponObservation(at, level)
+            for at, level in zip([end], [100], strict=True)
+        ],
     )
     assert engine.price(note, context) == pytest.approx(1.06, rel=0, abs=1e-12)
 

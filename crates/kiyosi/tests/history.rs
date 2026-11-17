@@ -100,7 +100,8 @@ fn autocallable_terms_roundtrip_preserves_history() -> Result<()> {
         0.0,
         start,
         end,
-        vec![AutocallableObservation::phoenix(end, 110.0, 0.0)?],
+        vec![kiyosi::KnockOutObservation::new(end, 110.0)?],
+        vec![kiyosi::CouponObservation::new(end, 0.0)?],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: clock
         },

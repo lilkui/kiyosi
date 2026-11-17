@@ -13,7 +13,9 @@ from kiyosi import (
 )
 from kiyosi.instruments import (
     BinarySnowballOption,
+    CouponObservation,
     KnockInObservation,
+    KnockOutObservation,
     autocallable_observations,
 )
 from kiyosi.market import RateTermStructure, weekdays_calendar
@@ -186,9 +188,14 @@ def test_current_phoenix_coupon_paid_once_and_weekend_does_not_knock_in():
     engine = MC(path_count=32768, seed=42)
     # Tiny volatility makes every future observation coupon deterministic.
     note = phoenix(
-        autocall_observations=autocallable_observations(
-            [datetime(2025, 2, 3), END], [200, 200], coupon_barrier_levels=[90, 90]
-        )
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([datetime(2025, 2, 3), END], [200, 200], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([datetime(2025, 2, 3), END], [90, 90], strict=True)
+        ],
     )
     at_event = market(100, datetime(2025, 2, 3), volatility=1e-12, rate=0, dividend=0)
     assert engine.price(note, at_event) == pytest.approx(1 + 2 * 0.01, rel=0, abs=1e-14)
@@ -245,9 +252,14 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
     exposed = phoenix(
         lower_strike=100,
         upper_strike=100,
-        autocall_observations=autocallable_observations(
-            [datetime(2025, 2, 3), END], [101, 105], coupon_barrier_levels=[0, 0]
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([datetime(2025, 2, 3), END], [101, 105], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([datetime(2025, 2, 3), END], [0, 0], strict=True)
+        ],
     )
     with pytest.raises(InvalidInputError):
         implied_phoenix_coupon(unseeded, exposed, market(rate=0), 1.01)

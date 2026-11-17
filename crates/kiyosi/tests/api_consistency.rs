@@ -291,7 +291,8 @@ fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()>
             100.0,
             start,
             end,
-            vec![AutocallableObservation::phoenix(end, 200.0, barrier)?],
+            vec![kiyosi::KnockOutObservation::new(end, 200.0)?],
+            vec![kiyosi::CouponObservation::new(end, barrier)?],
             kiyosi::KnockInObservation::AtExpiry,
             TradingCalendar::weekdays(),
         );
@@ -2533,15 +2534,12 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
 fn observation_replacement_preserves_validity_and_original_values() -> Result<()> {
     let time = Date::new(2026, 1, 1)?.start_of_day();
     let original = AutocallableObservation::snowball(time, 110.0, -0.01)?;
-    let phoenix = AutocallableObservation::phoenix(time, 110.0, 90.0)?;
-    assert_eq!(phoenix.coupon_rate(), None);
+    let phoenix = CouponObservation::new(time, 90.0)?;
     assert!(matches!(
-        phoenix.replace(AutocallableObservationChanges {
-            coupon_rate: Some(0.12),
-            ..Default::default()
-        }),
+        phoenix.replace(None, Some(-1.0)),
         Err(Error::InvalidInput(_))
     ));
+    assert_eq!(phoenix.coupon_barrier_level(), 90.0);
     assert!(matches!(
         autocallable_observations(&[time], &[110.0], Some(&[0.12]), Some(&[90.0])),
         Err(Error::InvalidInput(_))
@@ -2591,77 +2589,29 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
 }
 
 #[test]
-fn zero_coupon_observations_preserve_product_identity() -> Result<()> {
-    let start = Date::new(2025, 1, 2)?.start_of_day();
-    let end = Date::new(2026, 1, 2)?.start_of_day();
-    let snowball = AutocallableObservation::snowball(end, 110.0, 0.0)?;
-    let phoenix = AutocallableObservation::phoenix(end, 110.0, 0.0)?;
-    for record in [snowball, phoenix] {
-        assert_eq!(
-            record.replace(AutocallableObservationChanges {
-                coupon_rate: record.coupon_rate(),
-                coupon_barrier_level: record.coupon_barrier_level(),
-                ..Default::default()
-            })?,
-            record
-        );
+fn independent_observation_records_validate_zero_and_replacement() -> Result<()> {
+    let time = Date::new(2026, 1, 2)?.start_of_day();
+    let coupon = CouponObservation::new(time, 0.0)?;
+    let knock_out = KnockOutObservation::new(time, 110.0)?;
+    assert_eq!(coupon.replace(None, None)?, coupon);
+    assert_eq!(knock_out.replace(None, None)?, knock_out);
+    assert_eq!(coupon.coupon_barrier_level(), 0.0);
+    assert_eq!(
+        knock_out.replace(None, Some(120.0))?.knock_out_level(),
+        120.0
+    );
+    for level in [-1.0, f64::NAN, f64::INFINITY] {
+        assert!(matches!(
+            coupon.replace(None, Some(level)),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            knock_out.replace(None, Some(level)),
+            Err(Error::InvalidInput(_))
+        ));
     }
-    assert_eq!(snowball.coupon_rate(), Some(0.0));
-    assert_eq!(snowball.coupon_barrier_level(), None);
-    assert_eq!(phoenix.coupon_rate(), None);
-    assert_eq!(phoenix.coupon_barrier_level(), Some(0.0));
-    assert_eq!(
-        autocallable_observations(&[end], &[110.0], None, Some(&[0.0]))?,
-        vec![phoenix]
-    );
-    assert_ne!(snowball, phoenix);
-    assert_eq!(snowball.kind(), AutocallableObservationKind::Snowball);
-    assert_eq!(
-        phoenix.replace(Default::default())?.kind(),
-        AutocallableObservationKind::Phoenix
-    );
-    assert!(matches!(
-        snowball.replace(AutocallableObservationChanges {
-            coupon_barrier_level: Some(0.0),
-            ..Default::default()
-        }),
-        Err(Error::InvalidInput(_))
-    ));
-    assert!(matches!(
-        phoenix.replace(AutocallableObservationChanges {
-            coupon_rate: Some(0.0),
-            ..Default::default()
-        }),
-        Err(Error::InvalidInput(_))
-    ));
-    assert!(matches!(
-        BinarySnowballOption::new(BinarySnowballTerms::new(
-            0.1,
-            start,
-            end,
-            vec![phoenix],
-            TradingCalendar::weekdays()
-        )),
-        Err(Error::InvalidInput(_))
-    ));
-    let terms = PhoenixTerms::new(
-        0.1,
-        100.0,
-        80.0,
-        100.0,
-        0.0,
-        start,
-        end,
-        vec![snowball],
-        kiyosi::KnockInObservation::EveryTradingDay {
-            observation_clock_time: end.time_of_day(),
-        },
-        TradingCalendar::weekdays(),
-    );
-    assert!(matches!(
-        PhoenixOption::new(terms),
-        Err(Error::InvalidInput(_))
-    ));
+    assert!(KnockOutObservation::new(time, 0.0).is_err());
+    assert_eq!(knock_out.knock_out_level(), 110.0);
     Ok(())
 }
 

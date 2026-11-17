@@ -694,11 +694,10 @@ def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
             instruments.AutocallableObservation.snowball(end, 110, coupon_rate=0)
         ],
     }
-    common["autocall_observations"] = [
-        instruments.AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)
-        if cls is instruments.PhoenixOption
-        else instruments.AutocallableObservation.snowball(end, 110, coupon_rate=0)
-    ]
+    if cls is instruments.PhoenixOption:
+        common.pop("autocall_observations")
+        common["knock_out_observations"] = [instruments.KnockOutObservation(end, 110)]
+        common["coupon_observations"] = [instruments.CouponObservation(end, 0)]
     signature = inspect.signature(cls)
     assert (
         signature.parameters["knock_in_observation"].default is inspect.Parameter.empty

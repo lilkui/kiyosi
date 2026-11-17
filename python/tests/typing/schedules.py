@@ -45,9 +45,14 @@ def contractual_schedules(
     assert_type(accumulator.knock_out_observation_schedule, ObservationSchedule)
     assert_type(note.knock_in_observation_schedule, ObservationSchedule)
     assert_type(binary.knock_in_observation_schedule, None)
-    assert_type(note.autocall_times, tuple[datetime, ...])
+    note_times = (
+        note.knock_out_times if isinstance(note, PhoenixOption) else note.autocall_times
+    )
+    assert_type(note_times, tuple[datetime, ...])
+    if isinstance(note, PhoenixOption):
+        assert_type(note.coupon_times, tuple[datetime, ...])
     assert_type(binary.autocall_times, tuple[datetime, ...])
-    for at in note.autocall_times:
+    for at in note_times:
         assert_type(at, datetime)
     for at in binary.autocall_times:
         assert_type(at, datetime)

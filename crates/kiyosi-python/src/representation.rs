@@ -1,7 +1,7 @@
 use crate::conversions::python_timestamp;
 use pyo3::prelude::*;
 
-fn preview<T>(
+pub(crate) fn preview<T>(
     items: impl IntoIterator<Item = T>,
     mut render: impl FnMut(T) -> PyResult<String>,
 ) -> PyResult<String> {
@@ -103,11 +103,6 @@ pub(crate) fn observation(
         kiyosi::AutocallableObservationKind::Snowball => {
             ("snowball", "coupon_rate", value.coupon_rate())
         }
-        kiyosi::AutocallableObservationKind::Phoenix => (
-            "phoenix",
-            "coupon_barrier_level",
-            value.coupon_barrier_level(),
-        ),
     };
     Ok(format!(
         "AutocallableObservation.{kind}({}, {:?}, {field}={:?})",

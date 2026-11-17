@@ -107,7 +107,17 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         60.0,
         date(1, 1),
         end,
-        autocallable_observations(&[date(2, 3), end], &[110.0, 105.0], None, Some(&[90.0; 2]))
+        [date(2, 3), end]
+            .iter()
+            .zip([110.0, 105.0].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
+        [date(2, 3), end]
+            .iter()
+            .zip([90.0; 2].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
             .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
@@ -360,7 +370,18 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         60.0,
         start,
         end,
-        autocallable_observations(&[date(2, 3), end], &[110.0; 2], None, Some(&[90.0; 2])).unwrap(),
+        [date(2, 3), end]
+            .iter()
+            .zip([110.0; 2].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
+        [date(2, 3), end]
+            .iter()
+            .zip([90.0; 2].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },

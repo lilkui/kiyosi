@@ -106,9 +106,14 @@ def contracts():
             **loss,
             **state,
             coupon_per_period=0.08,
-            autocall_observations=ins.autocallable_observations(
-                OBSERVATIONS, KNOCK_OUT_LEVELS, coupon_barrier_levels=[95] * 3
-            ),
+            knock_out_observations=[
+                ins.KnockOutObservation(at, level)
+                for at, level in zip(OBSERVATIONS, KNOCK_OUT_LEVELS, strict=True)
+            ],
+            coupon_observations=[
+                ins.CouponObservation(at, level)
+                for at, level in zip(OBSERVATIONS, [95] * 3, strict=True)
+            ],
         )
     result["binary_snowball"] = ins.BinarySnowballOption(
         calendar=weekdays_calendar(),

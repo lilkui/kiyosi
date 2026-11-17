@@ -218,7 +218,18 @@ fn autocallable_queries_select_current_knockin_coupon_and_knockout() {
         60.0,
         start,
         end,
-        autocallable_observations(&[start, end], &[110.0; 2], None, Some(&[90.0; 2])).unwrap(),
+        [start, end]
+            .iter()
+            .zip([110.0; 2].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
+        [start, end]
+            .iter()
+            .zip([90.0; 2].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
         KnockInObservation::EveryTradingDay {
             observation_clock_time: start.time_of_day(),
         },

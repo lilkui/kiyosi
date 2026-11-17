@@ -46,28 +46,35 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
         0.0,
         input.effective_time,
         input.expiry_time,
-        autocallable_observations(
-            &input.autocall_times,
-            &[110.0, 110.0, 110.0, 108.0],
-            None,
-            Some(&[90.0; 4]),
-        )
-        .unwrap(),
+        input
+            .autocall_times
+            .iter()
+            .zip([110.0, 110.0, 110.0, 108.0].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
+        input
+            .autocall_times
+            .iter()
+            .zip([90.0; 4].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: input.knock_in_observation_clock_time.unwrap(),
         },
         TradingCalendar::weekdays(),
     );
-    expected.lockout_periods = 2;
+    expected.knock_out_observations.drain(..2);
     assert_eq!(step.terms(), &expected);
     let moved = step
         .replace(PhoenixOptionChanges {
-            lockout_periods: Some(3),
+            knock_out_observations: Some(step.knock_out_observations()[1..].to_vec()),
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(moved.autocall_observations(), step.autocall_observations());
-    assert_eq!(moved.autocall_observations()[3].knock_out_level(), 108.0);
+    assert_eq!(moved.coupon_observations(), step.coupon_observations());
+    assert_eq!(moved.knock_out_observations()[0].knock_out_level(), 108.0);
     let standard = input
         .clone()
         .expand(PhoenixPreset::Standard {
@@ -92,7 +99,8 @@ fn phoenix_presets_expand_lockout_and_start_the_ladder_at_first_eligible_observa
         },
     ] {
         let note = input.clone().expand(preset).unwrap();
-        assert_eq!(note.lockout_periods(), 2);
+        assert_eq!(note.knock_out_observations().len(), 2);
+        assert_eq!(note.coupon_observations().len(), 4);
         assert_eq!(note.terms().upper_strike, 80.0);
         assert_eq!(
             note.terms().knock_in_observation,
@@ -148,13 +156,18 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
                 0.0,
                 date(1, 1),
                 date(4, 1),
-                autocallable_observations(
-                    &[date(2, 3), date(4, 1)],
-                    &[110.0; 2],
-                    None,
-                    Some(&[barrier; 2]),
-                )
-                .unwrap(),
+                [date(2, 3), date(4, 1)]
+                    .iter()
+                    .zip([110.0; 2].iter())
+                    .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+                    .collect::<kiyosi::Result<Vec<_>>>()
+                    .unwrap(),
+                [date(2, 3), date(4, 1)]
+                    .iter()
+                    .zip([barrier; 2].iter())
+                    .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+                    .collect::<kiyosi::Result<Vec<_>>>()
+                    .unwrap(),
                 kiyosi::KnockInObservation::EveryTradingDay {
                     observation_clock_time: (date(4, 1)).time_of_day(),
                 },

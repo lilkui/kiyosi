@@ -125,7 +125,18 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             100.0,
             start,
             end,
-            autocallable_observations(&[end], &[120.0], None, Some(&[100.0])).unwrap(),
+            [end]
+                .iter()
+                .zip([120.0].iter())
+                .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()
+                .unwrap(),
+            [end]
+                .iter()
+                .zip([100.0].iter())
+                .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+                .collect::<kiyosi::Result<Vec<_>>>()
+                .unwrap(),
             kiyosi::KnockInObservation::EveryTradingDay {
                 observation_clock_time: (end).time_of_day(),
             },

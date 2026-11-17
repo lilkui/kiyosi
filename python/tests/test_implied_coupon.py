@@ -18,7 +18,13 @@ from kiyosi import (
     UnsupportedOperationError,
     instruments,
 )
-from kiyosi.instruments import BinarySnowballOption, KnockInObservation, PhoenixOption
+from kiyosi.instruments import (
+    BinarySnowballOption,
+    CouponObservation,
+    KnockInObservation,
+    KnockOutObservation,
+    PhoenixOption,
+)
 from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
@@ -101,11 +107,8 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
             effective_time=START,
             expiry_time=END,
             knock_in_observation=KnockInObservation.at_expiry(),
-            autocall_observations=[
-                instruments.AutocallableObservation.phoenix(
-                    END, 110, coupon_barrier_level=90
-                )
-            ],
+            knock_out_observations=[instruments.KnockOutObservation(END, 110)],
+            coupon_observations=[instruments.CouponObservation(END, 90)],
         )
         target = engine.price(note, context)
         solved = implied_phoenix_coupon(engine, note, context, target)
@@ -318,7 +321,8 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
         replacement = note.replace(**{field: 0.18})
         assert getattr(replacement, field) == 0.18
         assert replacement.barrier_state == note.barrier_state
-        assert replacement.autocall_observations == note.autocall_observations
+        assert replacement.knock_out_observations == note.knock_out_observations
+        assert replacement.coupon_observations == note.coupon_observations
         target = engine.price(replacement, context)
         solved = implied_phoenix_coupon(engine, note, context, target)
         assert engine.price(note.replace(**solved), context) == pytest.approx(
@@ -784,9 +788,14 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
         ),
         (
             phoenix(
-                autocall_observations=autocallable_observations(
-                    [END], [110], coupon_barrier_levels=[90]
-                )
+                knock_out_observations=[
+                    KnockOutObservation(at, level)
+                    for at, level in zip([END], [110], strict=True)
+                ],
+                coupon_observations=[
+                    CouponObservation(at, level)
+                    for at, level in zip([END], [90], strict=True)
+                ],
             ),
             {},
         ),

@@ -998,8 +998,12 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
             start,
             last,
             vec![
-                AutocallableObservation::phoenix(first, 1000.0, 0.0).unwrap(),
-                AutocallableObservation::phoenix(last, 1000.0, 0.0).unwrap(),
+                kiyosi::KnockOutObservation::new(first, 1000.0).unwrap(),
+                kiyosi::KnockOutObservation::new(last, 1000.0).unwrap(),
+            ],
+            vec![
+                kiyosi::CouponObservation::new(first, 0.0).unwrap(),
+                kiyosi::CouponObservation::new(last, 0.0).unwrap(),
             ],
             kiyosi::KnockInObservation::EveryTradingDay {
                 observation_clock_time: (last).time_of_day(),
@@ -1148,7 +1152,8 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         0.0,
         start,
         expiry,
-        vec![AutocallableObservation::phoenix(expiry, 110.0, 0.0)?],
+        vec![kiyosi::KnockOutObservation::new(expiry, 110.0)?],
+        vec![kiyosi::CouponObservation::new(expiry, 0.0)?],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: clock,
         },

@@ -3,6 +3,7 @@
 from datetime import datetime, time
 
 from kiyosi.instruments import (
+    KnockOutObservation,
     fixed_coupon_note,
     standard_phoenix,
     step_down_phoenix,
@@ -45,7 +46,18 @@ standard = standard_phoenix(
     effective_time=start,
     expiry_time=end,
 )
-# 首次允许敲出时，障碍为 103，此后每期递减 1；锁定期内不递减。
+# 工厂生成六次派息观察与四次敲出观察，合约本身只保存两份列表。
+assert standard.coupon_times == tuple(times)
+assert standard.knock_out_times == tuple(times)[2:]
+
+# 通用合约可独立修改敲出列表，派息列表保留原样；4 月 15 日只观察敲出。
+custom = standard.replace(
+    knock_out_observations=[KnockOutObservation(datetime(2025, 4, 15, 15), 103)],
+)
+assert custom.coupon_observations == standard.coupon_observations
+assert custom.knock_out_times[0] not in custom.coupon_times
+
+# 首次敲出观察时，障碍为 103，此后每次敲出观察递减 1。
 step_down = step_down_phoenix(
     coupon_per_period=0.01,
     initial_spot=100,

@@ -55,13 +55,18 @@ pub fn multi_event_terms(
         60.0,
         start,
         end,
-        autocallable_observations(
-            &[date(2, 3), date(3, 3), end],
-            &[110.0, 108.0, 105.0],
-            None,
-            Some(&[95.0; 3]),
-        )
-        .unwrap(),
+        [date(2, 3), date(3, 3), end]
+            .iter()
+            .zip([110.0, 108.0, 105.0].iter())
+            .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
+        [date(2, 3), date(3, 3), end]
+            .iter()
+            .zip([95.0; 3].iter())
+            .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+            .collect::<kiyosi::Result<Vec<_>>>()
+            .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },

@@ -177,11 +177,13 @@ def contract_inputs():
             "principal_redemption_ratio": 1,
             "effective_time": START,
             "expiry_time": END,
-            "autocall_observations": [
-                i.AutocallableObservation.phoenix(
-                    datetime(2025, 12, 31), 110, coupon_barrier_level=0
-                ),
-                i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0),
+            "knock_out_observations": [
+                i.KnockOutObservation(datetime(2025, 12, 31), 110),
+                i.KnockOutObservation(END, 110),
+            ],
+            "coupon_observations": [
+                i.CouponObservation(datetime(2025, 12, 31), 0),
+                i.CouponObservation(END, 0),
             ],
         },
     )
@@ -386,19 +388,20 @@ def test_event_changes_preserve_omitted_history(subtests):
                 + timedelta(days=1)
             }
         else:
+            field = (
+                "knock_out_observations"
+                if isinstance(original, i.PhoenixOption)
+                else "autocall_observations"
+            )
+            records = getattr(original, field)
             original = original.replace(
-                autocall_observations=[
-                    original.autocall_observations[0].replace(
-                        time=datetime(2025, 1, 3)
-                    ),
-                    *original.autocall_observations,
-                ],
+                **{field: [records[0].replace(time=datetime(2025, 1, 3)), *records]},
                 barrier_state=original.barrier_state,
             )
             updates = {
-                "autocall_observations": [
-                    r.replace(knock_out_level=r.knock_out_level + 5)
-                    for r in original.autocall_observations
+                field: [
+                    record.replace(knock_out_level=record.knock_out_level + 5)
+                    for record in getattr(original, field)
                 ]
             }
         with subtests.test(contract=type(original).__name__):
@@ -435,12 +438,10 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
             if name in ("observation_mode", "observation_times"):
                 continue
             value = UPDATES.get(name)
-            if name == "autocall_observations" and isinstance(
-                original, i.PhoenixOption
-            ):
-                value = [
-                    i.AutocallableObservation.phoenix(END, 115, coupon_barrier_level=0)
-                ]
+            if name == "knock_out_observations":
+                value = [i.KnockOutObservation(END, 115)]
+            if name == "coupon_observations":
+                value = [i.CouponObservation(END, 0)]
             if name == "barrier_type":
                 value = (
                     "knock_out"
@@ -618,9 +619,9 @@ def test_monitoring_schedule_selects_mode_and_preserves_history_validation(subte
 
 def test_replaced_phoenix_observations_are_owned_and_coupon_is_periodic():
     note = next(value for value in contracts() if isinstance(value, i.PhoenixOption))
-    records = [i.AutocallableObservation.phoenix(END, 115, coupon_barrier_level=0)]
+    records = [i.KnockOutObservation(END, 115)]
     changed = note.replace(
-        autocall_observations=records,
+        knock_out_observations=records,
         coupon_per_period=0.02,
         barrier_state=note.barrier_state,
     )

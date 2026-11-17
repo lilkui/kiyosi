@@ -345,7 +345,7 @@ pub(super) fn autocallable<T: AutocallableTerms>(
     let mut knocked_in = state.knocked_in;
     let mut coupons = state.coupon;
     let mut next = note
-        .autocall_observations()
+        .events()
         .partition_point(|record| record.time() <= context.valuation_time());
     for time in future_event_times(note, context, note.view().daily_knock_in())? {
         let spot = spot(context, time)?;
@@ -353,13 +353,13 @@ pub(super) fn autocallable<T: AutocallableTerms>(
             knocked_in |= note.view().below_knock_in(spot);
         }
         if let Some(record) = note
-            .autocall_observations()
+            .events()
             .get(next)
             .filter(|record| record.time() == time)
         {
             next += 1;
             let coupon = note.observation_coupon(record, spot);
-            if note.knock_out_enabled(record) && spot >= record.knock_out_level() {
+            if record.has_knock_out() && spot >= record.knock_out_level() {
                 return finite(
                     coupons
                         + scaled_signed_cash(

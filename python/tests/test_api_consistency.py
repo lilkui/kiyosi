@@ -156,7 +156,7 @@ def test_autocallable_constructors_require_an_explicit_observation_clock(subtest
         "calendar": market.weekdays_calendar(),
     }
     snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0.1)
-    phoenix = ins.AutocallableObservation.phoenix(end, 110, coupon_barrier_level=90)
+    phoenix = ins.KnockOutObservation(end, 110)
     for cls, extra in (
         (
             ins.SnowballOption,
@@ -183,7 +183,8 @@ def test_autocallable_constructors_require_an_explicit_observation_clock(subtest
                 "initial_spot": 100,
                 "upper_strike": 100,
                 "lower_strike": 0,
-                "autocall_observations": [phoenix],
+                "knock_out_observations": [phoenix],
+                "coupon_observations": [ins.CouponObservation(end, 90)],
             },
         ),
     ):
@@ -337,11 +338,8 @@ def test_observation_coupon_choices_are_explicit_and_control_cashflows():
             effective_time=start,
             expiry_time=end,
             knock_in_observation=KnockInObservation.at_expiry(),
-            autocall_observations=[
-                ins.AutocallableObservation.phoenix(
-                    end, 200, coupon_barrier_level=barrier
-                )
-            ],
+            knock_out_observations=[ins.KnockOutObservation(end, 200)],
+            coupon_observations=[ins.CouponObservation(end, barrier)],
             barrier_state="no_event",
         )
         assert engine.price(note, context.replace(spot_price=50)) == pytest.approx(
@@ -1168,10 +1166,12 @@ def test_observation_construction_validates_numeric_terms_before_note_creation(
         for invalid in invalids:
             with subtests.test(field=field, invalid=invalid):
                 with pytest.raises(InvalidInputError):
-                    getattr(
-                        ins.AutocallableObservation,
-                        "snowball" if field == "coupon_rate" else "phoenix",
-                    )(time, 110, **{field: invalid})
+                    if field == "coupon_rate":
+                        ins.AutocallableObservation.snowball(
+                            time, 110, coupon_rate=invalid
+                        )
+                    else:
+                        ins.CouponObservation(time, invalid)
                 with pytest.raises(InvalidInputError):
                     ins.autocallable_observations([time], [110], **{keyword: [invalid]})
     records = ins.autocallable_observations(
@@ -2129,68 +2129,38 @@ def test_greek_methods_report_estimators_and_active_controls(subtests):
 
 
 @pytest.mark.parametrize("value", (0, 0.08))
-def test_observation_coupon_getters_roundtrip_without_placeholder_values(
-    subtests, value
-):
+def test_observation_coupon_getters_roundtrip_without_placeholder_values(value):
     at = datetime(2026, 1, 1)
-    for record, active, absent in (
-        (
-            ins.AutocallableObservation.snowball(at, 110, coupon_rate=value),
-            "coupon_rate",
-            "coupon_barrier_level",
-        ),
-        (
-            ins.AutocallableObservation.phoenix(at, 110, coupon_barrier_level=value),
-            "coupon_barrier_level",
-            "coupon_rate",
-        ),
-    ):
-        with subtests.test(kind=record.kind, value=value):
-            assert getattr(record, active) == value
-            assert getattr(record, absent) is None
-            assert (
-                record.replace(
-                    coupon_rate=record.coupon_rate,
-                    coupon_barrier_level=record.coupon_barrier_level,
-                )
-                == record
-            )
-            for updates in (
-                {active: None},
-                {"coupon_rate": None, "coupon_barrier_level": None},
-            ):
-                with pytest.raises(TypeError):
-                    record.replace(**updates)
-            assert record.replace(**{active: ..., absent: None}) == record
-            assert getattr(record, active) == value
+    record = ins.AutocallableObservation.snowball(at, 110, coupon_rate=value)
+    assert record.coupon_rate == value
+    assert record.coupon_barrier_level is None
+    assert (
+        record.replace(coupon_rate=record.coupon_rate, coupon_barrier_level=None)
+        == record
+    )
+    with pytest.raises(TypeError):
+        record.replace(coupon_rate=None)
+    coupon = ins.CouponObservation(at, value)
+    assert coupon.coupon_barrier_level == value
+    assert coupon.replace(coupon_barrier_level=coupon.coupon_barrier_level) == coupon
+    assert coupon.replace(time=..., coupon_barrier_level=...) == coupon
+    with pytest.raises(TypeError):
+        coupon.replace(coupon_barrier_level=None)
 
 
-def test_zero_coupon_observations_preserve_product_identity(subtests):
+def test_independent_observation_types_reject_mixed_records():
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
     snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0)
-    phoenix = ins.AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)
-    assert ins.autocallable_observations([end], [110], coupon_barrier_levels=[0]) == [
-        phoenix
-    ]
-    assert snowball != phoenix
-    for record, kind in ((snowball, "snowball"), (phoenix, "phoenix")):
-        with subtests.test(kind=kind):
-            assert record.kind == kind
-            assert record.replace(knock_out_level=120).kind == kind
-            assert (f"AutocallableObservation.{kind}(") in repr(record)
-    with pytest.raises(InvalidInputError):
-        snowball.replace(coupon_barrier_level=0)
-    with pytest.raises(InvalidInputError):
-        phoenix.replace(coupon_rate=0)
-    life = {"effective_time": start, "expiry_time": end}
-    with pytest.raises(InvalidInputError):
+    coupon = ins.CouponObservation(end, 0)
+    with pytest.raises(TypeError):
         ins.BinarySnowballOption(
             calendar=market.weekdays_calendar(),
             maturity_coupon_rate=0.1,
-            autocall_observations=[phoenix],
-            **life,
+            autocall_observations=[coupon],
+            effective_time=start,
+            expiry_time=end,
         )
-    with pytest.raises(InvalidInputError):
+    with pytest.raises(TypeError):
         ins.PhoenixOption(
             calendar=market.weekdays_calendar(),
             coupon_per_period=0.1,
@@ -2198,19 +2168,20 @@ def test_zero_coupon_observations_preserve_product_identity(subtests):
             knock_in_level=80,
             upper_strike=100,
             lower_strike=0,
-            autocall_observations=[snowball],
-            knock_in_observation=KnockInObservation.every_trading_day(end.time()),
-            **life,
+            knock_out_observations=[snowball],
+            coupon_observations=[coupon],
+            knock_in_observation=KnockInObservation.at_expiry(),
+            effective_time=start,
+            expiry_time=end,
         )
 
 
 def test_observation_replacement_preserves_validity_and_original_values(subtests):
     time = datetime(2026, 1, 1)
     original = ins.AutocallableObservation.snowball(time, 110, coupon_rate=-0.01)
-    phoenix = ins.AutocallableObservation.phoenix(time, 110, coupon_barrier_level=90)
-    assert phoenix.coupon_rate is None
-    assert "AutocallableObservation.phoenix" in repr(phoenix)
-    with pytest.raises(InvalidInputError):
+    phoenix = ins.CouponObservation(time, 90)
+    assert "CouponObservation" in repr(phoenix)
+    with pytest.raises(TypeError):
         phoenix.replace(coupon_rate=0.12)
     with pytest.raises(InvalidInputError):
         ins.autocallable_observations(

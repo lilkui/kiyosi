@@ -730,21 +730,4 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         TernarySnowballOption::new(ternary).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let mut binary = BinarySnowballTerms::new(
-        0.06,
-        date(1, 1),
-        date(4, 1),
-        observations(),
-        TradingCalendar::weekdays(),
-    );
-    binary.autocall_observations[0] = AutocallableObservation::phoenix(
-        binary.autocall_observations[0].time(),
-        binary.autocall_observations[0].knock_out_level(),
-        1.0,
-    )
-    .unwrap();
-    assert!(matches!(
-        BinarySnowballOption::new(binary).unwrap_err(),
-        Error::InvalidInput(_)
-    ));
 }

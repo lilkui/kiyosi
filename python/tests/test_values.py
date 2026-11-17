@@ -81,6 +81,8 @@ def values():
             valuation_time=START,
         ),
         i.AutocallableObservation.snowball(END, 110, coupon_rate=0),
+        i.KnockOutObservation(END, 110),
+        i.CouponObservation(END, 0),
         i.EuropeanOption(**vanilla),
         i.AmericanOption(**vanilla),
         i.CashOrNothingOption(payout=10, **vanilla),
@@ -136,10 +138,13 @@ def values():
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             coupon_per_period=0.1,
             **dict(
-                common,
-                autocall_observations=[
-                    i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
-                ],
+                {
+                    key: value
+                    for key, value in common.items()
+                    if key != "autocall_observations"
+                },
+                knock_out_observations=[i.KnockOutObservation(END, 110)],
+                coupon_observations=[i.CouponObservation(END, 0)],
             ),
         ),
         i.PhoenixOption(
@@ -147,10 +152,13 @@ def values():
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             coupon_per_period=0.01,
             **dict(
-                common,
-                autocall_observations=[
-                    i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
-                ],
+                {
+                    key: value
+                    for key, value in common.items()
+                    if key != "autocall_observations"
+                },
+                knock_out_observations=[i.KnockOutObservation(END, 110)],
+                coupon_observations=[i.CouponObservation(END, 0)],
             ),
         ),
         i.BinarySnowballOption(
@@ -478,17 +486,23 @@ def test_repr_bounds_large_contract_schedules(subtests):
                 i.PhoenixOption,
             ),
         ):
+            observation_fields = (
+                {
+                    "knock_out_observations": [
+                        i.KnockOutObservation(at, 110) for at in times
+                    ],
+                    "coupon_observations": [i.CouponObservation(at, 0) for at in times],
+                }
+                if isinstance(original, i.PhoenixOption)
+                else {"autocall_observations": observations}
+            )
             option = original.replace(
                 expiry_time=times[-1],
-                autocall_observations=[
-                    i.AutocallableObservation.phoenix(time, 110, coupon_barrier_level=0)
-                    for time in times
-                ]
-                if isinstance(original, i.PhoenixOption)
-                else observations,
+                **observation_fields,
                 barrier_state=original.barrier_state,
                 calendar=m.all_days_calendar(),
             )
+
         else:
             continue
         with subtests.test(contract=type(option).__name__):

@@ -1079,7 +1079,6 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = PhoenixOption::new(PhoenixTerms {
-        lockout_periods: 0,
         calendar: TradingCalendar::default(),
         coupon_per_period: 0.1,
         initial_spot: 100.0,
@@ -1093,16 +1092,15 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         principal_redemption_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
-        autocall_observations: vec![AutocallableObservation::phoenix(end, 110.0, 0.0).unwrap()],
+        knock_out_observations: vec![KnockOutObservation::new(end, 110.0).unwrap()],
+        coupon_observations: vec![CouponObservation::new(end, 0.0).unwrap()],
     })
     .unwrap();
     let saved = original.clone();
     assert_eq!(
         original
             .replace(PhoenixOptionChanges {
-                autocall_observations: Some(vec![
-                    AutocallableObservation::phoenix(end, 115.0, 0.0).unwrap()
-                ]),
+                knock_out_observations: Some(vec![KnockOutObservation::new(end, 115.0).unwrap()]),
                 ..Default::default()
             })
             .unwrap()
@@ -1202,9 +1200,16 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         PhoenixOptionChanges,
-        autocall_observations,
-        vec![AutocallableObservation::phoenix(end, 115.0, 0.0).unwrap()],
-        terms().autocall_observations
+        knock_out_observations,
+        vec![KnockOutObservation::new(end, 115.0).unwrap()],
+        terms().knock_out_observations
+    );
+    check_field!(
+        original,
+        PhoenixOptionChanges,
+        coupon_observations,
+        vec![CouponObservation::new(end, 90.0).unwrap()],
+        terms().coupon_observations
     );
     assert!(matches!(
         original.replace(PhoenixOptionChanges {

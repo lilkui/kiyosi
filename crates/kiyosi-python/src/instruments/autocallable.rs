@@ -18,51 +18,18 @@ macro_rules! autocallable_properties {
             {$($field: $field.map($convert).transpose()?),+}, [$(#[$replacement_doc])*], {
             $($extra)*
 
-            fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
-                let value = slf.borrow();
-                let py = slf.py();
-                crate::representation::format(slf.as_any(), Self::_STATE_FIELDS, &[
-                    ("calendar", Some(crate::representation::calendar_preview(py, value.0.calendar())?
-                        .unwrap_or_else(|| "weekdays_calendar()".into()))),
-                    ("autocall_observations", Some(crate::representation::observations(py, value.0.autocall_observations())?)),
-                ])
-            }
-
             /// Return an owned copy of the contract's monitoring calendar.
             #[getter]
             fn calendar(&self) -> TradingCalendar { TradingCalendar(self.0.calendar().clone()) }
-            /// Return owned copies of the contractual knock-out and coupon observations.
-            ///
-            /// Phoenix records include coupon observations during knock-out lockout.
-            /// Knock-in monitoring is available through knock_in_observation_schedule.
-            #[getter]
-            fn autocall_observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                PyTuple::new(py, self.0.autocall_observations().iter().copied().map(AutocallableObservation))
-            }
             /// Return an owned whole-life knock-in schedule, or None without knock-in.
             ///
             /// Daily monitoring includes the effective instant at the contractual clock on
             /// open dates. Expiry-only monitoring returns just expiry. Observations for
-            /// knock-out and coupons remain available through autocall_observations.
+            /// knock-out and coupons are supplied by the product observation lists.
             ///
             #[getter]
             fn knock_in_observation_schedule(&self) -> PyResult<Option<crate::schedule::ObservationSchedule>> {
                 Ok(domain(self.0.knock_in_observation_schedule())?.map(crate::schedule::ObservationSchedule))
-            }
-            /// Return a copy of the contractual knock-out and coupon observation times.
-            ///
-            /// Includes Phoenix coupon times during knock-out lockout; excludes
-            /// independently scheduled knock-in monitoring.
-            #[getter]
-            fn autocall_times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                PyTuple::new(py, self.0.autocall_observations().iter()
-                    .map(|r| python_timestamp(py, r.time()))
-                    .collect::<PyResult<Vec<_>>>()?)
-            }
-            /// Return copied knock-out thresholds in observation order.
-            #[getter]
-            fn knock_out_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.knock_out_level()))
             }
             /// Return nonnegative normalized principal, independent of coupons and losses.
             #[getter]
@@ -96,6 +63,38 @@ macro_rules! snowball_properties {
             $name,
             @replace $changes $parameters $conversions $documentation,
             $($extra,)*
+            fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+                let value = slf.borrow();
+                let py = slf.py();
+                crate::representation::format(slf.as_any(), Self::_STATE_FIELDS, &[
+                    ("calendar", Some(crate::representation::calendar_preview(py, value.0.calendar())?
+                        .unwrap_or_else(|| "weekdays_calendar()".into()))),
+                    ("autocall_observations", Some(crate::representation::observations(py, value.0.autocall_observations())?)),
+                ])
+            },
+
+            /// Return owned copies of the contractual knock-out and coupon observations.
+            ///
+            /// Knock-in monitoring is available through knock_in_observation_schedule.
+            #[getter]
+            fn autocall_observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+                PyTuple::new(py, self.0.autocall_observations().iter().copied().map(AutocallableObservation))
+            },
+            /// Return a copy of the contractual knock-out and coupon observation times.
+            ///
+            /// Excludes independently scheduled knock-in monitoring.
+            #[getter]
+            fn autocall_times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+                PyTuple::new(py, self.0.autocall_observations().iter()
+                    .map(|r| python_timestamp(py, r.time()))
+                    .collect::<PyResult<Vec<_>>>()?)
+            },
+            /// Return copied knock-out thresholds in observation order.
+            #[getter]
+            fn knock_out_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+                PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.knock_out_level()))
+            },
+
             /// Return copied annual knock-out coupons in observation order.
             #[getter]
             fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
@@ -175,7 +174,7 @@ fn state_name(value: Option<kiyosi::AutocallableBarrierState>) -> Option<&'stati
 /// -----
 /// Construct with every_trading_day(observation_clock_time) or at_expiry().
 /// Knock-out and coupon timestamps are supplied independently through
-/// AutocallableObservation.
+/// the corresponding product observation records.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, Copy, PartialEq)]
@@ -257,22 +256,13 @@ pub(crate) fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Autocal
         .collect()
 }
 
-/// Knock-out and coupon observation with validated numeric terms.
+/// Snowball knock-out observation with a finite annual coupon.
 ///
 /// Notes
 /// -----
-/// Knock-in monitoring is defined independently by KnockInObservation. Phoenix
-/// coupon observations remain active during knock-out lockout.
-///
-/// Construct with snowball(..., coupon_rate=...) or phoenix(...,
-/// coupon_barrier_level=...). A zero knock-out coupon or unconditional Phoenix
-/// coupon requires an explicit zero. Observations retain their snowball or
-/// Phoenix kind, including at zero. Notes reject observations of the other
-/// kind; replacements preserve the kind. Numeric terms are validated in Rust
-/// on construction. Note construction also validates observation ordering,
-/// life bounds and product-specific constraints. Invalid numeric terms raise
-/// InvalidInputError.
-///
+/// Construct with snowball(time, knock_out_level, coupon_rate=...).
+/// Numeric terms are validated in Rust; the note validates ordering, life bounds
+/// and calendar compatibility. Phoenix uses KnockOutObservation and CouponObservation.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct AutocallableObservation(pub kiyosi::AutocallableObservation);
@@ -308,39 +298,6 @@ impl AutocallableObservation {
             real(coupon_rate)?,
         ))?))
     }
-    /// Create a Phoenix observation with a coupon threshold.
-    ///
-    /// The note supplies the coupon amount.
-    ///
-    /// Parameters
-    /// ----------
-    /// time : datetime.datetime
-    ///     Exact observation timestamp.
-    /// knock_out_level : float
-    ///     Positive finite inclusive knock-out threshold.
-    /// coupon_barrier_level : float
-    ///     Nonnegative finite coupon threshold; supply zero explicitly for
-    ///     unconditional coupons.
-    ///
-    /// Raises
-    /// ------
-    /// InvalidInputError
-    ///     If the knock-out level is nonpositive or non-finite, or the coupon
-    ///     threshold is negative or non-finite.
-    ///
-    #[staticmethod]
-    #[pyo3(signature = (time, knock_out_level, *, coupon_barrier_level))]
-    fn phoenix(
-        time: &Bound<'_, PyAny>,
-        knock_out_level: &Bound<'_, PyAny>,
-        coupon_barrier_level: &Bound<'_, PyAny>,
-    ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::AutocallableObservation::phoenix(
-            timestamp(time)?,
-            real(knock_out_level)?,
-            real(coupon_barrier_level)?,
-        ))?))
-    }
     /// Return a validated observation with the supplied fields replaced.
     ///
     /// Omitted fields or Ellipsis retain their values and observation kind.
@@ -352,9 +309,9 @@ impl AutocallableObservation {
     /// knock_out_level : float, optional
     ///     Positive finite knock-out threshold.
     /// coupon_rate : float or None, optional
-    ///     Finite annual snowball coupon. None only for Phoenix observations.
+    ///     Finite annual snowball coupon. None is not a coupon value.
     /// coupon_barrier_level : float or None, optional
-    ///     Nonnegative Phoenix threshold. None only for snowball observations.
+    ///     Inapplicable to snowball observations; None retains the absence of a barrier.
     ///
     /// Returns
     /// -------
@@ -379,7 +336,6 @@ impl AutocallableObservation {
     ) -> PyResult<Self> {
         let active_coupon = match self.0.kind() {
             kiyosi::AutocallableObservationKind::Snowball => coupon_rate,
-            kiyosi::AutocallableObservationKind::Phoenix => coupon_barrier_level,
         };
         if active_coupon.is_some_and(Bound::is_none) {
             return Err(PyTypeError::new_err(
@@ -398,12 +354,11 @@ impl AutocallableObservation {
             }),
         )?))
     }
-    /// Return snowball or phoenix, independently of coupon values.
+    /// Return snowball, independently of the coupon amount.
     #[getter]
     pub(crate) fn kind(&self) -> &'static str {
         match self.0.kind() {
             kiyosi::AutocallableObservationKind::Snowball => "snowball",
-            kiyosi::AutocallableObservationKind::Phoenix => "phoenix",
         }
     }
     /// Return exact observation time.
@@ -416,12 +371,12 @@ impl AutocallableObservation {
     fn knock_out_level(&self) -> f64 {
         self.0.knock_out_level()
     }
-    /// Return the annual snowball coupon rate, or None for Phoenix observations.
+    /// Return the finite annual snowball coupon rate.
     #[getter]
     fn coupon_rate(&self) -> Option<f64> {
         self.0.coupon_rate()
     }
-    /// Return the Phoenix coupon threshold, or None for snowball observations.
+    /// Return None for snowball observations.
     #[getter]
     fn coupon_barrier_level(&self) -> Option<f64> {
         self.0.coupon_barrier_level()
@@ -430,6 +385,93 @@ impl AutocallableObservation {
         crate::representation::observation(py, &self.0)
     }
 }
+
+macro_rules! phoenix_observation {
+    ($name:ident, $level:ident, $records:ident, $description:literal) => {
+        #[doc = $description]
+        ///
+        /// Parameters
+        /// ----------
+        /// time : datetime.datetime
+        ///     Exact timezone-free observation timestamp.
+        #[doc = concat!(stringify!($level), " : float")]
+        ///     Finite observation threshold; knock-out levels are positive and
+        ///     coupon barriers are nonnegative. A zero coupon barrier is unconditional.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If the threshold is outside its domain.
+        /// TypeError
+        ///     If the timestamp or number representation is invalid.
+        #[pyclass(frozen, eq, module = "kiyosi._native")]
+        #[derive(Clone, Copy, PartialEq)]
+        pub(crate) struct $name(pub kiyosi::$name);
+        #[pymethods]
+        impl $name {
+            #[classattr]
+            const _STATE_FIELDS: &'static [&'static str] = &["time", stringify!($level)];
+            #[new]
+            #[pyo3(signature = (time, $level))]
+            fn new(time: &Bound<'_, PyAny>, $level: &Bound<'_, PyAny>) -> PyResult<Self> {
+                Ok(Self(domain(kiyosi::$name::new(timestamp(time)?, real($level)?))?))
+            }
+            /// Return the exact observation timestamp.
+            #[getter]
+            fn time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+                python_timestamp(py, self.0.time())
+            }
+            /// Return the validated observation threshold.
+            #[getter]
+            fn $level(&self) -> f64 { self.0.$level() }
+            /// Return a validated replacement, leaving the original unchanged.
+            ///
+            /// Parameters
+            /// ----------
+            /// time : datetime.datetime, optional
+            ///     Replacement observation timestamp; omission or Ellipsis retains it.
+            #[doc = concat!(stringify!($level), " : float, optional")]
+            ///     Replacement threshold; omission or Ellipsis retains it.
+            ///
+            /// Returns
+            /// -------
+            #[doc = stringify!($name)]
+            ///     Independent validated observation.
+            ///
+            /// Raises
+            /// ------
+            /// InvalidInputError
+            ///     If the threshold is outside its domain.
+            /// TypeError
+            ///     If the timestamp or number representation is invalid.
+            #[pyo3(signature = (*, time=crate::conversions::OMITTED, $level=crate::conversions::OMITTED))]
+            fn replace(&self,
+                #[pyo3(from_py_with = supplied)] time: Option<&Bound<'_, PyAny>>,
+                #[pyo3(from_py_with = supplied)] $level: Option<&Bound<'_, PyAny>>,
+            ) -> PyResult<Self> {
+                Ok(Self(domain(self.0.replace(time.map(timestamp).transpose()?, $level.map(real).transpose()?))?))
+            }
+            fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+                Ok(format!("{}(time={}, {}={:?})", stringify!($name), python_timestamp(py, self.0.time())?.repr()?, stringify!($level), self.0.$level()))
+            }
+        }
+        fn $records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::$name>> {
+            values.try_iter()?.map(|item| Ok(item?.extract::<PyRef<'_, $name>>()?.0)).collect()
+        }
+    };
+}
+phoenix_observation!(
+    KnockOutObservation,
+    knock_out_level,
+    knock_out_records,
+    "One Phoenix knock-out observation with a positive inclusive threshold."
+);
+phoenix_observation!(
+    CouponObservation,
+    coupon_barrier_level,
+    coupon_records,
+    "One Phoenix coupon observation with a nonnegative inclusive threshold."
+);
 
 /// Combine parallel sequences into validated observation records.
 ///
@@ -443,8 +485,8 @@ impl AutocallableObservation {
 /// knock_out_coupon_rates : iterable of float or None, optional
 ///     Explicit annual snowball coupons, including zero for no coupon.
 /// coupon_barrier_levels : iterable of float or None, optional
-///     Explicit Phoenix coupon thresholds, including zero for unconditional
-///     coupons.
+///     Reserved for observation-kind validation; must be None. Phoenix uses
+///     separate KnockOutObservation and CouponObservation records.
 ///
 /// Returns
 /// -------
@@ -459,8 +501,8 @@ impl AutocallableObservation {
 ///
 /// Notes
 /// -----
-/// The note constructor validates ordering, life bounds and product-specific
-/// constraints. Supply exactly one of knock_out_coupon_rates and
+/// The note constructor validates ordering, life bounds and calendar compatibility.
+/// Supply knock_out_coupon_rates, including explicit zero values, and no
 /// coupon_barrier_levels.
 ///
 /// Passing an ObservationSchedule copies its timestamps into the records;
@@ -1203,11 +1245,10 @@ snowball_properties! {
 ///     Inclusive contract start.
 /// expiry_time : datetime.datetime
 ///     Inclusive expiry time.
-/// autocall_observations : iterable of AutocallableObservation
-///     Nonempty, strictly ordered knock-out and coupon observations within life.
-/// lockout_periods : int, optional
-///     Initial observations excluded from knock-out; defaults to zero and must
-///     leave at least one eligible observation. Coupons and knock-in remain active.
+/// knock_out_observations : iterable of KnockOutObservation
+///     Nonempty, strictly ordered knock-out observations within life.
+/// coupon_observations : iterable of CouponObservation
+///     Independent nonempty, strictly ordered coupon observations within life.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
 ///     Events strictly before valuation. None is unknown; no_event means no prior
 ///     knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -1225,9 +1266,7 @@ snowball_properties! {
 /// TypeError
 ///     If a required value is missing or a supplied representation is invalid.
 /// InvalidInputError
-///     If amounts, strikes, life times or observations are invalid. Records
-///     must be Phoenix observations with nonnegative coupon barriers;
-///     snowball observations are rejected even when their coupon is zero.
+///     If amounts, strikes, life times or either observation list are invalid.
 ///
 /// Notes
 /// -----
@@ -1235,16 +1274,16 @@ snowball_properties! {
 /// effective timestamp, without time accrual. None is not a coupon value.
 /// Coupon and knock-out barriers are inclusive; knock-in is strict.
 /// Past coupons are settled. There is no coupon memory or maturity coupon.
-/// The initial lockout disables only knock-out; coupons and knock-in remain active.
+/// Knock-out and coupon schedules are independent; neither implies an observation
+/// in the other. Expiry adds no implicit coupon or knock-out observation.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
-    @replace PhoenixOptionChanges [coupon_per_period, lockout_periods, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, barrier_state, principal_redemption_ratio, effective_time, expiry_time, autocall_observations, calendar]
+    @replace PhoenixOptionChanges [coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, barrier_state, principal_redemption_ratio, effective_time, expiry_time, knock_out_observations, coupon_observations, calendar]
     {
-        lockout_periods => integer_usize,
         calendar => |v| v.extract::<TradingCalendar>().map(|v| v.0),
         coupon_per_period => crate::conversions::real,
         initial_spot => crate::conversions::real,
@@ -1256,7 +1295,8 @@ autocallable_properties! {
         principal_redemption_ratio => crate::conversions::real,
         effective_time => crate::conversions::timestamp,
         expiry_time => crate::conversions::timestamp,
-        autocall_observations => crate::instruments::autocallable::records,
+        knock_out_observations => crate::instruments::autocallable::knock_out_records,
+        coupon_observations => crate::instruments::autocallable::coupon_records,
     }
     [
     /// Return a validated replacement.
@@ -1267,8 +1307,6 @@ autocallable_properties! {
     /// ----------
     /// coupon_per_period : float, optional
     ///     Finite signed periodic coupon rate; omission or Ellipsis retains it.
-    /// lockout_periods : int, optional
-    ///     Initial observations excluded from knock-out. Does not regenerate barriers.
     /// initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
     ///     Reference spot, strict downside barrier, and loss interval strikes.
     /// knock_in_observation : KnockInObservation, optional
@@ -1279,8 +1317,10 @@ autocallable_properties! {
     ///     Finite nonnegative principal redemption per unit of original notional.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
-    /// autocall_observations : iterable of AutocallableObservation, optional
-    ///     Product-specific knock-out and coupon observations, in time order.
+    /// knock_out_observations : iterable of KnockOutObservation, optional
+    ///     Knock-out observations in time order.
+    /// coupon_observations : iterable of CouponObservation, optional
+    ///     Independent coupon observations in time order.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar; omission retains it.
     ///
@@ -1298,12 +1338,8 @@ autocallable_properties! {
     ///     If a representation or field name is invalid, including a None coupon.
     ///
     ],
-    /// Return the number of initial observations excluded from knock-out.
-    #[getter]
-    fn lockout_periods(&self) -> usize { self.0.lockout_periods() },
-
     #[new]
-    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, autocall_observations, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar))]
+    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, knock_out_observations, coupon_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         #[pyo3(from_py_with = real)] coupon_per_period: f64,
@@ -1314,8 +1350,8 @@ autocallable_properties! {
         knock_in_observation: &KnockInObservation,
         effective_time: &Bound<'_, PyAny>,
         expiry_time: &Bound<'_, PyAny>,
-        autocall_observations: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = integer_usize)] lockout_periods: usize,
+        knock_out_observations: &Bound<'_, PyAny>,
+        coupon_observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
         calendar: TradingCalendar,
@@ -1329,11 +1365,11 @@ autocallable_properties! {
             real(lower_strike)?,
             timestamp(effective_time)?,
             timestamp(expiry_time)?,
-            records(autocall_observations)?,
+            knock_out_records(knock_out_observations)?,
+            coupon_records(coupon_observations)?,
             knock_in_observation.0,
             calendar.0,
         );
-        terms.lockout_periods = lockout_periods;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
@@ -1372,7 +1408,7 @@ autocallable_properties! {
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
     fn coupon_barrier_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.coupon_barrier_level().unwrap_or_default()))
+        PyTuple::new(py, self.0.coupon_observations().iter().map(kiyosi::CouponObservation::coupon_barrier_level))
     },
     /// Return the finite signed coupon proportion per qualifying observation.
     #[getter]
@@ -1403,7 +1439,41 @@ autocallable_properties! {
     #[getter]
     fn knock_in_observation(&self) -> KnockInObservation {
         KnockInObservation(self.0.terms().knock_in_observation)
+    },    /// Return owned copies of the knock-out observations.
+    #[getter]
+    fn knock_out_observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.knock_out_observations().iter().copied().map(KnockOutObservation))
     },
+    /// Return copied exact knock-out observation times.
+    #[getter]
+    fn knock_out_times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.knock_out_observations().iter().map(|record| python_timestamp(py, record.time())).collect::<PyResult<Vec<_>>>()?)
+    },
+    /// Return owned copies of the coupon observations.
+    #[getter]
+    fn coupon_observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.coupon_observations().iter().copied().map(CouponObservation))
+    },
+    /// Return copied exact coupon observation times.
+    #[getter]
+    fn coupon_times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.coupon_observations().iter().map(|record| python_timestamp(py, record.time())).collect::<PyResult<Vec<_>>>()?)
+    },
+    /// Return copied knock-out thresholds in knock-out observation order.
+    #[getter]
+    fn knock_out_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(py, self.0.knock_out_observations().iter().map(kiyosi::KnockOutObservation::knock_out_level))
+    },
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let value = slf.borrow();
+        let py = slf.py();
+        crate::representation::format(slf.as_any(), Self::_STATE_FIELDS, &[
+            ("calendar", Some(crate::representation::calendar_preview(py, value.0.calendar())?.unwrap_or_else(|| "weekdays_calendar()".into()))),
+            ("knock_out_observations", Some(crate::representation::preview(value.0.knock_out_observations(), |r| KnockOutObservation(*r).__repr__(py))?)),
+            ("coupon_observations", Some(crate::representation::preview(value.0.coupon_observations(), |r| CouponObservation(*r).__repr__(py))?)),
+        ])
+    },
+
 }
 
 macro_rules! phoenix_preset {

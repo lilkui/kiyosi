@@ -14,8 +14,10 @@ from kiyosi import (
 from kiyosi.instruments import (
     BinarySnowballOption,
     CashOrNothingOption,
+    CouponObservation,
     EuropeanOption,
     KnockInObservation,
+    KnockOutObservation,
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
@@ -159,9 +161,14 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
                 **common,
                 **downside,
                 coupon_per_period=0.1,
-                autocall_observations=autocallable_observations(
-                    [end], [100], coupon_barrier_levels=[100]
-                ),
+                knock_out_observations=[
+                    KnockOutObservation(at, level)
+                    for at, level in zip([end], [100], strict=True)
+                ],
+                coupon_observations=[
+                    CouponObservation(at, level)
+                    for at, level in zip([end], [100], strict=True)
+                ],
             ),
             expected_downside,
         ),
@@ -284,11 +291,16 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
                     upper_strike=100,
                     lower_strike=60,
                     coupon_per_period=0.08,
-                    autocall_observations=autocallable_observations(
-                        autocall_times,
-                        knock_out_levels,
-                        coupon_barrier_levels=[100, 99, 98],
-                    ),
+                    knock_out_observations=[
+                        KnockOutObservation(at, level)
+                        for at, level in zip(
+                            autocall_times, knock_out_levels, strict=True
+                        )
+                    ],
+                    coupon_observations=[
+                        CouponObservation(at, level)
+                        for at, level in zip(autocall_times, [100, 99, 98], strict=True)
+                    ],
                 ),
                 pricing.FiniteDifferenceAutocallableEngine,
             ),
@@ -403,11 +415,14 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                 upper_strike=100,
                 lower_strike=60,
                 coupon_per_period=0.073,
-                autocall_observations=autocallable_observations(
-                    autocall_times,
-                    knock_out_levels,
-                    coupon_barrier_levels=[90, 90],
-                ),
+                knock_out_observations=[
+                    KnockOutObservation(at, level)
+                    for at, level in zip(autocall_times, knock_out_levels, strict=True)
+                ],
+                coupon_observations=[
+                    CouponObservation(at, level)
+                    for at, level in zip(autocall_times, [90, 90], strict=True)
+                ],
             ),
             pricing.FiniteDifferenceAutocallableEngine,
         ),
@@ -608,11 +623,16 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
             {
                 **downside,
                 "coupon_per_period": 0.08,
-                "autocall_observations": autocallable_observations(
-                    autocall_times,
-                    knock_out_levels,
-                    coupon_barrier_levels=[100] * len(dates),
-                ),
+                "knock_out_observations": [
+                    KnockOutObservation(at, level)
+                    for at, level in zip(autocall_times, knock_out_levels, strict=True)
+                ],
+                "coupon_observations": [
+                    CouponObservation(at, level)
+                    for at, level in zip(
+                        autocall_times, [100] * len(dates), strict=True
+                    )
+                ],
             },
         ),
     )
@@ -855,9 +875,14 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         initial_spot=100,
         upper_strike=100,
         lower_strike=60,
-        autocall_observations=autocallable_observations(
-            autocall_times, knock_out_levels, coupon_barrier_levels=[0]
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip(autocall_times, knock_out_levels, strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip(autocall_times, [0], strict=True)
+        ],
     )
     ternary = TernarySnowballOption(
         calendar=weekdays_calendar(),

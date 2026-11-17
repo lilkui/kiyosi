@@ -6466,7 +6466,7 @@ class KnockInObservation:
     -----
     Construct with every_trading_day(observation_clock_time) or at_expiry().
     Knock-out and coupon timestamps are supplied independently through
-    AutocallableObservation.
+    the corresponding product observation records.
     """
 
     def __eq__(self, other: object) -> bool: ...
@@ -6509,21 +6509,13 @@ class KnockInObservation:
         """Return the owned daily clock, or None for expiry-only observation."""
 
 class AutocallableObservation:
-    """Knock-out and coupon observation with validated numeric terms.
+    """Snowball knock-out observation with a finite annual coupon.
 
     Notes
     -----
-    Knock-in monitoring is defined independently by KnockInObservation. Phoenix
-    coupon observations remain active during knock-out lockout.
-
-    Construct with snowball(..., coupon_rate=...) or phoenix(...,
-    coupon_barrier_level=...). A zero knock-out coupon or unconditional Phoenix
-    coupon requires an explicit zero. Observations retain their snowball or
-    Phoenix kind, including at zero. Notes reject observations of the other
-    kind; replacements preserve the kind. Numeric terms are validated in Rust
-    on construction. Note construction also validates observation ordering,
-    life bounds and product-specific constraints. Invalid numeric terms raise
-    InvalidInputError.
+    Construct with snowball(time, knock_out_level, coupon_rate=...).
+    Numeric terms are validated in Rust; the note validates ordering, life bounds
+    and calendar compatibility. Phoenix uses KnockOutObservation and CouponObservation.
     """
 
     def replace(
@@ -6545,9 +6537,9 @@ class AutocallableObservation:
         knock_out_level : float, optional
             Positive finite knock-out threshold.
         coupon_rate : float or None, optional
-            Finite annual snowball coupon. None only for Phoenix observations.
+            Finite annual snowball coupon. None is not a coupon value.
         coupon_barrier_level : float or None, optional
-            Nonnegative Phoenix threshold. None only for snowball observations.
+            Inapplicable to snowball observations; None retains the absence of a barrier.
 
         Returns
         -------
@@ -6565,8 +6557,8 @@ class AutocallableObservation:
 
     def __new__(cls, _token: Never, /) -> Self: ...
     @property
-    def kind(self) -> Literal["snowball", "phoenix"]:
-        """Return snowball or phoenix, independently of coupon values."""
+    def kind(self) -> Literal["snowball"]:
+        """Return snowball, independently of the coupon amount."""
 
     @staticmethod
     def snowball(
@@ -6590,31 +6582,6 @@ class AutocallableObservation:
             If the level is nonpositive or non-finite, or the coupon is non-finite.
         """
 
-    @staticmethod
-    def phoenix(
-        time: datetime, knock_out_level: _Real, *, coupon_barrier_level: _Real
-    ) -> AutocallableObservation:
-        """Create a Phoenix observation with a coupon threshold.
-
-        The note supplies the coupon amount.
-
-        Parameters
-        ----------
-        time : datetime.datetime
-            Exact observation timestamp.
-        knock_out_level : float
-            Positive finite inclusive knock-out threshold.
-        coupon_barrier_level : float
-            Nonnegative finite coupon threshold; supply zero explicitly for
-            unconditional coupons.
-
-        Raises
-        ------
-        InvalidInputError
-            If the knock-out level is nonpositive or non-finite, or the coupon
-            threshold is negative or non-finite.
-        """
-
     @property
     def time(self) -> datetime:
         """Return exact observation time."""
@@ -6625,13 +6592,12 @@ class AutocallableObservation:
 
     @property
     def coupon_rate(self) -> float | None:
-        """Return the annual snowball coupon rate, or None for Phoenix observations."""
+        """Return the finite annual snowball coupon rate."""
 
     @property
     def coupon_barrier_level(self) -> float | None:
-        """Return the Phoenix coupon threshold, or None for snowball observations."""
+        """Return None for snowball observations."""
 
-@overload
 def autocallable_observations(
     autocall_times: Iterable[datetime],
     knock_out_levels: Iterable[_Real],
@@ -6651,8 +6617,8 @@ def autocallable_observations(
     knock_out_coupon_rates : iterable of float or None, optional
         Explicit annual snowball coupons, including zero for no coupon.
     coupon_barrier_levels : iterable of float or None, optional
-        Explicit Phoenix coupon thresholds, including zero for unconditional
-        coupons.
+        Reserved for observation-kind validation; must be None. Phoenix uses
+        separate KnockOutObservation and CouponObservation records.
 
     Returns
     -------
@@ -6667,8 +6633,8 @@ def autocallable_observations(
 
     Notes
     -----
-    The note constructor validates ordering, life bounds and product-specific
-    constraints. Supply exactly one of knock_out_coupon_rates and
+    The note constructor validates ordering, life bounds and calendar compatibility.
+    Supply knock_out_coupon_rates, including explicit zero values, and no
     coupon_barrier_levels.
 
     Passing an ObservationSchedule copies its timestamps into the records;
@@ -6705,15 +6671,6 @@ def autocallable_observations(
     >>> len(note.knock_in_observation_schedule)
     6
     """
-
-@overload
-def autocallable_observations(
-    autocall_times: Iterable[datetime],
-    knock_out_levels: Iterable[_Real],
-    *,
-    knock_out_coupon_rates: None = None,
-    coupon_barrier_levels: Iterable[_Real],
-) -> list[AutocallableObservation]: ...
 
 class SnowballOption:
     """Snowball with knock-out coupons and capped knock-in downside loss.
@@ -6764,7 +6721,7 @@ class SnowballOption:
 
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
-        knock-out and coupons remain available through autocall_observations.
+        knock-out and coupons are supplied by the product observation lists.
         """
 
     def replace(
@@ -6869,7 +6826,6 @@ class SnowballOption:
     def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
         """Return owned copies of the contractual knock-out and coupon observations.
 
-        Phoenix records include coupon observations during knock-out lockout.
         Knock-in monitoring is available through knock_in_observation_schedule.
         """
 
@@ -6877,8 +6833,7 @@ class SnowballOption:
     def autocall_times(self) -> tuple[datetime, ...]:
         """Return a copy of the contractual knock-out and coupon observation times.
 
-        Includes Phoenix coupon times during knock-out lockout; excludes
-        independently scheduled knock-in monitoring.
+        Excludes independently scheduled knock-in monitoring.
         """
 
     @property
@@ -6933,6 +6888,118 @@ class SnowballOption:
     def calendar(self) -> TradingCalendar:
         """Return an owned copy of the contract's monitoring calendar."""
 
+class KnockOutObservation:
+    """One Phoenix knock-out observation with a positive inclusive threshold.
+
+    Parameters
+    ----------
+    time : datetime.datetime
+        Exact timezone-free observation timestamp.
+    knock_out_level : float
+        Finite observation threshold; knock-out levels are positive and
+        coupon barriers are nonnegative. A zero coupon barrier is unconditional.
+
+    Raises
+    ------
+    InvalidInputError
+        If the threshold is outside its domain.
+    TypeError
+        If the timestamp or number representation is invalid.
+    """
+
+    def __init__(self, time: datetime, knock_out_level: _Real) -> None: ...
+    @property
+    def time(self) -> datetime:
+        """Return the exact observation timestamp."""
+
+    @property
+    def knock_out_level(self) -> float:
+        """Return the validated observation threshold."""
+
+    def replace(
+        self,
+        *,
+        time: datetime | EllipsisType = ...,
+        knock_out_level: _Real | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated replacement, leaving the original unchanged.
+
+        Parameters
+        ----------
+        time : datetime.datetime, optional
+            Replacement observation timestamp; omission or Ellipsis retains it.
+        knock_out_level : float, optional
+            Replacement threshold; omission or Ellipsis retains it.
+
+        Returns
+        -------
+        KnockOutObservation
+            Independent validated observation.
+
+        Raises
+        ------
+        InvalidInputError
+            If the threshold is outside its domain.
+        TypeError
+            If the timestamp or number representation is invalid.
+        """
+
+class CouponObservation:
+    """One Phoenix coupon observation with a nonnegative inclusive threshold.
+
+    Parameters
+    ----------
+    time : datetime.datetime
+        Exact timezone-free observation timestamp.
+    coupon_barrier_level : float
+        Finite observation threshold; knock-out levels are positive and
+        coupon barriers are nonnegative. A zero coupon barrier is unconditional.
+
+    Raises
+    ------
+    InvalidInputError
+        If the threshold is outside its domain.
+    TypeError
+        If the timestamp or number representation is invalid.
+    """
+
+    def __init__(self, time: datetime, coupon_barrier_level: _Real) -> None: ...
+    @property
+    def time(self) -> datetime:
+        """Return the exact observation timestamp."""
+
+    @property
+    def coupon_barrier_level(self) -> float:
+        """Return the validated observation threshold."""
+
+    def replace(
+        self,
+        *,
+        time: datetime | EllipsisType = ...,
+        coupon_barrier_level: _Real | EllipsisType = ...,
+    ) -> Self:
+        """Return a validated replacement, leaving the original unchanged.
+
+        Parameters
+        ----------
+        time : datetime.datetime, optional
+            Replacement observation timestamp; omission or Ellipsis retains it.
+        coupon_barrier_level : float, optional
+            Replacement threshold; omission or Ellipsis retains it.
+
+        Returns
+        -------
+        CouponObservation
+            Independent validated observation.
+
+        Raises
+        ------
+        InvalidInputError
+            If the threshold is outside its domain.
+        TypeError
+            If the timestamp or number representation is invalid.
+        """
+
 class PhoenixOption:
     """Autocallable with conditional period coupons and capped downside loss.
 
@@ -6955,11 +7022,10 @@ class PhoenixOption:
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    autocall_observations : iterable of AutocallableObservation
-        Nonempty, strictly ordered knock-out and coupon observations within life.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
+    knock_out_observations : iterable of KnockOutObservation
+        Nonempty, strictly ordered knock-out observations within life.
+    coupon_observations : iterable of CouponObservation
+        Independent nonempty, strictly ordered coupon observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out; knocked_in means an outstanding knocked-in note;
@@ -6977,9 +7043,7 @@ class PhoenixOption:
     TypeError
         If a required value is missing or a supplied representation is invalid.
     InvalidInputError
-        If amounts, strikes, life times or observations are invalid. Records
-        must be Phoenix observations with nonnegative coupon barriers;
-        snowball observations are rejected even when their coupon is zero.
+        If amounts, strikes, life times or either observation list are invalid.
 
     Notes
     -----
@@ -6987,12 +7051,9 @@ class PhoenixOption:
     effective timestamp, without time accrual. None is not a coupon value.
     Coupon and knock-out barriers are inclusive; knock-in is strict.
     Past coupons are settled. There is no coupon memory or maturity coupon.
-    The initial lockout disables only knock-out; coupons and knock-in remain active.
+    Knock-out and coupon schedules are independent; neither implies an observation
+    in the other. Expiry adds no implicit coupon or knock-out observation.
     """
-
-    @property
-    def lockout_periods(self) -> int:
-        """Return the number of initial observations excluded from knock-out."""
 
     def with_coupon(self, *, coupon_per_period: _Real) -> Self:
         """Return a note with the supplied periodic coupon rate.
@@ -7023,14 +7084,13 @@ class PhoenixOption:
 
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
-        knock-out and coupons remain available through autocall_observations.
+        knock-out and coupons are supplied by the product observation lists.
         """
 
     def replace(
         self,
         *,
         coupon_per_period: _Real | EllipsisType = ...,
-        lockout_periods: SupportsIndex | EllipsisType = ...,
         initial_spot: _Real | EllipsisType = ...,
         knock_in_level: _Real | EllipsisType = ...,
         upper_strike: _Real | EllipsisType = ...,
@@ -7042,7 +7102,8 @@ class PhoenixOption:
         principal_redemption_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
+        knock_out_observations: Iterable[KnockOutObservation] | EllipsisType = ...,
+        coupon_observations: Iterable[CouponObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
@@ -7053,8 +7114,6 @@ class PhoenixOption:
         ----------
         coupon_per_period : float, optional
             Finite signed periodic coupon rate; omission or Ellipsis retains it.
-        lockout_periods : int, optional
-            Initial observations excluded from knock-out. Does not regenerate barriers.
         initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
             Reference spot, strict downside barrier, and loss interval strikes.
         knock_in_observation : KnockInObservation, optional
@@ -7065,8 +7124,10 @@ class PhoenixOption:
             Finite nonnegative principal redemption per unit of original notional.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
-        autocall_observations : iterable of AutocallableObservation, optional
-            Product-specific knock-out and coupon observations, in time order.
+        knock_out_observations : iterable of KnockOutObservation, optional
+            Knock-out observations in time order.
+        coupon_observations : iterable of CouponObservation, optional
+            Independent coupon observations in time order.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar; omission retains it.
 
@@ -7095,31 +7156,23 @@ class PhoenixOption:
         knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
-        autocall_observations: Iterable[AutocallableObservation],
-        lockout_periods: SupportsIndex = ...,
+        knock_out_observations: Iterable[KnockOutObservation],
+        coupon_observations: Iterable[CouponObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
-    def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
-        """Return owned copies of the contractual knock-out and coupon observations.
-
-        Phoenix records include coupon observations during knock-out lockout.
-        Knock-in monitoring is available through knock_in_observation_schedule.
-        """
+    def knock_out_observations(self) -> tuple[KnockOutObservation, ...]:
+        """Return owned copies of the knock-out observations."""
 
     @property
-    def autocall_times(self) -> tuple[datetime, ...]:
-        """Return a copy of the contractual knock-out and coupon observation times.
-
-        Includes Phoenix coupon times during knock-out lockout; excludes
-        independently scheduled knock-in monitoring.
-        """
+    def knock_out_times(self) -> tuple[datetime, ...]:
+        """Return copied exact knock-out observation times."""
 
     @property
     def knock_out_levels(self) -> tuple[float, ...]:
-        """Return copied knock-out thresholds in observation order."""
+        """Return copied knock-out thresholds in knock-out observation order."""
 
     @property
     def coupon_barrier_levels(self) -> tuple[float, ...]:
@@ -7169,6 +7222,14 @@ class PhoenixOption:
     def calendar(self) -> TradingCalendar:
         """Return an owned copy of the contract's monitoring calendar."""
 
+    @property
+    def coupon_observations(self) -> tuple[CouponObservation, ...]:
+        """Return owned copies of the coupon observations."""
+
+    @property
+    def coupon_times(self) -> tuple[datetime, ...]:
+        """Return copied exact coupon observation times."""
+
 class BinarySnowballOption:
     """Snowball with knock-out coupons and no knock-in or downside loss.
 
@@ -7207,7 +7268,7 @@ class BinarySnowballOption:
 
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
-        knock-out and coupons remain available through autocall_observations.
+        knock-out and coupons are supplied by the product observation lists.
         """
 
     def replace(
@@ -7298,7 +7359,6 @@ class BinarySnowballOption:
     def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
         """Return owned copies of the contractual knock-out and coupon observations.
 
-        Phoenix records include coupon observations during knock-out lockout.
         Knock-in monitoring is available through knock_in_observation_schedule.
         """
 
@@ -7306,8 +7366,7 @@ class BinarySnowballOption:
     def autocall_times(self) -> tuple[datetime, ...]:
         """Return a copy of the contractual knock-out and coupon observation times.
 
-        Includes Phoenix coupon times during knock-out lockout; excludes
-        independently scheduled knock-in monitoring.
+        Excludes independently scheduled knock-in monitoring.
         """
 
     @property
@@ -7386,7 +7445,7 @@ class TernarySnowballOption:
 
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
-        knock-out and coupons remain available through autocall_observations.
+        knock-out and coupons are supplied by the product observation lists.
         """
 
     def replace(
@@ -7485,7 +7544,6 @@ class TernarySnowballOption:
     def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
         """Return owned copies of the contractual knock-out and coupon observations.
 
-        Phoenix records include coupon observations during knock-out lockout.
         Knock-in monitoring is available through knock_in_observation_schedule.
         """
 
@@ -7493,8 +7551,7 @@ class TernarySnowballOption:
     def autocall_times(self) -> tuple[datetime, ...]:
         """Return a copy of the contractual knock-out and coupon observation times.
 
-        Includes Phoenix coupon times during knock-out lockout; excludes
-        independently scheduled knock-in monitoring.
+        Excludes independently scheduled knock-in monitoring.
         """
 
     @property

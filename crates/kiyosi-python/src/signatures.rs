@@ -54,7 +54,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     );
     register!(
         [
-            PhoenixOption,
             fixed_coupon_note,
             standard_phoenix,
             step_down_phoenix,
@@ -62,6 +61,10 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         ],
         principal_redemption_ratio = kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
         lockout_periods = kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS,
+    );
+    register!(
+        [PhoenixOption],
+        principal_redemption_ratio = kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO
     );
     register!(
         [Accumulator],

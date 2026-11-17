@@ -17,9 +17,10 @@ from kiyosi import (
 )
 from kiyosi.instruments import (
     AutocallableObservation,
+    CouponObservation,
     KnockInObservation,
+    KnockOutObservation,
     PhoenixOption,
-    autocallable_observations,
 )
 from kiyosi.market import (
     LocalVolatilityParameters,
@@ -68,9 +69,14 @@ def contract(**changes):
         "effective_time": START,
         "expiry_time": END,
         "barrier_state": "no_event",
-        "autocall_observations": autocallable_observations(
-            [MIDDLE, END], [110, 110], coupon_barrier_levels=[90, 90]
-        ),
+        "knock_out_observations": [
+            KnockOutObservation(at, level)
+            for at, level in zip([MIDDLE, END], [110, 110], strict=True)
+        ],
+        "coupon_observations": [
+            CouponObservation(at, level)
+            for at, level in zip([MIDDLE, END], [90, 90], strict=True)
+        ],
     }
     fields.update(changes)
     return PhoenixOption(
@@ -85,12 +91,22 @@ def test_lockout_daily_layers_agree_across_engines_and_constant_local_volatility
         knock_in_level=99,
         lower_strike=0,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        lockout_periods=2,
-        autocall_observations=autocallable_observations(
-            [datetime(2025, 1, 2), datetime(2025, 1, 6), end],
-            [100] * 3,
-            coupon_barrier_levels=[90] * 3,
-        ),
+        knock_out_observations=(
+            [
+                KnockOutObservation(at, level)
+                for at, level in zip(
+                    [datetime(2025, 1, 2), datetime(2025, 1, 6), end],
+                    [100] * 3,
+                    strict=True,
+                )
+            ]
+        )[2:],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip(
+                [datetime(2025, 1, 2), datetime(2025, 1, 6), end], [90] * 3, strict=True
+            )
+        ],
     )
     context = market()
     expected = QuadratureAutocallableEngine().price(note, context)
@@ -118,10 +134,16 @@ def test_lockout_daily_layers_agree_across_engines_and_constant_local_volatility
 def test_lockout_preserves_conditional_coupons_and_continuation_in_all_engines():
     note = contract(
         lower_strike=100,
-        lockout_periods=2,
-        autocall_observations=autocallable_observations(
-            [START, MIDDLE, END], [100] * 3, coupon_barrier_levels=[90] * 3
-        ),
+        knock_out_observations=(
+            [
+                KnockOutObservation(at, level)
+                for at, level in zip([START, MIDDLE, END], [100] * 3, strict=True)
+            ]
+        )[2:],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([START, MIDDLE, END], [90] * 3, strict=True)
+        ],
     )
     expected = math.exp(-0.04 * (END - START).days / 365) + 0.01
     for at in (MIDDLE, END):
@@ -147,11 +169,17 @@ def test_lockout_preserves_conditional_coupons_and_continuation_in_all_engines()
 def test_lockout_preserves_daily_knock_in_and_first_eligible_knock_out():
     note = contract(
         lower_strike=0,
-        lockout_periods=1,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        autocall_observations=autocallable_observations(
-            [START, END], [50, 200], coupon_barrier_levels=[0, 0]
-        ),
+        knock_out_observations=(
+            [
+                KnockOutObservation(at, level)
+                for at, level in zip([START, END], [50, 200], strict=True)
+            ]
+        )[1:],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([START, END], [0, 0], strict=True)
+        ],
     )
     horizon = (END - START).days / 365
     rate = math.log(90 / 70) / horizon
@@ -175,20 +203,37 @@ def test_lockout_history_depends_only_on_eligible_knock_out_observations():
     after_locked = MIDDLE + timedelta(days=1)
     after_eligible = first_eligible + timedelta(days=1)
     note = contract(
-        lockout_periods=1,
         barrier_state=None,
-        autocall_observations=autocallable_observations(
-            [MIDDLE, first_eligible, END], [110] * 3, coupon_barrier_levels=[90] * 3
-        ),
+        knock_out_observations=(
+            [
+                KnockOutObservation(at, level)
+                for at, level in zip(
+                    [MIDDLE, first_eligible, END], [110] * 3, strict=True
+                )
+            ]
+        )[1:],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([MIDDLE, first_eligible, END], [90] * 3, strict=True)
+        ],
     )
     engine = QuadratureAutocallableEngine()
     assert math.isfinite(engine.price(note, market(100, first_eligible)))
     with pytest.raises(MissingHistoryError):
         engine.price(note, market(100, after_eligible))
     known = note.replace(barrier_state="no_event")
-    assert known.replace(lockout_periods=0).barrier_state == "no_event"
-    assert known.lockout_periods == 1
-    assert known.replace(lockout_periods=2).lockout_periods == 2
+    assert (
+        known.replace(
+            knock_out_observations=[
+                KnockOutObservation(r.time, 110) for r in known.coupon_observations
+            ]
+        ).barrier_state
+        == "no_event"
+    )
+    assert known.knock_out_times == (first_eligible, END)
+    assert known.replace(
+        knock_out_observations=known.knock_out_observations[1:]
+    ).knock_out_times == (END,)
     with pytest.raises(InvalidInputError):
         engine.price(
             note.replace(barrier_state="knocked_out"), market(100, after_locked)
@@ -202,16 +247,33 @@ def test_lockout_history_depends_only_on_eligible_knock_out_observations():
         engine.price(daily, market(100, START + timedelta(days=1)))
 
 
-def test_lockout_counts_use_integer_protocol_and_core_validation(subtests):
+def test_factory_lockout_counts_use_integer_protocol_and_core_validation(subtests):
+    from kiyosi.instruments import fixed_coupon_note
+
     class Count:
         def __index__(self):
             return 1
 
-    note = contract(lockout_periods=Count())
-    assert note.lockout_periods == 1
-    assert contract().lockout_periods == 0
-    assert inspect.signature(PhoenixOption).parameters["lockout_periods"].default == 0
-    assert note.replace(lockout_periods=Ellipsis) == note
+    factory = partial(
+        fixed_coupon_note,
+        coupon_per_period=0.01,
+        initial_spot=100,
+        knock_in_level=80,
+        knock_out_level=110,
+        autocall_times=[MIDDLE, END],
+        effective_time=START,
+        expiry_time=END,
+    )
+    note = factory(lockout_periods=Count())
+    assert note.knock_out_times == (END,)
+    assert note.coupon_times == (MIDDLE, END)
+    assert factory().knock_out_times == (MIDDLE, END)
+    assert (
+        inspect.signature(fixed_coupon_note).parameters["lockout_periods"].default == 0
+    )
+    assert "lockout_periods" not in inspect.signature(PhoenixOption).parameters
+    with pytest.raises(TypeError):
+        note.replace(lockout_periods=0)
     for value, error in (
         (True, TypeError),
         (False, TypeError),
@@ -223,16 +285,12 @@ def test_lockout_counts_use_integer_protocol_and_core_validation(subtests):
         (2**100, OverflowError),
         (2, InvalidInputError),
     ):
-        for operation in (contract, note.replace):
-            with (
-                subtests.test(value=value, operation=operation),
-                pytest.raises(error),
-            ):
-                operation(lockout_periods=value)
-    context = market(110, MIDDLE)
-    result = QuadratureAutocallableEngine().price_with_greeks(note, context, "delta")
+        with subtests.test(value=value), pytest.raises(error):
+            factory(lockout_periods=value)
+    result = QuadratureAutocallableEngine().price_with_greeks(
+        note, market(110, MIDDLE), "delta"
+    )
     assert math.isfinite(result.require("delta"))
-    assert note.lockout_periods == 1
 
 
 @pytest.mark.parametrize("coupon", (-0.01, 0, 0.01))
@@ -242,9 +300,14 @@ def test_periodic_coupons_ignore_unequal_and_zero_length_periods_in_all_engines(
 ):
     note = contract(
         coupon_per_period=coupon,
-        autocall_observations=autocallable_observations(
-            [START, MIDDLE, END], [110] * 3, coupon_barrier_levels=[90] * 3
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([START, MIDDLE, END], [110] * 3, strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([START, MIDDLE, END], [90] * 3, strict=True)
+        ],
     )
     context = market(110, at)
     for engine in (
@@ -300,9 +363,9 @@ def test_owned_defaults_replacement_and_strict_representations(subtests):
     assert note.principal_redemption_ratio == 1
     assert note.barrier_state is None
     assert note.coupon_barrier_levels == ((90, 90))
-    records = list(note.autocall_observations)
+    records = list(note.knock_out_observations)
     records.clear()
-    assert note.autocall_times == ((MIDDLE, END))
+    assert note.knock_out_times == ((MIDDLE, END))
     assert (
         note.replace(
             barrier_state="no_event",
@@ -315,7 +378,7 @@ def test_owned_defaults_replacement_and_strict_representations(subtests):
         {"coupon_per_period": "0.1"},
         {"principal_redemption_ratio": None},
         {"initial_spot": True},
-        {"autocall_observations": [(END, 110)]},
+        {"knock_out_observations": [(END, 110)]},
         {"effective_time": datetime(2025, 1, 1).date()},
         {"knock_in_observation": 1},
         {"knock_in_observation": "daily"},
@@ -335,7 +398,7 @@ def test_owned_defaults_replacement_and_strict_representations(subtests):
         assert replacement == note
         assert replacement is not note
     with pytest.raises(InvalidInputError):
-        note.replace(autocall_observations=[])
+        note.replace(knock_out_observations=[])
     with pytest.raises(TypeError):
         note.replace(barrier_state=True)
     with pytest.raises(AttributeError):
@@ -363,14 +426,9 @@ def test_core_validation_order_errors_and_history():
         ({"initial_spot": 0}, InvalidInputError),
         ({"lower_strike": 101}, InvalidInputError),
         ({"principal_redemption_ratio": -1}, InvalidInputError),
-        ({"autocall_observations": []}, InvalidInputError),
+        ({"knock_out_observations": []}, InvalidInputError),
         (
-            {
-                "autocall_observations": [
-                    AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
-                ]
-                * 2
-            },
+            {"knock_out_observations": [KnockOutObservation(END, 110)] * 2},
             InvalidInputError,
         ),
         ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
@@ -379,15 +437,14 @@ def test_core_validation_order_errors_and_history():
     for value in (-1, math.nan, math.inf):
         assert_rejection(
             InvalidInputError,
-            AutocallableObservation.phoenix,
+            CouponObservation,
             END,
-            110,
-            coupon_barrier_level=value,
+            value,
         )
     assert_rejection(
-        InvalidInputError,
+        TypeError,
         contract,
-        autocall_observations=[
+        knock_out_observations=[
             AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
         ],
     )
@@ -415,11 +472,7 @@ def test_core_validation_order_errors_and_history():
     with pytest.raises(InvalidInputError):
         contract(
             expiry_time=datetime(2025, 4, 5),
-            autocall_observations=[
-                AutocallableObservation.phoenix(
-                    datetime(2025, 2, 1), 110, coupon_barrier_level=0
-                )
-            ],
+            knock_out_observations=[KnockOutObservation(datetime(2025, 2, 1), 110)],
         )
     with pytest.raises(InvalidInputError):
         contract(expiry_time=datetime(2025, 4, 5), barrier_state=None)
@@ -475,11 +528,16 @@ def test_independent_quantlib_terminal_portfolios(subtests):
                     if inputs["knock_in_mode"] == "every_trading_day"
                     else KnockInObservation.at_expiry()
                 ),
-                autocall_observations=autocallable_observations(
-                    [end],
-                    [110],
-                    coupon_barrier_levels=[inputs["coupon_barrier_level"]],
-                ),
+                knock_out_observations=[
+                    KnockOutObservation(at, level)
+                    for at, level in zip([end], [110], strict=True)
+                ],
+                coupon_observations=[
+                    CouponObservation(at, level)
+                    for at, level in zip(
+                        [end], [inputs["coupon_barrier_level"]], strict=True
+                    )
+                ],
             )
             context = market(
                 inputs["spot"], valuation, inputs["volatility"], inputs["rate"]
@@ -498,9 +556,14 @@ def test_signed_coupons_are_discounted_on_their_own_dates_and_past_coupons_exclu
     engine = QuadratureAutocallableEngine()
     note = contract(
         coupon_per_period=coupon,
-        autocall_observations=autocallable_observations(
-            [MIDDLE, END], [200, 190], coupon_barrier_levels=[0] * 2
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([MIDDLE, END], [200, 190], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([MIDDLE, END], [0] * 2, strict=True)
+        ],
     )
     for valuation in (START, MIDDLE, datetime(2025, 2, 3, 0, 0, 0, 1)):
         v = (
@@ -529,9 +592,14 @@ def test_unconditional_coupon_tails_and_fixed_cashflow_identifiability():
         lower_strike=100,
         principal_redemption_ratio=0.25,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
-            [middle, end], [100, 100], coupon_barrier_levels=[0] * 2
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([middle, end], [100, 100], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([middle, end], [0] * 2, strict=True)
+        ],
     )
     time = 181 / 365
     survival = math.erfc((0.03 - 2) * math.sqrt(time) / (2 * math.sqrt(2))) / 2
@@ -548,9 +616,13 @@ def test_unconditional_coupon_tails_and_fixed_cashflow_identifiability():
     # Only a final unconditional coupon remains, so volatility cannot affect cashflows.
     fixed = contract(
         lower_strike=100,
-        autocall_observations=autocallable_observations(
-            [END], [110], coupon_barrier_levels=[0]
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([END], [110], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level) for at, level in zip([END], [0], strict=True)
+        ],
     )
     engine = QuadratureAutocallableEngine()
     quote = engine.price(fixed, market())
@@ -746,11 +818,18 @@ def test_grid_domain_and_bump_convergence():
                 if mode == "every_trading_day"
                 else KnockInObservation.at_expiry()
             ),
-            autocall_observations=autocallable_observations(
-                [MIDDLE, datetime(2025, 3, 3), END],
-                [110, 108, 105],
-                coupon_barrier_levels=[95] * 3,
-            ),
+            knock_out_observations=[
+                KnockOutObservation(at, level)
+                for at, level in zip(
+                    [MIDDLE, datetime(2025, 3, 3), END], [110, 108, 105], strict=True
+                )
+            ],
+            coupon_observations=[
+                CouponObservation(at, level)
+                for at, level in zip(
+                    [MIDDLE, datetime(2025, 3, 3), END], [95] * 3, strict=True
+                )
+            ],
         )
         prices = [
             QuadratureAutocallableEngine(
@@ -765,9 +844,14 @@ def test_grid_domain_and_bump_convergence():
     end = datetime(2026, 1, 1)
     note = contract(
         expiry_time=end,
-        autocall_observations=autocallable_observations(
-            [datetime(2025, 6, 2), end], [110, 105], coupon_barrier_levels=[95, 95]
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([datetime(2025, 6, 2), end], [110, 105], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([datetime(2025, 6, 2), end], [95, 95], strict=True)
+        ],
     )
     context = market(101.5, datetime(2025, 1, 15), volatility=0.25)
     coarse = {"spot_shift": 0.5, "volatility_shift": 0.002, "rate_shift": 0.001}
@@ -811,9 +895,13 @@ def test_all_greeks_and_volatility_recovery_against_digital_formula(subtests):
         expiry_time=end,
         lower_strike=100,
         coupon_per_period=0.1,
-        autocall_observations=autocallable_observations(
-            [end], [100], coupon_barrier_levels=[100]
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([end], [100], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level) for at, level in zip([end], [100], strict=True)
+        ],
     )
     engine = QuadratureAutocallableEngine()
     spot, vol, rate = 103, 0.3, -0.04
@@ -910,9 +998,14 @@ def test_all_greeks_and_volatility_recovery_against_digital_formula(subtests):
 def test_coupon_above_knock_out_zero_coupon_and_expiry_without_observation():
     engine = QuadratureAutocallableEngine()
     note = contract(
-        autocall_observations=autocallable_observations(
-            [MIDDLE, END], [110, 110], coupon_barrier_levels=[120, 120]
-        )
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([MIDDLE, END], [110, 110], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([MIDDLE, END], [120, 120], strict=True)
+        ],
     )
     assert_decimal_equal(engine.price(note, market(110, MIDDLE)), 1)
     assert_decimal_equal(
@@ -923,16 +1016,26 @@ def test_coupon_above_knock_out_zero_coupon_and_expiry_without_observation():
     result = engine.price_with_greeks(zero, market(90, MIDDLE), "delta")
     assert result.delta is not None
     no_expiry_event = contract(
-        autocall_observations=autocallable_observations(
-            [MIDDLE], [110], coupon_barrier_levels=[90]
-        )
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([MIDDLE], [110], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([MIDDLE], [90], strict=True)
+        ],
     )
     assert engine.price(no_expiry_event, market(100, END)) == 1
     # An effective-date observation pays the full periodic coupon.
     immediate = contract(
-        autocall_observations=autocallable_observations(
-            [START, END], [110, 110], coupon_barrier_levels=[90, 90]
-        )
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([START, END], [110, 110], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip([START, END], [90, 90], strict=True)
+        ],
     )
     result = engine.price_with_greeks(immediate, market(90), "delta")
     assert result.delta is None
@@ -945,11 +1048,16 @@ def test_dense_deterministic_ladder_and_short_terminal_transition():
         calendar=all_days_calendar(),
         expiry_time=dates[-1],
         principal_redemption_ratio=0.5,
-        autocall_observations=autocallable_observations(
-            dates,
-            [125 - 15 * i / 32 for i in range(1, 33)],
-            coupon_barrier_levels=[90] * 32,
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip(
+                dates, [125 - 15 * i / 32 for i in range(1, 33)], strict=True
+            )
+        ],
+        coupon_observations=[
+            CouponObservation(at, level)
+            for at, level in zip(dates, [90] * 32, strict=True)
+        ],
     )
     engine = QuadratureAutocallableEngine(asset_step_count=1024)
     for spot, expected in (
@@ -971,9 +1079,13 @@ def test_dense_deterministic_ladder_and_short_terminal_transition():
     valuation = datetime(2025, 4, 1) - timedelta(seconds=1)
     note = contract(
         lower_strike=100,
-        autocall_observations=autocallable_observations(
-            [END], [110], coupon_barrier_levels=[100]
-        ),
+        knock_out_observations=[
+            KnockOutObservation(at, level)
+            for at, level in zip([END], [110], strict=True)
+        ],
+        coupon_observations=[
+            CouponObservation(at, level) for at, level in zip([END], [100], strict=True)
+        ],
     )
     for sigma in (0.01, 0.2):
         t = 1 / (365 * 86400)
@@ -983,3 +1095,62 @@ def test_dense_deterministic_ladder_and_short_terminal_transition():
             note,
             market(100, valuation, volatility=sigma),
         ) == pytest.approx(expected, rel=0, abs=1e-9)
+
+
+def test_independent_schedules_match_early_redemption_cashflow_portfolio():
+    at = datetime(2025, 3, 3)
+    note = contract(
+        lower_strike=100,
+        knock_out_observations=[KnockOutObservation(at, 110)],
+        coupon_observations=[CouponObservation(MIDDLE, 0), CouponObservation(END, 0)],
+    )
+    horizon = (at - START).days / 365
+    d2 = (math.log(100 / 110) + (0.03 - 0.3**2 / 2) * horizon) / (
+        0.3 * math.sqrt(horizon)
+    )
+    probability = math.erfc(-d2 / math.sqrt(2)) / 2
+    discount = lambda time: math.exp(-0.04 * (time - START).days / 365)
+    expected = (
+        0.01 * discount(MIDDLE)
+        + probability * discount(at)
+        + (1 - probability) * 1.01 * discount(END)
+    )
+    context = market()
+    for engine, tolerance in (
+        (QuadratureAutocallableEngine(), 1e-9),
+        (FiniteDifferenceAutocallableEngine(), 2e-5),
+    ):
+        assert engine.price(note, context) == pytest.approx(
+            expected, rel=0, abs=tolerance
+        )
+        assert engine.price(note, market(110, at)) == 1
+    mc = MonteCarloAutocallableEngine(path_count=32768, seed=42)
+    estimate = mc.price_with_statistics(note, context)
+    assert estimate.price == pytest.approx(
+        expected, rel=0, abs=5 * estimate.standard_error
+    )
+    assert mc.price(note, market(110, at)) == 1
+
+
+@pytest.mark.parametrize(
+    "times",
+    (
+        [],
+        [END, MIDDLE],
+        [MIDDLE, MIDDLE],
+        [datetime(2025, 1, 4)],
+        [START - timedelta(days=1)],
+        [END + timedelta(days=1)],
+    ),
+)
+def test_each_schedule_validates_order_life_calendar_and_atomic_replacement(times):
+    note = contract()
+    for changes in (
+        {"knock_out_observations": [KnockOutObservation(at, 110) for at in times]},
+        {"coupon_observations": [CouponObservation(at, 0) for at in times]},
+    ):
+        with pytest.raises(InvalidInputError):
+            contract(**changes)
+        with pytest.raises(InvalidInputError):
+            note.replace(**changes)
+        assert note == contract()
