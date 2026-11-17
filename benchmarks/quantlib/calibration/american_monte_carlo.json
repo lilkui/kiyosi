@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "protocol": "american_monte_carlo.md; limits and seeds declared before outputs",
+  "protocol": "methodology.md#american-least-squares-monte-carlo; limits and seeds declared before outputs",
   "build_evidence": {
     "rust_command": [
       "cargo",

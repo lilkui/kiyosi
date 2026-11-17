@@ -80,7 +80,7 @@ def main():
                     "libraries": libraries,
                     "validation_seed_policy": "1009+97*i, i0..31; fixed before observing replacement ensemble; timing1729 unchanged",
                     "prior_collision_evidence": "monte_carlo_seed_collision.json",
-                    "protocol": "monte_carlo.md; budget and seeds declared before profile selection",
+                    "protocol": "methodology.md#monte-carlo; budget and seeds declared before profile selection",
                     "references": references,
                     "analytic_cross_checks": checks,
                     "experiments": rows,

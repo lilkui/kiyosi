@@ -3,7 +3,7 @@
 Uses only Python's standard library. No Kiyosi or QuantLib prices enter the
 reference. Image sums integrate the killed Brownian transition density against
 cash, asset or vanilla terminal payoffs. First passage is the finite-horizon
-Laplace transform of the inverse-Gaussian hitting density. See barriers.md.
+Laplace transform of the inverse-Gaussian hitting density. See methodology.md#barriers-and-touches.
 """
 
 import json
@@ -147,7 +147,7 @@ def main():
                 "uncertainty": 1e-12,
                 "provenance": {
                     "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-                    "source": "generate_barrier_references.py; barriers.md",
+                    "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
                     "evidence": {
                         "decimal_precisions": [90, 110],
                         "values": [str(v) for v in values],

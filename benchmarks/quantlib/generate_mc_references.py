@@ -26,7 +26,7 @@ def main():
                 "uncertainty": 1e-12,
                 "provenance": {
                     "method": "Independent Decimal BSM closed form / absorbing Brownian image-density integral",
-                    "source": "generate_mc_references.py; generate_european_references.py; generate_barrier_references.py; barriers.md",
+                    "source": "generate_mc_references.py; generate_european_references.py; generate_barrier_references.py; methodology.md#barriers-and-touches",
                     "evidence": {
                         "decimal_precisions": [90, 110],
                         "decimal_values": list(map(str, values)),

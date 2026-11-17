@@ -18,7 +18,7 @@ def main():
     }
     document = {
         "schema_version": 1,
-        "protocol": "american_monte_carlo.md; limits and seeds declared before outputs",
+        "protocol": "methodology.md#american-least-squares-monte-carlo; limits and seeds declared before outputs",
         "build_evidence": json.loads((HERE / "build/build.json").read_text()),
         "libraries": {
             backend: json.loads(command([str(binary), "--info"]))

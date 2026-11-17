@@ -68,7 +68,7 @@ def main():
                     "uncertainty": 1e-12,
                     "provenance": {
                         "method": "Independent Decimal BSM closed form or absorbing log-density / first-passage integral",
-                        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; barriers.md",
+                        "source": "generate_fd_references.py; generate_european_references.py; generate_digitals_asian_references.py; generate_barrier_references.py; methodology.md#barriers-and-touches",
                         "evidence": {
                             "precisions": [90, 110],
                             "values": [str(coarse), str(fine)],

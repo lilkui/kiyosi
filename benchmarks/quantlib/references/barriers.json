@@ -7,7 +7,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -35,7 +35,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -63,7 +63,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -91,7 +91,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -119,7 +119,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -147,7 +147,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -175,7 +175,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -203,7 +203,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -231,7 +231,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -259,7 +259,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -287,7 +287,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -315,7 +315,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -343,7 +343,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
@@ -371,7 +371,7 @@
       "uncertainty": 1e-12,
       "provenance": {
         "method": "Integrated absorbing Brownian image density; first-passage Laplace transform for at-hit payments",
-        "source": "generate_barrier_references.py; barriers.md",
+        "source": "generate_barrier_references.py; methodology.md#barriers-and-touches",
         "evidence": {
           "decimal_precisions": [
             90,
