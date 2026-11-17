@@ -302,7 +302,7 @@ pub(crate) fn integrated_variance(model: &HestonParameters, time: f64) -> f64 {
 
 // Compute the small remainders directly: subtracting one loses short-time variance.
 fn exprel_minus_one(z: Complex64) -> Complex64 {
-    if z.norm() < 0.5 {
+    if z.norm_sqr() < 0.25 {
         let mut term = z / 2.0;
         let mut sum = term;
         for n in 3..=20 {
@@ -316,7 +316,7 @@ fn exprel_minus_one(z: Complex64) -> Complex64 {
 }
 
 fn logrel_minus_one(z: Complex64) -> Complex64 {
-    if z.norm() < 0.125 {
+    if z.norm_sqr() < 0.015_625 {
         let mut power = -z;
         let mut sum = power / 2.0;
         for n in 3..=24 {
@@ -340,26 +340,26 @@ fn log_characteristic(model: &HestonParameters, time: f64, u: f64) -> Complex64 
     );
     let d = (b * b + xi * (xi * q)).sqrt();
     let c = q / (b + d);
-    let em1 = exprel_minus_one(-d * time);
-    let h = if (d * time).norm() < 0.5 {
-        time * (1.0 + em1)
+    let small_time = (d * time).norm_sqr() < 0.25;
+    let (h, em1) = if small_time {
+        let em1 = exprel_minus_one(-d * time);
+        (time * (1.0 + em1), em1)
     } else {
-        (1.0 - (-d * time).exp()) / d
+        ((1.0 - (-d * time).exp()) / d, Complex64::new(0.0, 0.0))
     };
     let z = -0.5 * xi * (xi * c) * h;
     let drift = if kappa == 0.0 || model.long_run_variance() == 0.0 {
         Complex64::new(0.0, 0.0)
     } else {
-        let lm1 = logrel_minus_one(z);
-        let remainder = if (d * time).norm() < 0.5 && z.norm() < 0.125 {
-            time * (em1 * (1.0 + lm1) + lm1)
-        } else {
-            let ratio = if z.norm() < 0.125 {
-                1.0 + lm1
+        let remainder = if z.norm_sqr() < 0.015_625 {
+            let lm1 = logrel_minus_one(z);
+            if small_time {
+                time * (em1 * (1.0 + lm1) + lm1)
             } else {
-                (1.0 + z).ln() / z
-            };
-            h * ratio - time
+                h * (1.0 + lm1) - time
+            }
+        } else {
+            h * ((1.0 + z).ln() / z) - time
         };
         kappa * model.long_run_variance() * c * remainder
     };
@@ -394,7 +394,7 @@ impl Integrand<'_> {
         let log_heston = log_characteristic(self.model, self.time, u);
         let log_black = -0.5 * self.variance * (u * u + 0.25);
         let difference = log_heston - log_black;
-        let transform = if difference.norm() < 0.5 {
+        let transform = if difference.norm_sqr() < 0.25 {
             -log_black.exp() * complex_expm1(difference)
         } else {
             Complex64::new(log_black.exp(), 0.0) - log_heston.exp()
