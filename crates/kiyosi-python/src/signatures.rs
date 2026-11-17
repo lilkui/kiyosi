@@ -12,6 +12,15 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     }
 
     register!(
+        [
+            BlackScholesMertonParameters,
+            LocalVolatilityParameters,
+            HestonParameters
+        ],
+        time_convention =
+            crate::market::time_convention_name(&kiyosi::ModelTimeConvention::default()),
+    );
+    register!(
         [GeometricAveragePriceOption, ArithmeticAveragePriceOption],
         realized_average = kiyosi::DEFAULT_REALIZED_AVERAGE,
     );

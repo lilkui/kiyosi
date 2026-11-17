@@ -105,7 +105,7 @@ impl PricingEngine<DigitalOption> for QuadratureDigitalEngine {
         if time == 0.0 {
             return Ok(crate::engines::Payoff::digital(option).value(spot));
         }
-        let sigma = context.bsm_parameters()?.volatility();
+        let sigma = context.natural_bsm_parameters()?.volatility();
         let root = time.sqrt();
         let width = sigma * root;
         let forward = log_ratio(spot, option.strike()) + (rate - dividend) * time;

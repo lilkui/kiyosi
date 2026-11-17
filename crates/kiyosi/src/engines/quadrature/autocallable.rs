@@ -298,7 +298,9 @@ fn price<T: AutocallableTerms>(
     };
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
-            && context.bsm_parameters().is_ok_and(|m| c.model == *m)
+            && context
+                .natural_bsm_parameters()
+                .is_ok_and(|m| c.model == *m)
             && c.valuation == context.valuation_time()
             && c.knocked_in == state.knocked_in
     }) {
@@ -335,7 +337,7 @@ fn price<T: AutocallableTerms>(
     }
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
-    let sigma = context.bsm_parameters()?.volatility();
+    let sigma = context.natural_bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let horizon = context.valuation_time().years_until(note.expiry_time());
     let transition = |time| super::transition(time, drift_rate, sigma, rate);
@@ -417,7 +419,7 @@ fn price<T: AutocallableTerms>(
             if let Some(prepared) = prepared {
                 *prepared = Some(PreparedCurve {
                     option: note.clone(),
-                    model: context.bsm_parameters()?.clone(),
+                    model: context.natural_bsm_parameters()?.clone(),
                     valuation: context.valuation_time(),
                     knocked_in: state.knocked_in,
                     nodes,

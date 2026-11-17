@@ -64,7 +64,7 @@ impl AnalyticDoubleBarrierEngine {
     ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(&option.lower, context)?;
         if crate::engines::deterministic::enabled(context) {
@@ -118,7 +118,7 @@ impl AbsorbingDistribution {
         expiry: Timestamp,
         context: &PricingContext,
     ) -> Result<Self> {
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         context.validate_curve_horizon(expiry)?;
         let sigma = model.volatility();
         Ok(Self {
@@ -489,7 +489,7 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
         option.expiry_time(),
         context,
     )?;
-    let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
+    let rate = context.natural_bsm_parameters()?.flat_risk_free_rate()?;
     let discount = -rate * density.time;
     let call = option.option_type() == OptionType::Call;
     let strike = log_ratio(option.strike(), option.lower_barrier());
@@ -540,7 +540,7 @@ pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) 
     )?
     .hit_value(
         option.rebate(),
-        context.bsm_parameters()?.flat_risk_free_rate()?,
+        context.natural_bsm_parameters()?.flat_risk_free_rate()?,
     )
 }
 

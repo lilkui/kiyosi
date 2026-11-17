@@ -257,7 +257,7 @@ impl MonteCarloBarrierEngine {
             result.set(request, Greek::Gamma, 0.0)?;
             return Ok((result, error));
         }
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         context.validate_curve_horizon(expiry)?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;

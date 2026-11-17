@@ -22,11 +22,24 @@ use pyo3::prelude::*;
 ///     Correlation between the asset and variance Brownian motions in [-1, 1],
 ///     including endpoints.
 ///
+/// time_convention : {"actual_365_fixed", "business"}, optional
+///     Volatility annualization and variance clock. The Rust default is
+///     actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+/// calendar : TradingCalendar or None, optional
+///     Required for business time and rejected for actual_365_fixed. Business
+///     time accumulates uniformly over each trading date's 24 hours, divided
+///     by the calendar's fixed annualization basis; closed dates contribute zero.
+///     Contract observation calendars are independent. Replacement preserves
+///     omitted volatility values without unit conversion when changing the clock.
+///
 /// Raises
 /// ------
 /// InvalidInputError
 ///     For non-finite inputs, negative variance parameters or invalid
 ///     correlation.
+///
+/// UnsupportedOperationError
+///     If business time is requested; Heston parameter units use A/365F.
 ///
 /// Notes
 /// -----
@@ -54,8 +67,9 @@ rate_properties!(
         vol_of_vol: vol_of_vol.map(real).transpose()?,
         correlation: correlation.map(real).transpose()?,
     },
+    #[expect(clippy::too_many_arguments, reason = "Python exposes named model parameters and the time convention as keyword-only inputs")]
     #[new]
-    #[pyo3(signature = (*, risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation))]
+    #[pyo3(signature = (*, risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation, time_convention=crate::conversions::OMITTED, calendar=None))]
     fn new(
         risk_free_rate: &Bound<'_, PyAny>,
         dividend_yield: &Bound<'_, PyAny>,
@@ -64,8 +78,10 @@ rate_properties!(
         mean_reversion_speed: &Bound<'_, PyAny>,
         vol_of_vol: &Bound<'_, PyAny>,
         correlation: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] time_convention: Option<&Bound<'_, PyAny>>,
+        calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::HestonParameters::new(
+        Ok(Self(domain(kiyosi::HestonParameters::new_with_time_convention(
             kiyosi::HestonParameterInputs {
                 risk_free_rate: rate(risk_free_rate)?,
                 dividend_yield: rate(dividend_yield)?,
@@ -75,6 +91,7 @@ rate_properties!(
                 vol_of_vol: real(vol_of_vol)?,
                 correlation: real(correlation)?,
             },
+            &crate::market::updated_time_convention(&kiyosi::ModelTimeConvention::default(), time_convention, calendar)?,
         ))?))
     },
     /// Return instantaneous variance at valuation.

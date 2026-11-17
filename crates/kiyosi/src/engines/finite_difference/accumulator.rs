@@ -121,7 +121,7 @@ fn native(
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled(context) {
+    if crate::engines::deterministic::enabled_until(context, option.expiry_time())? {
         return Ok((
             PricingResult::new(crate::engines::deterministic::accumulator(option, context)?)?,
             None,
@@ -359,7 +359,7 @@ impl super::solution::Backend<Accumulator> for AccumulatorState {
         if let Some(grid) = &self.grid {
             return grid.evaluate(option, context, request, shifts);
         }
-        if crate::engines::deterministic::enabled(context) {
+        if crate::engines::deterministic::enabled_until(context, option.expiry_time())? {
             return PricingResult::new(crate::engines::deterministic::accumulator(
                 option, context,
             )?);
@@ -387,7 +387,9 @@ impl super::FiniteDifferenceEngine<Accumulator> for FiniteDifferenceAccumulatorE
             option.validate_pricing(&probe)?;
             pending |= option.initial(&probe).1.is_none();
         }
-        let grid = if pending && !crate::engines::deterministic::enabled(context) {
+        let grid = if pending
+            && !crate::engines::deterministic::enabled_until(context, option.expiry_time())?
+        {
             let anchor = &anchor;
             Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
                 option,

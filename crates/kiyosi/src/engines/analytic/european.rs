@@ -56,7 +56,7 @@ impl AnalyticEuropeanEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         settings.validate()?;
         let mut result = PricingResult::new(self.price(option, context)?)?
             .with_request(request, GreeksRequest::all());
@@ -74,7 +74,7 @@ impl AnalyticEuropeanEngine {
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(&self, option, context, request, settings);
         }
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         let spot = context.spot_price();
         let strike = option.strike();
         let sigma = model.volatility();
@@ -211,7 +211,7 @@ impl AnalyticEuropeanEngine {
     /// coverage, and [`Error::ComputationFailure`] for non-finite results.
     ///
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::vanilla(
                 option,
@@ -222,7 +222,7 @@ impl AnalyticEuropeanEngine {
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         crate::instruments::monitoring::validate_life(option, context)?;
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         model
             .risk_free_curve()
             .validate_horizon(valuation, expiry)?;

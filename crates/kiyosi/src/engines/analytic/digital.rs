@@ -51,7 +51,7 @@ impl AnalyticDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         settings.validate()?;
         crate::risk::numerical::complete_greeks(
             option,
@@ -120,7 +120,7 @@ impl AnalyticDigitalEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         Ok(Self::native(option, context, GreeksRequest::new([]))?.price())
     }
 
@@ -142,7 +142,7 @@ impl AnalyticDigitalEngine {
         if time == 0.0 {
             return PricingResult::new(crate::engines::Payoff::digital(option).value(spot));
         }
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         model
             .risk_free_curve()
             .validate_horizon(valuation, expiry)?;

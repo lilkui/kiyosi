@@ -57,7 +57,7 @@ impl AnalyticRangeAccrualEngine {
     /// Propagates [`crate::numerical_greeks`] validation and pricing errors.
     ///
     pub fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         crate::instruments::monitoring::validate_life(option, context)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
@@ -85,7 +85,7 @@ impl AnalyticRangeAccrualEngine {
         let term = option.effective_time().years_until(expiry);
         let mut scale = option.notional().ln() + option.annual_coupon_rate().ln() + term.ln()
             - (dates.len() as f64).ln();
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         if valuation < expiry {
             model
                 .risk_free_curve()

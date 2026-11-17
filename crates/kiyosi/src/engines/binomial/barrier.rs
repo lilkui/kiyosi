@@ -66,7 +66,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         Ok(self
             .native(option, context, GreeksRequest::new([]))?
             .price())
@@ -301,7 +301,7 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {

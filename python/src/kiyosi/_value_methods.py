@@ -117,7 +117,14 @@ _repr_formatter.maxother = 160
 def _repr(value: Any) -> str:
     fields = _fields(value)
     name = type(value).__name__
-    if fields.get("calendar") == _native.weekdays_calendar():
+    if fields.get("calendar") == _native.weekdays_calendar() and not isinstance(
+        value,
+        (
+            _native.BlackScholesMertonParameters,
+            _native.LocalVolatilityParameters,
+            _native.HestonParameters,
+        ),
+    ):
         fields.pop("calendar")
     terms = ", ".join(
         f"{key}={_repr_formatter.repr(field)}" for key, field in fields.items()

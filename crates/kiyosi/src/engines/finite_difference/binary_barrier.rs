@@ -86,7 +86,7 @@ fn native(
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled(context) {
+    if crate::engines::deterministic::enabled_until(context, contract.monitoring.expiry_time())? {
         return PricingResult::new(crate::engines::deterministic::binary(contract, context)?);
     }
     diffusion::with_diffusion!(context, |diffusion| {
@@ -576,7 +576,8 @@ impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         let contract = instrument.saved_contract();
-        if crate::engines::deterministic::enabled(context) {
+        if crate::engines::deterministic::enabled_until(context, contract.monitoring.expiry_time())?
+        {
             return PricingResult::new(crate::engines::deterministic::binary(&contract, context)?);
         }
         match contract.settlement(context)? {
@@ -643,7 +644,12 @@ fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'sta
     validate_life(contract.monitoring, &anchor)?;
     let mut pending = false;
     let mut digital = false;
-    let local = local_volatility::local_model(context).is_some();
+    let local = local_volatility::local_model(context).is_some()
+        || context
+            .model_parameters()
+            .time_convention()
+            .calendar()
+            .is_some();
     let levels = [
         contract.monitoring.barrier_level(),
         contract
@@ -675,7 +681,11 @@ fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'sta
     } else {
         None
     };
-    let grid = if pending && !crate::engines::deterministic::enabled(context) {
+    let grid = if pending
+        && !crate::engines::deterministic::enabled_until(
+            context,
+            contract.monitoring.expiry_time(),
+        )? {
         if contract.monitoring.observation_mode() != ObservationMode::Scheduled
             && (contract.monitoring.barrier_type().is_up() || contract.upper_barrier.is_some())
             && !(local

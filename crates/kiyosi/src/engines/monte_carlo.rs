@@ -877,7 +877,7 @@ impl MonteCarloVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
@@ -942,7 +942,7 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
         statistics: bool,
     ) -> Result<(Moments, Moments, f64, Option<u64>)> {
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;

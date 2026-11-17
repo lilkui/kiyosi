@@ -62,7 +62,7 @@ impl AnalyticGeometricAveragePriceEngine {
         option: &GeometricAveragePriceOption,
         context: &PricingContext,
     ) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         let o = &option.0;
         let tau = o.validate(context)?;
         if tau == 0.0 {
@@ -82,7 +82,7 @@ impl AnalyticGeometricAveragePriceEngine {
         let lead = valuation.years_until(start).max(0.0);
         let future = valuation.max(start).years_until(expiry);
         let weight = future / period;
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         let sigma = model.volatility();
         let mut times = vec![valuation, start.max(valuation), expiry];
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
@@ -167,7 +167,7 @@ fn divided_exprel_increment_ratio(x: f64, y: f64, h: f64) -> f64 {
 
 impl TurnbullWakemanArithmeticAveragePriceEngine {
     fn require_flat(context: &PricingContext) -> Result<()> {
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         if model.risk_free_curve().exact_flat_rate().is_none()
             || model.dividend_curve().exact_flat_rate().is_none()
         {
@@ -227,13 +227,13 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
     ) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         let o = &option.0;
         let tau = o.validate(context)?;
         if tau == 0.0 {
             return o.settlement(context);
         }
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         Self::require_flat(context)?;
         o.coverage(context)?;
         if crate::engines::deterministic::enabled(context) {

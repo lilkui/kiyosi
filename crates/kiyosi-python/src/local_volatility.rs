@@ -119,6 +119,16 @@ impl LocalVolatilitySurface {
 /// surface : LocalVolatilitySurface
 ///     Validated surface in absolute time and price coordinates.
 ///
+/// time_convention : {"actual_365_fixed", "business"}, optional
+///     Volatility annualization and variance clock. The Rust default is
+///     actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+/// calendar : TradingCalendar or None, optional
+///     Required for business time and rejected for actual_365_fixed. Business
+///     time accumulates uniformly over each trading date's 24 hours, divided
+///     by the calendar's fixed annualization basis; closed dates contribute zero.
+///     Contract observation calendars are independent. Replacement preserves
+///     omitted volatility values without unit conversion when changing the clock.
+///
 /// Raises
 /// ------
 /// InvalidInputError
@@ -144,16 +154,19 @@ rate_properties!(
             .map(|value| value.0.clone())).transpose()?,
     },
     #[new]
-    #[pyo3(signature = (*, risk_free_rate, dividend_yield, surface))]
+    #[pyo3(signature = (*, risk_free_rate, dividend_yield, surface, time_convention=crate::conversions::OMITTED, calendar=None))]
     fn new(
         risk_free_rate: &Bound<'_, PyAny>,
         dividend_yield: &Bound<'_, PyAny>,
         surface: &LocalVolatilitySurface,
+        #[pyo3(from_py_with = crate::conversions::supplied)] time_convention: Option<&Bound<'_, PyAny>>,
+        calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::LocalVolatilityParameters::new(
+        Ok(Self(domain(kiyosi::LocalVolatilityParameters::new_with_time_convention(
             rate(risk_free_rate)?,
             rate(dividend_yield)?,
             surface.0.clone(),
+            crate::market::updated_time_convention(&kiyosi::ModelTimeConvention::default(), time_convention, calendar)?,
         ))?))
     },
     /// Return an owned copy of the fixed surface.

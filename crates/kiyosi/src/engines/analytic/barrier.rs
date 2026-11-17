@@ -100,7 +100,7 @@ pub(super) fn resolved_price_with_state(
         checked(scaled_cash(
             option.rebate(),
             context
-                .bsm_parameters()?
+                .model_parameters()
                 .risk_free_curve()
                 .log_factor(time, option.expiry_time())?,
         ))
@@ -120,6 +120,14 @@ pub(super) fn resolved_price_with_state(
         return Ok(Some(0.0));
     }
     if touched || finished || fixed {
+        if crate::engines::deterministic::enabled_until(context, option.expiry_time())? {
+            return crate::engines::deterministic::vanilla(
+                option.vanilla(),
+                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), false),
+                context,
+            )
+            .map(Some);
+        }
         return AnalyticEuropeanEngine
             .price(option.vanilla(), context)
             .map(Some);
@@ -137,7 +145,7 @@ impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
 fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f64> {
     let t = context.valuation_time().years_until(option.expiry_time());
     let spot = context.spot_price();
-    let model = context.bsm_parameters()?;
+    let model = context.natural_bsm_parameters()?;
     let rate = model.flat_risk_free_rate()?;
     let dividend = model.flat_dividend_yield()?;
     let sigma = model.volatility();

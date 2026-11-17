@@ -190,7 +190,7 @@ fn continuous_price(
 ) -> Result<f64> {
     let (rate, dividend) = flat_rates(context)?;
     let time = context.valuation_time().years_until(option.expiry_time());
-    let sigma = context.bsm_parameters()?.volatility();
+    let sigma = context.natural_bsm_parameters()?.volatility();
     let width = sigma * time.sqrt();
     let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
     let barrier = log_ratio(option.barrier_level(), context.spot_price());
@@ -479,7 +479,7 @@ fn scheduled_price(
     };
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref) {
         if curve.option == *option
-            && curve.model == *context.bsm_parameters()?
+            && curve.model == *context.natural_bsm_parameters()?
             && curve.valuation == context.valuation_time()
         {
             return evaluate(
@@ -499,7 +499,7 @@ fn scheduled_price(
         .filter(|&date| date > context.valuation_time())
         .collect();
     let (rate, dividend) = flat_rates(context)?;
-    let sigma = context.bsm_parameters()?.volatility();
+    let sigma = context.natural_bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let horizon = context.valuation_time().years_until(option.expiry_time());
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
@@ -551,7 +551,7 @@ fn scheduled_price(
             if let Some(prepared) = prepared {
                 *prepared = Some(PreparedCurve {
                     option: option.clone(),
-                    model: context.bsm_parameters()?.clone(),
+                    model: context.natural_bsm_parameters()?.clone(),
                     valuation: context.valuation_time(),
                     nodes,
                     layer,

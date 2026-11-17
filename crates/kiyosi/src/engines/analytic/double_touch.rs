@@ -71,7 +71,7 @@ impl AnalyticDoubleTouchEngine {
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
     ///
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(option, context)?;
         if crate::engines::deterministic::enabled(context) {
@@ -81,7 +81,7 @@ impl AnalyticDoubleTouchEngine {
         match option.contract().settlement(context)? {
             Settlement::Value(value) => return Ok(value),
             Settlement::AtExpiry => {
-                let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
+                let rate = context.natural_bsm_parameters()?.flat_risk_free_rate()?;
                 context.validate_curve_horizon(option.expiry_time())?;
                 return checked(scaled_cash(
                     option.payout(),
@@ -102,7 +102,7 @@ impl AnalyticDoubleTouchEngine {
             option.expiry_time(),
             context,
         )?;
-        let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
+        let rate = context.natural_bsm_parameters()?.flat_risk_free_rate()?;
         if at_hit {
             density.hit_value(option.payout(), rate)
         } else {

@@ -767,6 +767,16 @@ class BlackScholesMertonParameters:
         Nonnegative finite annualized log-return volatility in decimal units.
         Zero selects the exact deterministic path implied by the rate curves.
 
+    time_convention : {"actual_365_fixed", "business"}, optional
+        Volatility annualization and variance clock. The Rust default is
+        actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+    calendar : TradingCalendar or None, optional
+        Required for business time and rejected for actual_365_fixed. Business
+        time accumulates uniformly over each trading date's 24 hours, divided
+        by the calendar's fixed annualization basis; closed dates contribute zero.
+        Contract observation calendars are independent. Replacement preserves
+        omitted volatility values without unit conversion when changing the clock.
+
     Raises
     ------
     InvalidInputError
@@ -779,6 +789,8 @@ class BlackScholesMertonParameters:
         risk_free_rate: _Real | RateTermStructure,
         dividend_yield: _Real | RateTermStructure,
         volatility: _Real,
+        time_convention: Literal["actual_365_fixed", "business"] = ...,
+        calendar: TradingCalendar | None = ...,
     ) -> None: ...
     def replace(
         self,
@@ -786,29 +798,33 @@ class BlackScholesMertonParameters:
         risk_free_rate: _Real | RateTermStructure | EllipsisType = ...,
         dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
         volatility: _Real | EllipsisType = ...,
+        time_convention: Literal["actual_365_fixed", "business"] | EllipsisType = ...,
+        calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> BlackScholesMertonParameters:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
+        """Return a validated owned replacement; omitted fields are retained.
 
         Parameters
         ----------
-        risk_free_rate, dividend_yield, volatility : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+        **fields : object
+            Constructor fields to replace. Ellipsis retains a value; None
+            clears the calendar. Volatility values are not converted when
+            changing the clock. See the class parameters for units.
 
         Returns
         -------
         object
-            Validated instance of the same class.
+            Validated instance of the same class; the original is unchanged.
 
         Raises
         ------
         InvalidInputError
-            If fields fail constructor validation.
+            If the merged fields fail model validation.
+        UnsupportedOperationError
+            If Heston requests business time.
         TypeError
-            If a field name or representation is invalid.
+            If a representation or keyword is invalid.
+        ValueError
+            If a time convention choice is unknown.
         """
 
     @property
@@ -849,6 +865,14 @@ class BlackScholesMertonParameters:
     def volatility(self) -> float:
         """Return nonnegative finite annualized volatility in decimal units."""
 
+    @property
+    def time_convention(self) -> Literal["actual_365_fixed", "business"]:
+        """Return the model volatility annualization choice."""
+
+    @property
+    def calendar(self) -> TradingCalendar | None:
+        """Return an owned model calendar, or None for A/365F."""
+
 class HestonParameters:
     """Heston stochastic-volatility parameters under the risk-neutral measure.
 
@@ -869,11 +893,24 @@ class HestonParameters:
         Correlation between the asset and variance Brownian motions in [-1, 1],
         including endpoints.
 
+    time_convention : {"actual_365_fixed", "business"}, optional
+        Volatility annualization and variance clock. The Rust default is
+        actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+    calendar : TradingCalendar or None, optional
+        Required for business time and rejected for actual_365_fixed. Business
+        time accumulates uniformly over each trading date's 24 hours, divided
+        by the calendar's fixed annualization basis; closed dates contribute zero.
+        Contract observation calendars are independent. Replacement preserves
+        omitted volatility values without unit conversion when changing the clock.
+
     Raises
     ------
     InvalidInputError
         For non-finite inputs, negative variance parameters or invalid
         correlation.
+
+    UnsupportedOperationError
+        If business time is requested; Heston parameter units use A/365F.
 
     Notes
     -----
@@ -896,6 +933,8 @@ class HestonParameters:
         mean_reversion_speed: _Real,
         vol_of_vol: _Real,
         correlation: _Real,
+        time_convention: Literal["actual_365_fixed", "business"] = ...,
+        calendar: TradingCalendar | None = ...,
     ) -> None: ...
     def replace(
         self,
@@ -907,29 +946,33 @@ class HestonParameters:
         mean_reversion_speed: _Real | EllipsisType = ...,
         vol_of_vol: _Real | EllipsisType = ...,
         correlation: _Real | EllipsisType = ...,
+        time_convention: Literal["actual_365_fixed", "business"] | EllipsisType = ...,
+        calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> HestonParameters:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
+        """Return a validated owned replacement; omitted fields are retained.
 
         Parameters
         ----------
-        risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+        **fields : object
+            Constructor fields to replace. Ellipsis retains a value; None
+            clears the calendar. Volatility values are not converted when
+            changing the clock. See the class parameters for units.
 
         Returns
         -------
         object
-            Validated instance of the same class.
+            Validated instance of the same class; the original is unchanged.
 
         Raises
         ------
         InvalidInputError
-            If fields fail constructor validation.
+            If the merged fields fail model validation.
+        UnsupportedOperationError
+            If Heston requests business time.
         TypeError
-            If a field name or representation is invalid.
+            If a representation or keyword is invalid.
+        ValueError
+            If a time convention choice is unknown.
         """
 
     @property
@@ -985,6 +1028,14 @@ class HestonParameters:
     @property
     def correlation(self) -> float:
         """Return the correlation between the asset and variance Brownian motions."""
+
+    @property
+    def time_convention(self) -> Literal["actual_365_fixed", "business"]:
+        """Return the model volatility annualization choice."""
+
+    @property
+    def calendar(self) -> TradingCalendar | None:
+        """Return an owned model calendar, or None for A/365F."""
 
 class LocalVolatilitySurface:
     """Local-volatility table indexed by time (rows) and absolute spot (columns).
@@ -1068,6 +1119,16 @@ class LocalVolatilityParameters:
     surface : LocalVolatilitySurface
         Validated surface in absolute time and price coordinates.
 
+    time_convention : {"actual_365_fixed", "business"}, optional
+        Volatility annualization and variance clock. The Rust default is
+        actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+    calendar : TradingCalendar or None, optional
+        Required for business time and rejected for actual_365_fixed. Business
+        time accumulates uniformly over each trading date's 24 hours, divided
+        by the calendar's fixed annualization basis; closed dates contribute zero.
+        Contract observation calendars are independent. Replacement preserves
+        omitted volatility values without unit conversion when changing the clock.
+
     Raises
     ------
     InvalidInputError
@@ -1087,6 +1148,8 @@ class LocalVolatilityParameters:
         risk_free_rate: _Real | RateTermStructure,
         dividend_yield: _Real | RateTermStructure,
         surface: LocalVolatilitySurface,
+        time_convention: Literal["actual_365_fixed", "business"] = ...,
+        calendar: TradingCalendar | None = ...,
     ) -> None: ...
     def replace(
         self,
@@ -1094,29 +1157,33 @@ class LocalVolatilityParameters:
         risk_free_rate: _Real | RateTermStructure | EllipsisType = ...,
         dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
         surface: LocalVolatilitySurface | EllipsisType = ...,
+        time_convention: Literal["actual_365_fixed", "business"] | EllipsisType = ...,
+        calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> LocalVolatilityParameters:
-        """Return a validated copy with replacement fields.
-
-        The original value is unchanged on success and failure.
+        """Return a validated owned replacement; omitted fields are retained.
 
         Parameters
         ----------
-        risk_free_rate, dividend_yield, surface : object, optional
-            Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+        **fields : object
+            Constructor fields to replace. Ellipsis retains a value; None
+            clears the calendar. Volatility values are not converted when
+            changing the clock. See the class parameters for units.
 
         Returns
         -------
         object
-            Validated instance of the same class.
+            Validated instance of the same class; the original is unchanged.
 
         Raises
         ------
         InvalidInputError
-            If fields fail constructor validation.
+            If the merged fields fail model validation.
+        UnsupportedOperationError
+            If Heston requests business time.
         TypeError
-            If a field name or representation is invalid.
+            If a representation or keyword is invalid.
+        ValueError
+            If a time convention choice is unknown.
         """
 
     @property
@@ -1156,6 +1223,14 @@ class LocalVolatilityParameters:
     @property
     def dividend_curve(self) -> RateTermStructure:
         """Return an owned copy of the dividend curve."""
+
+    @property
+    def time_convention(self) -> Literal["actual_365_fixed", "business"]:
+        """Return the model volatility annualization choice."""
+
+    @property
+    def calendar(self) -> TradingCalendar | None:
+        """Return an owned model calendar, or None for A/365F."""
 
 class TradingCalendar:
     """Trading calendar with a fixed annualization basis.

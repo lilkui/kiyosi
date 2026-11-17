@@ -22,7 +22,7 @@ pub struct MonteCarloAsianEngine {
 
 impl MonteCarloAsianEngine {
     fn require_geometric_flat_rates(context: &PricingContext) -> Result<()> {
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         if model.risk_free_curve().exact_flat_rate().is_none()
             || model.dividend_curve().exact_flat_rate().is_none()
         {
@@ -156,7 +156,7 @@ impl MonteCarloAsianEngine {
     where
         Self: PricingEngine<I>,
     {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
@@ -187,7 +187,7 @@ impl MonteCarloAsianEngine {
     where
         Self: PricingEngine<I>,
     {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_statistics(self, option, context)
     }
 
@@ -211,7 +211,7 @@ impl MonteCarloAsianEngine {
         if tau == 0.0 {
             return Ok((PricingResult::new(o.settlement(context)?)?, known_error));
         }
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         if geometric {
             Self::require_geometric_flat_rates(context)?;
         }
@@ -465,7 +465,7 @@ macro_rules! asian_pricing {
                 option: &$option,
                 context: &PricingContext,
             ) -> Result<(f64, Option<u64>)> {
-                context.bsm_parameters()?;
+                context.natural_bsm_parameters()?;
                 let (result, _) = self.native(
                     &option.0,
                     context,
@@ -500,7 +500,7 @@ macro_rules! asian_pricing {
                 option: &$option,
                 context: &PricingContext,
             ) -> Result<MonteCarloEstimate> {
-                context.bsm_parameters()?;
+                context.natural_bsm_parameters()?;
                 let (result, error) =
                     self.native(&option.0, context, $geometric, GreeksRequest::new([]), true)?;
                 MonteCarloEstimate::from_sampling(
@@ -518,7 +518,7 @@ macro_rules! asian_pricing {
                 prepare_seeded_request!(self, self.settings.sampling)
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
-                context.bsm_parameters()?;
+                context.natural_bsm_parameters()?;
                 Ok(self
                     .native(
                         &option.0,

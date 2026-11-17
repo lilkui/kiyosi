@@ -61,7 +61,7 @@ pub struct FiniteDifferenceSettings {
     /// Sets at least three spatial steps; defaults to 800.
     /// Continuous barrier grids use all intervals between their actual domain edges.
     pub asset_step_count: i32,
-    /// Sets at least one time step; defaults to 400. Curve/surface knots and observations are added.
+    /// Sets at least one time step; defaults to 400. Curve/surface knots, model-calendar transitions and observations are added.
     pub time_step_count: i32,
     /// Selects time marching; defaults to [`FiniteDifferenceScheme::Rannacher`].
     pub scheme: FiniteDifferenceScheme,
@@ -197,6 +197,14 @@ fn diffusion_upper(
             maximum
         }
     };
+    let sigma = sigma
+        * context
+            .model_parameters()
+            .time_convention()
+            .calendar()
+            .map_or(1.0, |calendar| {
+                (365.0 / f64::from(calendar.trading_days_per_year())).sqrt()
+            });
     let drift = risk
         .ends()
         .chain(dividend.ends())
@@ -223,7 +231,7 @@ fn native(
     concentrate: bool,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled(context) {
+    if crate::engines::deterministic::enabled_until(context, option.expiry_time())? {
         return Ok((
             PricingResult::new(crate::engines::deterministic::vanilla(
                 option, payoff, context,
@@ -513,7 +521,9 @@ fn prepare_vanilla_state(
 ) -> Result<VanillaState> {
     local_volatility::validate_model(context)?;
     let time = time_to_expiry(option, context)?;
-    let grid = if time == 0.0 || crate::engines::deterministic::enabled(context) {
+    let grid = if time == 0.0
+        || crate::engines::deterministic::enabled_until(context, option.expiry_time())?
+    {
         None
     } else {
         Some(diffusion::with_diffusion!(context, |diffusion| {

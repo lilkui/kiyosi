@@ -128,7 +128,7 @@ impl CoxRossRubinsteinVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 }
@@ -441,7 +441,7 @@ macro_rules! vanilla_pricing {
             }
 
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
-                context.bsm_parameters()?;
+                context.natural_bsm_parameters()?;
                 Ok(native(
                     option,
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
@@ -459,7 +459,7 @@ macro_rules! vanilla_pricing {
                 request: GreeksRequest,
                 settings: crate::NumericalShiftSettings,
             ) -> Result<PricingResult> {
-                context.bsm_parameters()?;
+                context.natural_bsm_parameters()?;
                 flat_rates(context)?;
                 settings.validate()?;
                 let evaluate = |context: &PricingContext, request| {
@@ -531,7 +531,7 @@ impl CoxRossRubinsteinDigitalEngine {
     ///
     /// Reuses [`CoxRossRubinsteinVanillaEngine::price`] errors and validation order.
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         Ok(self
             .native(option, context, GreeksRequest::new([]))?
             .price())
@@ -654,7 +654,7 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
 )]
 fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, f64, f64)> {
     let (rate, dividend) = flat_rates(context)?;
-    let width = context.bsm_parameters()?.volatility() * dt.sqrt();
+    let width = context.natural_bsm_parameters()?.volatility() * dt.sqrt();
     let up = width.exp();
     let down = 1.0 / up;
     let discount = (-rate * dt).exp();

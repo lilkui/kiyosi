@@ -267,7 +267,7 @@ fn native_barrier(
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled(context) {
+    if crate::engines::deterministic::enabled_until(context, option.monitoring().expiry_time())? {
         validate_life(option.monitoring(), context)?;
         if let Some(value) = option.resolved_price(context)? {
             return PricingResult::new(value);
@@ -775,7 +775,8 @@ impl<I: Contract> super::solution::Backend<I> for BarrierState {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        if crate::engines::deterministic::enabled(context) {
+        if crate::engines::deterministic::enabled_until(context, option.monitoring().expiry_time())?
+        {
             if let Some(value) = option.resolved_price(context)? {
                 return PricingResult::new(value);
             }
@@ -785,7 +786,13 @@ impl<I: Contract> super::solution::Backend<I> for BarrierState {
                 context,
             )?);
         }
-        if local_volatility::local_model(context).is_some() {
+        if local_volatility::local_model(context).is_some()
+            || context
+                .model_parameters()
+                .time_convention()
+                .calendar()
+                .is_some()
+        {
             if let Some(result) =
                 local_resolved_with(option, context, request, shifts, |request| {
                     let state = self.vanilla.as_ref().ok_or_else(super::unstable)?;
@@ -822,7 +829,12 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
     let anchor = super::solution::at_spot(context, *range.end())?;
     validate_life(option, &anchor)?;
     let terms = option.monitoring();
-    let local = local_volatility::local_model(context).is_some();
+    let local = local_volatility::local_model(context).is_some()
+        || context
+            .model_parameters()
+            .time_convention()
+            .calendar()
+            .is_some();
     let mut pending = false;
     let mut vanilla = false;
     for spot in super::solution::probes(
@@ -865,7 +877,11 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
     } else {
         None
     };
-    let grid = if pending && !crate::engines::deterministic::enabled(context) {
+    let grid = if pending
+        && !crate::engines::deterministic::enabled_until(
+            context,
+            option.monitoring().expiry_time(),
+        )? {
         if terms.observation_mode() != ObservationMode::Scheduled
             && (terms.barrier_type().is_up() || option.upper_barrier().is_some())
             && !(local && terms.barrier_type().is_knock_in())

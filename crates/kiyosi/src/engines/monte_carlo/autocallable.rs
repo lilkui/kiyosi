@@ -171,7 +171,7 @@ impl MonteCarloAutocallableEngine {
         context: &PricingContext,
         statistics: bool,
     ) -> Result<(Moments, Moments, bool, Option<u64>)> {
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         if crate::engines::deterministic::enabled(context) {

@@ -151,7 +151,7 @@ fn native<T: AutocallableTerms>(
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled(context) {
+    if crate::engines::deterministic::enabled_until(context, note.expiry_time())? {
         return Ok((
             PricingResult::new(crate::engines::deterministic::autocallable(note, context)?)?,
             None,
@@ -259,6 +259,13 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             .map(|&t| context.valuation_time().years_until(t))
             .fold(nearest, f64::min);
     }
+    nearest = context
+        .model_parameters()
+        .time_convention()
+        .transitions(context.valuation_time(), expiry)?
+        .into_iter()
+        .map(|t| context.valuation_time().years_until(t))
+        .fold(nearest, f64::min);
     let near_steps = if layered { 64 } else { 128 };
     let intervals = grid.times.partition_point(|&v| v < nearest);
     if intervals < near_steps {
@@ -477,7 +484,7 @@ impl AutocallableState {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        if crate::engines::deterministic::enabled(context) {
+        if crate::engines::deterministic::enabled_until(context, note.expiry_time())? {
             return PricingResult::new(crate::engines::deterministic::autocallable(note, context)?);
         }
         let state = initial(note, context);
@@ -569,7 +576,9 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
                 starting_knocked &= state.knocked_in;
             }
         }
-        let grid = if pending && !crate::engines::deterministic::enabled(context) {
+        let grid = if pending
+            && !crate::engines::deterministic::enabled_until(context, note.expiry_time())?
+        {
             let anchor = &anchor;
             Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
                 note,

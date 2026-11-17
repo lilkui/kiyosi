@@ -11,7 +11,13 @@
 //! # Conventions
 //!
 //! Annual rates and annualized volatility use decimal units. Rates are continuously
-//! compounded; rate curves use Actual/365 Fixed. [`Greek`] defines sensitivity units.
+//! compounded; rates and continuous dividend yields use Actual/365 Fixed.
+//! [`ModelTimeConvention`] defines volatility units and variance accumulation.
+//! BSM and local-volatility PDE models support business time over a calendar's
+//! fixed basis, with no variance accumulation on closed dates. Carry, discounting
+//! and contractual event timestamps still advance on natural days. Other engines
+//! reject business time with [`Error::UnsupportedOperation`]; Heston rejects it at
+//! model construction or replacement. [`Greek`] defines sensitivity units.
 //! BSM volatility may be zero, selecting deterministic pricing. Check numerical
 //! convergence separately from Monte Carlo sampling uncertainty and solver tolerances.
 //!
@@ -223,7 +229,8 @@ pub use risk::coupon::{
 pub use risk::implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use risk::numerical::numerical_greeks;
 pub use time::{
-    BusinessDayConvention, Date, ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar,
+    BusinessDayConvention, Date, ModelTimeConvention, ObservationSchedule, TimeOfDay, Timestamp,
+    TradingCalendar,
 };
 
 /// Reports the package version shared with the Python bindings.

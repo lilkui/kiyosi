@@ -231,6 +231,19 @@ fn time_stencil(
             }
         }
     }
+    let radius = settings.time_shift_micros()?;
+    let window_start = time.add_micros(-radius.min(lower.micros_until(time).max(0)))?;
+    let window_end = time.add_micros(radius.min(time.micros_until(upper).max(0)))?;
+    for boundary in model
+        .time_convention()
+        .transitions(window_start, window_end)?
+    {
+        if boundary <= time {
+            lower = lower.max(boundary);
+        } else {
+            upper = upper.min(boundary);
+        }
+    }
     let before_width = lower.micros_until(time);
     let after_width = time.micros_until(upper);
     let mut shift = settings

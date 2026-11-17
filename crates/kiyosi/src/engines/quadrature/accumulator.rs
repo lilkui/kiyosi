@@ -152,7 +152,9 @@ fn price(
     };
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *option
-            && context.bsm_parameters().is_ok_and(|m| c.model == *m)
+            && context
+                .natural_bsm_parameters()
+                .is_ok_and(|m| c.model == *m)
             && c.valuation == context.valuation_time()
     }) {
         return evaluate(
@@ -170,7 +172,7 @@ fn price(
         OptionType::Put => -1.0,
     };
     let knocks_out = |point: f64| sign * point >= sign * knock_out;
-    let sigma = context.bsm_parameters()?.volatility();
+    let sigma = context.natural_bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let transition = |time| super::transition(time, drift_rate, sigma, rate);
     let count = if option.accrues(context) { 2 } else { 1 };
@@ -337,7 +339,7 @@ fn price(
             if let Some(prepared) = prepared {
                 *prepared = Some(PreparedCurve {
                     option: option.clone(),
-                    model: context.bsm_parameters()?.clone(),
+                    model: context.natural_bsm_parameters()?.clone(),
                     valuation: context.valuation_time(),
                     nodes,
                     layers,

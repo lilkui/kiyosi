@@ -337,7 +337,7 @@ impl BjerksundStenslandVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
+        context.natural_bsm_parameters()?;
         crate::engines::flat_rates(context)?;
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::vanilla(
@@ -350,7 +350,7 @@ impl BjerksundStenslandVanillaEngine {
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         let time = valuation.years_until(expiry);
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;
         let (rate, dividend) = (model.flat_risk_free_rate()?, model.flat_dividend_yield()?);
         let call = option.option_type() == OptionType::Call;

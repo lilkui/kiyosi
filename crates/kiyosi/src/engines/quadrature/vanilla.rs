@@ -158,7 +158,7 @@ macro_rules! vanilla_pricing {
                 if time == 0.0 {
                     return checked(payoff.value(context.spot_price()));
                 }
-                let sigma = context.bsm_parameters()?.volatility();
+                let sigma = context.natural_bsm_parameters()?.volatility();
                 let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
                 let width = sigma * time.sqrt();
                 if !drift.is_finite() || !width.is_finite() || width <= 0.0 {

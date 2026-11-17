@@ -17,6 +17,24 @@ pub(super) fn enabled(context: &PricingContext) -> bool {
     matches!(context.model_parameters(), ModelParameters::BlackScholesMerton(model) if model.volatility() == 0.0)
 }
 
+pub(crate) fn enabled_until(context: &PricingContext, end: Timestamp) -> Result<bool> {
+    if enabled(context) {
+        return Ok(true);
+    }
+    if end < context.valuation_time() {
+        return Ok(false);
+    }
+    let clock = context.model_parameters().time_convention();
+    let stopped =
+        clock.calendar().is_some() && clock.year_fraction(context.valuation_time(), end)? == 0.0;
+    if stopped {
+        if let ModelParameters::LocalVolatility(model) = context.model_parameters() {
+            model.surface().validate_time(end)?;
+        }
+    }
+    Ok(stopped)
+}
+
 fn invalid() -> Error {
     Error::ComputationFailure("deterministic valuation is not representable".into())
 }
@@ -27,7 +45,7 @@ pub(super) fn vanilla(
     context: &PricingContext,
 ) -> Result<f64> {
     validate_life(option, context)?;
-    let model = context.bsm_parameters()?;
+    let model = context.model_parameters();
     let start = context.valuation_time();
     let end = option.expiry_time();
     let risk = Curve::new(model.risk_free_curve(), start, end)?;
@@ -124,7 +142,7 @@ pub(super) fn exercise_value(
 }
 
 fn log_return(context: &PricingContext, time: Timestamp) -> Result<f64> {
-    let model = context.bsm_parameters()?;
+    let model = context.model_parameters();
     let start = context.valuation_time();
     finite(
         model.dividend_curve().log_factor(start, time)?
@@ -143,7 +161,7 @@ fn spot(context: &PricingContext, time: Timestamp) -> Result<f64> {
 
 fn discount(context: &PricingContext, time: Timestamp) -> Result<f64> {
     context
-        .bsm_parameters()?
+        .model_parameters()
         .risk_free_curve()
         .log_factor(context.valuation_time(), time)
 }
@@ -169,7 +187,7 @@ fn first_touch(
         }
     };
     let start = context.valuation_time();
-    let model = context.bsm_parameters()?;
+    let model = context.model_parameters();
     let mut previous = start;
     let (mut risk_log, mut dividend_log) = (0.0, 0.0);
     let mut advance = |time| -> Result<(f64, f64)> {
@@ -261,7 +279,11 @@ pub(super) fn barrier_value(
     let touch = first_touch(&option.monitoring, upper, context)?;
     if touch.is_some() == option.barrier_type().is_knock_in() {
         let vanilla = option.vanilla();
-        return super::analytic::european::AnalyticEuropeanEngine.price(vanilla, context);
+        return self::vanilla(
+            vanilla,
+            Payoff::vanilla(vanilla.option_type(), vanilla.strike(), false),
+            context,
+        );
     }
     if option.rebate() == 0.0 {
         return Ok(0.0);
@@ -298,7 +320,7 @@ pub(super) fn binary(contract: &Contract<'_>, context: &PricingContext) -> Resul
     if let Some(digital) = contract.digital {
         return vanilla(digital, Payoff::digital(digital), context);
     }
-    let model = context.bsm_parameters()?;
+    let model = context.model_parameters();
     let start = context.valuation_time();
     let end = monitoring.expiry_time();
     checked(if let Some(amount) = contract.payout {

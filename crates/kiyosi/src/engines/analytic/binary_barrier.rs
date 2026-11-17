@@ -70,7 +70,7 @@ impl Contract<'_> {
         if let Some(digital) = self.digital {
             AnalyticDigitalEngine.price(digital, context)
         } else {
-            let model = context.bsm_parameters()?;
+            let model = context.natural_bsm_parameters()?;
             checked(scaled_cash(
                 self.payout.unwrap_or(context.spot_price()),
                 -if self.payout.is_some() {
@@ -83,7 +83,7 @@ impl Contract<'_> {
     }
     fn price(&self, context: &PricingContext) -> Result<f64> {
         let option = self.monitoring;
-        let model = context.bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();
