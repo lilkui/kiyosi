@@ -141,10 +141,23 @@ fn native_with_diffusion<D: Diffusion>(
     diffusion: D,
 ) -> Result<(PricingResult, Option<f64>)> {
     option.validate_pricing(context)?;
-    let (quantity, settlement) = option.initial(context);
+    let (_, settlement) = option.initial(context);
     if let Some(value) = settlement {
         return Ok((PricingResult::new(value)?, None));
     }
+    let saved = solve_grid(option, context, settings, diffusion)?;
+    Ok((
+        saved.evaluate(option, context, request, shifts)?,
+        Some(saved.space.upper),
+    ))
+}
+
+fn solve_grid<D: Diffusion>(
+    option: &Accumulator,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    diffusion: D,
+) -> Result<AccumulatorGrid> {
     let expiry = option.expiry_time();
     let model = context.model_parameters();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
@@ -271,30 +284,134 @@ fn native_with_diffusion<D: Diffusion>(
             damping = 2;
         }
     }
-    let curvatures = [space.curvature(&layers[0]), space.curvature(&layers[1])];
-    let sample = |spot| {
-        let slope = space.sample(&layers[0], &curvatures[0], spot);
-        let intercept = space.sample(&layers[1], &curvatures[1], spot);
-        [
-            quantity * slope[0] + intercept[0],
-            quantity * slope[1] + intercept[1],
-            slope[2].mul_add(quantity, intercept[2]),
-        ]
-    };
-    let spot = context.spot_price();
-    let value = sample(spot);
-    let mut result = PricingResult::new(value[0])?;
-    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-    if !option.at_spot_discontinuity(context, h) {
-        result.set(request, Greek::Delta, value[1])?;
-        result.set(request, Greek::Gamma, value[2])?;
-        if request.has(Greek::Speed) && h > 0.0 && spot > h && spot + h < upper {
-            let up = sample(spot + h);
-            let down = sample(spot - h);
-            PricingResult::new(up[0])?;
-            PricingResult::new(down[0])?;
-            result.set(request, Greek::Speed, (up[2] - down[2]) / (2.0 * h))?;
+    let curvatures = layers.each_ref().map(|layer| space.curvature(layer));
+    Ok(AccumulatorGrid {
+        space,
+        layers,
+        curvatures,
+    })
+}
+
+#[derive(PartialEq)]
+struct AccumulatorGrid {
+    space: SpatialGrid,
+    layers: [Vec<f64>; 2],
+    curvatures: [Vec<f64>; 2],
+}
+impl AccumulatorGrid {
+    fn evaluate(
+        &self,
+        option: &Accumulator,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        let (quantity, settlement) = option.initial(context);
+        if let Some(value) = settlement {
+            return PricingResult::new(value);
         }
+        let Self {
+            space,
+            layers,
+            curvatures,
+        } = self;
+        let upper = space.upper;
+        let sample = |spot| {
+            let slope = space.sample(&layers[0], &curvatures[0], spot);
+            let intercept = space.sample(&layers[1], &curvatures[1], spot);
+            [
+                quantity * slope[0] + intercept[0],
+                quantity * slope[1] + intercept[1],
+                slope[2].mul_add(quantity, intercept[2]),
+            ]
+        };
+        let spot = context.spot_price();
+        let value = sample(spot);
+        let mut result = PricingResult::new(value[0])?;
+        let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
+        if !option.at_spot_discontinuity(context, h) {
+            result.set(request, Greek::Delta, value[1])?;
+            result.set(request, Greek::Gamma, value[2])?;
+            if request.has(Greek::Speed) && h > 0.0 && spot > h && spot + h < upper {
+                let up = sample(spot + h);
+                let down = sample(spot - h);
+                PricingResult::new(up[0])?;
+                PricingResult::new(down[0])?;
+                result.set(request, Greek::Speed, (up[2] - down[2]) / (2.0 * h))?;
+            }
+        }
+        Ok(result)
     }
-    Ok((result, Some(upper)))
+}
+
+#[derive(PartialEq)]
+struct AccumulatorState {
+    grid: Option<AccumulatorGrid>,
+}
+impl super::solution::Backend<Accumulator> for AccumulatorState {
+    fn evaluate(
+        &self,
+        option: &Accumulator,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        if let Some(grid) = &self.grid {
+            return grid.evaluate(option, context, request, shifts);
+        }
+        if crate::engines::deterministic::enabled(context) {
+            return PricingResult::new(crate::engines::deterministic::accumulator(
+                option, context,
+            )?);
+        }
+        let (_, value) = option.initial(context);
+        PricingResult::new(value.ok_or_else(super::unstable)?)
+    }
+}
+impl super::FiniteDifferenceEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
+    fn solve(
+        &self,
+        option: &Accumulator,
+        context: &PricingContext,
+        range: std::ops::RangeInclusive<f64>,
+    ) -> Result<super::FiniteDifferenceSolution> {
+        local_volatility::validate_model(context)?;
+        super::solution::validate_range(&range)?;
+        crate::cancellation::check()?;
+        let anchor = super::solution::at_spot(context, *range.end())?;
+        option.validate_pricing(&anchor)?;
+        let points = super::solution::probes(&range, [option.strike(), option.knock_out_level()]);
+        let mut pending = false;
+        for spot in points {
+            let probe = super::solution::at_spot(context, spot)?;
+            option.validate_pricing(&probe)?;
+            pending |= option.initial(&probe).1.is_none();
+        }
+        let grid = if pending && !crate::engines::deterministic::enabled(context) {
+            let anchor = &anchor;
+            Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
+                option,
+                anchor,
+                self.settings,
+                diffusion
+            ))?)
+        } else {
+            None
+        };
+        let state = AccumulatorState { grid };
+        super::solution::Backend::evaluate(
+            &state,
+            option,
+            &anchor,
+            GreeksRequest::new([]),
+            Default::default(),
+        )?;
+        crate::cancellation::check()?;
+        Ok(super::FiniteDifferenceSolution::new(
+            option.clone(),
+            context,
+            range,
+            state,
+        ))
+    }
 }

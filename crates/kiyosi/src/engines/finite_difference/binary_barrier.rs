@@ -104,9 +104,6 @@ fn native_with_diffusion<D: Diffusion>(
 ) -> Result<PricingResult> {
     let option = contract.monitoring;
     validate_life(option, context)?;
-    let upper_barrier = contract.upper_barrier;
-    let knock_in = option.barrier_type().is_knock_in();
-    let at_hit = contract.timing == SettlementTiming::AtHit;
     let spot = context.spot_price();
     let terminal = |asset| {
         if let Some(digital) = contract.digital {
@@ -159,6 +156,28 @@ fn native_with_diffusion<D: Diffusion>(
         }
         Settlement::Pending => {}
     }
+    let saved = solve_grid(contract, context, settings, diffusion)?;
+    saved.evaluate(contract, context, request, shifts)
+}
+
+fn solve_grid<D: Diffusion>(
+    contract: &Contract<'_>,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    diffusion: D,
+) -> Result<BinaryGrid> {
+    let option = contract.monitoring;
+    let expiry = option.expiry_time();
+    let upper_barrier = contract.upper_barrier;
+    let knock_in = option.barrier_type().is_knock_in();
+    let at_hit = contract.timing == SettlementTiming::AtHit;
+    let spot = context.spot_price();
+    let terminal = |asset| {
+        contract.digital.map_or_else(
+            || contract.payout.unwrap_or(asset),
+            |digital| Payoff::digital(digital).value(asset),
+        )
+    };
     let scheduled = option.observation_mode() == ObservationMode::Scheduled;
     let horizon = if scheduled && at_hit {
         option
@@ -383,28 +402,54 @@ fn native_with_diffusion<D: Diffusion>(
             *value = vanilla - *value;
         }
     }
-    let curvature = space.curvature(&values);
-    let sample = space.sample(&values, &curvature, spot);
-    let scale = scaled(
-        contract.payout.unwrap_or(spot),
-        if contract.payout.is_some() {
-            risk.log_factor(0.0, time)
-        } else {
-            dividend.log_factor(0.0, time)
-        },
-    );
-    let mut result = PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
-    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-    if !option.spot_discontinuity(context, h, contract.upper_barrier) {
-        result.set(request, Greek::Delta, sample[1])?;
-        result.set(request, Greek::Gamma, sample[2])?;
-        if request.has(Greek::Speed) {
-            if let Some(speed) = space.speed(&values, &curvature, spot, h) {
-                result.set(request, Greek::Speed, speed)?;
+    Ok(BinaryGrid {
+        grid: super::solution::Grid::new(space, values),
+        discount: [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
+    })
+}
+
+#[derive(PartialEq)]
+struct BinaryGrid {
+    grid: super::solution::Grid,
+    discount: [f64; 2],
+}
+impl BinaryGrid {
+    fn evaluate(
+        &self,
+        contract: &Contract<'_>,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        let option = contract.monitoring;
+        let spot = context.spot_price();
+        let sample = self.grid.sample(spot);
+        let scale = scaled(
+            contract.payout.unwrap_or(spot),
+            if contract.payout.is_some() {
+                self.discount[0]
+            } else {
+                self.discount[1]
+            },
+        );
+        let mut result =
+            PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
+        let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
+        if !option.spot_discontinuity(context, h, contract.upper_barrier) {
+            result.set(request, Greek::Delta, sample[1])?;
+            result.set(request, Greek::Gamma, sample[2])?;
+            if request.has(Greek::Speed) {
+                if let Some(speed) =
+                    self.grid
+                        .space
+                        .speed(&self.grid.values, &self.grid.curvature, spot, h)
+                {
+                    result.set(request, Greek::Speed, speed)?;
+                }
             }
         }
+        Ok(result)
     }
-    Ok(result)
 }
 
 #[expect(
@@ -500,3 +545,182 @@ fn local_digital_knock_in<D: Diffusion>(
         observe,
     )
 }
+
+trait BinaryInstrument: crate::OptionContract {
+    fn saved_contract(&self) -> Contract<'_>;
+}
+macro_rules! saved_binary {
+    ($option:ty) => {
+        impl BinaryInstrument for $option {
+            fn saved_contract(&self) -> Contract<'_> {
+                self.contract()
+            }
+        }
+    };
+}
+saved_binary!(BinaryBarrierOption);
+saved_binary!(TouchOption);
+saved_binary!(DoubleTouchOption);
+
+#[derive(PartialEq)]
+struct BinaryState {
+    grid: Option<BinaryGrid>,
+    digital: Option<super::VanillaState>,
+}
+impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
+    fn evaluate(
+        &self,
+        instrument: &I,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        let contract = instrument.saved_contract();
+        if crate::engines::deterministic::enabled(context) {
+            return PricingResult::new(crate::engines::deterministic::binary(&contract, context)?);
+        }
+        match contract.settlement(context)? {
+            Settlement::Value(value) => PricingResult::new(value),
+            Settlement::AtExpiry => {
+                if context.valuation_time() == contract.monitoring.expiry_time() {
+                    return PricingResult::new(contract.digital.map_or_else(
+                        || contract.payout.unwrap_or(context.spot_price()),
+                        |d| Payoff::digital(d).value(context.spot_price()),
+                    ));
+                }
+                if let Some(digital) = contract.digital {
+                    if let Some(saved) = &self.digital {
+                        let h = crate::risk::numerical::symmetric_shift(
+                            context.spot_price(),
+                            shifts.spot_shift_at(context.spot_price()),
+                        );
+                        let request = if contract.monitoring.spot_discontinuity(
+                            context,
+                            h,
+                            contract.upper_barrier,
+                        ) {
+                            GreeksRequest::new([])
+                        } else {
+                            request
+                        };
+                        return super::solution::Backend::evaluate(
+                            saved, digital, context, request, shifts,
+                        );
+                    }
+                    return PricingResult::new(AnalyticDigitalEngine.price(digital, context)?);
+                }
+                let curve = if contract.payout.is_some() {
+                    context.model_parameters().risk_free_curve()
+                } else {
+                    context.model_parameters().dividend_curve()
+                };
+                PricingResult::new(checked(scaled(
+                    contract.payout.unwrap_or(context.spot_price()),
+                    curve
+                        .log_factor(context.valuation_time(), contract.monitoring.expiry_time())?,
+                ))?)
+            }
+            Settlement::Pending => self
+                .grid
+                .as_ref()
+                .ok_or_else(unstable)?
+                .evaluate(&contract, context, request, shifts),
+        }
+    }
+}
+
+fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'static>(
+    option: &I,
+    context: &PricingContext,
+    mut settings: FiniteDifferenceSettings,
+    range: std::ops::RangeInclusive<f64>,
+) -> Result<super::FiniteDifferenceSolution> {
+    local_volatility::validate_model(context)?;
+    super::solution::validate_range(&range)?;
+    crate::cancellation::check()?;
+    let contract = option.saved_contract();
+    let anchor = super::solution::at_spot(context, *range.end())?;
+    validate_life(contract.monitoring, &anchor)?;
+    let mut pending = false;
+    let mut digital = false;
+    let local = local_volatility::local_model(context).is_some();
+    let levels = [
+        contract.monitoring.barrier_level(),
+        contract
+            .upper_barrier
+            .unwrap_or(contract.monitoring.barrier_level()),
+        contract.digital.map_or(0.0, DigitalOption::strike),
+    ];
+    for spot in super::solution::probes(&range, levels) {
+        let probe = super::solution::at_spot(context, spot)?;
+        match contract.settlement(&probe)? {
+            Settlement::Pending => pending = true,
+            Settlement::AtExpiry => {
+                digital |= local
+                    && contract.digital.is_some()
+                    && context.valuation_time() < contract.monitoring.expiry_time();
+            }
+            Settlement::Value(_) => {}
+        }
+    }
+    let digital = if digital {
+        let digital = contract.digital.ok_or_else(unstable)?;
+        Some(super::prepare_vanilla_state(
+            digital,
+            Payoff::digital(digital),
+            &anchor,
+            settings,
+            false,
+        )?)
+    } else {
+        None
+    };
+    let grid = if pending && !crate::engines::deterministic::enabled(context) {
+        if contract.monitoring.observation_mode() != ObservationMode::Scheduled
+            && (contract.monitoring.barrier_type().is_up() || contract.upper_barrier.is_some())
+            && !(local
+                && contract.monitoring.barrier_type().is_knock_in()
+                && contract.digital.is_some())
+        {
+            settings.asset_upper_boundary = None;
+        }
+        let anchor = &anchor;
+        Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
+            &contract, anchor, settings, diffusion
+        ))?)
+    } else {
+        None
+    };
+    let state = BinaryState { grid, digital };
+    super::solution::Backend::evaluate(
+        &state,
+        option,
+        &anchor,
+        GreeksRequest::new([]),
+        Default::default(),
+    )?;
+    crate::cancellation::check()?;
+    Ok(super::FiniteDifferenceSolution::new(
+        option.clone(),
+        context,
+        range,
+        state,
+    ))
+}
+macro_rules! binary_solution {
+    ($engine:ty, $option:ty) => {
+        impl super::FiniteDifferenceEngine<$option> for $engine {
+            fn solve(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                range: std::ops::RangeInclusive<f64>,
+            ) -> Result<super::FiniteDifferenceSolution> {
+                prepare_solution(option, context, self.settings, range)
+            }
+        }
+    };
+}
+binary_solution!(FiniteDifferenceBinaryBarrierEngine, BinaryBarrierOption);
+binary_solution!(FiniteDifferenceBinaryBarrierEngine, TouchOption);
+binary_solution!(FiniteDifferenceDoubleTouchEngine, DoubleTouchOption);

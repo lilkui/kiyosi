@@ -260,9 +260,18 @@ fn space(count: i32, upper: f64, level: f64, scale: f64, levels: Vec<f64>) -> Re
 fn price(
     option: &impl OptionContract,
     context: &PricingContext,
-    mut payoff: Payoff,
+    payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
 ) -> Result<f64> {
+    prepare(option, context, payoff, settings)?.price(context.spot_price())
+}
+
+fn prepare(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    mut payoff: Payoff,
+    settings: HestonFiniteDifferenceSettings,
+) -> Result<HestonState> {
     let model = context.model_parameters().as_heston()?;
     let time = time_to_expiry(option, context)?;
     let start = context.valuation_time();
@@ -270,16 +279,23 @@ fn price(
     let risk = Curve::new(model.risk_free_curve(), start, end)?;
     let dividend = Curve::new(model.dividend_curve(), start, end)?;
     if time == 0.0 {
-        return Ok(payoff.value(context.spot_price()));
+        return Ok(HestonState::Direct {
+            payoff,
+            time,
+            risk,
+            dividend,
+        });
     }
     let scale = payoff.strike.max(context.spot_price());
     if model.initial_variance() == 0.0
         && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0)
     {
-        return checked_with_scale(
-            exercise_value(payoff, context.spot_price(), 0.0, time, &risk, &dividend)?,
-            scale,
-        );
+        return Ok(HestonState::Direct {
+            payoff,
+            time,
+            risk,
+            dividend,
+        });
     }
     let spot = context.spot_price() / scale;
     payoff.strike /= scale;
@@ -303,12 +319,13 @@ fn price(
             "Heston asset boundary must exceed spot and strike",
         ));
     }
+    // A nearby spot anchor can shrink spacing across the entire concentrated mesh.
     let asset = space(
         settings.asset_step_count,
         upper,
         spot.max(payoff.strike),
         (0.1 * spot.max(payoff.strike)).max(f64::MIN_POSITIVE),
-        vec![spot, payoff.strike],
+        vec![payoff.strike],
     )?;
     let deterministic = model.vol_of_vol() == 0.0;
     let variance = if deterministic {
@@ -434,17 +451,122 @@ fn price(
         }
         values = predictor;
     }
-    let price = if let Some(v) = &variance {
-        let at_asset: Vec<_> = values
-            .chunks_exact(nx)
-            .map(|row| asset.linear(row, spot))
-            .collect();
-        v.linear(&at_asset, model.initial_variance())
-    } else {
-        asset.linear(&values, spot)
-    };
-    checked_with_scale(scale * price, scale)
+    Ok(HestonState::Grid {
+        scale,
+        asset,
+        variance,
+        values,
+        initial_variance: model.initial_variance(),
+    })
 }
+
+#[derive(PartialEq)]
+enum HestonState {
+    Direct {
+        payoff: Payoff,
+        time: f64,
+        risk: Curve,
+        dividend: Curve,
+    },
+    Grid {
+        scale: f64,
+        asset: SpatialGrid,
+        variance: Option<SpatialGrid>,
+        values: Vec<f64>,
+        initial_variance: f64,
+    },
+}
+impl HestonState {
+    fn price(&self, spot: f64) -> Result<f64> {
+        match self {
+            Self::Direct {
+                payoff,
+                time,
+                risk,
+                dividend,
+            } => {
+                if *time == 0.0 {
+                    return Ok(payoff.value(spot));
+                }
+                checked_with_scale(
+                    exercise_value(*payoff, spot, 0.0, *time, risk, dividend)?,
+                    payoff.strike.max(spot),
+                )
+            }
+            Self::Grid {
+                scale,
+                asset,
+                variance,
+                values,
+                initial_variance,
+            } => {
+                let spot = spot / scale;
+                if spot == 0.0 {
+                    return Err(unstable());
+                }
+                let price = if let Some(v) = variance {
+                    let at_asset: Vec<_> = values
+                        .chunks_exact(asset.count + 1)
+                        .map(|row| asset.linear(row, spot))
+                        .collect();
+                    v.linear(&at_asset, *initial_variance)
+                } else {
+                    asset.linear(values, spot)
+                };
+                checked_with_scale(scale * price, *scale)
+            }
+        }
+    }
+}
+impl<I> super::solution::Backend<I> for HestonState {
+    fn evaluate(
+        &self,
+        _: &I,
+        context: &PricingContext,
+        _: GreeksRequest,
+        _: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        PricingResult::new(self.price(context.spot_price())?)
+    }
+}
+macro_rules! heston_solution {
+    ($option:ty, $american:literal) => {
+        impl super::FiniteDifferenceEngine<$option> for FiniteDifferenceHestonVanillaEngine {
+            fn solve(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                range: std::ops::RangeInclusive<f64>,
+            ) -> Result<super::FiniteDifferenceSolution> {
+                context.model_parameters().as_heston()?;
+                super::solution::validate_range(&range)?;
+                crate::cancellation::check()?;
+                let anchor = super::solution::at_spot(context, *range.end())?;
+                let state = prepare(
+                    option,
+                    &anchor,
+                    Payoff::vanilla(option.option_type(), option.strike(), $american),
+                    self.settings,
+                )?;
+                if *range.start() == 0.0 && matches!(state, HestonState::Grid { .. }) {
+                    return Err(invalid_grid(
+                        "Heston grid solutions require a positive lower spot bound",
+                    ));
+                }
+                state.price(*range.start())?;
+                crate::cancellation::check()?;
+                Ok(super::FiniteDifferenceSolution::new(
+                    option.clone(),
+                    context,
+                    range,
+                    state,
+                ))
+            }
+        }
+    };
+}
+heston_solution!(EuropeanOption, false);
+heston_solution!(AmericanOption, true);
 
 // Generator-oriented upwinding preserves nonnegative directional off-diagonals.
 fn directional(nodes: &[f64], i: usize, diffusion: f64, drift: f64, discount: f64) -> [f64; 3] {

@@ -33,6 +33,11 @@ def _fields(value: Any) -> dict[str, Any]:
                 name: result for name, result in values.items() if result is not None
             },
         }
+    if isinstance(value, _native.FiniteDifferenceSolution):
+        return {
+            name: getattr(value, name)
+            for name in ("spot_range", "valuation_time", "supported")
+        }
     if isinstance(value, _native.MonteCarloEstimate):
         return {
             "price": value.price,

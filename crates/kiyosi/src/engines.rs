@@ -42,14 +42,14 @@ fn greeks<I: OptionContract>(
     })
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 struct Payoff {
     strike: f64,
     sign: f64,
     kind: PayoffKind,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum PayoffKind {
     European,
     American,

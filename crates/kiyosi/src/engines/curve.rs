@@ -1,5 +1,6 @@
 use crate::Result;
 
+#[derive(PartialEq)]
 pub(super) struct Curve {
     segments: Vec<(f64, f64)>,
     from_start: Vec<f64>,

@@ -105,6 +105,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         };
     }
 
+    module.add_class::<engines::finite_difference::solution::FiniteDifferenceSolution>()?;
     register_instruments(module)?;
     register_engines(module)?;
     module.add("__version__", kiyosi::VERSION)?;

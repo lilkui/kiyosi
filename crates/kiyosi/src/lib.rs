@@ -84,6 +84,9 @@
 //! Rayon pool with per-call buffers and worker caps; serial calls use the calling
 //! thread. [`configure_monte_carlo_pool`] caps created workers before initialization.
 //! The pool leaves the application's global Rayon pool unchanged.
+//! [`FiniteDifferenceSolution`] owns immutable query state; clones and shared
+//! instances permit concurrent spot queries after the source inputs are dropped.
+//! Its queries do not perform rollback or mutate the saved numerical solution.
 //! [`PricingEngine::prepare_request`] handles support sequential use on the calling
 //! thread and need not be `Send` or `Sync`; concurrent requests prepare their own.
 //! Custom calendar predicates must return stable answers throughout the calendar's
@@ -152,8 +155,8 @@ pub use engines::finite_difference::{
     FiniteDifferenceAccumulatorEngine, FiniteDifferenceAutocallableEngine,
     FiniteDifferenceBarrierEngine, FiniteDifferenceBinaryBarrierEngine,
     FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
-    FiniteDifferenceDoubleTouchEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
-    FiniteDifferenceVanillaEngine,
+    FiniteDifferenceDoubleTouchEngine, FiniteDifferenceEngine, FiniteDifferenceScheme,
+    FiniteDifferenceSettings, FiniteDifferenceSolution, FiniteDifferenceVanillaEngine,
 };
 pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,

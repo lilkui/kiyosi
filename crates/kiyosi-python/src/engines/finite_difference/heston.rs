@@ -84,6 +84,49 @@ engine_methods!(
         ///
     ],
     {
+        /// Prepare an owned fixed-time solution for repeated spot queries.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : object
+        ///     Contract supported by this engine.
+        /// context : PricingContext
+        ///     Fixed model inputs, valuation time and supplied history.
+        /// spot_range : tuple of float
+        ///     Two finite positive, strictly increasing bounds. Both endpoints
+        ///     are queryable; the context spot need not be inside the interval.
+        ///
+        /// Returns
+        /// -------
+        /// FiniteDifferenceSolution
+        ///     Owned reusable solution; queries perform no new rollback.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If applicability, interval, history, coverage or numerical checks fail.
+        /// TypeError, ValueError
+        ///     If the interval or input representations are invalid.
+        ///
+        /// Notes
+        /// -----
+        /// Current observations are evaluated per queried spot. Numerical domains
+        /// cover the interval; active explicit engine bounds must provide coverage.
+        /// Some products prepare several state layers or continuation components.
+        /// Accuracy requires grid and truncation convergence checks. Long work
+        /// releases the GIL; cancellation returns no partial solution.
+        #[pyo3(signature = (instrument, context, *, spot_range))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 extracts the instrument enum by value.")]
+        fn solve(
+            &self,
+            py: pyo3::Python<'_>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: binomial::VanillaInstrument<'_>,
+            context: &crate::market::PricingContext,
+            #[pyo3(from_py_with = super::solution::spot_range)] spot_range: std::ops::RangeInclusive<f64>,
+        ) -> pyo3::PyResult<super::solution::FiniteDifferenceSolution> {
+            binomial::with_vanilla!(&instrument, option, super::solution::solve(py, &self.0, option, context, spot_range))
+        }
+
         #[classattr]
         const _STATE_FIELDS: &'static [&'static str] = &[
             "asset_step_count", "variance_step_count", "time_step_count",

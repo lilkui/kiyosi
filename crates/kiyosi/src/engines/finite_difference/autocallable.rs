@@ -162,10 +162,6 @@ fn native<T: AutocallableTerms>(
     })
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "Near-barrier step counts are bounded by the validated i32 grid size and fit exactly in f64."
-)]
 fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
@@ -193,9 +189,27 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         }
         return Ok((result, None));
     }
+    let saved = solve_grid(note, context, settings, diffusion, state.knocked_in)?;
+    let upper = saved.space.upper;
+    let result =
+        AutocallableState { grid: Some(saved) }.evaluate(note, context, request, shifts)?;
+    Ok((result, Some(upper)))
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Validated grid step counts fit exactly in f64."
+)]
+fn solve_grid<T: AutocallableTerms, D: Diffusion>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    diffusion: D,
+    starting_knocked: bool,
+) -> Result<AutocallableGrid> {
     let t = note.view();
     let daily = t.daily_knock_in();
-    let layered = daily && !state.knocked_in && note.knock_in_affects_payoff();
+    let layered = daily && !starting_knocked && note.knock_in_affects_payoff();
     let model = context.model_parameters();
     let expiry = note.expiry_time();
     let time = context.valuation_time().years_until(expiry);
@@ -329,7 +343,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     for i in 0..size {
         let value = project_in_coordinates(&space, &breaks, i, |asset| {
             [
-                expiry_payment(note, asset, state.knocked_in, end_event),
+                expiry_payment(note, asset, starting_knocked, end_event),
                 if layered {
                     expiry_payment(note, asset, true, end_event)
                 } else {
@@ -427,22 +441,156 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
             damping = 2;
         }
     }
-    let curvature = space.curvature(&alive);
-    let spot = context.spot_price();
-    let [price, delta, gamma] = space.sample(&alive, &curvature, spot);
-    let mut result = PricingResult::new(state.coupon + price)?;
-    for (greek, value) in [(Greek::Delta, delta), (Greek::Gamma, gamma)] {
-        if spot_greeks && request.has(greek) {
-            result.set(request, greek, value)?;
+    let curvatures = [
+        space.curvature(&alive),
+        if layered {
+            space.curvature(&knocked)
+        } else {
+            Vec::new()
+        },
+    ];
+    Ok(AutocallableGrid {
+        space,
+        layers: [alive, knocked],
+        curvatures,
+        starting_knocked,
+    })
+}
+
+#[derive(PartialEq)]
+struct AutocallableGrid {
+    space: SpatialGrid,
+    layers: [Vec<f64>; 2],
+    curvatures: [Vec<f64>; 2],
+    starting_knocked: bool,
+}
+
+#[derive(PartialEq)]
+struct AutocallableState {
+    grid: Option<AutocallableGrid>,
+}
+impl AutocallableState {
+    fn evaluate<T: AutocallableTerms>(
+        &self,
+        note: &AutocallableNote<T>,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        if crate::engines::deterministic::enabled(context) {
+            return PricingResult::new(crate::engines::deterministic::autocallable(note, context)?);
         }
-    }
-    if spot_greeks && request.has(Greek::Speed) {
-        let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-        if let Some(speed) = space.speed(&alive, &curvature, spot, h) {
-            result.set(request, Greek::Speed, speed)?;
+        let state = initial(note, context);
+        let h = crate::risk::numerical::symmetric_shift(
+            context.spot_price(),
+            shifts.spot_shift_at(context.spot_price()),
+        );
+        let spot_greeks = !note.at_spot_discontinuity(context, h);
+        if let Some(value) = state.settlement {
+            return PricingResult::new(value);
         }
+        if let Some(value) = fixed_value(note, context, state.knocked_in) {
+            let mut result = PricingResult::new(value + state.coupon)?;
+            for greek in [Greek::Delta, Greek::Gamma] {
+                if spot_greeks {
+                    result.set(request, greek, 0.0)?;
+                }
+            }
+            return Ok(result);
+        }
+        let grid = self.grid.as_ref().ok_or_else(super::unstable)?;
+        let layer =
+            usize::from(state.knocked_in && !grid.starting_knocked && !grid.layers[1].is_empty());
+        let alive = &grid.layers[layer];
+        let curvature = &grid.curvatures[layer];
+        let space = &grid.space;
+        let spot = context.spot_price();
+        let [price, delta, gamma] = space.sample(alive, curvature, spot);
+        let mut result = PricingResult::new(state.coupon + price)?;
+        for (greek, value) in [(Greek::Delta, delta), (Greek::Gamma, gamma)] {
+            if spot_greeks && request.has(greek) {
+                result.set(request, greek, value)?;
+            }
+        }
+        if spot_greeks && request.has(Greek::Speed) {
+            let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
+            if let Some(speed) = space.speed(alive, curvature, spot, h) {
+                result.set(request, Greek::Speed, speed)?;
+            }
+        }
+        Ok(result)
     }
-    Ok((result, Some(upper)))
+}
+
+impl<T: AutocallableTerms> super::solution::Backend<AutocallableNote<T>> for AutocallableState {
+    fn evaluate(
+        &self,
+        note: &AutocallableNote<T>,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        self.evaluate(note, context, request, shifts)
+    }
+}
+impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
+    for FiniteDifferenceAutocallableEngine
+{
+    fn solve(
+        &self,
+        note: &AutocallableNote<T>,
+        context: &PricingContext,
+        range: std::ops::RangeInclusive<f64>,
+    ) -> Result<super::FiniteDifferenceSolution> {
+        local_volatility::validate_model(context)?;
+        super::solution::validate_range(&range)?;
+        crate::cancellation::check()?;
+        let anchor = super::solution::at_spot(context, *range.end())?;
+        validate(note, &anchor)?;
+        let mut levels = vec![note.view().reference_spot()];
+        if let Some(ki) = note.view().knock_in {
+            levels.push(ki.level);
+        }
+        for r in note
+            .autocall_observations()
+            .iter()
+            .filter(|r| r.time() == context.valuation_time())
+        {
+            levels.extend([r.knock_out_level(), r.coupon_barrier_level().unwrap_or(0.0)]);
+        }
+        let mut pending = false;
+        let mut starting_knocked = true;
+        for spot in super::solution::probes(&range, levels) {
+            let probe = super::solution::at_spot(context, spot)?;
+            validate(note, &probe)?;
+            let state = initial(note, &probe);
+            if state.settlement.is_none() && fixed_value(note, &probe, state.knocked_in).is_none() {
+                pending = true;
+                starting_knocked &= state.knocked_in;
+            }
+        }
+        let grid = if pending && !crate::engines::deterministic::enabled(context) {
+            let anchor = &anchor;
+            Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
+                note,
+                anchor,
+                self.settings,
+                diffusion,
+                starting_knocked
+            ))?)
+        } else {
+            None
+        };
+        let state = AutocallableState { grid };
+        state.evaluate(note, &anchor, GreeksRequest::new([]), Default::default())?;
+        crate::cancellation::check()?;
+        Ok(super::FiniteDifferenceSolution::new(
+            note.clone(),
+            context,
+            range,
+            state,
+        ))
+    }
 }
 
 #[cfg(test)]

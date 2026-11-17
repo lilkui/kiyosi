@@ -69,6 +69,7 @@ fn project_interval<const N: usize>(
     result
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct SpatialGrid {
     pub upper: f64,
     pub spacing: f64,

@@ -290,6 +290,28 @@ fn local_resolved(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<Option<PricingResult>> {
+    local_resolved_with(option, context, request, shifts, |request| {
+        let terms = option.monitoring();
+        Ok(super::native(
+            terms.vanilla(),
+            Payoff::vanilla(terms.option_type(), terms.strike(), false),
+            context,
+            settings,
+            request,
+            shifts,
+            false,
+        )?
+        .0)
+    })
+}
+
+fn local_resolved_with(
+    option: &impl Contract,
+    context: &PricingContext,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    vanilla: impl FnOnce(GreeksRequest) -> Result<PricingResult>,
+) -> Result<Option<PricingResult>> {
     let terms = option.monitoring();
     let (prior, touched, finished) = option.state(context)?;
     let knock_in = terms.barrier_type().is_knock_in();
@@ -330,18 +352,7 @@ fn local_resolved(
             } else {
                 request
             };
-        return Ok(Some(
-            super::native(
-                terms.vanilla(),
-                Payoff::vanilla(terms.option_type(), terms.strike(), false),
-                context,
-                settings,
-                request,
-                shifts,
-                false,
-            )?
-            .0,
-        ));
+        return vanilla(request).map(Some);
     }
     Ok(None)
 }
@@ -355,7 +366,6 @@ fn native_with_model<D: Diffusion>(
     volatility: D,
 ) -> Result<PricingResult> {
     let terms = option.monitoring();
-    let upper_barrier = option.upper_barrier();
     validate_life(terms, context)?;
     if D::LOCAL {
         if let Some(result) = local_resolved(option, context, settings, request, shifts)? {
@@ -364,6 +374,18 @@ fn native_with_model<D: Diffusion>(
     } else if let Some(value) = option.resolved_price(context)? {
         return PricingResult::new(value);
     }
+    let saved = solve_grid(option, context, settings, volatility)?;
+    saved.evaluate(option, context, request, shifts)
+}
+
+fn solve_grid<D: Diffusion>(
+    option: &impl Contract,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    volatility: D,
+) -> Result<BarrierGrid> {
+    let terms = option.monitoring();
+    let upper_barrier = option.upper_barrier();
     let time = context.valuation_time().years_until(option.expiry_time());
     let model = context.model_parameters();
     let expiry = option.expiry_time();
@@ -657,25 +679,48 @@ fn native_with_model<D: Diffusion>(
             *value = vanilla - *value + cash;
         }
     }
-    let curvature = space.curvature(&values);
-    let spot = context.spot_price();
-    let sample = space.sample(&values, &curvature, spot);
-    let scale = scaled(spot, dividend.log_factor(0.0, time)).max(scaled(
-        terms.strike().max(terms.rebate()),
-        risk.log_factor(0.0, time),
-    ));
-    let mut result = PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
-    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-    if !option.at_spot_discontinuity(context, h) {
-        result.set(request, Greek::Delta, sample[1])?;
-        result.set(request, Greek::Gamma, sample[2])?;
-        if request.has(Greek::Speed) {
-            if let Some(speed) = space.speed(&values, &curvature, spot, h) {
-                result.set(request, Greek::Speed, speed)?;
+    Ok(BarrierGrid {
+        grid: super::solution::Grid::new(space, values),
+        discount: [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
+    })
+}
+
+#[derive(PartialEq)]
+struct BarrierGrid {
+    grid: super::solution::Grid,
+    discount: [f64; 2],
+}
+impl BarrierGrid {
+    fn evaluate(
+        &self,
+        option: &impl Contract,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        let terms = option.monitoring();
+        let spot = context.spot_price();
+        let sample = self.grid.sample(spot);
+        let scale = scaled(spot, self.discount[1])
+            .max(scaled(terms.strike().max(terms.rebate()), self.discount[0]));
+        let mut result =
+            PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
+        let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
+        if !option.at_spot_discontinuity(context, h) {
+            result.set(request, Greek::Delta, sample[1])?;
+            result.set(request, Greek::Gamma, sample[2])?;
+            if request.has(Greek::Speed) {
+                if let Some(speed) =
+                    self.grid
+                        .space
+                        .speed(&self.grid.values, &self.grid.curvature, spot, h)
+                {
+                    result.set(request, Greek::Speed, speed)?;
+                }
             }
         }
+        Ok(result)
     }
-    Ok(result)
 }
 
 #[expect(
@@ -716,3 +761,156 @@ pub(super) fn project_event(
         values[cut] = value;
     }
 }
+
+#[derive(PartialEq)]
+struct BarrierState {
+    grid: Option<BarrierGrid>,
+    vanilla: Option<super::VanillaState>,
+}
+impl<I: Contract> super::solution::Backend<I> for BarrierState {
+    fn evaluate(
+        &self,
+        option: &I,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        if crate::engines::deterministic::enabled(context) {
+            if let Some(value) = option.resolved_price(context)? {
+                return PricingResult::new(value);
+            }
+            return PricingResult::new(crate::engines::deterministic::barrier_value(
+                option.monitoring(),
+                option.upper_barrier(),
+                context,
+            )?);
+        }
+        if local_volatility::local_model(context).is_some() {
+            if let Some(result) =
+                local_resolved_with(option, context, request, shifts, |request| {
+                    let state = self.vanilla.as_ref().ok_or_else(super::unstable)?;
+                    super::solution::Backend::evaluate(
+                        state,
+                        option.monitoring().vanilla(),
+                        context,
+                        request,
+                        shifts,
+                    )
+                })?
+            {
+                return Ok(result);
+            }
+        } else if let Some(value) = option.resolved_price(context)? {
+            return PricingResult::new(value);
+        }
+        self.grid
+            .as_ref()
+            .ok_or_else(super::unstable)?
+            .evaluate(option, context, request, shifts)
+    }
+}
+
+fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
+    option: &I,
+    context: &PricingContext,
+    mut settings: FiniteDifferenceSettings,
+    range: std::ops::RangeInclusive<f64>,
+) -> Result<super::FiniteDifferenceSolution> {
+    local_volatility::validate_model(context)?;
+    super::solution::validate_range(&range)?;
+    crate::cancellation::check()?;
+    let anchor = super::solution::at_spot(context, *range.end())?;
+    validate_life(option, &anchor)?;
+    let terms = option.monitoring();
+    let local = local_volatility::local_model(context).is_some();
+    let mut pending = false;
+    let mut vanilla = false;
+    for spot in super::solution::probes(
+        &range,
+        [
+            terms.barrier_level(),
+            option.upper_barrier().unwrap_or(terms.barrier_level()),
+        ],
+    ) {
+        let probe = super::solution::at_spot(context, spot)?;
+        let (_, touched, finished) = option.state(&probe)?;
+        if local {
+            let knock_in = terms.barrier_type().is_knock_in();
+            let fixed = terms.rebate() == 0.0 && option.payoff_requires_touch();
+            if touched && !knock_in || !touched && finished && knock_in || fixed && !knock_in {
+                local_resolved_with(
+                    option,
+                    &probe,
+                    GreeksRequest::new([]),
+                    Default::default(),
+                    |_| Err(super::unstable()),
+                )?;
+            } else if touched || finished || fixed {
+                vanilla = true;
+            } else {
+                pending = true;
+            }
+        } else {
+            pending |= option.resolved_price(&probe)?.is_none();
+        }
+    }
+    let continuation = if vanilla {
+        Some(super::prepare_vanilla_state(
+            terms.vanilla(),
+            Payoff::vanilla(terms.option_type(), terms.strike(), false),
+            &anchor,
+            settings,
+            false,
+        )?)
+    } else {
+        None
+    };
+    let grid = if pending && !crate::engines::deterministic::enabled(context) {
+        if terms.observation_mode() != ObservationMode::Scheduled
+            && (terms.barrier_type().is_up() || option.upper_barrier().is_some())
+            && !(local && terms.barrier_type().is_knock_in())
+        {
+            settings.asset_upper_boundary = None;
+        }
+        let anchor = &anchor;
+        Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
+            option, anchor, settings, diffusion
+        ))?)
+    } else {
+        None
+    };
+    let state = BarrierState {
+        grid,
+        vanilla: continuation,
+    };
+    super::solution::Backend::evaluate(
+        &state,
+        option,
+        &anchor,
+        GreeksRequest::new([]),
+        Default::default(),
+    )?;
+    crate::cancellation::check()?;
+    Ok(super::FiniteDifferenceSolution::new(
+        option.clone(),
+        context,
+        range,
+        state,
+    ))
+}
+macro_rules! barrier_solution {
+    ($engine:ty, $option:ty) => {
+        impl super::FiniteDifferenceEngine<$option> for $engine {
+            fn solve(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                range: std::ops::RangeInclusive<f64>,
+            ) -> Result<super::FiniteDifferenceSolution> {
+                prepare_solution(option, context, self.settings, range)
+            }
+        }
+    };
+}
+barrier_solution!(FiniteDifferenceBarrierEngine, BarrierOption);
+barrier_solution!(FiniteDifferenceDoubleBarrierEngine, DoubleBarrierOption);

@@ -12,6 +12,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 pub(crate) mod heston;
+pub(crate) mod solution;
 
 fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::FiniteDifferenceScheme> {
     match value.extract::<&str>()? {
@@ -104,6 +105,48 @@ macro_rules! fd_engine {
             ],
             [],
             {
+                /// Prepare an owned fixed-time solution for repeated spot queries.
+                ///
+                /// Parameters
+                /// ----------
+                /// instrument : object
+                ///     Contract supported by this engine.
+                /// context : PricingContext
+                ///     Fixed model inputs, valuation time and supplied history.
+                /// spot_range : tuple of float
+                ///     Two finite positive, strictly increasing bounds. Both endpoints
+                ///     are queryable; the context spot need not be inside the interval.
+                ///
+                /// Returns
+                /// -------
+                /// FiniteDifferenceSolution
+                ///     Owned reusable solution; queries perform no new rollback.
+                ///
+                /// Raises
+                /// ------
+                /// KiyosiError
+                ///     If applicability, interval, history, coverage or numerical checks fail.
+                /// TypeError, ValueError
+                ///     If the interval or input representations are invalid.
+                ///
+                /// Notes
+                /// -----
+                /// Current observations are evaluated per queried spot. Numerical domains
+                /// cover the interval; active explicit engine bounds must provide coverage.
+                /// Some products prepare several state layers or continuation components.
+                /// Accuracy requires grid and truncation convergence checks. Long work
+                /// releases the GIL; cancellation returns no partial solution.
+                #[pyo3(signature = (instrument, context, *, spot_range))]
+                fn solve(
+                    &self,
+                    py: pyo3::Python<'_>,
+                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                    context: &crate::market::PricingContext,
+                    #[pyo3(from_py_with = solution::spot_range)] spot_range: std::ops::RangeInclusive<f64>,
+                ) -> pyo3::PyResult<solution::FiniteDifferenceSolution> {
+                    $with!(&instrument, option, solution::solve(py, &self.0, option, context, spot_range))
+                }
+
                 #[classattr]
                 const _STATE_FIELDS: &'static [&'static str] = &[
                     "asset_step_count", "time_step_count", "scheme", "asset_upper_boundary",

@@ -17,6 +17,8 @@ import pytest
         "fd",
         "quadrature",
         "heston_fd",
+        "fd_solution_solve",
+        "fd_solution_batch",
         "custom_handler",
         "analytic_greeks",
         "numerical_greeks",
@@ -57,6 +59,13 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             engine = p.CoxRossRubinsteinVanillaEngine(step_count=100_000)
                         elif case == "fd":
                             engine = p.FiniteDifferenceVanillaEngine(asset_step_count=4000, time_step_count=100_000)
+                        elif case == "fd_solution_solve":
+                            engine = p.FiniteDifferenceVanillaEngine(asset_step_count=4000, time_step_count=100_000)
+                        elif case == "fd_solution_batch":
+                            engine = p.FiniteDifferenceVanillaEngine()
+                            saved = engine.solve(option, context, spot_range=(80, 120))
+                            saved_price = saved.price(100)
+                            spots = [100.0] * 2_000_000
                         elif case == "quadrature":
                             engine = p.QuadratureVanillaEngine(asset_step_count=100_000_000)
                         elif case in ("analytic_greeks", "numerical_greeks", "analytic_solver"):
@@ -86,7 +95,11 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                         timer = threading.Timer(delay, lambda: signal.raise_signal(signal.SIGINT))
                         timer.start()
                         try:
-                            if case == "seeded_mc":
+                            if case == "fd_solution_solve":
+                                engine.solve(option, context, spot_range=(80, 120))
+                            elif case == "fd_solution_batch":
+                                saved.price_many(spots)
+                            elif case == "seeded_mc":
                                 engine.price_with_seed(option, context)
                             elif case == "analytic_greeks":
                                 engine.price_with_greeks(option, context, "all")
@@ -106,6 +119,9 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             timer.join()
                         context = context.replace(model_parameters=model)
                         assert replay.price(vanilla, context) == baseline
+                        if case == "fd_solution_batch":
+                            assert saved.price(100) == saved_price
+
                         print("cancelled and replayed")
                     """),
             case,

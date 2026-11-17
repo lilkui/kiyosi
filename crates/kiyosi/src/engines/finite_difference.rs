@@ -15,9 +15,11 @@ mod grid;
 pub(crate) mod heston;
 mod local_volatility;
 mod payoff;
+mod solution;
 mod step;
 use diffusion::Diffusion;
 use grid::{SpatialGrid, TimeGrid};
+pub use solution::{FiniteDifferenceEngine, FiniteDifferenceSolution};
 use step::Stepper;
 
 /// Selects the finite-difference time-marching scheme.
@@ -244,7 +246,6 @@ fn native(
 }
 
 #[expect(
-    clippy::float_cmp,
     clippy::too_many_arguments,
     reason = "Explicit payoff, grid policy, model and stencil inputs; exact weights select the digital correction."
 )]
@@ -258,11 +259,31 @@ fn native_model<D: Diffusion>(
     concentrate: bool,
     diffusion: D,
 ) -> Result<(PricingResult, Option<f64>)> {
+    if time_to_expiry(option, context)? == 0.0 {
+        return Ok((
+            PricingResult::new(payoff.value(context.spot_price()))?,
+            None,
+        ));
+    }
+    let saved = solve_model(option, payoff, context, settings, concentrate, diffusion)?;
+    let result = saved.evaluate(context, request, shifts)?;
+    Ok((result, Some(saved.grid.space.upper)))
+}
+
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact weights select the digital carry correction."
+)]
+fn solve_model<D: Diffusion>(
+    option: &impl OptionContract,
+    payoff: Payoff,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    concentrate: bool,
+    diffusion: D,
+) -> Result<VanillaGrid> {
     let time = time_to_expiry(option, context)?;
     let spot = context.spot_price();
-    if time == 0.0 {
-        return Ok((PricingResult::new(payoff.value(spot))?, None));
-    }
     let model = context.model_parameters();
     let expiry = option.expiry_time();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
@@ -426,31 +447,179 @@ fn native_model<D: Diffusion>(
     } else {
         0.0
     };
-    let curvature = space.curvature(&old);
-    let price_at = |spot| {
-        payoff::checked_price(
-            payoff,
-            spot,
-            space.sample(&old, &curvature, spot)[0],
-            [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
-            relative_carry_error,
-        )
-    };
-    let mut result = PricingResult::new(price_at(spot)?)?;
-    if request.has(Greek::Delta) || request.has(Greek::Gamma) {
-        let sample = space.sample(&old, &curvature, spot);
-        result.set(request, Greek::Delta, sample[1])?;
-        result.set(request, Greek::Gamma, sample[2])?;
-    }
-    if request.has(Greek::Speed) {
-        let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-        if let Some(speed) = space.speed(&old, &curvature, spot, h) {
-            price_at(spot + h)?;
-            price_at(spot - h)?;
-            result.set(request, Greek::Speed, speed)?;
+    Ok(VanillaGrid {
+        grid: solution::Grid::new(space, old),
+        payoff,
+        discount: [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
+        relative_carry_error,
+    })
+}
+
+#[derive(PartialEq)]
+struct VanillaGrid {
+    grid: solution::Grid,
+    payoff: Payoff,
+    discount: [f64; 2],
+    relative_carry_error: f64,
+}
+
+#[derive(PartialEq)]
+struct VanillaState {
+    payoff: Payoff,
+    grid: Option<VanillaGrid>,
+}
+
+impl<I: OptionContract> solution::Backend<I> for VanillaState {
+    fn evaluate(
+        &self,
+        option: &I,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        if let Some(grid) = &self.grid {
+            return grid.evaluate(context, request, shifts);
         }
+        if context.valuation_time() == option.expiry_time() {
+            let result = PricingResult::new(self.payoff.value(context.spot_price()))?;
+            if !self.payoff.is_digital() {
+                return crate::risk::analytics::vanilla_expiry_greeks(
+                    if self.payoff.sign > 0.0 {
+                        OptionType::Call
+                    } else {
+                        OptionType::Put
+                    },
+                    self.payoff.strike,
+                    context,
+                    result.with_request(request, request),
+                );
+            }
+            return Ok(result);
+        }
+        PricingResult::new(crate::engines::deterministic::vanilla(
+            option,
+            self.payoff,
+            context,
+        )?)
     }
-    Ok((result, Some(upper)))
+}
+
+fn prepare_vanilla_state(
+    option: &impl OptionContract,
+    payoff: Payoff,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    concentrate: bool,
+) -> Result<VanillaState> {
+    local_volatility::validate_model(context)?;
+    let time = time_to_expiry(option, context)?;
+    let grid = if time == 0.0 || crate::engines::deterministic::enabled(context) {
+        None
+    } else {
+        Some(diffusion::with_diffusion!(context, |diffusion| {
+            solve_model(option, payoff, context, settings, concentrate, diffusion)
+        })?)
+    };
+    let state = VanillaState { payoff, grid };
+    solution::Backend::evaluate(
+        &state,
+        option,
+        context,
+        GreeksRequest::new([]),
+        Default::default(),
+    )?;
+    Ok(state)
+}
+
+macro_rules! vanilla_solution {
+    ($engine:ty, $option:ty, $payoff:expr) => {
+        impl FiniteDifferenceEngine<$option> for $engine {
+            fn solve(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+                range: std::ops::RangeInclusive<f64>,
+            ) -> Result<FiniteDifferenceSolution> {
+                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                solution::validate_range(&range)?;
+                crate::cancellation::check()?;
+                let payoff: Payoff = ($payoff)(option);
+                if payoff.is_digital() {
+                    flat_rates(context)?;
+                }
+                let anchor = solution::at_spot(context, *range.end())?;
+                let state = prepare_vanilla_state(
+                    option,
+                    payoff,
+                    &anchor,
+                    self.settings,
+                    self.settings.asset_upper_boundary.is_none(),
+                )?;
+                crate::cancellation::check()?;
+                Ok(FiniteDifferenceSolution::new(
+                    option.clone(),
+                    context,
+                    range,
+                    state,
+                ))
+            }
+        }
+    };
+}
+vanilla_solution!(
+    FiniteDifferenceVanillaEngine,
+    EuropeanOption,
+    |option: &EuropeanOption| Payoff::vanilla(option.option_type(), option.strike(), false)
+);
+vanilla_solution!(
+    FiniteDifferenceVanillaEngine,
+    AmericanOption,
+    |option: &AmericanOption| Payoff::vanilla(option.option_type(), option.strike(), true)
+);
+vanilla_solution!(
+    FiniteDifferenceDigitalEngine,
+    DigitalOption,
+    Payoff::digital
+);
+
+impl VanillaGrid {
+    fn evaluate(
+        &self,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        let spot = context.spot_price();
+        let payoff = self.payoff;
+        let price_at = |spot| {
+            payoff::checked_price(
+                payoff,
+                spot,
+                self.grid.sample(spot)[0],
+                self.discount,
+                self.relative_carry_error,
+            )
+        };
+        let mut result = PricingResult::new(price_at(spot)?)?;
+        if request.has(Greek::Delta) || request.has(Greek::Gamma) {
+            let sample = self.grid.sample(spot);
+            result.set(request, Greek::Delta, sample[1])?;
+            result.set(request, Greek::Gamma, sample[2])?;
+        }
+        if request.has(Greek::Speed) {
+            let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
+            if let Some(speed) =
+                self.grid
+                    .space
+                    .speed(&self.grid.values, &self.grid.curvature, spot, h)
+            {
+                price_at(spot + h)?;
+                price_at(spot - h)?;
+                result.set(request, Greek::Speed, speed)?;
+            }
+        }
+        Ok(result)
+    }
 }
 
 fn complete_greeks(

@@ -2591,6 +2591,46 @@ class CoxRossRubinsteinDigitalEngine(
 class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
     """Shared finite-difference controls and pricing signatures."""
 
+    def solve(
+        self,
+        instrument: Instrument,
+        context: PricingContext,
+        *,
+        spot_range: tuple[_Real, _Real],
+    ) -> FiniteDifferenceSolution:
+        """Prepare an owned fixed-time solution for repeated spot queries.
+
+        Parameters
+        ----------
+        instrument : object
+            Contract supported by this engine.
+        context : PricingContext
+            Fixed model inputs, valuation time and supplied history.
+        spot_range : tuple of float
+            Two finite positive, strictly increasing bounds. Both endpoints
+            are queryable; the context spot need not be inside the interval.
+
+        Returns
+        -------
+        FiniteDifferenceSolution
+            Owned reusable solution; queries perform no new rollback.
+
+        Raises
+        ------
+        KiyosiError
+            If applicability, interval, history, coverage or numerical checks fail.
+        TypeError, ValueError
+            If the interval or input representations are invalid.
+
+        Notes
+        -----
+        Current observations are evaluated per queried spot. Numerical domains
+        cover the interval; active explicit engine bounds must provide coverage.
+        Some products prepare several state layers or continuation components.
+        Accuracy requires grid and truncation convergence checks. Long work
+        releases the GIL; cancellation returns no partial solution.
+        """
+
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
@@ -3061,6 +3101,46 @@ class FiniteDifferenceHestonVanillaEngine(
     are immutable; core pricing releases the GIL and permits concurrent calls
     with independent state.
     """
+
+    def solve(
+        self,
+        instrument: EuropeanOption | AmericanOption,
+        context: PricingContext,
+        *,
+        spot_range: tuple[_Real, _Real],
+    ) -> FiniteDifferenceSolution:
+        """Prepare an owned fixed-time solution for repeated spot queries.
+
+        Parameters
+        ----------
+        instrument : object
+            Contract supported by this engine.
+        context : PricingContext
+            Fixed model inputs, valuation time and supplied history.
+        spot_range : tuple of float
+            Two finite positive, strictly increasing bounds. Both endpoints
+            are queryable; the context spot need not be inside the interval.
+
+        Returns
+        -------
+        FiniteDifferenceSolution
+            Owned reusable solution; queries perform no new rollback.
+
+        Raises
+        ------
+        KiyosiError
+            If applicability, interval, history, coverage or numerical checks fail.
+        TypeError, ValueError
+            If the interval or input representations are invalid.
+
+        Notes
+        -----
+        Current observations are evaluated per queried spot. Numerical domains
+        cover the interval; active explicit engine bounds must provide coverage.
+        Some products prepare several state layers or continuation components.
+        Accuracy requires grid and truncation convergence checks. Long work
+        releases the GIL; cancellation returns no partial solution.
+        """
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(
@@ -8752,3 +8832,156 @@ def butterfly_snowball(
     preserve_maturity_coupon to keep maturity fixed. Replacing only
     maturity_coupon_rate edits only the maturity coupon.
     """
+
+class FiniteDifferenceSolution:
+    """Owned fixed-time solution for repeated spot pricing without another rollback.
+
+    Notes
+    -----
+    Created by a finite-difference engine's ``solve`` method. The contract,
+    model, valuation time and supplied history are fixed. Current observations
+    use each query's spot. Queries may cross current knock-in, knock-out, coupon
+    and settlement conditions. Source objects can be released or replaced.
+    Shared instances permit concurrent reads; long batches release the GIL and
+    support cancellation without partial results. The object is immutable and
+    cannot be constructed directly. Mesh and truncation accuracy require
+    convergence checks; there is no automatic error estimate or refinement.
+    """
+
+    def __eq__(self, other: object) -> bool: ...
+    def __new__(cls, _token: Never, /) -> Self: ...
+    @property
+    def spot_range(self) -> tuple[float, float]:
+        """Return the owned closed spot query interval."""
+
+    @property
+    def valuation_time(self) -> datetime:
+        """Return the fixed valuation time."""
+
+    @property
+    def supported(self) -> tuple[Greek, ...]:
+        """Return potential Greek capabilities; query statuses describe availability."""
+
+    def price(self, spot_price: _Real) -> float:
+        """Evaluate the saved solution at one spot.
+
+        Parameters
+        ----------
+        spot_price : float
+            Finite positive spot inside the closed query interval.
+
+        Returns
+        -------
+        float
+            Price with current observations applied to this spot.
+
+        Raises
+        ------
+        InvalidInputError
+            If the spot is invalid or outside the interval.
+        ComputationFailureError
+            If numerical values or financial price checks fail.
+        TypeError
+            If the numeric representation is invalid, including a bool.
+        """
+
+    def price_many(self, spot_prices: Iterable[_Real]) -> tuple[float, ...]:
+        """Evaluate saved prices in input order, preserving duplicates.
+
+        Parameters
+        ----------
+        spot_prices : iterable of float
+            Spots inside the closed interval. Empty input is valid.
+
+        Returns
+        -------
+        tuple of float
+            Owned prices, or an empty tuple for empty input.
+
+        Raises
+        ------
+        KiyosiError
+            If any spot or price is invalid; no partial batch is returned.
+        TypeError
+            If the iterable or an element has an invalid representation.
+
+        Notes
+        -----
+        Iterator exceptions propagate; consuming an iterator is not rolled back.
+        Long core work releases the GIL and polls Python signals.
+        """
+
+    def price_with_greeks(
+        self,
+        spot_price: _Real,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+    ) -> PricingResult:
+        """Evaluate saved price and requested spot Greeks.
+
+        Parameters
+        ----------
+        spot_price : float
+            Finite positive spot inside the closed interval.
+        greeks : str or iterable of str
+            A Greek name, "all", or names; empty input requests price only.
+        spot_shift : float, None or Ellipsis, optional
+            Positive absolute spot shift, or the Rust-defined automatic default.
+            Omission, None and Ellipsis select automatic shifts.
+
+        Returns
+        -------
+        PricingResult
+            Price and requested sensitivities with their availability statuses.
+
+        Raises
+        ------
+        KiyosiError
+            If spot, shift, or financial/numerical validation fails.
+        TypeError, ValueError
+            If representations or Greek names are invalid.
+
+        Notes
+        -----
+        BSM supports delta/gamma/speed, local volatility delta/gamma, and Heston
+        no Greeks. Other requests are unsupported. Financial discontinuities
+        are undefined; required samples outside the interval have status
+        "stencil_unavailable". No query extends the domain or repeats rollback.
+        """
+
+    def price_many_with_greeks(
+        self,
+        spot_prices: Iterable[_Real],
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: _Real | None | EllipsisType = ...,
+    ) -> tuple[PricingResult, ...]:
+        """Evaluate saved prices and requested Greeks in input order.
+
+        Parameters
+        ----------
+        spot_prices : iterable of float
+            Spots inside the closed interval; duplicates and empty input are valid.
+        greeks : str or iterable of str
+            Shared request, using price_with_greeks conventions.
+        spot_shift : float, None or Ellipsis, optional
+            Positive spot shift or the Rust-defined automatic default.
+
+        Returns
+        -------
+        tuple of PricingResult
+            Per-spot prices, sensitivities and statuses.
+
+        Raises
+        ------
+        KiyosiError
+            If any input or query fails, without a partial batch.
+        TypeError, ValueError
+            If representations or Greek names are invalid.
+
+        Notes
+        -----
+        Controls are validated even for an empty batch. Iterator exceptions
+        propagate. Long core work releases the GIL and polls Python signals.
+        """
