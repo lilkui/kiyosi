@@ -1,4 +1,4 @@
-"""Price a range accrual with a daily observation clock and prior hit counts."""
+"""为区间累计期权定价，指定每日观察时刻并计入历史命中次数。"""
 
 from datetime import datetime, time
 

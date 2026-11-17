@@ -1,4 +1,4 @@
-"""Price European cash-or-nothing and asset-or-nothing options."""
+"""为欧式现金数字期权和资产数字期权定价。"""
 
 from datetime import datetime
 from math import isclose

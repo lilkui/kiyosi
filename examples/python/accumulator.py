@@ -1,4 +1,4 @@
-"""Price daily purchases and sales with outstanding quantity and settlement history."""
+"""为每日累购、累沽合约定价，计入未结算数量和结算历史。"""
 
 from datetime import datetime, time
 
@@ -30,12 +30,12 @@ context = PricingContext(
 engine = QuadratureAccumulatorEngine()
 
 # 默认每个交易日观察并可能累计数量；触及敲出时终止，当次不再累计。
-# 不利价格区域按 acceleration_factor 加速；价值按 daily_quantity 对应的资产单位计。
+# 价格处于不利区域时，按 acceleration_factor 加速累计；价值按 daily_quantity 对应的资产单位计。
 # 这是合约现金流的现值，可能为负，并非单位本金的保本票据价格。
 print(f"累购价值：{engine.price(accumulator, context):.6f}")
 print(f"累沽价值：{engine.price(decumulator, context):.6f}")
 
-# 进入存续期后，输入此前累计且尚未结算的实际数量，不能从当前现货重建。
+# 进入存续期后，输入此前累计且尚未结算的实际数量，不能从当前现货价格推算。
 later = context.replace(valuation_time=datetime(2025, 1, 16, 15), spot_price=98)
 live = accumulator.replace(accumulated_quantity=10, knock_out_settled=False)
 print(f"此前累计 10 单位的存续价值：{engine.price(live, later):.6f}")

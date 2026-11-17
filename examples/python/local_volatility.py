@@ -1,4 +1,4 @@
-"""Price options with an explicitly supplied local-volatility surface."""
+"""使用显式指定的局部波动率曲面为期权定价。"""
 
 from datetime import datetime
 
@@ -13,7 +13,7 @@ from kiyosi.pricing import FiniteDifferenceVanillaEngine
 start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 # 输入的是局部波动率，不是隐含波动率；行对应时间，列对应绝对现货价格。
-# 时间与现货间双线性插值；现货两端常数外推，时间不外推。
+# 在时间和现货价格两个维度上做双线性插值；现货两端常数外推，时间不外推。
 surface = LocalVolatilitySurface(
     times=[start, end],
     spots=[80, 100, 120],
@@ -33,14 +33,14 @@ option = EuropeanOption(
     option_type="call", strike=100, effective_time=start, expiry_time=end
 )
 
-# 局部波动率由一维 FD 引擎支持，提供固定绝对曲面下的 delta 和 gamma。
+# 一维有限差分引擎支持局部波动率，提供固定绝对价格曲面下的 delta 和 gamma。
 engine = FiniteDifferenceVanillaEngine(asset_upper_boundary=400)
 result = engine.price_with_greeks(option, context, greeks=["delta", "gamma", "vega"])
 print(f"价格：{result.price:.6f}")
 print(f"delta：{result.require('delta'):.6f}，gamma：{result.require('gamma'):.6f}")
 print(f"vega：{result.vega}，状态：{result.status('vega')}")
 
-# 更改现货时，曲面绝对节点保持原位，不随新现货平移。
+# 更改现货价格时，曲面的绝对价格节点保持不变，不随新现货价格平移。
 scenario = context.replace(spot_price=105)
 print(f"现货升至 105：{engine.price(option, scenario):.6f}")
 

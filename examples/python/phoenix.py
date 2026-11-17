@@ -1,4 +1,4 @@
-"""Build Phoenix notes and solve their implied coupon rates."""
+"""构建凤凰票据并反解隐含票息率。"""
 
 from datetime import datetime, time
 
@@ -40,7 +40,7 @@ standard = standard_phoenix(
     effective_time=start,
     expiry_time=end,
 )
-# 首次允许敲出时障碍为 103，此后每期递减 1；锁定期不消耗降敲阶数。
+# 首次允许敲出时，障碍为 103，此后每期递减 1；锁定期内不递减。
 step_down = step_down_phoenix(
     coupon_per_period=0.01,
     initial_spot=100,

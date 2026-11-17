@@ -1,4 +1,4 @@
-"""Price a European call, request Greeks, and recover its implied volatility."""
+"""为欧式看涨期权定价，计算希腊值并反解隐含波动率。"""
 
 from datetime import datetime
 from math import isclose
@@ -23,7 +23,7 @@ print(f"看涨期权价格：{result.price:.6f}")
 for name in ("delta", "gamma", "vega", "theta"):
     print(f"{name}：{result.require(name):.6f}")
 
-# Greeks 是未缩放偏导：vega 按波动率小数计，theta 按年计。
+# 希腊值是未缩放的偏导数：vega 按波动率小数计，theta 按年计。
 print(f"波动率上升 1 个百分点的近似价格变化：{result.require('vega') * 0.01:.6f}")
 print(f"未请求的 rho：{result.rho}，状态：{result.status('rho')}")
 

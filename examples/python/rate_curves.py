@@ -1,4 +1,4 @@
-"""Construct rate curves and use them in derivative pricing."""
+"""构建利率曲线并用于衍生品定价。"""
 
 from datetime import datetime
 from math import isclose

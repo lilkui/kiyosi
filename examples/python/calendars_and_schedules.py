@@ -1,4 +1,4 @@
-"""Build calendars and observation schedules with explicit observation clocks."""
+"""构建日历和观察日程，显式指定每日观察时刻。"""
 
 from datetime import date, datetime, time
 

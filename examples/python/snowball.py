@@ -1,4 +1,4 @@
-"""Build snowball variants and solve their implied coupon rates."""
+"""构建不同雪球结构并反解隐含票息率。"""
 
 from datetime import datetime, time
 
@@ -31,7 +31,7 @@ note = standard_snowball(
     expiry_time=end,
 )
 
-# Edit observation and maturity coupons together; the original note retains 12%.
+# 同时修改观察票息和到期票息；原合约仍保持 12%。
 edited = note.with_coupon(
     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon"
 )

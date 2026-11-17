@@ -1,4 +1,4 @@
-"""Price single-barrier options with continuous and scheduled monitoring."""
+"""为连续监控和按日程监控的单障碍期权定价。"""
 
 from datetime import datetime
 from math import isclose

@@ -1,4 +1,4 @@
-"""Price geometric and arithmetic average-price Asian options."""
+"""为几何平均和算术平均价格亚式期权定价。"""
 
 from datetime import datetime
 
@@ -37,7 +37,7 @@ approximation = TurnbullWakemanArithmeticAveragePriceEngine().price(arithmetic, 
 print(f"几何平均解析价：{exact:.6f}")
 print(f"算术平均 Turnbull–Wakeman 近似价：{approximation:.6f}")
 
-# 固定种子可在同一构建中重放随机抽样；使用偶数条反向路径以获得标准误。
+# 固定种子可在同一构建中复现随机抽样；使用偶数条反向路径以获得标准误。
 mc = MonteCarloAsianEngine(
     path_count=16384, step_count=100, seed=42, antithetic=True, max_active_workers=1
 )
@@ -50,7 +50,7 @@ for name, option in (("几何平均", geometric), ("算术平均", arithmetic)):
 estimate = mc.price_with_statistics(geometric, context)
 assert abs(estimate.price - exact) <= 5 * estimate.standard_error + 1e-10
 
-# 算术平均的置信区间只衡量抽样误差，不包括时间离散偏差；还需加密 step_count。
+# 算术平均的置信区间只衡量抽样误差，不包括时间离散偏差；还需增大 step_count。
 # 估值进入平均期后，必须提供估值时刻之前对应种类的已实现平均值。
 later = context.replace(valuation_time=datetime(2025, 7, 1), spot_price=103)
 seasoned = arithmetic.replace(realized_average=102)

@@ -1,4 +1,4 @@
-"""Compare approximation, binomial, and finite-difference American prices."""
+"""比较近似法、二叉树和有限差分法计算的美式期权价格。"""
 
 from datetime import datetime
 
@@ -28,7 +28,7 @@ context = PricingContext(
 european_price = AnalyticEuropeanEngine().price(european, context)
 print(f"欧式看跌价格：{european_price:.6f}")
 
-# 相同合约与市场输入下比较算法；解析近似并非精确解。
+# 使用相同合约和市场输入比较算法；解析近似并非精确解。
 engines = {
     "Bjerksund–Stensland 近似": BjerksundStenslandVanillaEngine(),
     "CRR 二叉树": CoxRossRubinsteinVanillaEngine(step_count=1000),

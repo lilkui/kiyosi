@@ -1,4 +1,4 @@
-"""Price European and American options under the Heston model."""
+"""使用 Heston 模型为欧式和美式期权定价。"""
 
 from datetime import datetime
 
@@ -29,14 +29,14 @@ fourier = AnalyticHestonEuropeanEngine()
 price = fourier.price(call, context)
 print(f"欧式看涨 Fourier 积分价：{price:.6f}")
 
-# Heston 引擎不提供 Greeks；请求的指标标记为 unsupported。
+# Heston 引擎不提供希腊值；请求的指标标记为 unsupported。
 print(f"Greeks 计算方式：{fourier.greek_method(call, context)}")
 fd = FiniteDifferenceHestonVanillaEngine()
 fd_price = fd.price(call, context)
 print(f"欧式看涨二维 FD 价：{fd_price:.6f}，差值：{fd_price - price:.6f}")
 
-# 此处仅校验示例参数下两个算法在 0.05 价格单位内一致；不是普遍误差保证。
-# 二维 FD 应分别检查现货网格、方差网格、时间步数及两个上边界的收敛。
+# 此处仅检查示例参数下两种算法的价差小于 0.05，不保证其他参数下的误差。
+# 二维有限差分应分别检查现货网格、方差网格、时间步数及两个上边界的收敛。
 assert abs(fd_price - price) < 0.05
 
 put = call.replace(option_type="put")
