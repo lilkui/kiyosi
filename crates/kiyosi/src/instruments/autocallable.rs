@@ -8,6 +8,9 @@ use crate::{Error, OptionContract, PricingContext, Result, TimeOfDay, Timestamp,
 /// Supplies unit principal redemption for autocallable terms; see [`SnowballTerms::new`].
 pub const DEFAULT_PRINCIPAL_REDEMPTION_RATIO: f64 = 1.0;
 
+/// Supplies zero flat and annualized rebates; see [`SnowballTerms::new`].
+pub const DEFAULT_AUTOCALLABLE_REBATE_RATE: f64 = 0.0;
+
 /// Supplies no initial knock-out lockout; see [`PhoenixPresetTerms::expand`].
 pub const DEFAULT_PHOENIX_LOCKOUT_PERIODS: usize = 0;
 
@@ -375,6 +378,10 @@ pub struct SnowballTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
     pub principal_redemption_ratio: f64,
+    /// Sets a finite nonnegative flat rebate per unit of notional; see [`AutocallableNote`].
+    pub rebate_rate: f64,
+    /// Sets a finite nonnegative annualized rebate rate; see [`AutocallableNote`].
+    pub annual_rebate_rate: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
@@ -413,6 +420,8 @@ impl SnowballTerms {
             knock_in_observation,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+            rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
+            annual_rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
             effective_time,
             expiry_time,
             autocall_observations,
@@ -441,6 +450,10 @@ pub struct PhoenixTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
     pub principal_redemption_ratio: f64,
+    /// Sets a finite nonnegative flat rebate per unit of notional; see [`AutocallableNote`].
+    pub rebate_rate: f64,
+    /// Sets a finite nonnegative annualized rebate rate; see [`AutocallableNote`].
+    pub annual_rebate_rate: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
@@ -483,6 +496,8 @@ impl PhoenixTerms {
             knock_in_observation,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+            rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
+            annual_rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
             effective_time,
             expiry_time,
             knock_out_observations,
@@ -509,6 +524,10 @@ pub struct BinarySnowballTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons.
     pub principal_redemption_ratio: f64,
+    /// Sets a finite nonnegative flat rebate per unit of notional; see [`AutocallableNote`].
+    pub rebate_rate: f64,
+    /// Sets a finite nonnegative annualized rebate rate; see [`AutocallableNote`].
+    pub annual_rebate_rate: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive settlement time, which may fall on a closed date.
@@ -533,6 +552,8 @@ impl BinarySnowballTerms {
             maturity_coupon_rate,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+            rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
+            annual_rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
             effective_time,
             expiry_time,
             autocall_observations,
@@ -563,6 +584,10 @@ pub struct TernarySnowballTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons.
     pub principal_redemption_ratio: f64,
+    /// Sets a finite nonnegative flat rebate per unit of notional; see [`AutocallableNote`].
+    pub rebate_rate: f64,
+    /// Sets a finite nonnegative annualized rebate rate; see [`AutocallableNote`].
+    pub annual_rebate_rate: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
@@ -597,6 +622,8 @@ impl TernarySnowballTerms {
             knock_in_observation,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+            rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
+            annual_rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
             effective_time,
             expiry_time,
             autocall_observations,
@@ -744,6 +771,8 @@ mod sealed {
         pub coupon: Coupon,
         pub barrier_state: Option<AutocallableBarrierState>,
         pub principal_redemption_ratio: f64,
+        pub rebate_rate: f64,
+        pub annual_rebate_rate: f64,
         pub effective_time: Timestamp,
         pub expiry_time: Timestamp,
         pub autocall_observations: &'a [AutocallableObservation],
@@ -772,6 +801,8 @@ macro_rules! terms_view {
                     coupon: $coupon(self.$rate),
                     barrier_state: self.barrier_state,
                     principal_redemption_ratio: self.principal_redemption_ratio,
+                    rebate_rate: self.rebate_rate,
+                    annual_rebate_rate: self.annual_rebate_rate,
                     effective_time: self.effective_time,
                     expiry_time: self.expiry_time,
                     autocall_observations: &self.autocall_observations,
@@ -799,6 +830,8 @@ impl sealed::Terms for PhoenixTerms {
             coupon: Coupon::Phoenix(self.coupon_per_period),
             barrier_state: self.barrier_state,
             principal_redemption_ratio: self.principal_redemption_ratio,
+            rebate_rate: self.rebate_rate,
+            annual_rebate_rate: self.annual_rebate_rate,
             effective_time: self.effective_time,
             expiry_time: self.expiry_time,
             autocall_observations: &[],
@@ -816,6 +849,8 @@ impl sealed::Terms for BinarySnowballTerms {
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_redemption_ratio: self.principal_redemption_ratio,
+            rebate_rate: self.rebate_rate,
+            annual_rebate_rate: self.annual_rebate_rate,
             effective_time: self.effective_time,
             expiry_time: self.expiry_time,
             autocall_observations: &self.autocall_observations,
@@ -837,6 +872,8 @@ impl sealed::Terms for TernarySnowballTerms {
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_redemption_ratio: self.principal_redemption_ratio,
+            rebate_rate: self.rebate_rate,
+            annual_rebate_rate: self.annual_rebate_rate,
             effective_time: self.effective_time,
             expiry_time: self.expiry_time,
             autocall_observations: &self.autocall_observations,
@@ -847,6 +884,14 @@ impl sealed::Terms for TernarySnowballTerms {
 }
 
 /// Owns validated terms and observations for a supported autocallable.
+///
+/// At knock-out or maturity, adds a rebate per unit of original notional equal
+/// to `rebate_rate + annual_rebate_rate * T`. Both rates default to zero and must
+/// be finite and nonnegative. `T` is Actual/365 Fixed from effective time to the
+/// settlement event, including intraday time and nontrading days. The rebate
+/// is independent of knock-in, coupon eligibility and principal losses. It pays
+/// once at termination, including zero-lifetime settlement, and never as a
+/// periodic coupon. A previously knocked-out note is settled with no remaining value.
 ///
 /// `principal_redemption_ratio` sets the principal payment per original unit of
 /// notional independently of coupons and downside losses. Position sizing multiplies
@@ -909,9 +954,11 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let knock_in_observation = KnockInObservation::EveryTradingDay {
     ///     observation_clock_time: TimeOfDay::new(0, 0, 0, 0)?,
     /// };
-    /// let terms = PhoenixTerms::new(0.02, 100.0, 80.0, 100.0, 0.0, start, end,
+    /// let mut terms = PhoenixTerms::new(0.02, 100.0, 80.0, 100.0, 0.0, start, end,
     ///     vec![KnockOutObservation::new(end, 110.0)?],
     ///     vec![CouponObservation::new(end, 90.0)?], knock_in_observation, kiyosi::TradingCalendar::weekdays());
+    /// terms.rebate_rate = 0.02;
+    /// terms.annual_rebate_rate = 0.06;
     /// let note = PhoenixOption::new(terms)?;
     /// let known = note.replace(PhoenixOptionChanges {
     ///     barrier_state: Some(Some(AutocallableBarrierState::NoEvent)),
@@ -1179,6 +1226,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             match t.redemption() {
                 Redemption::Downside(d) => {
                     return t.principal_redemption_ratio
+                        + self.rebate_payment(t.expiry_time)
                         + (spot.clamp(d.lower_strike, d.upper_strike) - d.upper_strike)
                             / d.initial_spot;
                 }
@@ -1187,11 +1235,18 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         } else {
             t.maturity_coupon_rate()
         };
-        t.principal_redemption_ratio + coupon * t.effective_time.years_until(t.expiry_time)
+        t.principal_redemption_ratio
+            + self.rebate_payment(t.expiry_time)
+            + coupon * t.effective_time.years_until(t.expiry_time)
+    }
+    pub(crate) fn rebate_payment(&self, time: Timestamp) -> f64 {
+        let t = self.view();
+        t.rebate_rate + t.annual_rebate_rate * t.effective_time.years_until(time)
     }
     pub(crate) fn knock_out_payment(&self, record: &ObservationEvent) -> f64 {
         let t = self.view();
         t.principal_redemption_ratio
+            + self.rebate_payment(record.time)
             + if matches!(t.coupon, Coupon::Phoenix(_)) {
                 0.0
             } else {
@@ -1465,6 +1520,15 @@ impl sealed::View<'_> {
                 "negative autocallable principal".into(),
             ));
         }
+        for (field, rate) in [
+            ("rebate_rate", terms.rebate_rate),
+            ("annual_rebate_rate", terms.annual_rebate_rate),
+        ] {
+            finite(rate, false, field)?;
+            if rate < 0.0 {
+                return Err(Error::InvalidInput(format!("negative {field}").into()));
+            }
+        }
         if terms.expiry_time < terms.effective_time {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
@@ -1555,6 +1619,10 @@ pub struct SnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_redemption_ratio`](SnowballTerms::principal_redemption_ratio).
     pub principal_redemption_ratio: Option<f64>,
+    /// Replaces [`rebate_rate`](SnowballTerms::rebate_rate).
+    pub rebate_rate: Option<f64>,
+    /// Replaces [`annual_rebate_rate`](SnowballTerms::annual_rebate_rate).
+    pub annual_rebate_rate: Option<f64>,
     /// Replaces [`effective_time`](SnowballTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](SnowballTerms::expiry_time).
@@ -1590,6 +1658,10 @@ impl SnowballOption {
             principal_redemption_ratio: changes
                 .principal_redemption_ratio
                 .unwrap_or(self.0.principal_redemption_ratio),
+            rebate_rate: changes.rebate_rate.unwrap_or(self.0.rebate_rate),
+            annual_rebate_rate: changes
+                .annual_rebate_rate
+                .unwrap_or(self.0.annual_rebate_rate),
             effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
             expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             autocall_observations: changes
@@ -1622,6 +1694,10 @@ pub struct PhoenixOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_redemption_ratio`](PhoenixTerms::principal_redemption_ratio).
     pub principal_redemption_ratio: Option<f64>,
+    /// Replaces [`rebate_rate`](PhoenixTerms::rebate_rate).
+    pub rebate_rate: Option<f64>,
+    /// Replaces [`annual_rebate_rate`](PhoenixTerms::annual_rebate_rate).
+    pub annual_rebate_rate: Option<f64>,
     /// Replaces [`effective_time`](PhoenixTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](PhoenixTerms::expiry_time).
@@ -1689,6 +1765,10 @@ impl PhoenixOption {
             principal_redemption_ratio: changes
                 .principal_redemption_ratio
                 .unwrap_or(self.0.principal_redemption_ratio),
+            rebate_rate: changes.rebate_rate.unwrap_or(self.0.rebate_rate),
+            annual_rebate_rate: changes
+                .annual_rebate_rate
+                .unwrap_or(self.0.annual_rebate_rate),
             effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
             expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             knock_out_observations: changes
@@ -1714,6 +1794,10 @@ pub struct BinarySnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_redemption_ratio`](BinarySnowballTerms::principal_redemption_ratio).
     pub principal_redemption_ratio: Option<f64>,
+    /// Replaces [`rebate_rate`](BinarySnowballTerms::rebate_rate).
+    pub rebate_rate: Option<f64>,
+    /// Replaces [`annual_rebate_rate`](BinarySnowballTerms::annual_rebate_rate).
+    pub annual_rebate_rate: Option<f64>,
     /// Replaces [`effective_time`](BinarySnowballTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](BinarySnowballTerms::expiry_time).
@@ -1742,6 +1826,10 @@ impl BinarySnowballOption {
             principal_redemption_ratio: changes
                 .principal_redemption_ratio
                 .unwrap_or(self.0.principal_redemption_ratio),
+            rebate_rate: changes.rebate_rate.unwrap_or(self.0.rebate_rate),
+            annual_rebate_rate: changes
+                .annual_rebate_rate
+                .unwrap_or(self.0.annual_rebate_rate),
             effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
             expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             autocall_observations: changes
@@ -1770,6 +1858,10 @@ pub struct TernarySnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_redemption_ratio`](TernarySnowballTerms::principal_redemption_ratio).
     pub principal_redemption_ratio: Option<f64>,
+    /// Replaces [`rebate_rate`](TernarySnowballTerms::rebate_rate).
+    pub rebate_rate: Option<f64>,
+    /// Replaces [`annual_rebate_rate`](TernarySnowballTerms::annual_rebate_rate).
+    pub annual_rebate_rate: Option<f64>,
     /// Replaces [`effective_time`](TernarySnowballTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](TernarySnowballTerms::expiry_time).
@@ -1805,6 +1897,10 @@ impl TernarySnowballOption {
             principal_redemption_ratio: changes
                 .principal_redemption_ratio
                 .unwrap_or(self.0.principal_redemption_ratio),
+            rebate_rate: changes.rebate_rate.unwrap_or(self.0.rebate_rate),
+            annual_rebate_rate: changes
+                .annual_rebate_rate
+                .unwrap_or(self.0.annual_rebate_rate),
             effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
             expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             autocall_observations: changes

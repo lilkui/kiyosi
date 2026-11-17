@@ -1,7 +1,7 @@
 use super::{
-    AutocallableBarrierState, AutocallableObservation, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
-    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation, PhoenixOption, PhoenixTerms,
-    SnowballOption, SnowballTerms,
+    AutocallableBarrierState, AutocallableObservation, DEFAULT_AUTOCALLABLE_REBATE_RATE,
+    DEFAULT_PHOENIX_LOCKOUT_PERIODS, DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation,
+    PhoenixOption, PhoenixTerms, SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
 use crate::error::finite;
@@ -86,6 +86,10 @@ pub struct SnowballPresetTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets nonnegative normalized principal, independently of coupon and loss components.
     pub principal_redemption_ratio: f64,
+    /// Sets a finite nonnegative flat rebate per unit of notional; see [`super::AutocallableNote`].
+    pub rebate_rate: f64,
+    /// Sets a finite nonnegative annualized rebate rate; see [`super::AutocallableNote`].
+    pub annual_rebate_rate: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive expiry timestamp.
@@ -121,6 +125,8 @@ impl SnowballPresetTerms {
             knock_out_level,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+            rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
+            annual_rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
             effective_time,
             expiry_time,
             autocall_times,
@@ -212,6 +218,8 @@ impl SnowballPresetTerms {
         );
         terms.barrier_state = self.barrier_state;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
+        terms.rebate_rate = self.rebate_rate;
+        terms.annual_rebate_rate = self.annual_rebate_rate;
         match preset {
             SnowballPreset::Standard | SnowballPreset::European => {}
             SnowballPreset::StepDown {
@@ -344,6 +352,10 @@ pub struct PhoenixPresetTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets nonnegative normalized principal, independently of coupon and loss components.
     pub principal_redemption_ratio: f64,
+    /// Sets a finite nonnegative flat rebate per unit of notional; see [`super::AutocallableNote`].
+    pub rebate_rate: f64,
+    /// Sets a finite nonnegative annualized rebate rate; see [`super::AutocallableNote`].
+    pub annual_rebate_rate: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
     /// Sets the inclusive expiry timestamp.
@@ -374,6 +386,8 @@ impl PhoenixPresetTerms {
             knock_out_level,
             barrier_state: None,
             principal_redemption_ratio: DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+            rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
+            annual_rebate_rate: DEFAULT_AUTOCALLABLE_REBATE_RATE,
             effective_time,
             expiry_time,
             autocall_times,
@@ -501,6 +515,8 @@ impl PhoenixPresetTerms {
         );
         terms.barrier_state = self.barrier_state;
         terms.principal_redemption_ratio = self.principal_redemption_ratio;
+        terms.rebate_rate = self.rebate_rate;
+        terms.annual_rebate_rate = self.annual_rebate_rate;
         PhoenixOption::new(terms)
     }
 }

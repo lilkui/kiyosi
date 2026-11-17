@@ -6702,6 +6702,14 @@ class SnowballOption:
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
@@ -6737,6 +6745,8 @@ class SnowballOption:
         | None
         | EllipsisType = ...,
         principal_redemption_ratio: _Real | EllipsisType = ...,
+        rebate_rate: _Real | EllipsisType = ...,
+        annual_rebate_rate: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -6758,6 +6768,16 @@ class SnowballOption:
             Strictly prior event history; None clears it to unknown.
         principal_redemption_ratio : float, optional
             Finite nonnegative principal redemption per unit of original notional.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional.
+            Omission or Ellipsis retains its current value.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate; omission or Ellipsis
+            retains its current value. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A previously knocked-out note is settled with no remaining value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         autocall_observations : iterable of AutocallableObservation, optional
@@ -6820,6 +6840,8 @@ class SnowballOption:
         autocall_observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
@@ -6863,6 +6885,14 @@ class SnowballOption:
     @property
     def lower_strike(self) -> float:
         """Return nonnegative lower terminal strike, at most the upper strike."""
+
+    @property
+    def rebate_rate(self) -> float:
+        """Return the flat rebate proportion paid once at knock-out or maturity."""
+
+    @property
+    def annual_rebate_rate(self) -> float:
+        """Return the annualized rebate rate accrued from effective time to exit."""
 
     @property
     def principal_redemption_ratio(self) -> float:
@@ -7033,6 +7063,14 @@ class PhoenixOption:
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
@@ -7100,6 +7138,8 @@ class PhoenixOption:
         | None
         | EllipsisType = ...,
         principal_redemption_ratio: _Real | EllipsisType = ...,
+        rebate_rate: _Real | EllipsisType = ...,
+        annual_rebate_rate: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         knock_out_observations: Iterable[KnockOutObservation] | EllipsisType = ...,
@@ -7122,6 +7162,16 @@ class PhoenixOption:
             Strictly prior event history; None clears it to unknown.
         principal_redemption_ratio : float, optional
             Finite nonnegative principal redemption per unit of original notional.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional.
+            Omission or Ellipsis retains its current value.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate; omission or Ellipsis
+            retains its current value. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A previously knocked-out note is settled with no remaining value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         knock_out_observations : iterable of KnockOutObservation, optional
@@ -7160,6 +7210,8 @@ class PhoenixOption:
         coupon_observations: Iterable[CouponObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
@@ -7197,6 +7249,14 @@ class PhoenixOption:
     @property
     def lower_strike(self) -> float:
         """Return nonnegative lower terminal strike, at most the upper strike."""
+
+    @property
+    def rebate_rate(self) -> float:
+        """Return the flat rebate proportion paid once at knock-out or maturity."""
+
+    @property
+    def annual_rebate_rate(self) -> float:
+        """Return the annualized rebate rate accrued from effective time to exit."""
 
     @property
     def principal_redemption_ratio(self) -> float:
@@ -7250,6 +7310,14 @@ class BinarySnowballOption:
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
@@ -7279,6 +7347,8 @@ class BinarySnowballOption:
         | None
         | EllipsisType = ...,
         principal_redemption_ratio: _Real | EllipsisType = ...,
+        rebate_rate: _Real | EllipsisType = ...,
+        annual_rebate_rate: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -7296,6 +7366,16 @@ class BinarySnowballOption:
             Strictly prior event history; None clears it to unknown.
         principal_redemption_ratio : float, optional
             Finite nonnegative principal redemption per unit of original notional.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional.
+            Omission or Ellipsis retains its current value.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate; omission or Ellipsis
+            retains its current value. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A previously knocked-out note is settled with no remaining value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         autocall_observations : iterable of AutocallableObservation, optional
@@ -7353,6 +7433,8 @@ class BinarySnowballOption:
         autocall_observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
@@ -7380,6 +7462,14 @@ class BinarySnowballOption:
     @property
     def maturity_coupon_rate(self) -> float:
         """Return finite annual maturity coupon rate in decimal units."""
+
+    @property
+    def rebate_rate(self) -> float:
+        """Return the flat rebate proportion paid once at knock-out or maturity."""
+
+    @property
+    def annual_rebate_rate(self) -> float:
+        """Return the annualized rebate rate accrued from effective time to exit."""
 
     @property
     def principal_redemption_ratio(self) -> float:
@@ -7427,6 +7517,14 @@ class TernarySnowballOption:
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
@@ -7459,6 +7557,8 @@ class TernarySnowballOption:
         | None
         | EllipsisType = ...,
         principal_redemption_ratio: _Real | EllipsisType = ...,
+        rebate_rate: _Real | EllipsisType = ...,
+        annual_rebate_rate: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -7478,6 +7578,16 @@ class TernarySnowballOption:
             Strictly prior event history; None clears it to unknown.
         principal_redemption_ratio : float, optional
             Finite nonnegative principal redemption per unit of original notional.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional.
+            Omission or Ellipsis retains its current value.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate; omission or Ellipsis
+            retains its current value. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A previously knocked-out note is settled with no remaining value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         autocall_observations : iterable of AutocallableObservation, optional
@@ -7538,6 +7648,8 @@ class TernarySnowballOption:
         autocall_observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
         calendar: TradingCalendar,
     ) -> None: ...
     @property
@@ -7575,6 +7687,14 @@ class TernarySnowballOption:
         """Return the annual knocked-in maturity coupon."""
 
     @property
+    def rebate_rate(self) -> float:
+        """Return the flat rebate proportion paid once at knock-out or maturity."""
+
+    @property
+    def annual_rebate_rate(self) -> float:
+        """Return the annualized rebate rate accrued from effective time to exit."""
+
+    @property
     def principal_redemption_ratio(self) -> float:
         """Return nonnegative normalized principal, independent of coupons and losses."""
 
@@ -7610,6 +7730,8 @@ def standard_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create constant knock-out coupons and levels with daily knock-in monitoring.
@@ -7639,6 +7761,14 @@ def standard_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -7684,6 +7814,8 @@ def european_snowball(
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a snowball with knock-in observed only at expiry.
@@ -7711,6 +7843,14 @@ def european_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -7758,6 +7898,8 @@ def step_down_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a snowball with decreasing knock-out levels.
@@ -7789,6 +7931,14 @@ def step_down_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -7839,6 +7989,8 @@ def both_down_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a snowball with decreasing coupons and knock-out levels.
@@ -7872,6 +8024,14 @@ def both_down_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -7921,6 +8081,8 @@ def dual_coupon_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a snowball with separate knock-out and maturity coupons.
@@ -7952,6 +8114,14 @@ def dual_coupon_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -7999,6 +8169,8 @@ def parachute_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a snowball with a distinct final knock-out level.
@@ -8030,6 +8202,14 @@ def parachute_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8077,6 +8257,8 @@ def otm_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a snowball with a replaced upper terminal strike.
@@ -8108,6 +8290,14 @@ def otm_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8155,6 +8345,8 @@ def loss_capped_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a snowball whose lower terminal strike caps downside loss.
@@ -8186,6 +8378,14 @@ def loss_capped_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8505,6 +8705,8 @@ def standard_phoenix(
     lockout_periods: SupportsIndex = ...,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> PhoenixOption:
     """Create a standard Phoenix with a constant knock-out barrier and optional initial lockout.
@@ -8540,6 +8742,14 @@ def standard_phoenix(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss
         components.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8583,6 +8793,8 @@ def step_down_phoenix(
     lockout_periods: SupportsIndex = ...,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> PhoenixOption:
     """Create a step-down Phoenix whose first eligible knock-out uses the initial level.
@@ -8620,6 +8832,14 @@ def step_down_phoenix(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss
         components.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8660,6 +8880,8 @@ def fixed_coupon_note(
     lockout_periods: SupportsIndex = ...,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> PhoenixOption:
     """Create a fixed coupon note with unconditional surviving coupons.
@@ -8691,6 +8913,14 @@ def fixed_coupon_note(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss
         components.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8732,6 +8962,8 @@ def digital_coupon_note(
     lockout_periods: SupportsIndex = ...,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> PhoenixOption:
     """Create a digital coupon note with barrier-conditional fixed coupons.
@@ -8765,6 +8997,14 @@ def digital_coupon_note(
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupon and loss
         components.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8807,6 +9047,8 @@ def early_profit_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a two-stage early-profit snowball.
@@ -8840,6 +9082,14 @@ def early_profit_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8892,6 +9142,8 @@ def butterfly_snowball(
     knock_in_observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_redemption_ratio: _Real = ...,
+    rebate_rate: _Real = ...,
+    annual_rebate_rate: _Real = ...,
     calendar: TradingCalendar | EllipsisType = ...,
 ) -> SnowballOption:
     """Create a three-stage butterfly snowball.
@@ -8929,6 +9181,14 @@ def butterfly_snowball(
         observations at valuation using current spot. Callers supply applicable state.
     principal_redemption_ratio : float, optional
         Nonnegative normalized principal, independent of coupons and losses.
+    rebate_rate : float, optional
+        Finite nonnegative flat rebate per unit of original notional, default 0.
+    annual_rebate_rate : float, optional
+        Finite nonnegative annualized rebate rate, default 0. Accrues from
+        effective time to actual knock-out or expiry using Actual/365 Fixed,
+        including intraday time and nontrading days. Both rebates are additive
+        to coupons and principal gains or losses and pay once at termination.
+        A previously knocked-out note is settled with no remaining value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.

@@ -258,6 +258,8 @@ UPDATES = {
     "lower_barrier": 85,
     "upper_barrier": 125,
     "rebate": 5,
+    "rebate_rate": 0.02,
+    "annual_rebate_rate": 0.06,
     "rebate_timing": "at_hit",
     "settlement_timing": "at_hit",
     "touch_state": "touched",

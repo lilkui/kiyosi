@@ -36,6 +36,12 @@ macro_rules! autocallable_properties {
             fn principal_redemption_ratio(&self) -> f64 {
                 self.0.terms().principal_redemption_ratio
             }
+            /// Return the flat rebate proportion paid once at knock-out or maturity.
+            #[getter]
+            fn rebate_rate(&self) -> f64 { self.0.terms().rebate_rate }
+            /// Return the annualized rebate rate accrued from effective time to exit.
+            #[getter]
+            fn annual_rebate_rate(&self) -> f64 { self.0.terms().annual_rebate_rate }
             /// Return strictly prior autocallable history, or None if unknown.
             #[getter]
             fn barrier_state(&self) -> Option<&'static str> {
@@ -599,6 +605,14 @@ macro_rules! snowball_preset {
         ///     observations at valuation using current spot. Callers supply applicable state.
         /// principal_redemption_ratio : float, optional
         ///     Nonnegative normalized principal, independent of coupons and losses.
+        /// rebate_rate : float, optional
+        ///     Finite nonnegative flat rebate per unit of original notional, default 0.
+        /// annual_rebate_rate : float, optional
+        ///     Finite nonnegative annualized rebate rate, default 0. Accrues from
+        ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+        ///     including intraday time and nontrading days. Both rebates are additive
+        ///     to coupons and principal gains or losses and pay once at termination.
+        ///     A previously knocked-out note is settled with no remaining value.
         /// calendar : TradingCalendar, optional
         ///     Explicit calendar override; omission or Ellipsis inherits an
         ///     ObservationSchedule calendar, otherwise weekdays.
@@ -632,7 +646,7 @@ macro_rules! snowball_preset {
         /// maturity_coupon_rate edits only the maturity coupon.
         ///
         #[pyfunction]
-        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* autocall_times, effective_time, expiry_time, $($clock,)? barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=crate::conversions::OMITTED))]
+        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* autocall_times, effective_time, expiry_time, $($clock,)? barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar=crate::conversions::OMITTED))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             $coupon: &Bound<'_, PyAny>,
@@ -646,6 +660,8 @@ macro_rules! snowball_preset {
             $($clock: &Bound<'_, PyAny>,)?
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
+            #[pyo3(from_py_with = real)] rebate_rate: f64,
+            #[pyo3(from_py_with = real)] annual_rebate_rate: f64,
             #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
         ) -> PyResult<SnowballOption> {
@@ -659,6 +675,8 @@ macro_rules! snowball_preset {
                 terms.barrier_state = state(value)?;
             }
             terms.principal_redemption_ratio = principal_redemption_ratio;
+            terms.rebate_rate = rebate_rate;
+            terms.annual_rebate_rate = annual_rebate_rate;
             terms.calendar = crate::calendar::observation_calendar(calendar, Some(autocall_times))?.unwrap_or_default();
 
             Ok(SnowballOption(domain(terms.expand($preset))?))
@@ -840,6 +858,14 @@ times, stages may have no autocall_observations, and rates need not decrease."
 ///     observations at valuation using current spot. Callers supply applicable state.
 /// principal_redemption_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
+/// rebate_rate : float, optional
+///     Finite nonnegative flat rebate per unit of original notional, default 0.
+/// annual_rebate_rate : float, optional
+///     Finite nonnegative annualized rebate rate, default 0. Accrues from
+///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+///     including intraday time and nontrading days. Both rebates are additive
+///     to coupons and principal gains or losses and pay once at termination.
+///     A previously knocked-out note is settled with no remaining value.
 /// calendar : TradingCalendar
 ///     Required owned observation calendar. Records carry no calendar; pass
 ///     schedule.calendar when constructing from a schedule. Controls contractual
@@ -857,7 +883,7 @@ times, stages may have no autocall_observations, and rates need not decrease."
 pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
 snowball_properties! {
     SnowballOption,
-    @replace SnowballOptionChanges [maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, barrier_state, principal_redemption_ratio, effective_time, expiry_time, autocall_observations, calendar]
+    @replace SnowballOptionChanges [maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, barrier_state, principal_redemption_ratio, rebate_rate, annual_rebate_rate, effective_time, expiry_time, autocall_observations, calendar]
     {
         calendar => |v| v.extract::<TradingCalendar>().map(|v| v.0),
         maturity_coupon_rate => crate::conversions::real,
@@ -868,6 +894,8 @@ snowball_properties! {
         knock_in_observation => |value| value.extract::<PyRef<'_, KnockInObservation>>().map(|value| value.0),
         barrier_state => crate::instruments::autocallable::state,
         principal_redemption_ratio => crate::conversions::real,
+        rebate_rate => crate::conversions::real,
+        annual_rebate_rate => crate::conversions::real,
         effective_time => crate::conversions::timestamp,
         expiry_time => crate::conversions::timestamp,
         autocall_observations => crate::instruments::autocallable::records,
@@ -889,6 +917,16 @@ snowball_properties! {
     ///     Strictly prior event history; None clears it to unknown.
     /// principal_redemption_ratio : float, optional
     ///     Finite nonnegative principal redemption per unit of original notional.
+    /// rebate_rate : float, optional
+    ///     Finite nonnegative flat rebate per unit of original notional.
+    ///     Omission or Ellipsis retains its current value.
+    /// annual_rebate_rate : float, optional
+    ///     Finite nonnegative annualized rebate rate; omission or Ellipsis
+    ///     retains its current value. Accrues from
+    ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+    ///     including intraday time and nontrading days. Both rebates are additive
+    ///     to coupons and principal gains or losses and pay once at termination.
+    ///     A previously knocked-out note is settled with no remaining value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// autocall_observations : iterable of AutocallableObservation, optional
@@ -912,7 +950,7 @@ snowball_properties! {
     ],
 
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar))]
+    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -926,6 +964,8 @@ snowball_properties! {
         autocall_observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
+        #[pyo3(from_py_with = real)] rebate_rate: f64,
+        #[pyo3(from_py_with = real)] annual_rebate_rate: f64,
         calendar: TradingCalendar,
 
     ) -> PyResult<Self> {
@@ -945,6 +985,8 @@ snowball_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
+        terms.rebate_rate = rebate_rate;
+        terms.annual_rebate_rate = annual_rebate_rate;
 
         Ok(Self(domain(kiyosi::SnowballOption::new(terms))?))
     },
@@ -994,6 +1036,14 @@ snowball_properties! {
 ///     observations at valuation using current spot. Callers supply applicable state.
 /// principal_redemption_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
+/// rebate_rate : float, optional
+///     Finite nonnegative flat rebate per unit of original notional, default 0.
+/// annual_rebate_rate : float, optional
+///     Finite nonnegative annualized rebate rate, default 0. Accrues from
+///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+///     including intraday time and nontrading days. Both rebates are additive
+///     to coupons and principal gains or losses and pay once at termination.
+///     A previously knocked-out note is settled with no remaining value.
 /// calendar : TradingCalendar
 ///     Required owned observation calendar. Records carry no calendar; pass
 ///     schedule.calendar when constructing from a schedule. Controls contractual
@@ -1010,12 +1060,14 @@ snowball_properties! {
 pub(crate) struct BinarySnowballOption(pub kiyosi::BinarySnowballOption);
 snowball_properties! {
     BinarySnowballOption,
-    @replace BinarySnowballOptionChanges [maturity_coupon_rate, barrier_state, principal_redemption_ratio, effective_time, expiry_time, autocall_observations, calendar]
+    @replace BinarySnowballOptionChanges [maturity_coupon_rate, barrier_state, principal_redemption_ratio, rebate_rate, annual_rebate_rate, effective_time, expiry_time, autocall_observations, calendar]
     {
         calendar => |v| v.extract::<TradingCalendar>().map(|v| v.0),
         maturity_coupon_rate => crate::conversions::real,
         barrier_state => crate::instruments::autocallable::state,
         principal_redemption_ratio => crate::conversions::real,
+        rebate_rate => crate::conversions::real,
+        annual_rebate_rate => crate::conversions::real,
         effective_time => crate::conversions::timestamp,
         expiry_time => crate::conversions::timestamp,
         autocall_observations => crate::instruments::autocallable::records,
@@ -1033,6 +1085,16 @@ snowball_properties! {
     ///     Strictly prior event history; None clears it to unknown.
     /// principal_redemption_ratio : float, optional
     ///     Finite nonnegative principal redemption per unit of original notional.
+    /// rebate_rate : float, optional
+    ///     Finite nonnegative flat rebate per unit of original notional.
+    ///     Omission or Ellipsis retains its current value.
+    /// annual_rebate_rate : float, optional
+    ///     Finite nonnegative annualized rebate rate; omission or Ellipsis
+    ///     retains its current value. Accrues from
+    ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+    ///     including intraday time and nontrading days. Both rebates are additive
+    ///     to coupons and principal gains or losses and pay once at termination.
+    ///     A previously knocked-out note is settled with no remaining value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// autocall_observations : iterable of AutocallableObservation, optional
@@ -1056,7 +1118,8 @@ snowball_properties! {
     ],
 
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar))]
+    #[pyo3(signature = (*, maturity_coupon_rate, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
         effective_time: &Bound<'_, PyAny>,
@@ -1064,6 +1127,8 @@ snowball_properties! {
         autocall_observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
+        #[pyo3(from_py_with = real)] rebate_rate: f64,
+        #[pyo3(from_py_with = real)] annual_rebate_rate: f64,
         calendar: TradingCalendar,
 
     ) -> PyResult<Self> {
@@ -1078,6 +1143,8 @@ snowball_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
+        terms.rebate_rate = rebate_rate;
+        terms.annual_rebate_rate = annual_rebate_rate;
 
         Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?))
     },
@@ -1108,6 +1175,14 @@ snowball_properties! {
 ///     observations at valuation using current spot. Callers supply applicable state.
 /// principal_redemption_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
+/// rebate_rate : float, optional
+///     Finite nonnegative flat rebate per unit of original notional, default 0.
+/// annual_rebate_rate : float, optional
+///     Finite nonnegative annualized rebate rate, default 0. Accrues from
+///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+///     including intraday time and nontrading days. Both rebates are additive
+///     to coupons and principal gains or losses and pay once at termination.
+///     A previously knocked-out note is settled with no remaining value.
 /// calendar : TradingCalendar
 ///     Required owned observation calendar. Records carry no calendar; pass
 ///     schedule.calendar when constructing from a schedule. Controls contractual
@@ -1124,7 +1199,7 @@ snowball_properties! {
 pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
 snowball_properties! {
     TernarySnowballOption,
-    @replace TernarySnowballOptionChanges [maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation, barrier_state, principal_redemption_ratio, effective_time, expiry_time, autocall_observations, calendar]
+    @replace TernarySnowballOptionChanges [maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation, barrier_state, principal_redemption_ratio, rebate_rate, annual_rebate_rate, effective_time, expiry_time, autocall_observations, calendar]
     {
         calendar => |v| v.extract::<TradingCalendar>().map(|v| v.0),
         maturity_coupon_rate => crate::conversions::real,
@@ -1133,6 +1208,8 @@ snowball_properties! {
         knock_in_observation => |value| value.extract::<PyRef<'_, KnockInObservation>>().map(|value| value.0),
         barrier_state => crate::instruments::autocallable::state,
         principal_redemption_ratio => crate::conversions::real,
+        rebate_rate => crate::conversions::real,
+        annual_rebate_rate => crate::conversions::real,
         effective_time => crate::conversions::timestamp,
         expiry_time => crate::conversions::timestamp,
         autocall_observations => crate::instruments::autocallable::records,
@@ -1152,6 +1229,16 @@ snowball_properties! {
     ///     Strictly prior event history; None clears it to unknown.
     /// principal_redemption_ratio : float, optional
     ///     Finite nonnegative principal redemption per unit of original notional.
+    /// rebate_rate : float, optional
+    ///     Finite nonnegative flat rebate per unit of original notional.
+    ///     Omission or Ellipsis retains its current value.
+    /// annual_rebate_rate : float, optional
+    ///     Finite nonnegative annualized rebate rate; omission or Ellipsis
+    ///     retains its current value. Accrues from
+    ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+    ///     including intraday time and nontrading days. Both rebates are additive
+    ///     to coupons and principal gains or losses and pay once at termination.
+    ///     A previously knocked-out note is settled with no remaining value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// autocall_observations : iterable of AutocallableObservation, optional
@@ -1175,7 +1262,7 @@ snowball_properties! {
     ],
 
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar))]
+    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -1187,6 +1274,8 @@ snowball_properties! {
         autocall_observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
+        #[pyo3(from_py_with = real)] rebate_rate: f64,
+        #[pyo3(from_py_with = real)] annual_rebate_rate: f64,
         calendar: TradingCalendar,
 
     ) -> PyResult<Self> {
@@ -1204,6 +1293,8 @@ snowball_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
+        terms.rebate_rate = rebate_rate;
+        terms.annual_rebate_rate = annual_rebate_rate;
 
         Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?))
     },
@@ -1256,6 +1347,14 @@ snowball_properties! {
 ///     observations at valuation using current spot. Callers supply applicable state.
 /// principal_redemption_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
+/// rebate_rate : float, optional
+///     Finite nonnegative flat rebate per unit of original notional, default 0.
+/// annual_rebate_rate : float, optional
+///     Finite nonnegative annualized rebate rate, default 0. Accrues from
+///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+///     including intraday time and nontrading days. Both rebates are additive
+///     to coupons and principal gains or losses and pay once at termination.
+///     A previously knocked-out note is settled with no remaining value.
 /// calendar : TradingCalendar
 ///     Required owned observation calendar. Records carry no calendar; pass
 ///     schedule.calendar when constructing from a schedule. Controls contractual
@@ -1282,7 +1381,7 @@ snowball_properties! {
 pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
-    @replace PhoenixOptionChanges [coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, barrier_state, principal_redemption_ratio, effective_time, expiry_time, knock_out_observations, coupon_observations, calendar]
+    @replace PhoenixOptionChanges [coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, barrier_state, principal_redemption_ratio, rebate_rate, annual_rebate_rate, effective_time, expiry_time, knock_out_observations, coupon_observations, calendar]
     {
         calendar => |v| v.extract::<TradingCalendar>().map(|v| v.0),
         coupon_per_period => crate::conversions::real,
@@ -1293,6 +1392,8 @@ autocallable_properties! {
         knock_in_observation => |value| value.extract::<PyRef<'_, KnockInObservation>>().map(|value| value.0),
         barrier_state => crate::instruments::autocallable::state,
         principal_redemption_ratio => crate::conversions::real,
+        rebate_rate => crate::conversions::real,
+        annual_rebate_rate => crate::conversions::real,
         effective_time => crate::conversions::timestamp,
         expiry_time => crate::conversions::timestamp,
         knock_out_observations => crate::instruments::autocallable::knock_out_records,
@@ -1315,6 +1416,16 @@ autocallable_properties! {
     ///     Strictly prior event history; None clears it to unknown.
     /// principal_redemption_ratio : float, optional
     ///     Finite nonnegative principal redemption per unit of original notional.
+    /// rebate_rate : float, optional
+    ///     Finite nonnegative flat rebate per unit of original notional.
+    ///     Omission or Ellipsis retains its current value.
+    /// annual_rebate_rate : float, optional
+    ///     Finite nonnegative annualized rebate rate; omission or Ellipsis
+    ///     retains its current value. Accrues from
+    ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+    ///     including intraday time and nontrading days. Both rebates are additive
+    ///     to coupons and principal gains or losses and pay once at termination.
+    ///     A previously knocked-out note is settled with no remaining value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// knock_out_observations : iterable of KnockOutObservation, optional
@@ -1339,7 +1450,7 @@ autocallable_properties! {
     ///
     ],
     #[new]
-    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, knock_out_observations, coupon_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar))]
+    #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, knock_out_observations, coupon_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         #[pyo3(from_py_with = real)] coupon_per_period: f64,
@@ -1354,6 +1465,8 @@ autocallable_properties! {
         coupon_observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
+        #[pyo3(from_py_with = real)] rebate_rate: f64,
+        #[pyo3(from_py_with = real)] annual_rebate_rate: f64,
         calendar: TradingCalendar,
 
     ) -> PyResult<Self> {
@@ -1374,6 +1487,8 @@ autocallable_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_redemption_ratio = principal_redemption_ratio;
+        terms.rebate_rate = rebate_rate;
+        terms.annual_rebate_rate = annual_rebate_rate;
 
         Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
     },
@@ -1515,6 +1630,14 @@ macro_rules! phoenix_preset {
         /// principal_redemption_ratio : float, optional
         ///     Nonnegative normalized principal, independent of coupon and loss
         ///     components.
+        /// rebate_rate : float, optional
+        ///     Finite nonnegative flat rebate per unit of original notional, default 0.
+        /// annual_rebate_rate : float, optional
+        ///     Finite nonnegative annualized rebate rate, default 0. Accrues from
+        ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+        ///     including intraday time and nontrading days. Both rebates are additive
+        ///     to coupons and principal gains or losses and pay once at termination.
+        ///     A previously knocked-out note is settled with no remaining value.
         /// calendar : TradingCalendar, optional
         ///     Explicit calendar override; omission or Ellipsis inherits an
         ///     ObservationSchedule calendar, otherwise weekdays.
@@ -1543,7 +1666,7 @@ macro_rules! phoenix_preset {
         /// Past coupons are settled.
         ///
         #[pyfunction]
-        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, $knock_out, $($extra,)* $($clock,)? autocall_times, effective_time, expiry_time, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, calendar=crate::conversions::OMITTED))]
+        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, $knock_out, $($extra,)* $($clock,)? autocall_times, effective_time, expiry_time, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar=crate::conversions::OMITTED))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             coupon_per_period: &Bound<'_, PyAny>,
@@ -1558,6 +1681,8 @@ macro_rules! phoenix_preset {
             #[pyo3(from_py_with = integer_usize)] lockout_periods: usize,
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_redemption_ratio: f64,
+            #[pyo3(from_py_with = real)] rebate_rate: f64,
+            #[pyo3(from_py_with = real)] annual_rebate_rate: f64,
             #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
         ) -> PyResult<PhoenixOption> {
@@ -1573,6 +1698,8 @@ macro_rules! phoenix_preset {
                 terms.barrier_state = state(value)?;
             }
             terms.principal_redemption_ratio = principal_redemption_ratio;
+            terms.rebate_rate = rebate_rate;
+            terms.annual_rebate_rate = annual_rebate_rate;
             terms.calendar = crate::calendar::observation_calendar(calendar, Some(autocall_times))?.unwrap_or_default();
 
             Ok(PhoenixOption(domain(terms.expand($preset))?))

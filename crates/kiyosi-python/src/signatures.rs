@@ -50,6 +50,8 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             early_profit_snowball,
             butterfly_snowball,
         ],
+        rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        annual_rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
         principal_redemption_ratio = kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO
     );
     register!(
@@ -59,11 +61,15 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             step_down_phoenix,
             digital_coupon_note,
         ],
+        rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        annual_rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
         principal_redemption_ratio = kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
         lockout_periods = kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS,
     );
     register!(
         [PhoenixOption],
+        rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        annual_rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
         principal_redemption_ratio = kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO
     );
     register!(

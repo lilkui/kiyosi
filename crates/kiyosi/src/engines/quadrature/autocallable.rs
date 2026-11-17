@@ -192,6 +192,7 @@ fn terminal<T: AutocallableTerms>(
                         cash = t.principal_redemption_ratio - d.upper_strike / d.initial_spot;
                         asset = 1.0 / d.initial_spot;
                     }
+                    cash += note.rebate_payment(note.expiry_time());
                 } else {
                     cash = note.terminal(anchor, true);
                 }
