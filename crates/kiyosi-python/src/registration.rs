@@ -195,9 +195,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         calendar::custom_calendar,
         schedule::fixed_interval_schedule,
         schedule::monthly_schedule,
-        calendar::_calendar_parts,
-        risk::_pricing_result,
-        engines::monte_carlo::_monte_carlo_estimate,
     );
     crate::signatures::register(py, module)
 }

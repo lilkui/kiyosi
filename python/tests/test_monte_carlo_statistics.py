@@ -1,7 +1,6 @@
 """Sampling uncertainty follows the same contracts across Monte Carlo products."""
 
 import math
-import pickle
 from datetime import datetime, time, timedelta
 
 import pytest
@@ -139,7 +138,7 @@ def test_scalar_seeds_replay_all_products_without_mutating_engines(subtests):
                         )
 
 
-def test_greek_seeds_replay_native_numerical_and_pickled_results(subtests):
+def test_greek_seeds_replay_native_and_numerical_results(subtests):
     snapshot = context()
     cases = (
         *seed_cases(),
@@ -170,7 +169,6 @@ def test_greek_seeds_replay_native_numerical_and_pickled_results(subtests):
                 assert result.seed is not None
                 assert sampler.seed is None
                 assert calculate(sampler.replace(seed=result.seed)) == result
-                assert pickle.loads(pickle.dumps(result)) == result
                 assert (
                     sampler.replace(seed=result.seed).price(option, snapshot)
                     == result.price
@@ -215,9 +213,6 @@ def test_reported_seeds_replay_unseeded_and_configured_estimates(subtests):
                     )
                     assert replay.price_with_statistics(option, snapshot) == estimate
                     assert replay.price(option, snapshot) == estimate.price
-                    restored = pickle.loads(pickle.dumps(estimate))
-                    assert restored == estimate
-                    assert restored.seed == estimate.seed
                     assert (
                         sampler.price_with_statistics(option, deterministic).seed
                         is None
@@ -240,13 +235,10 @@ def test_statistics_preserve_prices_and_uncertainty_across_products_and_threads(
                 assert lower < estimate.price
                 assert estimate.price < upper
                 parallel = engine(factory, max_active_workers=4, antithetic=antithetic)
-                for other in (
-                    parallel.price_with_statistics(option, snapshot),
-                    pickle.loads(pickle.dumps(estimate)),
-                ):
-                    assert other.price == estimate.price
-                    assert other.standard_error == estimate.standard_error
-                    assert other.confidence_interval == estimate.confidence_interval
+                other = parallel.price_with_statistics(option, snapshot)
+                assert other.price == estimate.price
+                assert other.standard_error == estimate.standard_error
+                assert other.confidence_interval == estimate.confidence_interval
 
 
 @pytest.mark.parametrize("antithetic", (False, True))
@@ -314,7 +306,6 @@ def test_uncertainty_omission_follows_sampling_and_independent_counts(subtests):
                 assert estimate.standard_error is None
                 assert estimate.confidence_interval is None
                 assert estimate.uncertainty_status == status
-                assert pickle.loads(pickle.dumps(estimate)) == estimate
 
 
 def test_terminal_statistics_report_known_values(subtests):

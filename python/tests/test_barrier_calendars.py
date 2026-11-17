@@ -1,7 +1,6 @@
-"""Barrier calendars belong to contracts across construction and reconstruction."""
+"""Barrier calendars belong to contracts across construction and replacement."""
 
 import inspect
-import pickle
 from datetime import datetime
 
 import pytest
@@ -9,7 +8,7 @@ from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
 
 
-def test_barrier_calendars_are_owned_and_survive_reconstruction(subtests):
+def test_barrier_calendars_are_owned_and_preserved_by_replacement(subtests):
     start, end = datetime(2025, 1, 3), datetime(2025, 1, 5)
     context = market.PricingContext(
         model_parameters=market.BlackScholesMertonParameters(
@@ -124,12 +123,10 @@ def test_barrier_calendars_are_owned_and_survive_reconstruction(subtests):
             )
             assert owned.replace() == owned
             assert owned.replace() == owned
-            restored = pickle.loads(pickle.dumps(owned))
-            assert restored == owned
             assert "all_days" in repr(owned)
             assert "calendar" in inspect.signature(factory).parameters
             for invalid in (None, True, "all_days"):
                 with pytest.raises(TypeError):
                     original.replace(calendar=invalid)
             for engine in engines:
-                assert engine.price(owned, context) == engine.price(restored, context)
+                assert engine.price(owned, context) == engine.price(original, context)

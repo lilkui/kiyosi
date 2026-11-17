@@ -269,9 +269,8 @@ macro_rules! sampling_settings {
 
             /// Return an engine with a concrete seed, preserving all other controls.
             ///
-            /// An existing seed is retained. Save or pickle the returned engine before
-            /// pricing to replay its draws within the same build. The original is
-            /// unchanged.
+            /// An existing seed is retained. Reuse the returned engine to replay its
+            /// draws within the same build. The original is unchanged.
             ///
             /// Returns
             /// -------
@@ -527,37 +526,3 @@ engine_methods!(@evaluate MonteCarloVanillaEngine, binomial::VanillaInstrument<'
 engine_methods!(@evaluate MonteCarloDigitalEngine, digital::DigitalInstrument<'_>, digital::with_digital);
 
 engine_methods!(@evaluate MonteCarloAsianEngine, asian::AsianInstrument<'_>, asian::with_asian);
-
-#[pyfunction]
-#[pyo3(signature = (*, price, standard_error, uncertainty_status, seed=None))]
-pub(crate) fn _monte_carlo_estimate(
-    price: &Bound<'_, PyAny>,
-    standard_error: Option<&Bound<'_, PyAny>>,
-    uncertainty_status: &str,
-    seed: Option<&Bound<'_, PyAny>>,
-) -> PyResult<MonteCarloEstimate> {
-    let status = match uncertainty_status {
-        "available" => kiyosi::MonteCarloUncertaintyStatus::Available,
-        "unsupported_sampling" => kiyosi::MonteCarloUncertaintyStatus::UnsupportedSampling,
-        "insufficient_observations" => {
-            kiyosi::MonteCarloUncertaintyStatus::InsufficientObservations
-        }
-        "incomplete_antithetic_pair" => {
-            kiyosi::MonteCarloUncertaintyStatus::IncompleteAntitheticPair
-        }
-        _ => {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "unknown uncertainty status",
-            ));
-        }
-    };
-    Ok(MonteCarloEstimate(domain(
-        kiyosi::MonteCarloEstimate::from_statistics(
-            crate::conversions::real(price)?,
-            standard_error.map(crate::conversions::real).transpose()?,
-            status,
-            seed.map(|value| crate::conversions::integer_index(value)?.extract::<u64>())
-                .transpose()?,
-        ),
-    )?))
-}

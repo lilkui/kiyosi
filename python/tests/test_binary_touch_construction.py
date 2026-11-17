@@ -1,7 +1,6 @@
 """Construct binary and touch contracts through their public classes."""
 
 import inspect
-import pickle
 from datetime import datetime
 
 import pytest
@@ -190,9 +189,6 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
                 else pricing.AnalyticBinaryBarrierEngine()
             )
             assert engine.price(contract, context) == expected
-            restored = pickle.loads(pickle.dumps(contract))
-            assert restored == contract
-            assert engine.price(restored, context) == expected
             if terms["payout"] is None:
                 cash = contract.replace(payoff_type="cash", payout=5)
                 assert cash.payout == 5

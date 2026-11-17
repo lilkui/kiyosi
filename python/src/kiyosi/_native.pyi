@@ -614,7 +614,7 @@ class RateTermStructure:
         -------
         RateTermStructure
             Owned curve retaining the exact scalar rate and both bounds, including
-            through shifts and pickle. Nodes and factors are empty, as for flat().
+            through shifts. Nodes and factors are empty, as for flat().
 
         Raises
         ------
@@ -655,8 +655,7 @@ class RateTermStructure:
         -----
         Zero factors cannot reconstruct a curve through its constructor.
         Reconstruct node curves from base_factors, then apply
-        shifted(parallel_shift). Pickle preserves this representation, including
-        extreme shifted curves.
+        shifted(parallel_shift).
         """
 
     @property
@@ -3326,9 +3325,8 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
     def with_resolved_seed(self) -> Self:
         """Return an engine with a concrete seed, preserving all other controls.
 
-        An existing seed is retained. Save or pickle the returned engine before
-        pricing to replay its draws within the same build. The original is
-        unchanged.
+        An existing seed is retained. Reuse the returned engine to replay its
+        draws within the same build. The original is unchanged.
 
         Returns
         -------
@@ -8754,23 +8752,3 @@ def butterfly_snowball(
     preserve_maturity_coupon to keep maturity fixed. Replacing only
     maturity_coupon_rate edits only the maturity coupon.
     """
-
-def _calendar_parts(
-    calendar: TradingCalendar,
-) -> tuple[str, TradingCalendar | None, list[datetime], list[datetime], int]: ...
-def _pricing_result(
-    price: _Real,
-    greeks: dict[Greek, _Real],
-    *,
-    requested: Iterable[Greek],
-    supported: Iterable[Greek],
-    unavailable_stencils: Iterable[Greek],
-    seed: SupportsIndex | None = None,
-) -> PricingResult: ...
-def _monte_carlo_estimate(
-    *,
-    price: _Real,
-    standard_error: _Real | None,
-    uncertainty_status: _pricing.MonteCarloUncertaintyStatus,
-    seed: SupportsIndex | None = None,
-) -> MonteCarloEstimate: ...

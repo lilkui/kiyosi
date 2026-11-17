@@ -235,43 +235,6 @@ pub(crate) fn custom_calendar(
     ))?))
 }
 
-type CalendarParts<'py> = (
-    String,
-    Option<TradingCalendar>,
-    Vec<Bound<'py, PyDate>>,
-    Vec<Bound<'py, PyDate>>,
-    i32,
-);
-
-#[pyfunction]
-pub(crate) fn _calendar_parts<'py>(
-    py: Python<'py>,
-    calendar: &TradingCalendar,
-) -> PyResult<CalendarParts<'py>> {
-    let basis = calendar.0.trading_days_per_year();
-    if let Some((base, closed, open)) = calendar.0.overrides() {
-        return Ok((
-            "custom".into(),
-            Some(TradingCalendar(base.clone())),
-            closed
-                .iter()
-                .map(|&value| python_date(py, value))
-                .collect::<PyResult<_>>()?,
-            open.iter()
-                .map(|&value| python_date(py, value))
-                .collect::<PyResult<_>>()?,
-            basis,
-        ));
-    }
-    Ok((
-        builtin_name(&calendar.0)?.into(),
-        None,
-        vec![],
-        vec![],
-        basis,
-    ))
-}
-
 pub(crate) fn builtin_name(calendar: &kiyosi::TradingCalendar) -> PyResult<&'static str> {
     for (name, builtin) in [
         ("weekdays", kiyosi::TradingCalendar::weekdays()),

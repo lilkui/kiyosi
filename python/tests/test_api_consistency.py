@@ -1,7 +1,6 @@
 """Public API contracts shared by Rust and Python callers."""
 
 import math
-import pickle
 from datetime import datetime, timedelta
 from datetime import time as clock_time
 from decimal import Decimal, FloatOperation, Inexact, Rounded, localcontext
@@ -874,7 +873,6 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
                 option.replace(calendar=market.weekdays_calendar())
             assert option.calendar == market.all_days_calendar()
             assert option.replace() == option
-            assert pickle.loads(pickle.dumps(option)) == option
 
 
 @pytest.mark.parametrize("direction", ("call", "put"))
@@ -962,7 +960,7 @@ def test_barrier_engines_require_curve_coverage_only_for_remaining_cashflows(fac
             engine.price(settled.replace(**changes), context)
 
 
-def test_structured_contract_calendars_control_observations_and_survive_reconstruction():
+def test_structured_contract_calendars_control_observations_and_survive_replacement():
     start, end = datetime(2025, 1, 3), datetime(2025, 1, 6)
     model = market.BlackScholesMertonParameters(
         risk_free_rate=0, dividend_yield=0, volatility=1e-12
@@ -1011,7 +1009,6 @@ def test_structured_contract_calendars_control_observations_and_survive_reconstr
     )
     for value in (daily, accumulator, note):
         assert value.replace().calendar == value.calendar
-        assert pickle.loads(pickle.dumps(value)).calendar == value.calendar
     assert (
         note.with_coupon(0.2, quote_convention="shift_maturity_coupon").calendar
         == note.calendar
@@ -1222,8 +1219,6 @@ def test_asian_history_uses_optional_positive_averages(subtests):
             assert seasoned.replace() == seasoned
             assert seasoned.replace(realized_average=None) == original
             assert seasoned.replace(realized_average=None) == original
-            assert pickle.loads(pickle.dumps(original)) == original
-            assert pickle.loads(pickle.dumps(seasoned)) == seasoned
             for invalid in (0, -1, float("nan"), float("inf")):
                 with pytest.raises(InvalidInputError):
                     seasoned.replace(
@@ -1398,7 +1393,6 @@ def test_settled_accumulators_have_no_remaining_cashflows(subtests):
     assert settled.replace(
         accumulated_quantity=3,
     ).knock_out_settled
-    assert pickle.loads(pickle.dumps(settled)) == settled
     assert ins.Accumulator(
         observation_clock_time=clock_time(),
         strike=90,
@@ -1493,9 +1487,6 @@ def test_automatic_volatility_bumps_preserve_explicit_controls_and_zero_boundary
     )
     assert unavailable.status("vega") == "stencil_unavailable"
     assert unavailable.vega is None
-    restored = pickle.loads(pickle.dumps(unavailable))
-    assert restored == unavailable
-    assert restored.status("vega") == "stencil_unavailable"
     recovered = numerical_greeks(
         engine,
         option,
@@ -1722,14 +1713,6 @@ def test_greek_status_distinguishes_requests_support_and_stencils():
     assert partial.status("delta") == "available"
     assert partial.status("vega") == "unsupported"
     assert partial.requested == (("delta", "vega"))
-    for original in (result, terminal, collapsed, partial):
-        restored = pickle.loads(pickle.dumps(original))
-        assert restored.price == original.price
-        assert restored.requested == original.requested
-        assert restored.supported == original.supported
-        for greek in ("delta", "gamma", "vega"):
-            assert restored.status(greek) == original.status(greek)
-            assert getattr(restored, greek) == getattr(original, greek)
     with pytest.raises(ValueError):
         result.status("unknown")
 
@@ -1741,9 +1724,6 @@ def test_flat_rate_query_is_independent_of_reference_time():
         assert curve.exact_flat_rate == 0.05
         assert_decimal_equal(curve.shifted(0.01).exact_flat_rate, 0.06)
         assert curve.reference_time == reference
-        restored = pickle.loads(pickle.dumps(curve))
-        assert restored.exact_flat_rate == 0.05
-        assert restored.reference_time == reference
     nodes = market.RateTermStructure(reference_time=start, times=[end], factors=[0.95])
     assert_decimal_equal(nodes.exact_flat_rate, -math.log(0.95))
 
@@ -1831,7 +1811,6 @@ def test_double_touch_barrier_type_roundtrips_through_replacement(expected):
     assert option.replace(barrier_type=option.barrier_type) == option
     other = "knock_out" if expected == "knock_in" else "knock_in"
     assert option.replace(barrier_type=other).barrier_type == other
-    assert pickle.loads(pickle.dumps(option)).barrier_type == expected
 
 
 def test_shift_validation_is_independent_of_estimator_and_valuation_time(subtests):
@@ -2184,7 +2163,6 @@ def test_observation_coupon_getters_roundtrip_without_placeholder_values(
                     record.replace(**updates)
             assert record.replace(**{active: ..., absent: None}) == record
             assert getattr(record, active) == value
-            assert pickle.loads(pickle.dumps(record)) == record
 
 
 def test_zero_coupon_observations_preserve_product_identity(subtests):
@@ -2199,9 +2177,6 @@ def test_zero_coupon_observations_preserve_product_identity(subtests):
         with subtests.test(kind=kind):
             assert record.kind == kind
             assert record.replace(knock_out_level=120).kind == kind
-            restored = pickle.loads(pickle.dumps(record))
-            assert restored == record
-            assert restored.kind == kind
             assert (f"AutocallableObservation.{kind}(") in repr(record)
     with pytest.raises(InvalidInputError):
         snowball.replace(coupon_barrier_level=0)
@@ -2234,7 +2209,6 @@ def test_observation_replacement_preserves_validity_and_original_values(subtests
     original = ins.AutocallableObservation.snowball(time, 110, coupon_rate=-0.01)
     phoenix = ins.AutocallableObservation.phoenix(time, 110, coupon_barrier_level=90)
     assert phoenix.coupon_rate is None
-    assert pickle.loads(pickle.dumps(phoenix)) == phoenix
     assert "AutocallableObservation.phoenix" in repr(phoenix)
     with pytest.raises(InvalidInputError):
         phoenix.replace(coupon_rate=0.12)
@@ -2251,7 +2225,6 @@ def test_observation_replacement_preserves_validity_and_original_values(subtests
     assert changed.coupon_barrier_level is None
     assert original.replace() == original
     assert original.replace(coupon_rate=...) == original
-    assert pickle.loads(pickle.dumps(changed)) == changed
     for fields in (
         {"knock_out_level": 0},
         {"knock_out_level": math.inf},

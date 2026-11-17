@@ -1,7 +1,6 @@
 """Caller-owned touch history at public construction, replacement and pricing seams."""
 
 import copy
-import pickle
 from datetime import timedelta
 
 import pytest
@@ -73,7 +72,6 @@ def test_undated_touch_history_reuses_caller_state_and_validates_at_pricing(
     for cloned in (
         copy.copy(option),
         copy.deepcopy(option),
-        pickle.loads(pickle.dumps(option)),
     ):
         assert cloned == option
         assert cloned.touch_state == "touched"

@@ -4,7 +4,6 @@ import copy
 import datetime as datetime_module
 import inspect
 import math
-import pickle
 from datetime import UTC, datetime
 from datetime import time as clock_time
 
@@ -117,7 +116,6 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
     for restored in (
         copy.copy(note),
         copy.deepcopy(note),
-        pickle.loads(pickle.dumps(note)),
     ):
         assert restored == note
         assert restored.lockout_periods == 2

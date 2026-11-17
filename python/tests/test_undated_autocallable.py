@@ -1,7 +1,6 @@
 """Undated autocallable state through the public pricing and replacement interfaces."""
 
 import copy
-import pickle
 from datetime import datetime, time, timedelta
 
 import pytest
@@ -70,7 +69,6 @@ def test_supplied_state_remains_applicable_across_observations():
         for restored in (
             copy.copy(note),
             copy.deepcopy(note),
-            pickle.loads(pickle.dumps(note)),
         ):
             assert restored == note
             assert restored.barrier_state == state

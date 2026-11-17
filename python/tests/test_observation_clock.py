@@ -2,7 +2,6 @@
 
 import datetime as datetime_module
 import math
-import pickle
 from datetime import UTC, date, datetime, time
 
 import pytest
@@ -98,7 +97,6 @@ def test_clock_requires_naive_time_and_preserves_microseconds(subtests):
         RangeAccrualOption(**range_terms())
     note = RangeAccrualOption(observation_clock_time=CLOCK, **range_terms())
     assert note.observation_clock_time == CLOCK
-    assert pickle.loads(pickle.dumps(note)) == note
     replacement = note.replace(observation_clock_time=time(14, 30, 1, 999999))
     assert replacement.observation_clock_time == time(14, 30, 1, 999999)
     assert note.observation_clock_time == CLOCK
@@ -183,7 +181,6 @@ def test_accumulator_allows_no_daily_events_and_does_not_add_units_at_expiry():
         knock_out_settled=False,
     )
     assert engine.price(observed, context(END, 105)) == 15
-    assert pickle.loads(pickle.dumps(observed)) == observed
 
 
 def test_daily_knock_in_does_not_observe_off_clock_maturity(subtests):
@@ -300,7 +297,6 @@ def test_knock_in_observation_replacement_switches_rule_and_clock_atomically():
     )
     assert changed.knock_in_observation.observation_clock_time == changed_clock
     assert daily.knock_in_observation == daily_rule
-    assert pickle.loads(pickle.dumps(daily)) == daily
     assert daily.replace(knock_in_observation=Ellipsis) == daily
     for invalid in (None, "every_trading_day", CLOCK):
         with pytest.raises(TypeError):
@@ -318,7 +314,6 @@ def test_knock_in_observation_replacement_switches_rule_and_clock_atomically():
 def test_knock_in_observation_owned_values_roundtrip(observation, kind, clock):
     assert observation.kind == kind
     assert observation.observation_clock_time == clock
-    assert pickle.loads(pickle.dumps(observation)) == observation
     assert (
         eval(
             repr(observation),

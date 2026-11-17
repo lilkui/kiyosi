@@ -418,10 +418,9 @@ def test_event_changes_preserve_omitted_history(subtests):
 
 
 def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests):
-    from kiyosi._serialization import _reduce
-
     for original in contracts():
-        _, (factory, initial) = _reduce(original)
+        factory = type(original)
+        initial = {name: getattr(original, name) for name in original._STATE_FIELDS}
         with subtests.test(contract=type(original).__name__, operation="omission"):
             assert original.replace() == original
             assert original.replace() is not original

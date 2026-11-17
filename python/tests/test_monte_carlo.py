@@ -976,9 +976,8 @@ def test_companion_failure_and_domain_validation_preserve_sampling_state():
     assert paired.price(contract(), market()) == baseline
 
 
-def test_resolved_seed_preserves_configuration_and_pickle_replay(subtests):
+def test_resolved_seed_preserves_configuration(subtests):
     import inspect
-    import pickle
 
     from kiyosi import pricing
 
@@ -1003,4 +1002,3 @@ def test_resolved_seed_preserves_configuration_and_pickle_replay(subtests):
             assert seeded.seed < 2**64
             assert seeded == factory(seed=seeded.seed, **controls)
             assert seeded.with_resolved_seed() == seeded
-            assert pickle.loads(pickle.dumps(seeded)) == seeded

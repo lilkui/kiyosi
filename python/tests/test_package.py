@@ -83,7 +83,6 @@ def test_engine_replacement_preserves_controls_and_validates_inputs(subtests):
                 configured.replace(**{field: None})
             with pytest.raises(kiyosi.InvalidInputError):
                 configured.replace(**{field: -1})
-            assert pickle.loads(pickle.dumps(updated)) == updated
             for nullable in controls:
                 if getattr(original, nullable) is None:
                     cleared = configured.replace(**{nullable: None})
@@ -124,7 +123,6 @@ def test_engines_compare_by_type_and_configuration(subtests):
         engine = factory()
         with subtests.test(engine=factory.__name__):
             assert engine == factory()
-            assert engine == pickle.loads(pickle.dumps(engine))
             assert engine != factories[(index + 1) % len(factories)]()
             assert engine != object()
             with pytest.raises(TypeError):
@@ -718,7 +716,6 @@ def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
     )
     assert note != expiry_only
     assert list(expiry_only.knock_in_observation_schedule) == [end]
-    assert pickle.loads(pickle.dumps(expiry_only)) == expiry_only
     for invalid in (None, True, "every_trading_day", "at_expiry", clock_time()):
         with pytest.raises(TypeError):
             cls(**common, **extra, knock_in_observation=invalid)

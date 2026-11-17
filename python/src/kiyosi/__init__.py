@@ -30,8 +30,7 @@ terminate the process.
 Values own their data and expose read-only properties. Collection properties
 return owned tuples, with nested tuples for surfaces. Replacement returns a new
 validated value; copying returns the same immutable value. Equality is exact;
-use tolerances for numerical comparisons. Engines are unhashable. Pickle uses
-validated constructors; use the same Kiyosi version in each process.
+use tolerances for numerical comparisons. Engines are unhashable.
 
 Supplied history applies to the requested valuation and describes events strictly
 before it; observations exactly at valuation use the current spot once.
@@ -71,11 +70,11 @@ from ._native import (
     UnsupportedOperationError,
     __version__,
 )
-from ._serialization import install as _install_serialization
 from ._signatures import install as _install_signatures
+from ._value_methods import install as _install_value_methods
 
 _install_signatures(_native)
-_install_serialization(_native)
+_install_value_methods(_native)
 
 __all__ = [
     "ComputationFailureError",

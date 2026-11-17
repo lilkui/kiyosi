@@ -1,7 +1,6 @@
 """Public calendar and schedule contracts."""
 
 import numbers
-import pickle
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from datetime import time as clock_time
@@ -30,11 +29,10 @@ def test_schedules_retain_calendars_for_contract_composition(subtests):
         times=[saturday], start_time=start, end_time=end, calendar=calendar
     )
     assert schedule.calendar == calendar
-    assert pickle.loads(pickle.dumps(schedule)).calendar == calendar
     empty = ObservationSchedule(
         times=[], start_time=start, end_time=end, calendar=calendar
     )
-    assert pickle.loads(pickle.dumps(empty)).calendar == calendar
+    assert empty.calendar == calendar
     copied = ObservationSchedule(times=schedule, start_time=start, end_time=end)
     assert copied == schedule
     for factory, fields in contract_inputs():
@@ -113,13 +111,12 @@ def test_schedules_retain_calendars_for_contract_composition(subtests):
         assert generated.calendar == calendar
 
 
-def test_explicit_schedules_preserve_times_and_roundtrip():
+def test_explicit_schedules_own_times_and_preserve_order():
     start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
     times = [start, datetime(2025, 1, 6, 14, 30, 0, 123456), end]
     schedule = ObservationSchedule(times=iter(times), start_time=start, end_time=end)
     assert list(schedule) == times
     assert schedule[-1] == end
-    assert pickle.loads(pickle.dumps(schedule)) == schedule
     times.clear()
     copied = list(schedule.times)
     copied.clear()
@@ -147,13 +144,11 @@ def test_explicit_schedules_accept_empty_and_custom_calendar():
     at = datetime(2025, 1, 4, 15)
     empty = ObservationSchedule(times=[], start_time=at, end_time=at)
     assert list(empty) == []
-    assert pickle.loads(pickle.dumps(empty)) == empty
     calendar = custom_calendar(base=weekdays_calendar(), open_dates=[at.date()])
     schedule = ObservationSchedule(
         times=[at], start_time=at, end_time=at, calendar=calendar
     )
     assert list(schedule) == [at]
-    assert pickle.loads(pickle.dumps(schedule)) == schedule
 
 
 def test_equivalent_custom_calendars_compare_equal():
@@ -179,7 +174,7 @@ def test_equivalent_custom_calendars_compare_equal():
     assert nested.is_trading_day(closed)
 
 
-def test_calendar_amendments_merge_and_serialize_effective_overrides():
+def test_calendar_amendments_merge_effective_overrides():
     closed, opened = date(2026, 10, 1), date(2026, 10, 10)
     original = custom_calendar(
         base=weekdays_calendar(),
@@ -199,7 +194,6 @@ def test_calendar_amendments_merge_and_serialize_effective_overrides():
         trading_days_per_year=260,
     )
     assert amended == expected
-    assert pickle.loads(pickle.dumps(amended)) == expected
     assert repr(amended) == repr(expected)
     assert amended.is_trading_day(closed)
     assert not (amended.is_trading_day(opened))

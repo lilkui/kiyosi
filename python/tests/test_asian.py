@@ -542,9 +542,8 @@ def test_undated_average_weight_and_fixed_history_theta(kind, engine_type):
 
 
 @pytest.mark.parametrize("kind,engine_type", PAIRS)
-def test_combined_replacement_retains_average_and_roundtrips(kind, engine_type):
+def test_combined_replacement_and_copy_retain_average(kind, engine_type):
     import copy
-    import pickle
 
     original = kind(**terms(realized_average=105))
     assert original.replace() == original
@@ -557,7 +556,6 @@ def test_combined_replacement_retains_average_and_roundtrips(kind, engine_type):
     for operation in (
         copy.copy,
         copy.deepcopy,
-        lambda value: pickle.loads(pickle.dumps(value)),
     ):
         assert operation(combined) == combined
     with pytest.raises(InvalidInputError):

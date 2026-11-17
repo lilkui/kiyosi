@@ -2,7 +2,6 @@
 
 import inspect
 import math
-import pickle
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as clock_time
 
@@ -163,7 +162,6 @@ def test_closed_date_settlement_preserves_open_date_observations():
                     range_option, context
                 ) == pytest.approx(1000 * coupon * discount, rel=0, abs=1e-12)
                 for option in (note, binary):
-                    assert pickle.loads(pickle.dumps(option)) == option
                     for engine in (
                         QuadratureAutocallableEngine(),
                         FiniteDifferenceAutocallableEngine(),
@@ -377,7 +375,6 @@ def test_intraday_expiry_and_accrual_preserve_microseconds(subtests):
     for at in (time(6, 15, 654323), time(6, 15, 654322)):
         with subtests.test(at=at), pytest.raises(InvalidInputError):
             engine.price(call, market(at))
-    assert pickle.loads(pickle.dumps(call)) == call
     assert call.expiry_time.tzinfo is None
     assert call.expiry_time == expiry
     assert "effective_time" in inspect.signature(EuropeanOption).parameters
@@ -399,7 +396,6 @@ def test_observation_schedules_preserve_clock_and_full_timestamp_order(subtests)
         first_observation_month=1,
     )
     assert schedule.times == ((clock(2, 28, 10), clock(3, 31, 10)))
-    assert pickle.loads(pickle.dumps(schedule)) == schedule
     fixed = fixed_interval_schedule(
         observation_clock_time=clock_time(10, 11, 12, 123456),
         start_time=clock(1, 3, 10),

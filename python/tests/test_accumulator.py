@@ -1,5 +1,4 @@
 import math
-import pickle
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
@@ -54,8 +53,6 @@ def test_termination_history_is_required_after_prior_knock_out_observations(subt
     assert active.knock_out_settled is False
     assert settled.knock_out_settled is True
     assert active.replace(knock_out_settled=None) == option
-    for value in (option, active, settled):
-        assert pickle.loads(pickle.dumps(value)) == value
     for engine in (
         pricing.QuadratureAccumulatorEngine(),
         pricing.FiniteDifferenceAccumulatorEngine(),

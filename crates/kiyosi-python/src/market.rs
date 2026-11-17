@@ -141,7 +141,7 @@ impl RateTermStructure {
     /// -------
     /// RateTermStructure
     ///     Owned curve retaining the exact scalar rate and both bounds, including
-    ///     through shifts and pickle. Nodes and factors are empty, as for flat().
+    ///     through shifts. Nodes and factors are empty, as for flat().
     ///
     /// Raises
     /// ------
@@ -202,8 +202,7 @@ impl RateTermStructure {
     /// -----
     /// Zero factors cannot reconstruct a curve through its constructor.
     /// Reconstruct node curves from base_factors, then apply
-    /// shifted(parallel_shift). Pickle preserves this representation, including
-    /// extreme shifted curves.
+    /// shifted(parallel_shift).
     ///
     #[getter]
     fn factors<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {

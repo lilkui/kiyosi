@@ -2,7 +2,6 @@
 
 import math
 import numbers
-import pickle
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
@@ -125,9 +124,6 @@ def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support():
     assert shifted.max_time == end
     assert curve.exact_flat_rate == 0.05
     for value in (curve, shifted):
-        restored = pickle.loads(pickle.dumps(value))
-        assert restored == value
-        assert restored.max_time == end
         assert "bounded_flat" in repr(value)
     for rate, reference, maximum in (
         (0.05, end, start),
@@ -665,8 +661,6 @@ def test_protocol_conversion_errors_and_datetime_boundaries(subtests):
 
 
 def test_bulk_curve_factors_follow_scalar_overflow_and_underflow_rules():
-    import pickle
-
     curve = RateTermStructure(
         reference_time=REFERENCE, times=[MATURITY], factors=[0.95]
     )
@@ -677,8 +671,6 @@ def test_bulk_curve_factors_follow_scalar_overflow_and_underflow_rules():
     assert underflowing.factors == ((0.0,))
     assert underflowing.factor(REFERENCE, MATURITY) == 0.0
     assert curve.factors == ((0.95,))
-    for extreme in (overflowing, underflowing):
-        assert pickle.loads(pickle.dumps(extreme)) == extreme
     assert_rejection(
         InvalidInputError,
         RateTermStructure,
