@@ -13,7 +13,7 @@ Kiyosi is a derivatives pricing library with core engines built in Rust and an e
 
 ## Features
 
-- **Rust core**: Model in Python and compute in Rust for ease of use and speed
+- **High performance**: Native Rust computation, automatic multithreading for Monte Carlo and GIL release so Python threads run in parallel
 - **Interchangeable engines**: Price the same product using analytic, tree, finite-difference, Monte Carlo and other methods for cross-validation
 - **Risk metrics**: Calculate Greeks and solve for implied volatility and implied coupon rates
 - **Structured products**: Support for structures common in China, including snowballs, Phoenix notes, accumulators, decumulators and range accruals
