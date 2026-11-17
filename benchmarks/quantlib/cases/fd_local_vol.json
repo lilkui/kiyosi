@@ -30,7 +30,7 @@
           "space": 800,
           "time": 400,
           "scheme": "rannacher",
-          "upper": 400
+          "upper": "automatic"
         },
         "quantlib": {
           "space": 800,
@@ -46,7 +46,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "automatic asset domain with strike-concentrated intervals and cell-averaged payoff; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing",
         "surface": "Bilinear in Actual/365 Fixed time and spot; constant spot endpoints, no time extrapolation; time rows [.30,.15],[.35,.20] at spots [80,120]",

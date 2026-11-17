@@ -46,7 +46,10 @@ pub fn prepare_product(
             "implicit_euler" => FiniteDifferenceScheme::ImplicitEuler,
             value => return Err(format!("invalid FD scheme: {value}").into()),
         },
-        asset_upper_boundary: Some(request.number("upper")?),
+        asset_upper_boundary: match request.take("upper")?.as_str() {
+            "automatic" => None,
+            value => Some(value.parse()?),
+        },
     };
     let product = request.take("product")?;
     if product == "vanilla" {

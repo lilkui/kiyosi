@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import run
+from calibrate_fd import domain_probes
 
 HERE = Path(__file__).resolve().parent
 
@@ -20,7 +21,8 @@ def main():
     evidence = {
         "schema_version": 1,
         "declared_budget": 0.005,
-        "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust explicit domain enlarged at constant spacing",
+        "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with explicit_uniform, separately from selected automatic meshes",
+        "knock_in_domain": "domain_constant_spacing preserves the barrier grid spacing; continuation_constant_spacing preserves full-domain continuation spacing. One shared space count cannot hold both spacings fixed during expansion; neither is an isolated two-grid domain probe",
         "cases": [],
         "surface_points": [],
     }
@@ -61,10 +63,7 @@ def main():
                 "coarse_rejected": {"space": 10, "time": 10},
             }
             if backend == "kiyosi":
-                variants["domain_constant_spacing"] = {
-                    "upper": 600,
-                    "space": profile["space"] * 3 // 2,
-                }
+                variants.update(domain_probes(case))
                 if case["id"] == "fd-local-vol-asset-digital-put":
                     variants.update(
                         {
