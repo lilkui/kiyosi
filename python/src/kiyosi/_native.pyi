@@ -2870,8 +2870,9 @@ class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
     Raises
     ------
     InvalidInputError
-        If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is invalid. Boundary coverage and
+        If asset_step_count is below 3, time_step_count is below 1, the
+        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
+        is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2920,8 +2921,9 @@ class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):
     Raises
     ------
     InvalidInputError
-        If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is invalid. Boundary coverage and
+        If asset_step_count is below 3, time_step_count is below 1, the
+        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
+        is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2972,8 +2974,9 @@ class FiniteDifferenceDoubleBarrierEngine(
     Raises
     ------
     InvalidInputError
-        If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is invalid. Boundary coverage and
+        If asset_step_count is below 3, time_step_count is below 1, the
+        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
+        is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3026,8 +3029,9 @@ class FiniteDifferenceAutocallableEngine(
     Raises
     ------
     InvalidInputError
-        If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is invalid. Boundary coverage and
+        If asset_step_count is below 3, time_step_count is below 1, the
+        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
+        is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3076,8 +3080,9 @@ class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOpti
     Raises
     ------
     InvalidInputError
-        If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is invalid. Boundary coverage and
+        If asset_step_count is below 3, time_step_count is below 1, the
+        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
+        is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3128,8 +3133,9 @@ class FiniteDifferenceBinaryBarrierEngine(
     Raises
     ------
     InvalidInputError
-        If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is invalid. Boundary coverage and
+        If asset_step_count is below 3, time_step_count is below 1, the
+        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
+        is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3415,8 +3421,9 @@ class FiniteDifferenceVanillaEngine(
     Raises
     ------
     InvalidInputError
-        If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is invalid. Boundary coverage and
+        If asset_step_count is below 3, time_step_count is below 1, the
+        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
+        is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3467,8 +3474,9 @@ class FiniteDifferenceDigitalEngine(
     Raises
     ------
     InvalidInputError
-        If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is invalid. Boundary coverage and
+        If asset_step_count is below 3, time_step_count is below 1, the
+        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
+        is invalid. Boundary coverage and
         explicit-Euler stability are checked during pricing.
 
     Notes

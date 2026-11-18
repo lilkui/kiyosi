@@ -152,9 +152,9 @@ def test_settings_defaults_representation_validation_and_immutability():
             )
         ) == ((800, 400, "rannacher", None))
         assert factory(asset_step_count=Index()).asset_step_count == 17
-        for count in (3, 10_001, 2**31 - 1):
+        for count in (3, 10_001, 1_000_000):
             assert factory(asset_step_count=count).asset_step_count == count
-        for count in (1, 100_001, 2**31 - 1):
+        for count in (1, 100_001, 1_000_000):
             assert factory(time_step_count=count).time_step_count == count
         for name, minimum in (("asset_step_count", 3), ("time_step_count", 1)):
             for bad in (-1, 0, minimum - 1):
@@ -165,6 +165,8 @@ def test_settings_defaults_representation_validation_and_immutability():
             for bad in (2**31, -(2**31) - 1):
                 with pytest.raises(OverflowError):
                     factory(**{name: bad})
+        for name in ("asset_step_count", "time_step_count"):
+            assert_rejection(InvalidInputError, factory, **{name: 2**31 - 1})
         for bad in (0, -1, math.nan, math.inf):
             assert_rejection(InvalidInputError, factory, asset_upper_boundary=bad)
         for bad in (True, "400", object()):
@@ -195,7 +197,7 @@ def test_settings_defaults_representation_validation_and_immutability():
 
 @pytest.mark.parametrize("kind", KINDS)
 def test_expiry_life_and_clipped_grid_validation(kind):
-    clipped = engine_for(kind, time_step_count=2**31 - 1, asset_upper_boundary=1)
+    clipped = engine_for(kind, time_step_count=1_000_000, asset_upper_boundary=1)
     assert_rejection(InvalidInputError, clipped.price, contract(kind), market())
     assert_rejection(
         InvalidInputError,

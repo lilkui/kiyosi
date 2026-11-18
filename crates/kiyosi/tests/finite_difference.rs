@@ -127,6 +127,25 @@ fn coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks() {
 }
 
 #[test]
+fn settings_reject_oversized_grid_workspace() {
+    for settings in [
+        FiniteDifferenceSettings {
+            asset_step_count: i32::MAX,
+            ..Default::default()
+        },
+        FiniteDifferenceSettings {
+            time_step_count: i32::MAX,
+            ..Default::default()
+        },
+    ] {
+        assert!(matches!(
+            FiniteDifferenceVanillaEngine::new(settings),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+}
+
+#[test]
 fn uniform_european_grids_resolve_strike_phases_and_narrow_payoffs() {
     let (start, annual) = dates();
     let short = Date::new(2025, 1, 2).unwrap().start_of_day();
@@ -225,7 +244,7 @@ fn automatic_mesh_policy_is_preserved_for_bumped_greeks() {
 }
 
 #[test]
-fn settings_validate_without_allocating_or_imposing_grid_caps() {
+fn settings_validate_without_allocating_within_the_workspace_bound() {
     let defaults = FiniteDifferenceSettings::default();
     assert_eq!(
         (defaults.asset_step_count, defaults.time_step_count),
@@ -233,7 +252,7 @@ fn settings_validate_without_allocating_or_imposing_grid_caps() {
     );
     assert_eq!(defaults.scheme, FiniteDifferenceScheme::Rannacher);
     assert_eq!(defaults.asset_upper_boundary, None);
-    for (assets, times) in [(3, 1), (10_001, 100_001), (i32::MAX, i32::MAX)] {
+    for (assets, times) in [(3, 1), (10_001, 100_001), (1_000_000, 1_000_000)] {
         let settings = FiniteDifferenceSettings {
             asset_step_count: assets,
             time_step_count: times,
@@ -708,7 +727,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
     assert_eq!(context, market(100.0, 0.05, 0.02, 0.2));
     assert_eq!(engine.settings().asset_upper_boundary, Some(1.0));
     let huge = FiniteDifferenceSettings {
-        time_step_count: i32::MAX,
+        time_step_count: 1_000_000,
         asset_upper_boundary: Some(1.0),
         ..Default::default()
     };

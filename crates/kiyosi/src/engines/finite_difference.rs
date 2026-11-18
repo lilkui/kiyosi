@@ -53,8 +53,7 @@ impl FiniteDifferenceScheme {
 
 /// Configures the spatial domain and time grid, validated at engine construction.
 ///
-/// Grid sizes have no additional cap; pricing is subject to memory and runtime.
-/// Allocation exhaustion follows the library-wide allocator contract.
+/// Validation bounds the estimated grid workspace at 1 GiB; pricing time grows with the grid.
 /// See [`FiniteDifferenceVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FiniteDifferenceSettings {
@@ -94,7 +93,8 @@ impl FiniteDifferenceSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
-    /// fewer than one time interval, a nonpositive or non-finite boundary.
+    /// fewer than one time interval, an estimated grid workspace above 1 GiB,
+    /// or a nonpositive or non-finite boundary.
     /// Leaves the settings unchanged. Domain coverage and scheme stability are checked at pricing.
     ///
     /// # Examples
@@ -107,11 +107,22 @@ impl FiniteDifferenceSettings {
     /// # Ok(()) }
     /// ```
     pub fn validate(&self) -> Result<()> {
+        const WORKSPACE_BUDGET: u64 = 1 << 30;
+        // Covers the live operator, rollback buffers and axes per asset node.
+        const BYTES_PER_ASSET_NODE: u64 = 128;
+        const BYTES_PER_TIME_STEP: u64 = 24;
         if self.asset_step_count < 3 {
             return Err(invalid_grid("asset_step_count must be at least 3"));
         }
         if self.time_step_count < 1 {
             return Err(invalid_grid("time_step_count must be positive"));
+        }
+        let bytes = (u64::from(self.asset_step_count.unsigned_abs()) + 1) * BYTES_PER_ASSET_NODE
+            + u64::from(self.time_step_count.unsigned_abs()) * BYTES_PER_TIME_STEP;
+        if bytes > WORKSPACE_BUDGET {
+            return Err(invalid_grid(
+                "finite-difference workspace exceeds 1 GiB; reduce grid step counts",
+            ));
         }
         if let Some(boundary) = self.asset_upper_boundary {
             crate::error::finite(boundary, true, "asset_upper_boundary")?;
@@ -761,7 +772,8 @@ macro_rules! engine_settings {
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for fewer than three asset steps,
-            /// nonpositive time steps, or a nonpositive or non-finite upper boundary.
+            /// nonpositive time steps, a grid workspace estimate above 1 GiB, or a
+            /// nonpositive or non-finite upper boundary.
             /// Validation precedes storing settings; no grid is allocated here.
             /// See [`Self::price`] for engine-specific usage.
             ///
