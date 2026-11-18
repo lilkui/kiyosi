@@ -258,6 +258,37 @@ fn automatic_mesh_policy_is_preserved_for_bumped_greeks() {
 }
 
 #[test]
+fn grid_work_includes_time_steps_added_for_curve_knots() -> Result<()> {
+    let oversized = FiniteDifferenceSettings {
+        asset_step_count: 200_000,
+        time_step_count: 200_000,
+        ..Default::default()
+    };
+    assert!(
+        matches!(oversized.validate(), Err(Error::InvalidInput(message)) if message.contains("rollback"))
+    );
+
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let curve = RateTermStructure::new(start, vec![start.add_days(1)?, end], vec![0.999, 0.95])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 1_000_000,
+        time_step_count: 1000,
+        scheme: FiniteDifferenceScheme::ExplicitEuler,
+        ..Default::default()
+    })?;
+    assert!(
+        matches!(engine.price(&option, &context), Err(Error::InvalidInput(message)) if message.contains("rollback"))
+    );
+    Ok(())
+}
+
+#[test]
 fn settings_validate_without_allocating_within_the_workspace_bound() {
     let defaults = FiniteDifferenceSettings::default();
     assert_eq!(
@@ -266,7 +297,7 @@ fn settings_validate_without_allocating_within_the_workspace_bound() {
     );
     assert_eq!(defaults.scheme, FiniteDifferenceScheme::Rannacher);
     assert_eq!(defaults.asset_upper_boundary, None);
-    for (assets, times) in [(3, 1), (10_001, 100_001), (1_000_000, 1_000_000)] {
+    for (assets, times) in [(3, 1), (10_000, 100_000), (1_000_000, 1000)] {
         let settings = FiniteDifferenceSettings {
             asset_step_count: assets,
             time_step_count: times,

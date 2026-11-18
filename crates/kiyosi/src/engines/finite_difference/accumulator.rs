@@ -177,14 +177,7 @@ fn solve_grid<D: Diffusion>(
     )?;
     let dates = option.future_observation_times(context)?;
     let trading = diffusion::observation_times(context.valuation_time(), expiry, &dates)?;
-    let grid = diffusion::time_grid(
-        context,
-        expiry,
-        settings.time_step_count,
-        &risk,
-        &dividend,
-        &trading,
-    )?;
+    let grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &trading)?;
     if !D::LOCAL {
         grid.validate_stability(
             &space,

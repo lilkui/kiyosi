@@ -59,6 +59,23 @@ fn rejects_oversized_heston_workspace_before_pricing() {
 }
 
 #[test]
+fn heston_grid_rejects_oversized_rollback_before_pricing() {
+    let (start, end) = dates();
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 1000,
+        variance_step_count: 200,
+        time_step_count: 100_000,
+        ..Default::default()
+    })
+    .unwrap();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    assert!(matches!(
+        engine.price(&option, &context(0.3, -0.7)),
+        Err(Error::InvalidInput(message)) if message.contains("rollback")
+    ));
+}
+
+#[test]
 fn european_defaults_match_independent_references_and_parity() {
     let (start, end) = dates();
     let engine = FiniteDifferenceHestonVanillaEngine::default();

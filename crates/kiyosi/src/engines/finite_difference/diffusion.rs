@@ -1,4 +1,7 @@
-use super::{Curve, PricingContext, Result, SpatialGrid, Stepper, TimeGrid, local_volatility};
+use super::{
+    Curve, FiniteDifferenceSettings, PricingContext, Result, SpatialGrid, Stepper, TimeGrid,
+    local_volatility, validate_work,
+};
 use crate::{Error, LocalVolatilitySurface, Timestamp};
 
 // Dispatch outside the solver so each diffusion keeps its compile-time specialization.
@@ -172,7 +175,7 @@ impl<D: Diffusion> Diffusion for BusinessDiffusion<'_, D> {
 pub(super) fn time_grid(
     context: &PricingContext,
     horizon: Timestamp,
-    count: i32,
+    settings: FiniteDifferenceSettings,
     risk: &Curve,
     dividend: &Curve,
     events: &[f64],
@@ -199,7 +202,12 @@ pub(super) fn time_grid(
                 .map(|&t| start.years_until(t)),
         );
     }
-    TimeGrid::with_events(time, count, risk, dividend, &knots)
+    let grid = TimeGrid::with_events(time, settings.time_step_count, risk, dividend, &knots)?;
+    validate_work(
+        u64::from(settings.asset_step_count.unsigned_abs()),
+        grid.widths.len() as u64,
+    )?;
+    Ok(grid)
 }
 
 pub(super) fn observation_times(

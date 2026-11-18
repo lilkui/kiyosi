@@ -37,6 +37,14 @@ def test_rejects_oversized_heston_workspace_before_pricing():
     assert engine.price(option(), market.replace(valuation_time=END)) == 0
 
 
+def test_heston_grid_rejects_oversized_rollback_before_pricing():
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_step_count=1000, variance_step_count=200, time_step_count=100_000
+    )
+    with pytest.raises(InvalidInputError, match="rollback"):
+        engine.price(option(), context())
+
+
 def test_american_reference_and_exercise_bounds():
     fixture = json.loads(
         (

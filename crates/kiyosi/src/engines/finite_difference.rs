@@ -53,7 +53,7 @@ impl FiniteDifferenceScheme {
 
 /// Configures the spatial domain and time grid, validated at engine construction.
 ///
-/// Validation bounds the estimated grid workspace at 1 GiB; pricing time grows with the grid.
+/// Grids are limited to 1 GiB of estimated workspace and one billion spatial intervals times time intervals.
 /// See [`FiniteDifferenceVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FiniteDifferenceSettings {
@@ -93,9 +93,10 @@ impl FiniteDifferenceSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
-    /// fewer than one time interval, an estimated grid workspace above 1 GiB,
-    /// or a nonpositive or non-finite boundary.
-    /// Leaves the settings unchanged. Domain coverage and scheme stability are checked at pricing.
+    /// fewer than one time interval, an estimated grid workspace above 1 GiB, more than
+    /// one billion spatial intervals times time intervals, or an invalid explicit boundary.
+    /// Pricing checks the work limit after adding event and curve steps, as well as
+    /// domain coverage and scheme stability.
     ///
     /// # Examples
     ///
@@ -117,6 +118,10 @@ impl FiniteDifferenceSettings {
             u64::from(self.asset_step_count.unsigned_abs()) + 1,
             u64::from(self.time_step_count.unsigned_abs()),
         )?;
+        validate_work(
+            u64::from(self.asset_step_count.unsigned_abs()),
+            u64::from(self.time_step_count.unsigned_abs()),
+        )?;
         if let Some(boundary) = self.asset_upper_boundary {
             crate::error::finite(boundary, true, "asset_upper_boundary")?;
         }
@@ -132,6 +137,15 @@ fn validate_workspace(asset_nodes: u64, time_steps: u64) -> Result<()> {
     if asset_nodes * BYTES_PER_ASSET_NODE + time_steps * BYTES_PER_TIME_STEP > WORKSPACE_BUDGET {
         return Err(invalid_grid(
             "finite-difference workspace exceeds 1 GiB; reduce grid step counts",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_work(spatial_steps: u64, time_steps: u64) -> Result<()> {
+    if spatial_steps.saturating_mul(time_steps) > 1_000_000_000 {
+        return Err(invalid_grid(
+            "finite-difference rollback exceeds one billion grid updates; reduce grid step counts",
         ));
     }
     Ok(())
@@ -340,14 +354,7 @@ fn solve_model<D: Diffusion>(
             grid::concentrate(&mut space, vec![payoff.strike], scale)?;
         }
     }
-    let time_grid = diffusion::time_grid(
-        context,
-        expiry,
-        settings.time_step_count,
-        &risk,
-        &dividend,
-        &[],
-    )?;
+    let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &[])?;
     let theta = settings.scheme.theta();
     if !D::LOCAL {
         time_grid.validate_stability(
@@ -784,8 +791,8 @@ macro_rules! engine_settings {
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for fewer than three asset steps,
-            /// nonpositive time steps, a grid workspace estimate above 1 GiB, or a
-            /// nonpositive or non-finite upper boundary.
+            /// nonpositive time steps, a grid exceeding the workspace or rollback work limit,
+            /// or a nonpositive or non-finite upper boundary.
             /// Validation precedes storing settings; no grid is allocated here.
             /// See [`Self::price`] for engine-specific usage.
             ///

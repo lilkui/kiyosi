@@ -258,14 +258,7 @@ fn solve_grid<D: Diffusion>(
     }
     let observations =
         diffusion::observation_times(context.valuation_time(), expiry, option.observation_times())?;
-    let grid = diffusion::time_grid(
-        context,
-        horizon,
-        settings.time_step_count,
-        &risk,
-        &dividend,
-        &observations,
-    )?;
+    let grid = diffusion::time_grid(context, horizon, settings, &risk, &dividend, &observations)?;
     let theta = settings.scheme.theta();
     if !D::LOCAL {
         grid.validate_stability(

@@ -134,6 +134,28 @@ def test_materially_negative_prices_fail_instead_of_being_clipped(scale):
     assert refined / scale == pytest.approx(expected / scale, rel=0, abs=0.0001)
 
 
+def test_grid_work_includes_time_steps_added_for_curve_knots():
+    with pytest.raises(InvalidInputError, match="rollback"):
+        FiniteDifferenceVanillaEngine(asset_step_count=200_000, time_step_count=200_000)
+    curve = RateTermStructure(
+        reference_time=START,
+        times=[START + timedelta(days=1), END],
+        factors=[0.999, 0.95],
+    )
+    context = market()
+    context = context.replace(
+        model_parameters=context.model_parameters.replace(risk_free_rate=curve)
+    )
+    option = EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    engine = FiniteDifferenceVanillaEngine(
+        asset_step_count=1_000_000, time_step_count=1000, scheme="explicit_euler"
+    )
+    with pytest.raises(InvalidInputError, match="rollback"):
+        engine.price(option, context)
+
+
 def test_settings_defaults_representation_validation_and_immutability():
     @numbers.Integral.register
     class Index:

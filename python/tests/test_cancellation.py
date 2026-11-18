@@ -84,7 +84,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                                 long_run_variance=0.04, mean_reversion_speed=1.5,
                                 vol_of_vol=0.3, correlation=-0.7))
                             engine = p.FiniteDifferenceHestonVanillaEngine(asset_step_count=1000,
-                                variance_step_count=200, time_step_count=100_000)
+                                variance_step_count=200, time_step_count=2_000)
                         class StopCalculation(Exception):
                             pass
                         if case == "custom_handler":

@@ -64,9 +64,10 @@ macro_rules! fd_engine {
         /// ------
         /// InvalidInputError
         ///     If asset_step_count is below 3, time_step_count is below 1, the
-        ///     estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        ///     is invalid. Boundary coverage and
-        ///     explicit-Euler stability are checked during pricing.
+        ///     estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        ///     multiply to more than one billion, or an explicit upper boundary is invalid.
+        ///     Pricing checks the work limit after adding event and curve steps, as well
+        ///     as boundary coverage and explicit-Euler stability.
         ///
         /// Notes
         /// -----

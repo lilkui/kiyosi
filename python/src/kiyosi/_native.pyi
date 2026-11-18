@@ -2873,9 +2873,10 @@ class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, the
-        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        is invalid. Boundary coverage and
-        explicit-Euler stability are checked during pricing.
+        estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        multiply to more than one billion, or an explicit upper boundary is invalid.
+        Pricing checks the work limit after adding event and curve steps, as well
+        as boundary coverage and explicit-Euler stability.
 
     Notes
     -----
@@ -2924,9 +2925,10 @@ class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, the
-        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        is invalid. Boundary coverage and
-        explicit-Euler stability are checked during pricing.
+        estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        multiply to more than one billion, or an explicit upper boundary is invalid.
+        Pricing checks the work limit after adding event and curve steps, as well
+        as boundary coverage and explicit-Euler stability.
 
     Notes
     -----
@@ -2977,9 +2979,10 @@ class FiniteDifferenceDoubleBarrierEngine(
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, the
-        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        is invalid. Boundary coverage and
-        explicit-Euler stability are checked during pricing.
+        estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        multiply to more than one billion, or an explicit upper boundary is invalid.
+        Pricing checks the work limit after adding event and curve steps, as well
+        as boundary coverage and explicit-Euler stability.
 
     Notes
     -----
@@ -3032,9 +3035,10 @@ class FiniteDifferenceAutocallableEngine(
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, the
-        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        is invalid. Boundary coverage and
-        explicit-Euler stability are checked during pricing.
+        estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        multiply to more than one billion, or an explicit upper boundary is invalid.
+        Pricing checks the work limit after adding event and curve steps, as well
+        as boundary coverage and explicit-Euler stability.
 
     Notes
     -----
@@ -3083,9 +3087,10 @@ class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOpti
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, the
-        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        is invalid. Boundary coverage and
-        explicit-Euler stability are checked during pricing.
+        estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        multiply to more than one billion, or an explicit upper boundary is invalid.
+        Pricing checks the work limit after adding event and curve steps, as well
+        as boundary coverage and explicit-Euler stability.
 
     Notes
     -----
@@ -3136,9 +3141,10 @@ class FiniteDifferenceBinaryBarrierEngine(
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, the
-        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        is invalid. Boundary coverage and
-        explicit-Euler stability are checked during pricing.
+        estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        multiply to more than one billion, or an explicit upper boundary is invalid.
+        Pricing checks the work limit after adding event and curve steps, as well
+        as boundary coverage and explicit-Euler stability.
 
     Notes
     -----
@@ -3194,7 +3200,9 @@ class FiniteDifferenceHestonVanillaEngine(
     exercise. Supports HestonParameters and EuropeanOption/AmericanOption,
     including violations of the Feller condition, zero parameters, correlation
     endpoints and deterministic rate curves. Pricing rejects grids whose estimated
-    workspace exceeds 1 GiB. Fixed-grid completion does not establish accuracy. Check spatial/time refinement and domain enlargement
+    workspace exceeds 1 GiB or whose spatial grid point count times the number
+    of time intervals, including curve knots, exceeds one billion. Check spatial
+    and time refinement and domain enlargement
     separately. Non-finite or materially negative results raise
     ComputationFailureError. Requested Greeks have status "unsupported";
     implied-parameter solvers raise UnsupportedOperationError. Inputs and settings
@@ -3424,9 +3432,10 @@ class FiniteDifferenceVanillaEngine(
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, the
-        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        is invalid. Boundary coverage and
-        explicit-Euler stability are checked during pricing.
+        estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        multiply to more than one billion, or an explicit upper boundary is invalid.
+        Pricing checks the work limit after adding event and curve steps, as well
+        as boundary coverage and explicit-Euler stability.
 
     Notes
     -----
@@ -3477,9 +3486,10 @@ class FiniteDifferenceDigitalEngine(
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, the
-        estimated grid workspace exceeds 1 GiB, or an explicit upper boundary
-        is invalid. Boundary coverage and
-        explicit-Euler stability are checked during pricing.
+        estimated grid workspace exceeds 1 GiB, the asset and time step counts
+        multiply to more than one billion, or an explicit upper boundary is invalid.
+        Pricing checks the work limit after adding event and curve steps, as well
+        as boundary coverage and explicit-Euler stability.
 
     Notes
     -----

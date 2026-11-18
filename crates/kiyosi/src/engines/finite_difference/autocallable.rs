@@ -2,7 +2,7 @@ use super::{
     Curve, Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
-    diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility,
+    diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility, validate_work,
 };
 use crate::engines::deterministic::{self, continuation_context};
 use crate::instruments::autocallable::Coupon;
@@ -247,14 +247,8 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     }
     observations.extend_from_slice(&trading);
     diffusion::validate_event_resolution(context.valuation_time(), expiry, &event_times)?;
-    let mut grid = diffusion::time_grid(
-        context,
-        expiry,
-        settings.time_step_count,
-        &risk,
-        &dividend,
-        &observations,
-    )?;
+    let mut grid =
+        diffusion::time_grid(context, expiry, settings, &risk, &dividend, &observations)?;
     let mut nearest = observations
         .iter()
         .copied()
@@ -289,6 +283,11 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         widths.extend_from_slice(&grid.widths[intervals..]);
         grid = TimeGrid { times, widths };
     }
+    let layers = if layered { 2 } else { 1 };
+    validate_work(
+        u64::from(settings.asset_step_count.unsigned_abs()) * layers,
+        grid.widths.len() as u64,
+    )?;
     let highest = highest(note);
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,

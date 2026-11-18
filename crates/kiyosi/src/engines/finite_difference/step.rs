@@ -1,6 +1,6 @@
 use super::{
     Curve, Diffusion, FiniteDifferenceScheme, Result, SpatialGrid, TimeGrid, invalid_grid,
-    unstable, validate_workspace,
+    unstable, validate_work, validate_workspace,
 };
 
 #[expect(
@@ -93,6 +93,10 @@ pub(super) fn march_with_continuation<D: Diffusion>(
 ) -> Result<Vec<f64>> {
     validate_workspace(
         (values.len() + continuation.len()) as u64,
+        grid.widths.len() as u64,
+    )?;
+    validate_work(
+        (space.count + full_space.count) as u64,
         grid.widths.len() as u64,
     )?;
     let mut next = vec![0.0; values.len()];

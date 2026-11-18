@@ -1,5 +1,7 @@
 use super::grid::{SpatialGrid, TimeGrid, concentrate};
-use super::{Curve, FiniteDifferenceSettings, Payoff, invalid_grid, time_to_expiry, unstable};
+use super::{
+    Curve, FiniteDifferenceSettings, Payoff, invalid_grid, time_to_expiry, unstable, validate_work,
+};
 use crate::engines::analytic::heston::integrated_variance;
 use crate::engines::deterministic::exercise_value;
 use crate::numerics::{checked_with_scale, scaled_cash};
@@ -11,8 +13,8 @@ use crate::{
 /// Configures fixed Heston grids; see [`FiniteDifferenceHestonVanillaEngine::new`].
 ///
 /// Counts specify intervals, not nodes. Curve knots are added to the time grid.
-/// There is no extra size cap; allocation exhaustion follows the library-wide
-/// allocator contract. Successful pricing is not an estimated-error guarantee.
+/// Pricing limits estimated workspace and rollback work. Successful pricing
+/// does not guarantee a particular accuracy.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HestonFiniteDifferenceSettings {
     /// Sets at least three asset intervals; defaults to 400.
@@ -113,7 +115,8 @@ impl HestonFiniteDifferenceSettings {
 ///
 /// Returns [`crate::Error::UnsupportedOperation`] for other models,
 /// [`crate::Error::InvalidInput`] outside permitted valuation bounds or curve coverage, or for explicit
-/// bounds that exclude spot, strike or initial variance, or estimated workspace above 1 GiB, and
+/// bounds that exclude spot, strike or initial variance, estimated workspace above 1 GiB,
+/// or more than one billion spatial grid points times time intervals, and
 /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
 /// invalid prices. Fixed grids do not report error-target nonconvergence.
 /// Inputs and settings remain unchanged on success and failure.
@@ -340,6 +343,9 @@ fn prepare(
             "Heston finite-difference workspace exceeds 1 GiB; reduce grid step counts",
         ));
     }
+    validate_work(assets * rows, steps)?;
+    let times = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &[])?;
+    validate_work(assets * rows, times.widths.len() as u64)?;
     // A nearby spot anchor can shrink spacing across the entire concentrated mesh.
     let asset = space(
         settings.asset_step_count,
@@ -389,7 +395,6 @@ fn prepare(
         }
         Some(grid)
     };
-    let times = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &[])?;
     let nx = asset.count + 1;
     let rows = variance.as_ref().map_or(1, |v| v.count + 1);
     let length = nx
