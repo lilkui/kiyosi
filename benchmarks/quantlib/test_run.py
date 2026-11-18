@@ -9,7 +9,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from run import RUST_EXECUTABLE, build, command, fingerprint, rust_build_command
+from run import (
+    RUST_EXECUTABLE,
+    build,
+    command,
+    fingerprint,
+    rust_build_command,
+    write_report,
+)
 
 RUNNER = Path(__file__).with_name("run.py")
 
@@ -158,6 +165,55 @@ class NativeRustTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unknown", result.stderr)
+
+
+class ReportWriteTests(unittest.TestCase):
+    def setUp(self):
+        directory = self.enterContext(tempfile.TemporaryDirectory())
+        self.path = Path(directory) / "report.json"
+        self.previous = b'{"status": "previous"}\n'
+        self.path.write_bytes(self.previous)
+        self.report = {"status": "passed", "cases": [{"id": "test_case"}]}
+
+    def assert_report_unchanged(self):
+        self.assertEqual(self.path.read_bytes(), self.previous)
+        self.assertEqual(list(self.path.parent.iterdir()), [self.path])
+
+    def test_partial_report_write_preserves_existing_report(self):
+        def partial_write(_report, stream, **_kwargs):
+            stream.write('{"status":')
+            stream.flush()
+            raise OSError("partial report write")
+
+        with (
+            patch("run.json.dump", side_effect=partial_write),
+            self.assertRaisesRegex(OSError, "partial report write"),
+        ):
+            write_report(self.path, self.report)
+        self.assert_report_unchanged()
+
+    def test_failed_report_replace_preserves_existing_report(self):
+        def fail_replace(source, destination):
+            self.assertEqual(source.parent, self.path.parent)
+            self.assertNotEqual(source, self.path)
+            self.assertEqual(destination, self.path)
+            self.assertEqual(
+                json.loads(source.read_text(encoding="utf-8")), self.report
+            )
+            raise PermissionError("report replace denied")
+
+        with (
+            patch.object(Path, "replace", autospec=True, side_effect=fail_replace),
+            self.assertRaisesRegex(PermissionError, "report replace denied"),
+        ):
+            write_report(self.path, self.report)
+        self.assert_report_unchanged()
+
+    def test_successful_report_replace_leaves_only_new_report(self):
+        write_report(self.path, self.report)
+
+        self.assertEqual(json.loads(self.path.read_text(encoding="utf-8")), self.report)
+        self.assertEqual(list(self.path.parent.iterdir()), [self.path])
 
 
 class ReportTests(unittest.TestCase):

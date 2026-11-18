@@ -13,6 +13,7 @@ import shlex
 import statistics
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -22,6 +23,23 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 RUST_EXECUTABLE = ROOT / "target/release/quantlib_bench"
 BACKENDS = ("kiyosi", "quantlib")
+
+
+def write_report(path, report):
+    """Replace the report only after the new JSON has been written successfully."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, delete=False
+        ) as output:
+            temporary = Path(output.name)
+            json.dump(report, output, indent=2, allow_nan=False)
+            output.write("\n")
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def command(argv, *, cwd=ROOT):
@@ -660,8 +678,7 @@ def main(argv=None):
                 row.update(status="prerequisite_failed", error=str(error))
     table(report["cases"])
     report["wall_seconds"] = time.monotonic() - start
-    args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    write_report(args.report, report)
     return 0 if report["status"] == "passed" else 1
 
 
