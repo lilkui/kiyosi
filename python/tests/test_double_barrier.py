@@ -86,6 +86,27 @@ def reference(direction, kind, spot=100, volatility=0.2, series=20):
         del saved
 
 
+def test_rare_double_barrier_knock_ins_preserve_the_touch_payoff():
+    engine = AnalyticDoubleBarrierEngine()
+    # QuantLib single-barrier values, with the opposite barrier too remote to contribute.
+    for direction, strike, lower, upper, reference_price in (
+        ("call", 90, 1, 150, 2.493_376_877_255_129e-14),
+        ("put", 110, 67, 10_000, 6.046_151_400_270_126e-14),
+    ):
+        for scale in (1, 1e12):
+            option = contract(
+                option_type=direction,
+                barrier_type="knock_in",
+                strike=strike * scale,
+                lower_barrier=lower * scale,
+                upper_barrier=upper * scale,
+            )
+            context = market(spot=100 * scale, rate=0, dividend=0, volatility=0.05)
+            assert engine.price(option, context) == pytest.approx(
+                reference_price * scale, rel=1e-11, abs=0
+            )
+
+
 def test_remote_reflections_vanish_in_the_zero_volatility_limit():
     engine = AnalyticDoubleBarrierEngine()
     option = contract(strike=90)

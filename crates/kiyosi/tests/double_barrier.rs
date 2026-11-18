@@ -486,6 +486,42 @@ fn rebates_match_independent_exit_series_including_negative_rates() {
 }
 
 #[test]
+fn rare_double_barrier_knock_ins_preserve_the_touch_payoff() -> Result<()> {
+    for (direction, strike, lower, upper, reference) in [
+        (
+            OptionType::Call,
+            90.0,
+            1.0,
+            150.0,
+            2.493_376_877_255_129e-14,
+        ),
+        (
+            OptionType::Put,
+            110.0,
+            67.0,
+            10_000.0,
+            6.046_151_400_270_126e-14,
+        ),
+    ] {
+        // QuantLib single-barrier values, with the opposite barrier too remote to contribute.
+        for scale in [1.0, 1e12] {
+            let mut contract = terms(direction, DoubleBarrierType::KnockIn);
+            contract.strike = strike * scale;
+            contract.lower_barrier = lower * scale;
+            contract.upper_barrier = upper * scale;
+            let context = market(100.0 * scale, contract.effective_time, 0.05, 0.0, 0.0);
+            let option = DoubleBarrierOption::new(contract)?;
+            let price = AnalyticDoubleBarrierEngine.price(&option, &context)?;
+            assert!(
+                (price / (scale * reference) - 1.0).abs() < 1e-11,
+                "{direction:?} at scale {scale}: {price}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn remote_reflections_vanish_in_the_zero_volatility_limit() -> Result<()> {
     let mut contract = terms(OptionType::Call, DoubleBarrierType::KnockOut);
     contract.strike = 90.0;

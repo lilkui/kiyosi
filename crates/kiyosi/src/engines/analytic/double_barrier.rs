@@ -4,7 +4,7 @@ use crate::engines::analytic::barrier::resolved_price_with_state;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{
     Sum, adaptive_simpson, checked, log_difference, log_interval_mass, log_normal_tail, log_ratio,
-    scaled_cash, scaled_cdf, scaled_signed_cash,
+    scaled_cash, scaled_signed_cash,
 };
 use crate::{
     AnalyticEuropeanEngine, Error, ObservationMode, OptionType, PricingContext, PricingEngine,
@@ -132,7 +132,7 @@ impl AbsorbingDistribution {
             time: context.valuation_time().years_until(expiry),
         })
     }
-    // Integrate asset^order against the killed density; complement avoids 1-survival cancellation.
+    // Integrate asset^order over terminal spots on paths that survived or touched.
     #[expect(
         clippy::float_cmp,
         reason = "Exact endpoints select the absorbing boundary formulas."
@@ -140,12 +140,11 @@ impl AbsorbingDistribution {
     fn moment(
         &self,
         order: i32,
-        lower: f64,
-        upper: f64,
+        [payoff_lower, payoff_upper]: [f64; 2],
         discount: f64,
         complement: bool,
     ) -> Result<f64> {
-        if lower >= upper {
+        if payoff_lower >= payoff_upper {
             return Ok(0.0);
         }
         let order = f64::from(order);
@@ -165,14 +164,25 @@ impl AbsorbingDistribution {
                 "double-barrier transition is not representable".into(),
             ));
         }
+        let lower = payoff_lower.max(0.0);
+        let upper = payoff_upper.min(band);
+        let base = order * (log_lower + initial + drift * time)
+            + 0.5 * order * order * variance
+            + discount;
+        let mean = initial + drift * time + order * variance;
+        let unrestricted =
+            |a, b| (base + log_interval_mass((a - mean) / deviation, (b - mean) / deviation)).exp();
+        if lower >= upper {
+            return if complement {
+                checked(unrestricted(payoff_lower, payoff_upper))
+            } else {
+                Ok(0.0)
+            };
+        }
         let mut sum = Sum::default();
         let mut scale: f64 = 0.0;
         let mut converged = false;
         if ratio < 0.5 {
-            let base = order * (log_lower + initial + drift * time)
-                + 0.5 * order * order * variance
-                + discount;
-            let mean = initial + drift * time + order * variance;
             let image = |k: f64, reflected: bool| {
                 let shift = k * band;
                 let distance = if reflected { initial + shift } else { shift };
@@ -218,8 +228,10 @@ impl AbsorbingDistribution {
                 log_difference(large, small).exp()
             };
             if complement {
-                sum.add(scaled_cdf(1.0, discount, -mean / deviation));
-                sum.add(scaled_cdf(1.0, discount, (mean - band) / deviation));
+                // Terminal spots outside the band have touched. Inside, the
+                // unrestricted density cancels the original image exactly.
+                sum.add(unrestricted(payoff_lower, lower));
+                sum.add(unrestricted(upper, payoff_upper));
             } else {
                 sum.add(image(0.0, false));
             }
@@ -288,7 +300,7 @@ impl AbsorbingDistribution {
             }
             if complement {
                 let mut difference = Sum::default();
-                difference.add(discount.exp());
+                difference.add(unrestricted(payoff_lower, payoff_upper));
                 difference.add(-sum.total());
                 sum = difference;
             }
@@ -309,8 +321,7 @@ impl AbsorbingDistribution {
     pub(super) fn cash_value(&self, amount: f64, rate: f64, complement: bool) -> Result<f64> {
         self.moment(
             0,
-            0.0,
-            self.band,
+            [f64::NEG_INFINITY, f64::INFINITY],
             amount.ln() - rate * self.time,
             complement,
         )
@@ -499,22 +510,19 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
     let discount = -rate * density.time;
     let call = option.option_type() == OptionType::Call;
     let strike = log_ratio(option.strike(), option.lower_barrier());
-    let lower = if call {
-        strike.clamp(0.0, density.band)
+    let knock_in = option.knock_in();
+    let mut value = if knock_in && option.payoff_requires_touch() {
+        AnalyticEuropeanEngine.price(option.vanilla(), context)?
     } else {
-        0.0
+        let bounds = if call {
+            [strike, f64::INFINITY]
+        } else {
+            [f64::NEG_INFINITY, strike]
+        };
+        let cash = density.moment(0, bounds, discount + option.strike().ln(), knock_in)?;
+        let asset = density.moment(1, bounds, discount, knock_in)?;
+        if call { asset - cash } else { cash - asset }
     };
-    let upper = if call {
-        density.band
-    } else {
-        strike.clamp(0.0, density.band)
-    };
-    let cash = density.moment(0, lower, upper, discount, false)?;
-    let asset = density.moment(1, lower, upper, discount, false)?;
-    let mut value = (if call { 1.0 } else { -1.0 }) * (asset - option.strike() * cash);
-    if option.knock_in() {
-        value = AnalyticEuropeanEngine.price(option.vanilla(), context)? - value;
-    }
     if option.rebate() != 0.0 {
         value += if option.rebate_timing() == RebateTiming::AtHit && !option.knock_in() {
             density.hit_value(option.rebate(), rate)?
@@ -565,7 +573,7 @@ mod tests {
             time: 4.0,
         };
         assert!(matches!(
-            distribution.moment(0, 0.0, 1.0, 0.0, false),
+            distribution.moment(0, [0.0, 1.0], 0.0, false),
             Err(Error::ComputationFailure(_))
         ));
     }
