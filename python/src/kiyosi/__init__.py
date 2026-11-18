@@ -41,19 +41,27 @@ history. Missing history is unknown; explicit zero, false, untouched, and no-eve
 states are known history where supported. Numerical time sensitivities hold
 supplied history fixed. See ``kiyosi.instruments`` for product conventions.
 
-Shared and distinct instances support concurrent reads and pricing. Long calls
-release the GIL; short calls may retain it. Parallel Monte Carlo calls
-share a library-owned worker pool, sized on first use, with per-call buffers and
-worker caps. Set its process-wide size cap with
-``kiyosi.pricing.configure_monte_carlo_pool(max_workers=...)`` before the first
-parallel request. It ignores ``RAYON_NUM_THREADS``. Worker-creation failures raise
-``OSError`` and initialization can be retried. Use multiprocessing's ``spawn``
-start method; a pool inherited through ``fork`` is unusable.
+For parallel pricing, prefer Python threads, such as
+``concurrent.futures.ThreadPoolExecutor``, over multiprocessing. Shared and
+distinct instances support concurrent reads and pricing without pickling. Long
+calls release the GIL; short calls may retain it and may not benefit from
+threads. Parallel Monte Carlo calls share a library-owned worker pool, sized on
+first use, with per-call buffers and worker caps. Set its process-wide size cap
+with ``kiyosi.pricing.configure_monte_carlo_pool(max_workers=...)`` before the
+first parallel request. It ignores ``RAYON_NUM_THREADS``. Worker-creation
+failures raise ``OSError`` and initialization can be retried.
+
+If processes are required, use multiprocessing's ``spawn`` start method,
+construct Kiyosi objects inside each worker and return picklable data; many
+Kiyosi objects cannot be pickled. A Monte Carlo pool inherited through ``fork``
+is unusable.
 
 Calls are synchronous. During long requests the calling thread polls signals.
-Signal-handler exceptions, including ``KeyboardInterrupt``, cancel the worker
-and propagate after it stops, without a partial result. Cancellation is
-cooperative; allocation and individual work units may delay it.
+Python runs signal handlers on the main thread: for calls made there,
+signal-handler exceptions, including ``KeyboardInterrupt``, cancel the worker
+and propagate after it stops, without a partial result. Interrupting the main
+thread does not automatically cancel requests running in other threads.
+Cancellation is cooperative; allocation and individual work units may delay it.
 """
 
 from . import _native
