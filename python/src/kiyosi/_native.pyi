@@ -831,8 +831,6 @@ class BlackScholesMertonParameters:
         ------
         InvalidInputError
             If the merged fields fail model validation.
-        UnsupportedOperationError
-            If Heston requests business time.
         TypeError
             If a representation or keyword is invalid.
         ValueError
@@ -981,7 +979,7 @@ class HestonParameters:
         InvalidInputError
             If the merged fields fail model validation.
         UnsupportedOperationError
-            If Heston requests business time.
+            If business time is requested.
         TypeError
             If a representation or keyword is invalid.
         ValueError
@@ -1192,8 +1190,6 @@ class LocalVolatilityParameters:
         ------
         InvalidInputError
             If the merged fields fail model validation.
-        UnsupportedOperationError
-            If Heston requests business time.
         TypeError
             If a representation or keyword is invalid.
         ValueError

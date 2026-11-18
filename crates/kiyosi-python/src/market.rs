@@ -5,7 +5,7 @@ use pyo3::types::{PyDate, PyTuple};
 
 macro_rules! rate_properties {
     ($name:ident, @replace $changes:ident [$($parameter:ident),+]
-     {$($field:ident: $value:expr),+ $(,)?}, $($extra:item),* $(,)?) => {
+     {$($field:ident: $value:expr),+ $(,)?}, [$(#[$extra_error:meta])*], $($extra:item),* $(,)?) => {
         value_methods!(@documented $name, $changes, [$($parameter),+, variance_time_convention, calendar], |self|
             {$($field: $value),+, variance_time_convention: Some($crate::market::updated_variance_time_convention(self.0.variance_time_convention(), variance_time_convention, calendar)?)}, [
                 /// Return a validated owned replacement; omitted fields are retained.
@@ -26,8 +26,7 @@ macro_rules! rate_properties {
                 /// ------
                 /// InvalidInputError
                 ///     If the merged fields fail model validation.
-                /// UnsupportedOperationError
-                ///     If Heston requests business time.
+                $(#[$extra_error])*
                 /// TypeError
                 ///     If a representation or keyword is invalid.
                 /// ValueError
@@ -454,6 +453,7 @@ rate_properties!(
         dividend_yield: dividend_yield.map(rate).transpose()?,
         volatility: volatility.map(real).transpose()?,
     },
+    [],
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, volatility, variance_time_convention=crate::conversions::OMITTED, calendar=None))]
     fn new(

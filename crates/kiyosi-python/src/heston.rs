@@ -67,6 +67,10 @@ rate_properties!(
         vol_of_vol: vol_of_vol.map(real).transpose()?,
         correlation: correlation.map(real).transpose()?,
     },
+    [
+        /// UnsupportedOperationError
+        ///     If business time is requested.
+    ],
     #[expect(clippy::too_many_arguments, reason = "Python exposes named model parameters and the time convention as keyword-only inputs")]
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation, variance_time_convention=crate::conversions::OMITTED, calendar=None))]

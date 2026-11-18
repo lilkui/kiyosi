@@ -153,6 +153,7 @@ rate_properties!(
         surface: surface.map(|value| value.extract::<PyRef<'_, LocalVolatilitySurface>>()
             .map(|value| value.0.clone())).transpose()?,
     },
+    [],
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, surface, variance_time_convention=crate::conversions::OMITTED, calendar=None))]
     fn new(
