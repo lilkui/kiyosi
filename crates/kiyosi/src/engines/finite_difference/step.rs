@@ -47,7 +47,7 @@ pub(super) fn march<D: Diffusion>(
 }
 
 struct Factors {
-    key: [f64; 4],
+    key: [f64; 5],
     coefficients: Vec<[f64; 3]>,
     upper: Vec<f64>,
     multipliers: Vec<f64>,
@@ -151,7 +151,7 @@ impl Stepper {
         let size = count - 1;
         Self {
             factors: vec![Factors {
-                key: [0.0; 4],
+                key: [0.0; 5],
                 coefficients: vec![[0.0; 3]; size],
                 upper: vec![0.0; size],
                 multipliers: vec![0.0; size],
@@ -203,14 +203,23 @@ impl Stepper {
         boundaries: [f64; 2],
     ) -> Result<()> {
         let [dt, theta, rate, dividend] = key;
+        let key = [dt, theta, rate, dividend, sigma];
         let count = grid.count;
         let size = count - 1;
         let active = if let Some(index) = self.factors.iter().position(|f| f.key == key) {
             index
         } else {
-            let coefficients: Vec<_> = (1..count)
-                .map(|i| grid.coefficients(i, rate, dividend, sigma))
-                .collect();
+            let mut coefficients = Vec::with_capacity(size);
+            for i in 1..count {
+                let row = grid.coefficients(i, rate, dividend, sigma);
+                if row.iter().any(|v| !v.is_finite()) {
+                    return Err(unstable());
+                }
+                if theta == 0.0 && -dt * row[1] > 1.0 {
+                    return Err(invalid_grid("explicit finite-difference grid is unstable"));
+                }
+                coefficients.push(row);
+            }
             let mut factors = Factors {
                 key,
                 coefficients,

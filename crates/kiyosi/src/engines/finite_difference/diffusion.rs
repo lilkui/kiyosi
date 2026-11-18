@@ -46,6 +46,7 @@ pub(super) use with_diffusion;
 
 pub(super) trait Diffusion: Copy {
     const LOCAL: bool;
+    const SPOT_DEPENDENT: bool = Self::LOCAL;
     fn sigma(self, time: f64, spot: f64) -> f64;
 
     fn variance_rate(self, _time: f64) -> f64 {
@@ -53,7 +54,7 @@ pub(super) trait Diffusion: Copy {
     }
 
     fn stepper(self, count: usize) -> Stepper {
-        if Self::LOCAL {
+        if Self::SPOT_DEPENDENT {
             Stepper::new_local(count)
         } else {
             Stepper::new(count)
@@ -71,9 +72,9 @@ pub(super) trait Diffusion: Copy {
         key: [f64; 4],
         edges: [f64; 2],
     ) -> Result<()> {
-        if Self::LOCAL {
+        let scale = self.variance_rate(middle).sqrt();
+        if Self::SPOT_DEPENDENT {
             let [dt, theta, rate, dividend] = key;
-            let scale = self.variance_rate(middle).sqrt();
             stepper.advance_local(
                 old,
                 next,
@@ -89,7 +90,14 @@ pub(super) trait Diffusion: Copy {
                 edges,
             )
         } else {
-            stepper.advance(old, next, space, self.sigma(0.0, 0.0), key, edges)
+            stepper.advance(
+                old,
+                next,
+                space,
+                self.sigma(middle, 0.0) * scale,
+                key,
+                edges,
+            )
         }
     }
 }
@@ -137,6 +145,7 @@ impl<'a, D> BusinessDiffusion<'a, D> {
 
 impl<D: Diffusion> Diffusion for BusinessDiffusion<'_, D> {
     const LOCAL: bool = true;
+    const SPOT_DEPENDENT: bool = D::SPOT_DEPENDENT;
     fn sigma(self, time: f64, spot: f64) -> f64 {
         self.base.sigma(time, spot)
     }
