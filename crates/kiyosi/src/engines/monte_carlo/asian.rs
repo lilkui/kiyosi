@@ -242,7 +242,7 @@ impl MonteCarloAsianEngine {
         let sigma = model.volatility();
         let flat =
             model.risk_free_curve().nodes().is_empty() && model.dividend_curve().nodes().is_empty();
-        let (rate, dividend) = if flat {
+        let (rate, dividend) = if flat || geometric {
             (model.flat_risk_free_rate()?, model.flat_dividend_yield()?)
         } else {
             (0.0, 0.0)

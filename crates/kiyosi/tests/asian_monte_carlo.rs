@@ -52,6 +52,90 @@ fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
 }
 
 #[test]
+fn geometric_flat_node_curves_match_scalar_prices_and_greeks() {
+    let start = date(1, 1);
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
+    let rate_curve = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()]).unwrap();
+    let dividend_curve = RateTermStructure::new(start, vec![end], vec![(-0.02_f64).exp()]).unwrap();
+    let engine = MonteCarloAsianEngine::new(
+        MonteCarloSettings {
+            path_count: 32768,
+            sampling: MonteCarloSampling::Sobol,
+            antithetic: true,
+            seed: Some(42),
+            ..Default::default()
+        }
+        .into(),
+    )
+    .unwrap();
+    for (risk, dividend) in [
+        (Rate::from(rate_curve.clone()), Rate::from(0.02)),
+        (Rate::from(0.05), Rate::from(dividend_curve.clone())),
+        (Rate::from(rate_curve), Rate::from(dividend_curve)),
+    ] {
+        for (averaging, valuation, history) in [
+            (start, start, None),
+            (date(5, 1), start, None),
+            (start, date(7, 1), Some(105.0)),
+            (end, start, None),
+        ] {
+            for direction in [OptionType::Call, OptionType::Put] {
+                let option = GeometricAveragePriceOption::new(
+                    direction, 100.0, start, averaging, end, history,
+                )
+                .unwrap();
+                let context = PricingContext::new(
+                    BlackScholesMertonParameters::new(risk.clone(), dividend.clone(), 0.2).unwrap(),
+                    100.0,
+                    valuation,
+                )
+                .unwrap();
+                let scalar = PricingContext::new(
+                    BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
+                    100.0,
+                    valuation,
+                )
+                .unwrap();
+                let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+                let actual = engine
+                    .price_with_greeks(&option, &context, request)
+                    .unwrap();
+                let equivalent = engine.price_with_greeks(&option, &scalar, request).unwrap();
+                let analytic = AnalyticGeometricAveragePriceEngine
+                    .price_with_greeks(&option, &context, request)
+                    .unwrap();
+                let price = engine.price(&option, &context).unwrap();
+                let estimate = engine.price_with_statistics(&option, &context).unwrap();
+                assert!((price - equivalent.price()).abs() < 1e-10);
+                assert!((estimate.price() - equivalent.price()).abs() < 1e-10);
+                assert!(
+                    (actual.price() - equivalent.price()).abs() < 1e-10,
+                    "{direction:?} averaging {averaging:?} valuation {valuation:?}"
+                );
+                assert!(
+                    (actual.price() - analytic.price()).abs() < 0.003,
+                    "{} vs {}",
+                    actual.price(),
+                    analytic.price()
+                );
+                for (greek, tolerance) in [(Greek::Delta, 0.001), (Greek::Gamma, 0.0005)] {
+                    let value = actual.require(greek).unwrap();
+                    assert!(
+                        (value - equivalent.require(greek).unwrap()).abs() < 1e-10,
+                        "{greek:?}: {direction:?} averaging {averaging:?} valuation {valuation:?}"
+                    );
+                    assert!(
+                        (value - analytic.require(greek).unwrap()).abs() < tolerance,
+                        "{greek:?}: {value} vs {}",
+                        analytic.require(greek).unwrap()
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn arithmetic_retains_conditioned_integration_and_converges() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();

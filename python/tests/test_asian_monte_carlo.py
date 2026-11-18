@@ -160,6 +160,64 @@ def test_geometric_independent_reference_and_arithmetic_published_convergence(se
         )
 
 
+@pytest.mark.parametrize("node_rates", ("risk_free", "dividend", "both"))
+def test_geometric_flat_node_curves_match_scalar_prices_and_greeks(node_rates):
+    rate_curve = RateTermStructure(
+        reference_time=START, times=[END], factors=[math.exp(-0.05)]
+    )
+    dividend_curve = RateTermStructure(
+        reference_time=START, times=[END], factors=[math.exp(-0.02)]
+    )
+    rate = rate_curve if node_rates in ("risk_free", "both") else 0.05
+    dividend = dividend_curve if node_rates in ("dividend", "both") else 0.02
+    engine = pricing.MonteCarloAsianEngine(
+        path_count=32768, seed=42, sampling="sobol", antithetic=True
+    )
+    analytic = pricing.AnalyticGeometricAveragePriceEngine()
+    for averaging, valuation, history in (
+        (START, START, None),
+        (START + timedelta(days=120), START, None),
+        (START, START + timedelta(days=181), 105),
+        (END, START, None),
+    ):
+        for direction in ("call", "put"):
+            instrument = option(
+                GeometricAveragePriceOption,
+                direction,
+                averaging=averaging,
+                realized=history,
+            )
+            context = market(valuation=valuation, rate=rate, dividend=dividend)
+            scalar = market(valuation=valuation, rate=0.05, dividend=0.02)
+            actual = engine.price_with_greeks(
+                instrument, context, greeks=["delta", "gamma"]
+            )
+            equivalent = engine.price_with_greeks(
+                instrument, scalar, greeks=["delta", "gamma"]
+            )
+            expected = analytic.price_with_greeks(
+                instrument, context, greeks=["delta", "gamma"]
+            )
+            assert engine.price(instrument, context) == pytest.approx(
+                equivalent.price, rel=0, abs=1e-10
+            )
+            assert engine.price_with_statistics(
+                instrument, context
+            ).price == pytest.approx(equivalent.price, rel=0, abs=1e-10)
+            for name, tolerance in (
+                ("price", 0.003),
+                ("delta", 0.001),
+                ("gamma", 0.0005),
+            ):
+                value = getattr(actual, name)
+                assert value == pytest.approx(
+                    getattr(equivalent, name), rel=0, abs=1e-10
+                )
+                assert value == pytest.approx(
+                    getattr(expected, name), rel=0, abs=tolerance
+                )
+
+
 @pytest.mark.parametrize("kind", KINDS)
 @pytest.mark.parametrize("direction", ("call", "put"))
 @pytest.mark.parametrize("window", (0, 1, 2))
