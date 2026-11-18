@@ -14,8 +14,9 @@ precision and a consistent caller-selected time basis. Calendar dates require
 Numeric inputs reject booleans and implicit rounding. Exact real values must
 be exactly representable as floats; use ``float(value)`` to opt into rounding.
 Integer inputs require ``__index__``; fractional values raise ``TypeError``
-and out-of-range values raise ``OverflowError``. Decimal conversion preserves
-the caller's context and flags; finite decimal overflow raises ``OverflowError``.
+and out-of-range values raise ``OverflowError``. Finite real values that overflow
+to infinity raise ``OverflowError``. Decimal conversion preserves the caller's
+context and flags.
 
 Domain failures raise ``KiyosiError`` subclasses. ``InvalidInputError`` also inherits
 ``ValueError``; representation and signature failures use native Python

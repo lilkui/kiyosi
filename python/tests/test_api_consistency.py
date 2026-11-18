@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from datetime import time as clock_time
 from decimal import Decimal, FloatOperation, Inexact, Rounded, localcontext
 from fractions import Fraction
+from numbers import Real
 
 import pytest
 from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
@@ -1319,6 +1320,36 @@ def test_float_values_preserve_extremes_and_signed_zero(subtests):
                 )
                 assert model.volatility == value
                 assert math.copysign(1.0, model.volatility) == math.copysign(1.0, value)
+
+
+def test_wide_real_overflow_is_distinct_from_explicit_nonfinite_values():
+    @Real.register
+    class WideReal:
+        def __init__(self, value):
+            self.value = Decimal(value)
+
+        def __float__(self):
+            return float(self.value)
+
+        def __eq__(self, other):
+            if isinstance(other, float):
+                return self.value == Decimal.from_float(other)
+            return NotImplemented
+
+    option = ins.EuropeanOption(
+        option_type="call",
+        strike=100,
+        effective_time=datetime(2025, 1, 1),
+        expiry_time=datetime(2026, 1, 1),
+    )
+    for value in ("1e400", "-1e400"):
+        with pytest.raises(OverflowError):
+            option.replace(strike=WideReal(value))
+    for value in ("Infinity", "-Infinity", "NaN"):
+        with pytest.raises(InvalidInputError):
+            option.replace(strike=WideReal(value))
+    assert option.replace(strike=WideReal("100.5")).strike == 100.5
+    assert option.strike == 100.0
 
 
 def test_decimal_conversion_preserves_context_and_error_categories():

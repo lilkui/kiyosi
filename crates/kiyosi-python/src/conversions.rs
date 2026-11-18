@@ -95,13 +95,17 @@ pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
             Some(decimal)
         };
     let converted: f64 = value.extract()?;
-    if decimal.is_some()
-        && !converted.is_finite()
-        && value.call_method0("is_finite")?.extract::<bool>()?
-    {
-        return Err(PyOverflowError::new_err(
-            "Decimal is outside the float range",
-        ));
+    if converted.is_infinite() && !value.is_instance_of::<PyFloat>() {
+        let overflowed = if decimal.is_some() {
+            value.call_method0("is_finite")?.extract::<bool>()?
+        } else {
+            !value.eq(converted)?
+        };
+        if overflowed {
+            return Err(PyOverflowError::new_err(
+                "number is outside the float range",
+            ));
+        }
     }
     // Integer scalar equality may round both operands (for example, NumPy integers).
     let exact = if value.is_instance(&numbers.getattr("Integral")?)? {
