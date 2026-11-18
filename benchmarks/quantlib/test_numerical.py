@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import native
+from run import RUST_EXECUTABLE, native
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -33,7 +33,7 @@ class NumericalNativeTests(unittest.TestCase):
             )
             if result.returncode:
                 raise RuntimeError(result.stderr + result.stdout)
-        cls.executable = ROOT / "target/release/examples/quantlib_bench"
+        cls.executable = RUST_EXECUTABLE
         cls.quantlib = ROOT / "benchmarks/quantlib/build/quantlib_bench"
         cls.cases = json.loads(
             (ROOT / "benchmarks/quantlib/cases/numerical.json").read_text()

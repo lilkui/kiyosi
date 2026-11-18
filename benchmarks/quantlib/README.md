@@ -35,7 +35,7 @@ python3 benchmarks/quantlib/run.py
 | --- | --- |
 | `--case ID` | 选择指定用例，可重复传入。未指定该选项时，即使使用自定义清单，也必须包含全部必测覆盖单元。 |
 | `--cases PATH`, `--references PATH` | 加载 JSON 文件或目录，默认为运行脚本同级的 `cases/` 和 `references/`。使用部分清单时需配合 `--case`。 |
-| `--no-build` | 复用 `target/release/examples/quantlib_bench` 和 `benchmarks/quantlib/build/quantlib_bench`。 |
+| `--no-build` | 复用 `target/release/quantlib_bench` 和 `benchmarks/quantlib/build/quantlib_bench`。 |
 | `--price-only` | 仅运行精度门限与蒙特卡洛种子集校验，不计时。 |
 | `--target-ms MS` | 自适应计时批次的最短时长，默认为 `20`。 |
 | `--report PATH` | JSON 报告输出路径，默认为 `benchmarks/quantlib/report.json`。 |
@@ -64,7 +64,9 @@ python3 benchmarks/quantlib/run.py --price-only --case european-bsm-atm-call
 KIYOSI_QUANTLIB_LIVE=1 python3 -m unittest discover -s benchmarks/quantlib -p 'test_*.py'
 ```
 
-场景输入、误差预算与后端参数配置位于 `cases/*.json`；参考值、不确定度与来源信息位于 `references/*.json`；离线收敛证据位于 `calibration/*.json` 和 `heston_calibration.json`。原生适配器分别为 [quantlib.cpp](quantlib.cpp) 和 [quantlib_bench.rs](../../crates/kiyosi/examples/quantlib_bench.rs)。修改场景时，请遵循[参考值与校准流程](methodology.md#维护)。
+原生适配器分别为 [quantlib.cpp](quantlib.cpp) 和 [quantlib_bench](rust/src/bin/quantlib_bench/main.rs)。[Rust benchmark 包](rust/Cargo.toml)不发布，包含适配器和离线校准程序 [quantlib_bench_references](rust/src/bin/quantlib_bench_references.rs)，两者只使用 Kiyosi 的公开 Rust API。
+
+场景输入、误差预算与后端参数配置位于 `cases/*.json`；参考值、不确定度与来源信息位于 `references/*.json`；离线收敛证据位于 `calibration/*.json` 和 `heston_calibration.json`。修改场景时，请遵循[参考值与校准流程](methodology.md#维护)。
 
 比较 FD 调用策略与核心精度时，基线程序须为 release 构建、支持 `upper=automatic`，且普通欧式与连续单障碍的均匀网格终端收益按节点取值：
 

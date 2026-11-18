@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from run import RUST_EXECUTABLE, command, rust_build_command
+
 RUNNER = Path(__file__).with_name("run.py")
 
 
@@ -66,22 +68,8 @@ class CommandTests(unittest.TestCase):
 class NativeRustTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.root = RUNNER.parent.parent.parent
-        subprocess.run(
-            [
-                "cargo",
-                "build",
-                "--release",
-                "-p",
-                "kiyosi",
-                "--example",
-                "quantlib_bench",
-            ],
-            cwd=cls.root,
-            check=True,
-            capture_output=True,
-        )
-        cls.executable = cls.root / "target/release/examples/quantlib_bench"
+        command(rust_build_command())
+        cls.executable = RUST_EXECUTABLE
 
     def test_fresh_native_batches_match_independent_bsm_reference(self):
         result = subprocess.run(

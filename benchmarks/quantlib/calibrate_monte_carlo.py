@@ -4,7 +4,15 @@ import copy
 import json
 import time
 
-from run import HERE, ROOT, accuracy, command, load_entries, native, seed_ensemble
+from run import (
+    HERE,
+    RUST_EXECUTABLE,
+    accuracy,
+    command,
+    load_entries,
+    native,
+    seed_ensemble,
+)
 
 
 def analytic_checks(cases, references, executables):
@@ -34,7 +42,7 @@ def main():
     cases = load_entries(HERE / "cases/monte_carlo.json")
     references = load_entries(HERE / "references/monte_carlo.json")
     executables = {
-        "kiyosi": ROOT / "target/release/examples/quantlib_bench",
+        "kiyosi": RUST_EXECUTABLE,
         "quantlib": HERE / "build/quantlib_bench",
     }
     build_evidence = json.loads((HERE / "build/build.json").read_text())

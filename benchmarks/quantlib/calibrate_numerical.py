@@ -10,7 +10,7 @@ from decimal import Decimal, localcontext
 
 from generate_european_references import normal_cdf
 from generate_european_references import price as vanilla_price
-from run import HERE, ROOT, command, load_entries, native
+from run import HERE, RUST_EXECUTABLE, command, load_entries, native, rust_build_command
 
 
 def analytic(inputs, precision):
@@ -70,23 +70,13 @@ def american_reference():
     ]
     output.parent.mkdir(exist_ok=True)
     command(compiler)
-    command(
-        [
-            "cargo",
-            "build",
-            "--release",
-            "--locked",
-            "-p",
-            "kiyosi",
-            "--example",
-            "quantlib_bench_references",
-        ]
-    )
+    reference_binary = "quantlib_bench_references"
+    command(rust_build_command(reference_binary))
     ql = [json.loads(line) for line in command([str(output)]).splitlines()]
     rust = [
         json.loads(line)
         for line in command(
-            [str(ROOT / "target/release/examples/quantlib_bench_references")]
+            [str(RUST_EXECUTABLE.with_name(reference_binary))]
         ).splitlines()
     ]
     ql_extrapolated = 2 * ql[-1]["price"] - ql[-2]["price"]
@@ -105,7 +95,7 @@ def american_reference():
         "quantlib_version": "1.44",
         "quantlib_build_command": compiler,
         "quantlib_source": "benchmarks/quantlib/calibration/american_reference.cpp",
-        "kiyosi_source": "crates/kiyosi/examples/quantlib_bench_references.rs",
+        "kiyosi_source": "benchmarks/quantlib/rust/src/bin/quantlib_bench_references.rs",
         "quantlib_controls": "CrankNicolson; dampingSteps=2; automatic mesher domain (not publicly adjustable)",
         "kiyosi_controls": "Rannacher; nonuniform sinh grid; domain refinements scale interval count with upper boundary",
         "quantlib_fd": ql,
@@ -151,7 +141,7 @@ def main():
         "cases": [],
     }
     binaries = {
-        "kiyosi": ROOT / "target/release/examples/quantlib_bench",
+        "kiyosi": RUST_EXECUTABLE,
         "quantlib": HERE / "build/quantlib_bench",
     }
     for case in cases.values():

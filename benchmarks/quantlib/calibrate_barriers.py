@@ -2,10 +2,8 @@
 
 import json
 import subprocess
-from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent.parent
+from run import HERE, RUST_EXECUTABLE
 
 
 def main():
@@ -15,7 +13,7 @@ def main():
         for row in json.loads((HERE / "references/barriers.json").read_text())["cases"]
     }
     executables = {
-        "kiyosi": ROOT / "target/release/examples/quantlib_bench",
+        "kiyosi": RUST_EXECUTABLE,
         "quantlib": HERE / "build/quantlib_bench",
     }
     versions = {

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import HERE, ROOT, load_entries, native
+from run import HERE, RUST_EXECUTABLE, load_entries, native
 
 
 class AmericanMonteCarloTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
             "mc-american-put"
         ]
         cls.executables = {
-            "kiyosi": ROOT / "target/release/examples/quantlib_bench",
+            "kiyosi": RUST_EXECUTABLE,
             "quantlib": HERE / "build/quantlib_bench",
         }
 

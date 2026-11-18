@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/kiyosi", "crates/kiyosi-python"]
+members = ["crates/kiyosi", "crates/kiyosi-python", "benchmarks/quantlib/rust"]
 default-members = ["crates/kiyosi"]
 resolver = "3"
 

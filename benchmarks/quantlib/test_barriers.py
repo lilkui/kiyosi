@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from run import RUST_EXECUTABLE
+
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 
@@ -90,7 +92,7 @@ class NativeBarrierTests(unittest.TestCase):
                     price("touch-up-in-cash-hit"), price("touch-up-in-cash-expiry")
                 )
             executables = {
-                "kiyosi": ROOT / "target/release/examples/quantlib_bench",
+                "kiyosi": RUST_EXECUTABLE,
                 "quantlib": HERE / "build/quantlib_bench",
             }
             for backend, executable in executables.items():

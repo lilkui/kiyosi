@@ -5,7 +5,15 @@ import json
 import statistics
 import time
 
-from run import HERE, ROOT, accuracy, command, load_entries, native, seed_ensemble
+from run import (
+    HERE,
+    RUST_EXECUTABLE,
+    accuracy,
+    command,
+    load_entries,
+    native,
+    seed_ensemble,
+)
 
 
 def main():
@@ -13,7 +21,7 @@ def main():
     case = load_entries(HERE / "cases/american_monte_carlo.json")["mc-american-put"]
     reference = load_entries(HERE / "references/american_monte_carlo.json")[case["id"]]
     executables = {
-        "kiyosi": ROOT / "target/release/examples/quantlib_bench",
+        "kiyosi": RUST_EXECUTABLE,
         "quantlib": HERE / "build/quantlib_bench",
     }
     document = {

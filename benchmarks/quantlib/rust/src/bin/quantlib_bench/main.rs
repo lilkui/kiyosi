@@ -1,32 +1,17 @@
 //! Native price-request batches for the optional `QuantLib` comparison suite.
 
-#[path = "quantlib_bench/american_monte_carlo.rs"]
 mod american_monte_carlo;
-#[path = "quantlib_bench/asian.rs"]
 mod asian;
-#[path = "quantlib_bench/barriers.rs"]
 mod barriers;
-#[path = "quantlib_bench/common.rs"]
 mod common;
-#[path = "quantlib_bench/crr.rs"]
 mod crr;
-#[path = "quantlib_bench/digital.rs"]
 mod digital;
-#[path = "quantlib_bench/european.rs"]
 mod european;
-#[path = "quantlib_bench/quadrature.rs"]
-mod quadrature;
-
-#[path = "quantlib_bench/monte_carlo.rs"]
-mod monte_carlo;
-
-#[path = "quantlib_bench/fd.rs"]
 mod fd;
-#[path = "quantlib_bench/local_vol.rs"]
-mod local_vol;
-
-#[path = "quantlib_bench/heston.rs"]
 mod heston;
+mod local_vol;
+mod monte_carlo;
+mod quadrature;
 
 use std::{hint::black_box, time::Instant};
 

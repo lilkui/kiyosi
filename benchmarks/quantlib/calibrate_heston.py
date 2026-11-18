@@ -28,7 +28,7 @@ def main():
                 }
             }
         for backend, executable in (
-            ("kiyosi", run.ROOT / "target/release/examples/quantlib_bench"),
+            ("kiyosi", run.RUST_EXECUTABLE),
             ("quantlib", HERE / "build/quantlib_bench"),
         ):
             variants = [("committed", {})]

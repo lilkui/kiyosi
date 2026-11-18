@@ -20,6 +20,7 @@ from suite_coverage import REQUIRED, audit, matches
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+RUST_EXECUTABLE = ROOT / "target/release/quantlib_bench"
 BACKENDS = ("kiyosi", "quantlib")
 
 
@@ -97,6 +98,20 @@ def load_entries(path):
     return entries
 
 
+def rust_build_command(binary="quantlib_bench"):
+    """Build a release binary from the Rust benchmark package."""
+    return [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "-p",
+        "kiyosi-quantlib-bench",
+        "--bin",
+        binary,
+    ]
+
+
 def build(args):
     """Build optimized companions without changing the installed QuantLib."""
     config = shlex.split(args.quantlib_config)
@@ -105,16 +120,7 @@ def build(args):
         raise ValueError(f"QuantLib 1.44 required; quantlib-config reports {version}")
     flags = [*shlex.split(command([*config, "--cflags"])), *shlex.split(args.cxxflags)]
     libs = shlex.split(command([*config, "--libs"]))
-    rust = [
-        "cargo",
-        "build",
-        "--release",
-        "--locked",
-        "-p",
-        "kiyosi",
-        "--example",
-        "quantlib_bench",
-    ]
+    rust = rust_build_command()
     cpp = [
         *shlex.split(args.cxx),
         "-std=c++17",
@@ -434,7 +440,7 @@ def main(argv=None):
     parser.add_argument(
         "--rust-executable",
         type=Path,
-        default=ROOT / "target/release/examples/quantlib_bench",
+        default=RUST_EXECUTABLE,
     )
     parser.add_argument(
         "--quantlib-executable", type=Path, default=HERE / "build/quantlib_bench"

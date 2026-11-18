@@ -9,28 +9,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from run import RUST_EXECUTABLE, command, rust_build_command
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class DigitalAsianTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        subprocess.run(
-            [
-                "cargo",
-                "build",
-                "--release",
-                "--locked",
-                "-p",
-                "kiyosi",
-                "--example",
-                "quantlib_bench",
-            ],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-        )
-        cls.executable = ROOT / "target/release/examples/quantlib_bench"
+        command(rust_build_command())
+        cls.executable = RUST_EXECUTABLE
 
     def test_cash_digital_native_price_matches_independent_formula(self):
         result = subprocess.run(

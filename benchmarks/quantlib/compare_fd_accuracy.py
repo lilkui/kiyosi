@@ -20,7 +20,7 @@ def main():
     parser.add_argument(
         "--updated-executable",
         type=Path,
-        default=run.ROOT / "target/release/examples/quantlib_bench",
+        default=run.RUST_EXECUTABLE,
     )
     parser.add_argument(
         "--report", type=Path, default=HERE / "calibration/fd_accuracy.json"

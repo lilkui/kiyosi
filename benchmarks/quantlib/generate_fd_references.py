@@ -54,7 +54,7 @@ def main():
                     "uncertainty": 5e-5,
                     "provenance": {
                         "method": "Independent Rust/QuantLib FD space, time and domain refinement with first-order time extrapolation",
-                        "source": "calibration/american.json; calibration/american_reference.cpp; crates/kiyosi/examples/quantlib_bench_references.rs",
+                        "source": f"calibration/american.json; calibration/american_reference.cpp; {evidence['kiyosi_source']}",
                         "evidence": evidence,
                     },
                 }
