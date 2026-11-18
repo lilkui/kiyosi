@@ -224,13 +224,10 @@ fn time_stencil(
         if let Some(last) = curve.max_time() {
             upper = upper.min(last);
         }
-        for &knot in curve.nodes() {
-            if knot <= time {
-                lower = lower.max(knot);
-            } else {
-                upper = upper.min(knot);
-            }
-        }
+        let nodes = curve.nodes();
+        let split = nodes.partition_point(|&node| node <= time);
+        lower = lower.max(nodes[..split].last().copied().unwrap_or(lower));
+        upper = upper.min(nodes.get(split).copied().unwrap_or(upper));
     }
     let radius = settings.time_shift_micros()?;
     let window_start = time.add_micros(-radius.min(lower.micros_until(time).max(0)))?;
@@ -247,9 +244,7 @@ fn time_stencil(
     }
     let before_width = lower.micros_until(time);
     let after_width = time.micros_until(upper);
-    let mut shift = settings
-        .time_shift_micros()?
-        .min(lower.micros_until(upper).max(0));
+    let mut shift = radius.min(lower.micros_until(upper).max(0));
     if settings.time_shift.is_none() {
         // Near expiry the price is far from linear in time, so keep the stencil away from it.
         shift = shift.min((time.micros_until(option.expiry_time()) / 8).max(1));
@@ -306,17 +301,8 @@ pub(crate) fn complete_greeks(
     let model = context.bsm_parameters()?;
     let spot = context.spot_price();
     let vol = model.volatility();
-    let quote = |curve: &crate::RateTermStructure| {
-        curve
-            .calendar_quote()
-            .map(|(rate, _)| rate)
-            .or_else(|| curve.exact_flat_rate())
-            .unwrap_or(0.0)
-    };
-    let rate = quote(model.risk_free_curve());
     let h = symmetric_shift(spot, settings.spot_shift_at(spot));
     let v = symmetric_shift(vol, settings.volatility_shift_at(vol));
-    let r = symmetric_shift(rate, settings.rate_shift);
     let spot_ok = [
         Greek::Delta,
         Greek::Gamma,
@@ -498,12 +484,22 @@ pub(crate) fn complete_greeks(
             result.set(request, Greek::Zomma, (high.1 - low.1) / (2.0 * v))?;
         }
     }
-    if want(Greek::Rho) && r > 0.0 && (2.0 * r).is_finite() {
-        result.set(
-            request,
-            Greek::Rho,
-            (price(spot, vol, r, time)? - price(spot, vol, -r, time)?) / (2.0 * r),
-        )?;
+    let quote = |curve: &crate::RateTermStructure| {
+        curve
+            .calendar_quote()
+            .map(|(rate, _)| rate)
+            .or_else(|| curve.exact_flat_rate())
+            .unwrap_or(0.0)
+    };
+    if want(Greek::Rho) {
+        let r = symmetric_shift(quote(model.risk_free_curve()), settings.rate_shift);
+        if r > 0.0 && (2.0 * r).is_finite() {
+            result.set(
+                request,
+                Greek::Rho,
+                (price(spot, vol, r, time)? - price(spot, vol, -r, time)?) / (2.0 * r),
+            )?;
+        }
     }
     if want(Greek::DividendRho) {
         let dividend = quote(model.dividend_curve());
