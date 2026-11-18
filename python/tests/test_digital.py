@@ -388,6 +388,30 @@ def test_requests_settings_solver_errors_and_failure_state(
         base_engine.price(EuropeanOption(**base_terms), base_context)
 
 
+def test_deterministic_cash_call_excludes_strike_at_intraday_curve_node():
+    start = datetime(2025, 1, 2)
+    expiry = start.replace(hour=2, minute=39)
+    curve = RateTermStructure(reference_time=start, times=[expiry], factors=[0.5])
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=curve, dividend_yield=0, volatility=0
+        ),
+        spot_price=50,
+        valuation_time=start,
+    )
+    call = CashOrNothingOption(
+        option_type="call",
+        strike=100,
+        payout=10,
+        effective_time=start,
+        expiry_time=expiry,
+    )
+
+    assert AnalyticDigitalEngine().price(call, context) == 0
+    assert curve.log_factor(start, expiry) == -math.log(2)
+    assert curve.factor(start, expiry) == 0.5
+
+
 def test_curves_coverage_time_knots_and_concurrency(
     base_context, base_engine, base_terms, make_options
 ):

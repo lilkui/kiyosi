@@ -120,6 +120,28 @@ def test_deterministic_flat_curves_include_exact_bounds_after_many_observations(
     ) == pytest.approx(100.0 / 365.0 * math.exp(-rate), rel=0, abs=1e-14)
 
 
+def test_deterministic_range_accrual_includes_upper_bound_at_intraday_curve_node():
+    start = datetime(2025, 1, 2)
+    expiry = start.replace(hour=2, minute=39)
+    curve = RateTermStructure(reference_time=start, times=[expiry], factors=[0.5])
+    context = market(valuation=start, spot=50, rate=curve, dividend=0, volatility=0)
+    option = RangeAccrualOption(
+        notional=1000,
+        annual_coupon_rate=1,
+        lower_bound=90,
+        upper_bound=100,
+        effective_time=start,
+        expiry_time=expiry,
+        observation_clock_time=expiry.time(),
+    )
+
+    assert option.observation_schedule.times == (expiry,)
+    expected = 1000 * (159 / (365 * 24 * 60)) * 0.5
+    assert AnalyticRangeAccrualEngine().price(option, context) == pytest.approx(
+        expected, abs=1e-12
+    )
+
+
 def test_dense_shifted_curves_match_independent_intraday_marginals(subtests):
     nodes = [START + timedelta(days=n, hours=12) for n in range(731)]
     reference_time = START - timedelta(days=2)

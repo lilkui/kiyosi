@@ -17,6 +17,26 @@ fn market(spot: f64, rate: f64, dividend: f64, volatility: f64) -> PricingContex
 }
 
 #[test]
+fn deterministic_cash_call_excludes_strike_at_intraday_curve_node() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let expiry = Timestamp::new(start.date(), 2, 39, 0, 0)?;
+    let curve = RateTermStructure::new(start, vec![expiry], vec![0.5])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 0.0)?,
+        50.0,
+        start,
+    )?;
+    let call = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, expiry)?;
+
+    assert_eq!(
+        AnalyticDigitalEngine.price(&call, &context)?,
+        0.0,
+        "the deterministic expiry spot equals strike, not above it"
+    );
+    Ok(())
+}
+
+#[test]
 fn configured_fallback_greeks_preserve_analytic_delta_and_gamma() -> Result<()> {
     let (start, end) = dates();
     let context = market(100.0, 0.0, 0.0, 0.000_05);

@@ -115,7 +115,17 @@ impl AnalyticRangeAccrualEngine {
             if curve.nodes().is_empty() {
                 curve.log_factor(valuation, date)
             } else {
-                total.add(curve.log_factor(previous, date)?);
+                if let Some(quoted) = curve.quoted_log_factor(valuation, date) {
+                    if !quoted.is_finite() {
+                        return Err(Error::ComputationFailure(
+                            "log_factor must be finite".into(),
+                        ));
+                    }
+                    *total = Sum::default();
+                    total.add(quoted);
+                } else {
+                    total.add(curve.log_factor(previous, date)?);
+                }
                 Ok(total.total())
             }
         };

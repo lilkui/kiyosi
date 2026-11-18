@@ -371,6 +371,9 @@ impl RateTermStructure {
     }
     /// Returns the log factor over an ordered, covered interval.
     ///
+    /// For factor-node curves, intervals between quoted points use their
+    /// supplied factors directly, including the reference factor of one.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for uncovered endpoints or a reversed
@@ -385,6 +388,8 @@ impl RateTermStructure {
         let mut value = -self.rate.unwrap_or(self.spread) * start_time.years_until(end_time);
         if let Some(accrual) = &self.calendar_accrual {
             value = -accrual.rate * self.accrual_year_fraction(start_time, end_time);
+        } else if let Some(quoted) = self.quoted_log_factor(start_time, end_time) {
+            value = quoted;
         } else if self.rate.is_none() {
             let mut index = self
                 .nodes
@@ -406,6 +411,27 @@ impl RateTermStructure {
         }
         Ok(value)
     }
+
+    pub(crate) fn quoted_log_factor(&self, start: Timestamp, end: Timestamp) -> Option<f64> {
+        if self.factors.is_empty() {
+            return None;
+        }
+        let factor = |time| {
+            if self.reference == Some(time) {
+                Some(1.0)
+            } else {
+                self.nodes
+                    .binary_search(&time)
+                    .ok()
+                    .map(|i| self.factors[i])
+            }
+        };
+        Some(
+            crate::numerics::log_ratio(factor(end)?, factor(start)?)
+                - self.spread * start.years_until(end),
+        )
+    }
+
     pub(crate) fn accrual_year_fraction(&self, start: Timestamp, end: Timestamp) -> f64 {
         let Some(accrual) = &self.calendar_accrual else {
             return start.years_until(end);

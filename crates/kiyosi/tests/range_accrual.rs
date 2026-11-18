@@ -29,6 +29,36 @@ fn market(at: impl Into<Timestamp>, spot: f64) -> PricingContext {
 }
 
 #[test]
+fn deterministic_range_accrual_includes_upper_bound_at_intraday_curve_node() -> Result<()> {
+    let start = day(2);
+    let expiry = Timestamp::new(start.date(), 2, 39, 0, 0)?;
+    let curve = RateTermStructure::new(start, vec![expiry], vec![0.5])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 0.0)?,
+        50.0,
+        start,
+    )?;
+    let option = RangeAccrualOption::new(RangeAccrualTerms::new(
+        1000.0,
+        1.0,
+        90.0,
+        100.0,
+        start,
+        expiry,
+        expiry.time_of_day(),
+    ))?;
+
+    assert_eq!(option.observation_schedule().times(), &[expiry]);
+    let expected = 1000.0 * (159.0 / (365.0 * 24.0 * 60.0)) * 0.5;
+    let price = AnalyticRangeAccrualEngine.price(&option, &context)?;
+    assert!(
+        (price - expected).abs() < 1e-12,
+        "the only fixing hits the inclusive upper bound: expected {expected}, got {price}"
+    );
+    Ok(())
+}
+
+#[test]
 fn observation_schedules_retain_valid_storage_across_contract_replacements() -> Result<()> {
     let option = RangeAccrualOption::new(terms())?;
     let schedule = option.observation_schedule();

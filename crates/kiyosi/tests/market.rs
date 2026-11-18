@@ -5,6 +5,21 @@ fn at(year: i32, month: u32, day: u32) -> Timestamp {
 }
 
 #[test]
+fn intraday_curve_preserves_its_quoted_endpoint_factor() -> kiyosi::Result<()> {
+    let start = at(2025, 1, 2);
+    let node = Timestamp::new(start.date(), 2, 39, 0, 0)?;
+    let curve = RateTermStructure::new(start, vec![node], vec![0.5])?;
+
+    assert_eq!(
+        curve.log_factor(start, node)?,
+        -std::f64::consts::LN_2,
+        "reference-to-node log factor must not round through a forward rate"
+    );
+    assert_eq!(curve.factor(start, node)?, 0.5, "reference-to-node factor");
+    Ok(())
+}
+
+#[test]
 fn rounded_flat_nodes_require_explicit_constant_curve_representation() {
     let start = at(2025, 1, 1);
     let end = start.add_days(365).unwrap();
