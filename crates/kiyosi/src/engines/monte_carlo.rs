@@ -3,7 +3,7 @@ use std::{
     io,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
     thread,
 };
@@ -544,8 +544,8 @@ mod tests {
 /// Concurrent calls share these workers; a per-call cap does not reserve workers.
 /// Neither the application's global Rayon pool nor `RAYON_NUM_THREADS` configures
 /// this pool. Serial calls run on the calling thread without initializing the pool.
-/// Forking after pool initialization does not preserve usable workers in the child;
-/// use a fresh process, such as Python's `spawn` multiprocessing start method.
+/// Parallel requests in a child forked after the parent's first parallel request
+/// return an error. Use a fresh process, such as Python's `spawn` start method.
 /// See [`Self::price`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloVanillaEngine {
@@ -1243,6 +1243,16 @@ static WORKER_POOL: Mutex<WorkerPool> = Mutex::new(WorkerPool {
     max_workers: None,
     pool: None,
 });
+static WORKER_POOL_PROCESS: AtomicU32 = AtomicU32::new(0);
+
+fn check_pool_process(owner: u32, current: u32) -> Result<()> {
+    if owner != 0 && owner != current {
+        return Err(Error::UnsupportedOperation(
+            "parallel Monte Carlo is unavailable in a forked child after pool use; start a fresh process or use a serial engine".into(),
+        ));
+    }
+    Ok(())
+}
 
 /// Caps the process-wide Monte Carlo pool before its first parallel request.
 ///
@@ -1256,7 +1266,8 @@ static WORKER_POOL: Mutex<WorkerPool> = Mutex::new(WorkerPool {
 /// # Errors
 ///
 /// Returns [`Error::InvalidInput`] for a nonpositive cap and
-/// [`Error::UnsupportedOperation`] when changing an initialized pool's cap.
+/// [`Error::UnsupportedOperation`] when changing an initialized pool's cap or
+/// configuring a child forked after the parent's first parallel request.
 ///
 /// # Examples
 ///
@@ -1268,6 +1279,10 @@ static WORKER_POOL: Mutex<WorkerPool> = Mutex::new(WorkerPool {
 /// # Ok(()) }
 /// ```
 pub fn configure_monte_carlo_pool(max_workers: i32) -> Result<()> {
+    check_pool_process(
+        WORKER_POOL_PROCESS.load(Ordering::Relaxed),
+        std::process::id(),
+    )?;
     WORKER_POOL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -1306,6 +1321,13 @@ impl WorkerPool {
 }
 
 fn worker_pool(available: usize) -> Result<Arc<rayon::ThreadPool>> {
+    let current = std::process::id();
+    // Check before locking: the fork may have happened while a parent thread held the lock.
+    if let Err(owner) =
+        WORKER_POOL_PROCESS.compare_exchange(0, current, Ordering::Relaxed, Ordering::Relaxed)
+    {
+        check_pool_process(owner, current)?;
+    }
     WORKER_POOL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)

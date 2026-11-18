@@ -52,7 +52,8 @@ def configure_monte_carlo_pool(*, max_workers: SupportsIndex) -> None:
     InvalidInputError
         If max_workers is nonpositive.
     UnsupportedOperationError
-        If a different cap is supplied after pool initialization.
+        If a different cap is supplied after pool initialization or the
+        calling process forked after the parent's first parallel request.
     TypeError
         If max_workers is a bool or does not support integer indexing.
     OverflowError
@@ -64,6 +65,8 @@ def configure_monte_carlo_pool(*, max_workers: SupportsIndex) -> None:
     Configure each process before submitting parallel pricing work. Repeating
     the configured cap is valid; failed configuration leaves it unchanged.
     Engine max_active_workers caps active work per request within this pool.
+    Use multiprocessing's spawn start method if the parent has already run
+    parallel Monte Carlo. A forked child can still price with a serial engine.
     """
 
 def implied_snowball_coupon(
@@ -3713,6 +3716,8 @@ class MonteCarloVanillaEngine(
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
     measure sampling error.
+    Parallel pricing raises UnsupportedOperationError in a child forked after
+    the parent's first parallel request. Use spawn or max_active_workers=1.
     European pricing samples the exact terminal
     distribution and ignores step_count. Near-strike payoffs preserve small
     movements even when the terminal spot rounds to the strike. American
@@ -3903,6 +3908,8 @@ class MonteCarloDigitalEngine(
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
     measure sampling error.
+    Parallel pricing raises UnsupportedOperationError in a child forked after
+    the parent's first parallel request. Use spawn or max_active_workers=1.
     Only likelihood-ratio delta and gamma are returned;
     other requested Greeks are absent.
     """
@@ -4056,6 +4063,8 @@ class MonteCarloBarrierEngine(
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
     measure sampling error.
+    Parallel pricing raises UnsupportedOperationError in a child forked after
+    the parent's first parallel request. Use spawn or max_active_workers=1.
     Monitoring uses continuous survival or the original
     fixing dates. Near-strike payoffs retain movements even when terminal spot
     rounds to strike. Only delta and gamma are returned.
@@ -4149,6 +4158,8 @@ class MonteCarloAutocallableEngine(
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
     measure sampling error.
+    Parallel pricing raises UnsupportedOperationError in a child forked after
+    the parent's first parallel request. Use spawn or max_active_workers=1.
     Simulation uses trading days when knock-in matters,
     or observation dates and expiry otherwise.
     """
@@ -4233,6 +4244,8 @@ class MonteCarloAccumulatorEngine(_MonteCarloMethods[Accumulator, Accumulator]):
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
     measure sampling error.
+    Parallel pricing raises UnsupportedOperationError in a child forked after
+    the parent's first parallel request. Use spawn or max_active_workers=1.
     Simulation uses the future trading dates. A current
     knock-out settles before any purchase.
     """
@@ -4327,6 +4340,8 @@ class MonteCarloAsianEngine(
     not reserve workers. Greeks pin a seed per request. Solves require an
     explicit seed; call with_resolved_seed() first. Solver tolerances do not
     measure sampling error.
+    Parallel pricing raises UnsupportedOperationError in a child forked after
+    the parent's first parallel request. Use spawn or max_active_workers=1.
     Geometric averages and single fixings sample exact
     distributions. Arithmetic averages use step_count trapezoidal intervals
     with the first interval integrated conditionally. Geometric pricing

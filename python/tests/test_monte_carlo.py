@@ -38,6 +38,66 @@ def contract(direction="call", strike=100):
     )
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="uses Linux process forking")
+def test_forked_child_rejects_parallel_pool_and_can_price_serially():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent("""
+            import multiprocessing as mp
+            from datetime import datetime
+            from kiyosi import UnsupportedOperationError
+            from kiyosi.instruments import EuropeanOption
+            from kiyosi.market import BlackScholesMertonParameters, PricingContext
+            from kiyosi.pricing import MonteCarloVanillaEngine, configure_monte_carlo_pool
+
+            start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+            option = EuropeanOption(option_type="call", strike=100, effective_time=start, expiry_time=end)
+            context = PricingContext(model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2),
+                spot_price=100, valuation_time=start)
+            parallel = MonteCarloVanillaEngine(path_count=1024, seed=42, max_active_workers=2)
+            configure_monte_carlo_pool(max_workers=2)
+            expected = parallel.price(option, context)
+            try:
+                configure_monte_carlo_pool(max_workers=1)
+            except UnsupportedOperationError:
+                pass
+            else:
+                raise SystemExit(77)
+
+            def check_child():
+                for call in (lambda: parallel.price(option, context),
+                             lambda: configure_monte_carlo_pool(max_workers=2)):
+                    try:
+                        call()
+                    except UnsupportedOperationError:
+                        pass
+                    else:
+                        raise AssertionError("inherited pool accepted")
+                assert parallel.replace(max_active_workers=1).price(option, context) == expected
+
+            child = mp.get_context("fork").Process(target=check_child)
+            child.start()
+            child.join(5)
+            if child.is_alive():
+                child.kill()
+                child.join()
+                raise AssertionError("inherited pool hung")
+            assert child.exitcode == 0
+        """),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    if result.returncode == 77:
+        pytest.skip("native runtime has only one available CPU")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_process_pool_configuration_preserves_seeded_prices():
     result = subprocess.run(
         [
