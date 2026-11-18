@@ -199,7 +199,7 @@ pub(super) fn time_grid(
                 .map(|&t| start.years_until(t)),
         );
     }
-    Ok(TimeGrid::with_events(time, count, risk, dividend, &knots))
+    TimeGrid::with_events(time, count, risk, dividend, &knots)
 }
 
 pub(super) fn observation_times(

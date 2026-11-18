@@ -520,7 +520,8 @@ impl TimeGrid {
         risk: &Curve,
         dividend: &Curve,
         observations: &[f64],
-    ) -> Self {
+    ) -> Result<Self> {
+        crate::cancellation::check()?;
         let mut events: Vec<_> = risk.ends().chain(dividend.ends()).collect();
         events.extend_from_slice(observations);
         events.push(0.0);
@@ -529,6 +530,9 @@ impl TimeGrid {
         let mut times = events.clone();
         let tolerance = 4.0 * f64::EPSILON * time;
         for index in 1..steps {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
             let node = time * f64::from(index) / f64::from(steps);
             let next = events.partition_point(|&event| event < node);
             if !events[next.saturating_sub(1)..(next + 1).min(events.len())]
@@ -538,13 +542,17 @@ impl TimeGrid {
                 times.push(node);
             }
         }
+        crate::cancellation::check()?;
         times.sort_by(f64::total_cmp);
         times.dedup();
         let dt = time / f64::from(steps);
         let mut uniform_index = 1;
         let mut uniform_start = 0.0;
         let mut widths = Vec::with_capacity(times.len() - 1);
-        for pair in times.windows(2) {
+        for (index, pair) in times.windows(2).enumerate() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
             let [start, end] = [pair[0], pair[1]];
             let uniform_end = |i| {
                 if i == steps {
@@ -569,7 +577,7 @@ impl TimeGrid {
                 uniform_index += 1;
             }
         }
-        Self { times, widths }
+        Ok(Self { times, widths })
     }
 }
 
@@ -611,13 +619,34 @@ mod tests {
             0.5 + 4.0 * f64::EPSILON,
             0.75 + 8.0 * f64::EPSILON,
         ];
-        let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &events);
+        let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &events).unwrap();
         assert_eq!(
             grid.times,
             vec![0.0, events[0], events[1], 0.75, events[2], 1.0]
         );
         assert!(grid.widths.iter().all(|&width| width > 0.0));
         assert!((grid.widths.iter().sum::<f64>() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn time_grid_construction_returns_interrupted_for_a_cancelled_request() -> Result<()> {
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let curve = Curve::new(
+            &crate::RateTermStructure::flat(0.0, None)?,
+            start,
+            start.add_days(365)?,
+        )?;
+        let token = crate::CancellationToken::default();
+        let result = token.run(|| {
+            token.cancel();
+            let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &[]);
+            assert!(matches!(grid, Err(crate::Error::Io(ref error)) if error.kind() == std::io::ErrorKind::Interrupted));
+            grid
+        });
+        assert!(
+            matches!(result, Err(crate::Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+        );
+        Ok(())
     }
 
     #[test]

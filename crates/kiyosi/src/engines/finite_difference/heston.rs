@@ -389,7 +389,7 @@ fn prepare(
         }
         Some(grid)
     };
-    let times = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &[]);
+    let times = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &[])?;
     let nx = asset.count + 1;
     let rows = variance.as_ref().map_or(1, |v| v.count + 1);
     let length = nx
