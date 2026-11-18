@@ -7,6 +7,17 @@ use crate::{AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingCo
 
 const MAX_PATH_VALUES: usize = 1024 * 1024 * 1024 / size_of::<f64>();
 
+fn american_workspace<T>(capacity: usize) -> Result<Vec<T>> {
+    let mut buffer = Vec::new();
+    buffer.try_reserve_exact(capacity).map_err(|_| {
+        Error::ComputationFailure(
+            "cannot reserve American Monte Carlo workspace; reduce paths, steps or concurrent calls"
+                .into(),
+        )
+    })?;
+    Ok(buffer)
+}
+
 impl MonteCarloVanillaEngine {
     /// Returns the American default absolute spot bump, 8% of spot.
     ///
@@ -124,9 +135,10 @@ impl MonteCarloVanillaEngine {
         } else {
             None
         };
-        let mut blocks: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
-            .map(|_| Vec::new())
-            .collect();
+        let block_count = samples.div_ceil(BLOCK_SIZE);
+        let mut blocks = american_workspace(block_count)?;
+        blocks.resize_with(block_count, Vec::new);
+        let mut cash_flows = american_workspace(paths)?;
         run_blocks(&mut blocks, settings.max_active_workers, |block| {
             let mut generator = Pcg32::new(seed, block as u64);
             let mut cursor = sobol
@@ -135,9 +147,9 @@ impl MonteCarloVanillaEngine {
             let mut spare = None;
             let begin = block * BLOCK_SIZE;
             let end = ((block + 1) * BLOCK_SIZE).min(samples);
-            let mut values = Vec::with_capacity(
+            let mut values = american_workspace(
                 (end - begin) * intervals * if settings.antithetic { 2 } else { 1 },
-            );
+            )?;
             for path in begin..end {
                 crate::cancellation::check()?;
                 let paired = settings.antithetic && path < paths / 2;
@@ -171,7 +183,7 @@ impl MonteCarloVanillaEngine {
                 .iter()
                 .flat_map(|block| block.chunks_exact(intervals))
         };
-        let mut cash_flows: Vec<_> = rows().map(|path| payoff(path[intervals - 1])).collect();
+        cash_flows.extend(rows().map(|path| payoff(path[intervals - 1])));
         for step in (0..intervals - 1).rev() {
             crate::cancellation::check()?;
             let mut matrix = [[0.0; 4]; 3];
@@ -418,6 +430,14 @@ fn solve_quadratic(samples: [[f64; 4]; 3]) -> Option<[f64; 3]> {
 mod tests {
     use super::*;
     use crate::{BlackScholesMertonParameters, Date, MonteCarloSettings};
+
+    #[test]
+    fn american_workspace_reports_capacity_failure() {
+        assert!(matches!(
+            american_workspace::<f64>(usize::MAX),
+            Err(Error::ComputationFailure(_))
+        ));
+    }
 
     #[test]
     fn dividend_stencils_crossing_zero_keep_one_exercise_estimator() {

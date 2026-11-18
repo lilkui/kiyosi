@@ -3757,6 +3757,10 @@ class MonteCarloVanillaEngine(
     movements even when the terminal spot rounds to the strike. American
     pricing uses least-squares Monte Carlo (Longstaff-Schwartz) with step_count
     exercise intervals and requires at least two before expiry.
+    Path storage is capped at 1 GiB per call, not
+    across calls. Limit concurrent exercise-grid requests to fit available
+    memory. A failed workspace reservation raises ComputationFailureError
+    if the allocator reports it.
     """
 
     def __eq__(self, other: object) -> bool: ...

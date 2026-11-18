@@ -806,7 +806,9 @@ impl MonteCarloVanillaEngine {
     /// American exercise grids retain `path_count * step_count` values of
     /// eight bytes each, rounding odd antithetic path counts up to the next even
     /// count for reserved capacity. Retained path storage is limited to 1 GiB per
-    /// call, excluding other buffers. Expiry and terminal-only American calls
+    /// call, excluding other buffers. Worker limits do not bound total memory:
+    /// limit concurrent American exercise-grid requests to fit the process budget.
+    /// Expiry and terminal-only American calls
     /// (nonpositive dividends and nonnegative rates) do not allocate this grid.
     ///
     /// # Errors
@@ -821,6 +823,8 @@ impl MonteCarloVanillaEngine {
     /// for fewer than two exercise intervals, after life validation.
     /// Exercise-grid pricing also returns [`Error::InvalidInput`] when retained
     /// path storage would exceed 1 GiB, before entropy, worker or path allocation.
+    /// Failure to reserve the exercise-grid buffers returns [`Error::ComputationFailure`]
+    /// when the allocator reports the failure.
     /// Non-finite American regression matrices, coefficients or continuation values
     /// return [`Error::ComputationFailure`]; finite rank-deficient fits reduce their degree.
     ///
