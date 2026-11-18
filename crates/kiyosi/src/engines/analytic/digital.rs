@@ -143,12 +143,6 @@ impl AnalyticDigitalEngine {
             return PricingResult::new(crate::engines::Payoff::digital(option).value(spot));
         }
         let model = context.natural_bsm_parameters()?;
-        model
-            .risk_free_curve()
-            .validate_horizon(valuation, expiry)?;
-        model.dividend_curve().validate_horizon(valuation, expiry)?;
-        let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
-        let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
         let sigma = model.volatility();
         if sigma == 0.0 {
             return PricingResult::new(crate::engines::deterministic::vanilla(
@@ -157,6 +151,9 @@ impl AnalyticDigitalEngine {
                 context,
             )?);
         }
+        context.validate_curve_horizon(expiry)?;
+        let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
+        let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
         let root = time.sqrt();
         let width = sigma * root;
         let (d1, d2) =

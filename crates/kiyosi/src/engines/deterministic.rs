@@ -50,10 +50,8 @@ pub(super) fn vanilla(
     let model = context.model_parameters();
     let start = context.valuation_time();
     let end = option.expiry_time();
-    let risk = Curve::new(model.risk_free_curve(), start, end)?;
-    let dividend = Curve::new(model.dividend_curve(), start, end)?;
-    let time = start.years_until(end);
     if payoff.is_digital() {
+        context.validate_curve_horizon(end)?;
         let r = model.risk_free_curve().log_factor(start, end)?;
         let q = model.dividend_curve().log_factor(start, end)?;
         let forward = log_ratio(context.spot_price(), payoff.strike) + (q - r);
@@ -65,6 +63,9 @@ pub(super) fn vanilla(
             scaled_cash(context.spot_price(), q)
         });
     }
+    let risk = Curve::new(model.risk_free_curve(), start, end)?;
+    let dividend = Curve::new(model.dividend_curve(), start, end)?;
+    let time = start.years_until(end);
     exercise_value(payoff, context.spot_price(), 0.0, time, &risk, &dividend)
 }
 
