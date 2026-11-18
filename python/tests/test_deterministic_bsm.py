@@ -19,6 +19,37 @@ from kiyosi.market import (
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
 
 
+def test_deterministic_american_exercise_kink_has_no_spot_greeks():
+    expiry = START + timedelta(days=365)
+    option = ins.AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=expiry
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0, volatility=0
+        ),
+        spot_price=100,
+        valuation_time=START,
+    )
+    request = ("delta", "gamma")
+    for engine in (
+        pricing.BjerksundStenslandVanillaEngine(),
+        pricing.CoxRossRubinsteinVanillaEngine(),
+        pricing.QuadratureVanillaEngine(),
+        pricing.FiniteDifferenceVanillaEngine(),
+        pricing.MonteCarloVanillaEngine(),
+    ):
+        result = engine.price_with_greeks(option, context, request)
+        assert result.price == 0
+        assert result.status("delta") == result.status("gamma") == "undefined"
+    saved = pricing.FiniteDifferenceVanillaEngine().solve(
+        option, context, spot_range=(90, 110)
+    )
+    result = saved.price_with_greeks(100, request)
+    assert result.price == 0
+    assert result.status("delta") == result.status("gamma") == "undefined"
+
+
 def cases():
     life = {"effective_time": START, "expiry_time": END}
     vanilla = dict(life, option_type="call", strike=90)

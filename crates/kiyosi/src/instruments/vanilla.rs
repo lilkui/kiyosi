@@ -493,6 +493,16 @@ impl OptionContract for AmericanOption {
         self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        self.terms.at_spot_discontinuity(context, radius)
+        let end = self.expiry_time();
+        if context.valuation_time() == end {
+            return self.terms.at_spot_discontinuity(context, radius);
+        }
+        matches!(context.deterministic_until(end), Ok(time) if time == end)
+            && crate::engines::deterministic::american_exercise_boundary(self, context).is_ok_and(
+                |boundary| {
+                    let spot = context.spot_price();
+                    spot - radius <= boundary && boundary <= spot + radius
+                },
+            )
     }
 }

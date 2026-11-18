@@ -361,6 +361,34 @@ fn deterministic_payoff_boundaries_leave_greeks_undefined_and_solvers_accept_zer
 }
 
 #[test]
+fn deterministic_american_greeks_follow_the_exercise_boundary() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let end = start.add_days(365)?;
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let saved = engine.solve(&option, &context, 90.0..=110.0)?;
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for result in [
+        engine.price_with_greeks(&option, &context, request)?,
+        saved.price_with_greeks(100.0, request, None)?,
+    ] {
+        assert_eq!(result.price(), 0.0);
+        assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
+        assert_eq!(result.status(Greek::Gamma), GreekStatus::Undefined);
+    }
+    let spot = 100.0 * (-0.05_f64).exp();
+    let result = saved.price_with_greeks(spot, request, None)?;
+    assert!((result.price() - (100.0 - spot)).abs() < 1e-12);
+    assert!((result.require(Greek::Delta)? + 1.0).abs() < 1e-10);
+    Ok(())
+}
+
+#[test]
 fn deterministic_barrier_greeks_follow_fixings_and_in_life_curve_knots() -> Result<()> {
     let start = Date::new(2025, 1, 6)?.start_of_day();
     let knot = start.add_days(2)?;

@@ -66,6 +66,27 @@ pub(super) fn vanilla(
     exercise_value(payoff, context.spot_price(), 0.0, time, &risk, &dividend)
 }
 
+pub(crate) fn american_exercise_boundary(
+    option: &crate::AmericanOption,
+    context: &PricingContext,
+) -> Result<f64> {
+    let model = context.model_parameters();
+    let start = context.valuation_time();
+    let end = option.expiry_time();
+    let risk = Curve::new(model.risk_free_curve(), start, end)?;
+    let dividend = Curve::new(model.dividend_curve(), start, end)?;
+    // Carry is linear between curve knots. The most favorable exercise carry
+    // determines where the discounted payoff first becomes positive.
+    let best = match option.option_type() {
+        crate::OptionType::Call => f64::max,
+        crate::OptionType::Put => f64::min,
+    };
+    let carry = risk.ends().chain(dividend.ends()).fold(0.0, |carry, t| {
+        best(carry, dividend.log_factor(0.0, t) - risk.log_factor(0.0, t))
+    });
+    Ok(scaled_cash(option.strike(), -carry))
+}
+
 // Discounted deterministic intrinsic values also supply the far-asset asymptote.
 #[expect(
     clippy::float_cmp,
