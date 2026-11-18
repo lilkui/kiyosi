@@ -147,10 +147,9 @@ pub(crate) fn updated_time_convention(
 ///
 /// Notes
 /// -----
-/// Uses the Actual/365 Fixed day-count convention. Log-linear interpolation of
-/// discount factors gives piecewise constant instantaneous forward rates.
-/// Dated curves reject times before their reference; node-based rate curves
-/// also reject times after the last node. Negative rates are allowed.
+/// Uses Actual/365 Fixed by default. Factor nodes interpolate log-linearly.
+/// A bounded flat quote can accrue on a calendar. Dated curves reject times
+/// outside their coverage. Negative rates are allowed.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -203,7 +202,7 @@ impl RateTermStructure {
             reference_time.map(timestamp).transpose()?,
         ))?))
     }
-    /// Create an exactly constant rate with inclusive coverage bounds.
+    /// Create a constant annual quote with inclusive coverage bounds.
     ///
     /// Parameters
     /// ----------
@@ -211,30 +210,41 @@ impl RateTermStructure {
     ///     Finite continuously compounded annual rate; negative rates are allowed.
     /// reference_time, max_time : datetime.datetime
     ///     Inclusive coverage bounds. Equal bounds select a single instant.
+    /// calendar : TradingCalendar or None, optional
+    ///     None uses Actual/365 Fixed. With a calendar, accrued time is the
+    ///     elapsed fraction of each open date divided by its annualization
+    ///     basis. Closed dates contribute zero.
     ///
     /// Returns
     /// -------
     /// RateTermStructure
-    ///     Owned curve retaining the exact scalar rate and both bounds, including
-    ///     through shifts. Nodes and factors are empty, as for flat().
+    ///     Owned curve retaining the quote and coverage through shifts. Calendar
+    ///     transitions within the bounds appear in nodes.
     ///
     /// Raises
     /// ------
     /// InvalidInputError
-    ///     If the rate is non-finite or max_time precedes reference_time.
+    ///     If the rate or an implied forward is non-finite, or max_time precedes
+    ///     reference_time.
     ///
     #[staticmethod]
-    #[pyo3(signature = (rate, *, reference_time, max_time))]
+    #[pyo3(signature = (rate, *, reference_time, max_time, calendar=None))]
     fn bounded_flat(
         rate: &Bound<'_, PyAny>,
         reference_time: &Bound<'_, PyAny>,
         max_time: &Bound<'_, PyAny>,
+        calendar: Option<crate::calendar::TradingCalendar>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::RateTermStructure::bounded_flat(
-            real(rate)?,
-            timestamp(reference_time)?,
-            timestamp(max_time)?,
-        ))?))
+        let rate = real(rate)?;
+        let reference = timestamp(reference_time)?;
+        let end = timestamp(max_time)?;
+        let curve = match calendar {
+            Some(calendar) => kiyosi::RateTermStructure::bounded_flat_with_calendar(
+                rate, reference, end, calendar.0,
+            ),
+            None => kiyosi::RateTermStructure::bounded_flat(rate, reference, end),
+        };
+        Ok(Self(domain(curve)?))
     }
     /// Return the scalar rate when all implied forwards are exactly constant.
     ///
@@ -261,7 +271,7 @@ impl RateTermStructure {
             .map(|time| python_timestamp(py, time))
             .transpose()
     }
-    /// Return a copy of the supplied curve node times.
+    /// Return a copy of factor nodes or calendar transition times.
     #[getter]
     fn nodes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
         python_timestamps(py, self.0.nodes())
@@ -275,8 +285,8 @@ impl RateTermStructure {
     ///
     /// Notes
     /// -----
-    /// Zero factors cannot reconstruct a curve through its constructor.
-    /// Reconstruct node curves from base_factors, then apply
+    /// Calendar curves return factors at their transition times.
+    /// Reconstruct factor-node curves from base_factors, then apply
     /// shifted(parallel_shift).
     ///
     #[getter]
@@ -285,7 +295,7 @@ impl RateTermStructure {
     }
     /// Return original node factors without parallel shifts.
     ///
-    /// Flat curves have no node factors. For node curves, pass these factors with
+    /// Quote-based curves have no supplied factors. For factor-node curves, pass these factors with
     /// reference_time and nodes to RateTermStructure, then call
     /// shifted(parallel_shift).
     ///
@@ -295,7 +305,7 @@ impl RateTermStructure {
     }
     /// Return the accumulated node-curve parallel shift in decimal units.
     ///
-    /// Flat curves include shifts in their rate and return zero here.
+    /// Quote-based curves include shifts in their rate and return zero here.
     ///
     #[getter]
     fn parallel_shift(&self) -> f64 {
@@ -333,7 +343,7 @@ impl RateTermStructure {
     /// Returns
     /// -------
     /// float
-    ///     Log of the interval factor, using Actual/365 Fixed time.
+    ///     Log of the interval factor, using the curve's accrual convention.
     ///
     /// Raises
     /// ------
@@ -357,12 +367,12 @@ impl RateTermStructure {
     /// Parameters
     /// ----------
     /// time : datetime.datetime
-    ///     Query instant. The final node uses its left interval.
+    ///     Query instant. The coverage endpoint uses its left interval.
     ///
     /// Returns
     /// -------
     /// float
-    ///     Annual continuously compounded forward rate in decimal units.
+    ///     Continuously compounded forward rate in Actual/365 Fixed decimal units.
     ///
     /// Raises
     /// ------
@@ -377,7 +387,7 @@ impl RateTermStructure {
     /// Parameters
     /// ----------
     /// shift : float
-    ///     Finite additive rate shift in decimal units.
+    ///     Finite additive rate shift in the curve's annual quote units.
     ///
     /// Returns
     /// -------
@@ -416,7 +426,7 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
 ///
 /// time_convention : {"actual_365_fixed", "business"}, optional
 ///     Volatility annualization and variance clock. The Rust default is
-///     actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+///     actual_365_fixed. The rate curves define rate and dividend accrual.
 /// calendar : TradingCalendar or None, optional
 ///     Required for business time and rejected for actual_365_fixed. Business
 ///     time accumulates uniformly over each trading date's 24 hours, divided

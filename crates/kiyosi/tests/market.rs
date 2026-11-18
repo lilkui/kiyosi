@@ -1,4 +1,4 @@
-use kiyosi::{Date, Error, RateTermStructure, Timestamp};
+use kiyosi::{Date, Error, RateTermStructure, Timestamp, TradingCalendar};
 
 fn at(year: i32, month: u32, day: u32) -> Timestamp {
     Date::new(year, month, day).unwrap().start_of_day()
@@ -56,6 +56,113 @@ fn log_interpolation_and_right_hand_forwards() {
         curve.forward_rate(end).unwrap()
     );
     assert_eq!(curve.factor(end, end).unwrap(), 1.0);
+}
+
+#[test]
+fn calendar_bounded_quotes_pause_on_closed_dates() -> kiyosi::Result<()> {
+    let saturday = at(2025, 1, 4);
+    let monday = saturday.add_days(2)?;
+    let friday_noon = saturday.add_micros(-43_200_000_000)?;
+    let monday_noon = friday_noon.add_days(3)?;
+    let calendar = TradingCalendar::weekdays();
+    let curve = RateTermStructure::bounded_flat_with_calendar(
+        0.05,
+        friday_noon,
+        monday_noon,
+        calendar.clone(),
+    )?;
+    assert_eq!(curve.nodes(), &[saturday, monday]);
+    assert_eq!(curve.exact_flat_rate(), None);
+    assert_eq!(curve.factor(saturday, monday)?, 1.0);
+    assert_eq!(curve.forward_rate(saturday)?, 0.0);
+    assert!((curve.forward_rate(monday)? - 0.05 * 365.0 / 252.0).abs() < 1e-15);
+    assert!((curve.log_factor(friday_noon, monday_noon)? + 0.05 / 252.0).abs() < 1e-15);
+    for (factor, &node) in curve.factors()?.iter().zip(curve.nodes()) {
+        assert_eq!(*factor, curve.factor(friday_noon, node)?);
+    }
+    let shifted = curve.shifted(0.01)?;
+    assert_eq!(shifted.factor(saturday, monday)?, 1.0);
+    assert!((shifted.log_factor(friday_noon, monday_noon)? + 0.06 / 252.0).abs() < 1e-15);
+    let zero = RateTermStructure::bounded_flat_with_calendar(
+        0.0,
+        friday_noon,
+        monday_noon,
+        calendar.clone(),
+    )?;
+    assert_eq!(zero.exact_flat_rate(), Some(0.0));
+    assert_eq!(zero.shifted(0.05)?, curve);
+    assert_eq!(
+        RateTermStructure::bounded_flat_with_calendar(
+            0.05,
+            friday_noon,
+            monday_noon,
+            TradingCalendar::all_days()
+        )?,
+        RateTermStructure::bounded_flat(0.05, friday_noon, monday_noon)?
+    );
+    assert!(matches!(
+        shifted.factor(friday_noon, monday_noon.add_micros(1)?),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        RateTermStructure::bounded_flat_with_calendar(0.05, monday_noon, friday_noon, calendar),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}
+
+#[test]
+fn calendar_rate_greeks_use_each_quotes_accrual_time() -> kiyosi::Result<()> {
+    use kiyosi::{
+        AnalyticEuropeanEngine, BlackScholesMertonParameters, EuropeanOption,
+        FiniteDifferenceSettings, FiniteDifferenceVanillaEngine, Greek, GreeksRequest, OptionType,
+        PricingContext, PricingEngine, Rate, numerical_greeks,
+    };
+    let start = at(2025, 1, 3).add_micros(43_200_000_000)?;
+    let end = start.add_days(3)?;
+    let risk = RateTermStructure::bounded_flat_with_calendar(
+        0.05,
+        start,
+        end,
+        TradingCalendar::weekdays(),
+    )?;
+    let custom = TradingCalendar::custom(
+        TradingCalendar::weekdays(),
+        vec![end.date()],
+        vec![start.add_days(1)?.date()],
+        Some(243),
+    )?;
+    let dividend = RateTermStructure::bounded_flat_with_calendar(-0.02, start, end, custom)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let context = |r: Rate, q: Rate| {
+        PricingContext::new(BlackScholesMertonParameters::new(r, q, 0.2)?, 100.0, start)
+    };
+    let market = context(risk.into(), dividend.into())?;
+    let risk_time = 1.0 / 252.0;
+    let dividend_time = 1.5 / 243.0;
+    let natural_time = start.years_until(end);
+    let equivalent = context(
+        (0.05 * risk_time / natural_time).into(),
+        (-0.02 * dividend_time / natural_time).into(),
+    )?;
+    let request = GreeksRequest::new([Greek::Rho, Greek::DividendRho]);
+    let engine = AnalyticEuropeanEngine;
+    let base = engine.price_with_greeks(&option, &equivalent, request)?;
+    let actual = engine.price_with_greeks(&option, &market, request)?;
+    let numerical = numerical_greeks(&engine, &option, &market, request, Default::default())?;
+    assert!((actual.price() - base.price()).abs() < 1e-12);
+    let pde = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 600,
+        time_step_count: 200,
+        ..Default::default()
+    })?;
+    assert!((pde.price(&option, &market)? - base.price()).abs() < 1e-4);
+    for (greek, accrual_time) in [(Greek::Rho, risk_time), (Greek::DividendRho, dividend_time)] {
+        let expected = base.require(greek)? * accrual_time / natural_time;
+        assert!((actual.require(greek)? - expected).abs() < 1e-12);
+        assert!((numerical.require(greek)? - expected).abs() < 1e-8);
+    }
+    Ok(())
 }
 
 #[test]

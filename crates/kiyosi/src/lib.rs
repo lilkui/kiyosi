@@ -11,11 +11,12 @@
 //! # Conventions
 //!
 //! Annual rates and annualized volatility use decimal units. Rates are continuously
-//! compounded; rates and continuous dividend yields use Actual/365 Fixed.
+//! compounded and accrue on Actual/365 Fixed by default. Use
+//! [`RateTermStructure::bounded_flat_with_calendar`] for calendar-based accrual.
 //! [`ModelTimeConvention`] defines volatility units and variance accumulation.
 //! BSM and local-volatility PDE models support business time over a calendar's
-//! fixed basis, with no variance accumulation on closed dates. Carry, discounting
-//! and contractual event timestamps still advance on natural days. Other engines
+//! fixed basis, with no variance accumulation on closed dates. Rate curves govern
+//! carry and discounting independently of variance and contractual dates. Other engines
 //! reject business time with [`Error::UnsupportedOperation`]; Heston rejects it at
 //! model construction or replacement. [`Greek`] defines sensitivity units.
 //! BSM volatility may be zero, selecting deterministic pricing. Check numerical

@@ -2,9 +2,9 @@ use crate::{Date, Error, Result, Timestamp, TradingCalendar};
 
 /// Defines volatility's annualization unit and the clock accumulating variance.
 ///
-/// Rates and continuous dividend yields always use A/365F. Business time advances
-/// uniformly over each trading date's 24 hours, at microsecond resolution;
-/// it stops on other dates. The calendar's fixed basis is not recalculated by year.
+/// Rate accrual is governed by the rate curves. Business time advances uniformly
+/// over each trading date's 24 hours, at microsecond resolution, and stops on
+/// other dates. The calendar has a fixed annualization basis.
 /// Instances support shared concurrent reads under [`TradingCalendar`]'s contract.
 ///
 /// ```rust
@@ -147,18 +147,6 @@ impl ModelTimeConvention {
         let Some(calendar) = self.calendar() else {
             return Ok(Vec::new());
         };
-        let mut date = start.date();
-        let mut open = calendar.is_trading_day(date);
-        let mut times = Vec::new();
-        while date < end.date() {
-            crate::cancellation::check()?;
-            date = date.add_days(1)?;
-            let next_open = calendar.is_trading_day(date);
-            if next_open != open && date.start_of_day() < end {
-                times.push(date.start_of_day());
-            }
-            open = next_open;
-        }
-        Ok(times)
+        calendar.transitions(start, end, calendar.is_trading_day(start.date()))
     }
 }

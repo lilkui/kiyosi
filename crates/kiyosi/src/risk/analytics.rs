@@ -5,8 +5,8 @@ use crate::{Error, EuropeanOption, PricingContext, Result};
 /// Uses price `V`, spot `S`, decimal volatility `σ`, decimal continuously
 /// compounded rates `r` and `q`, and forward valuation time `t` in years
 /// (Actual/365 Fixed). Other inputs, including expiry, remain fixed.
-/// Rho and dividend rho differentiate parallel shifts of the entire risk-free
-/// and dividend-yield curves, respectively, rather than individual curve nodes.
+/// Rho and dividend rho differentiate parallel shifts of their respective curves
+/// in each curve's annual quote units. See [`crate::RateTermStructure::shifted`].
 /// Theta, charm and color advance valuation with the market curves held fixed;
 /// they do not differentiate increasing time to expiry.
 /// See [`GreeksRequest::all`] for a request example.

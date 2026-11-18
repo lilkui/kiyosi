@@ -95,17 +95,23 @@ impl AnalyticEuropeanEngine {
             result.set(request, Greek::Delta, sign * probability(1.0))?;
         }
         if want(Greek::Rho) {
+            let rate_time = model
+                .risk_free_curve()
+                .accrual_year_fraction(valuation, expiry);
             result.set(
                 request,
                 Greek::Rho,
-                sign * time * weighted_cdf(strike, risk_log, sign * d2),
+                sign * rate_time * weighted_cdf(strike, risk_log, sign * d2),
             )?;
         }
         if want(Greek::DividendRho) {
+            let dividend_time = model
+                .dividend_curve()
+                .accrual_year_fraction(valuation, expiry);
             result.set(
                 request,
                 Greek::DividendRho,
-                -sign * time * weighted_cdf(spot, dividend_log, sign * d1),
+                -sign * dividend_time * weighted_cdf(spot, dividend_log, sign * d1),
             )?;
         }
         if ![

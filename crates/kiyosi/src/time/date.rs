@@ -2,7 +2,7 @@ use chrono::{Datelike, Days, NaiveDate};
 
 use crate::{Error, Result};
 
-const MICROS_PER_DAY: i64 = 86_400_000_000;
+pub(crate) const MICROS_PER_DAY: i64 = 86_400_000_000;
 
 /// Represents a timezone-free clock time with microsecond precision.
 ///

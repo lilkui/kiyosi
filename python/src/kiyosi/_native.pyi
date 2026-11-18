@@ -563,10 +563,9 @@ class RateTermStructure:
 
     Notes
     -----
-    Uses the Actual/365 Fixed day-count convention. Log-linear interpolation of
-    discount factors gives piecewise constant instantaneous forward rates.
-    Dated curves reject times before their reference; node-based rate curves
-    also reject times after the last node. Negative rates are allowed.
+    Uses Actual/365 Fixed by default. Factor nodes interpolate log-linearly.
+    A bounded flat quote can accrue on a calendar. Dated curves reject times
+    outside their coverage. Negative rates are allowed.
     """
 
     def __init__(
@@ -602,9 +601,13 @@ class RateTermStructure:
 
     @staticmethod
     def bounded_flat(
-        rate: _Real, *, reference_time: datetime, max_time: datetime
+        rate: _Real,
+        *,
+        reference_time: datetime,
+        max_time: datetime,
+        calendar: TradingCalendar | None = None,
     ) -> RateTermStructure:
-        """Create an exactly constant rate with inclusive coverage bounds.
+        """Create a constant annual quote with inclusive coverage bounds.
 
         Parameters
         ----------
@@ -612,17 +615,22 @@ class RateTermStructure:
             Finite continuously compounded annual rate; negative rates are allowed.
         reference_time, max_time : datetime.datetime
             Inclusive coverage bounds. Equal bounds select a single instant.
+        calendar : TradingCalendar or None, optional
+            None uses Actual/365 Fixed. With a calendar, accrued time is the
+            elapsed fraction of each open date divided by its annualization
+            basis. Closed dates contribute zero.
 
         Returns
         -------
         RateTermStructure
-            Owned curve retaining the exact scalar rate and both bounds, including
-            through shifts. Nodes and factors are empty, as for flat().
+            Owned curve retaining the quote and coverage through shifts. Calendar
+            transitions within the bounds appear in nodes.
 
         Raises
         ------
         InvalidInputError
-            If the rate is non-finite or max_time precedes reference_time.
+            If the rate or an implied forward is non-finite, or max_time precedes
+            reference_time.
         """
 
     @property
@@ -643,7 +651,7 @@ class RateTermStructure:
 
     @property
     def nodes(self) -> tuple[datetime, ...]:
-        """Return a copy of the supplied curve node times."""
+        """Return a copy of factor nodes or calendar transition times."""
 
     @property
     def factors(self) -> tuple[float, ...]:
@@ -656,8 +664,8 @@ class RateTermStructure:
 
         Notes
         -----
-        Zero factors cannot reconstruct a curve through its constructor.
-        Reconstruct node curves from base_factors, then apply
+        Calendar curves return factors at their transition times.
+        Reconstruct factor-node curves from base_factors, then apply
         shifted(parallel_shift).
         """
 
@@ -665,7 +673,7 @@ class RateTermStructure:
     def base_factors(self) -> tuple[float, ...]:
         """Return original node factors without parallel shifts.
 
-        Flat curves have no node factors. For node curves, pass these factors with
+        Quote-based curves have no supplied factors. For factor-node curves, pass these factors with
         reference_time and nodes to RateTermStructure, then call
         shifted(parallel_shift).
         """
@@ -674,7 +682,7 @@ class RateTermStructure:
     def parallel_shift(self) -> float:
         """Return the accumulated node-curve parallel shift in decimal units.
 
-        Flat curves include shifts in their rate and return zero here.
+        Quote-based curves include shifts in their rate and return zero here.
         """
 
     def factor(self, start_time: datetime, end_time: datetime) -> float:
@@ -709,7 +717,7 @@ class RateTermStructure:
         Returns
         -------
         float
-            Log of the interval factor, using Actual/365 Fixed time.
+            Log of the interval factor, using the curve's accrual convention.
 
         Raises
         ------
@@ -725,12 +733,12 @@ class RateTermStructure:
         Parameters
         ----------
         time : datetime.datetime
-            Query instant. The final node uses its left interval.
+            Query instant. The coverage endpoint uses its left interval.
 
         Returns
         -------
         float
-            Annual continuously compounded forward rate in decimal units.
+            Continuously compounded forward rate in Actual/365 Fixed decimal units.
 
         Raises
         ------
@@ -744,7 +752,7 @@ class RateTermStructure:
         Parameters
         ----------
         shift : float
-            Finite additive rate shift in decimal units.
+            Finite additive rate shift in the curve's annual quote units.
 
         Returns
         -------
@@ -772,7 +780,7 @@ class BlackScholesMertonParameters:
 
     time_convention : {"actual_365_fixed", "business"}, optional
         Volatility annualization and variance clock. The Rust default is
-        actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+        actual_365_fixed. The rate curves define rate and dividend accrual.
     calendar : TradingCalendar or None, optional
         Required for business time and rejected for actual_365_fixed. Business
         time accumulates uniformly over each trading date's 24 hours, divided
@@ -898,7 +906,7 @@ class HestonParameters:
 
     time_convention : {"actual_365_fixed", "business"}, optional
         Volatility annualization and variance clock. The Rust default is
-        actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+        actual_365_fixed. The rate curves define rate and dividend accrual.
     calendar : TradingCalendar or None, optional
         Required for business time and rejected for actual_365_fixed. Business
         time accumulates uniformly over each trading date's 24 hours, divided
@@ -1124,7 +1132,7 @@ class LocalVolatilityParameters:
 
     time_convention : {"actual_365_fixed", "business"}, optional
         Volatility annualization and variance clock. The Rust default is
-        actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+        actual_365_fixed. The rate curves define rate and dividend accrual.
     calendar : TradingCalendar or None, optional
         Required for business time and rejected for actual_365_fixed. Business
         time accumulates uniformly over each trading date's 24 hours, divided

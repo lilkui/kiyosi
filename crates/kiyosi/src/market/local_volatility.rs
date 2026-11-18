@@ -190,7 +190,7 @@ pub struct LocalVolatilityParameterChanges {
 }
 
 impl LocalVolatilityParameters {
-    /// Borrows the variance clock; r and q always use A/365F.
+    /// Borrows the variance clock. The rate curves define `r` and `q` accrual.
     ///
     /// See [`Self::new_with_time_convention`] for construction.
     pub fn time_convention(&self) -> &ModelTimeConvention {
@@ -256,7 +256,7 @@ impl LocalVolatilityParameters {
 
     /// Creates a model with an explicit volatility annualization convention.
     ///
-    /// Rates and dividend yields use A/365F. Volatility values are interpreted
+    /// Scalar rates and dividend yields use A/365F. Volatility values are interpreted
     /// in the supplied convention without conversion; see [`Self::new`].
     ///
     /// # Errors

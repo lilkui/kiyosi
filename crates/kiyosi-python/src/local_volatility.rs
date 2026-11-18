@@ -121,7 +121,7 @@ impl LocalVolatilitySurface {
 ///
 /// time_convention : {"actual_365_fixed", "business"}, optional
 ///     Volatility annualization and variance clock. The Rust default is
-///     actual_365_fixed. Rates and continuous dividend yields always use A/365F.
+///     actual_365_fixed. The rate curves define rate and dividend accrual.
 /// calendar : TradingCalendar or None, optional
 ///     Required for business time and rejected for actual_365_fixed. Business
 ///     time accumulates uniformly over each trading date's 24 hours, divided

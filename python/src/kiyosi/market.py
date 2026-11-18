@@ -7,9 +7,10 @@ annualized in decimal units under the model time convention. Models default to
 ``time_convention="actual_365_fixed"``; BSM and local-volatility PDE models also
 accept ``time_convention="business", calendar=...``. Business time uses the
 calendar's fixed basis and advances uniformly over trading dates, stopping on
-closed dates. Rates and continuous dividend yields always use Actual/365 Fixed.
-Changing the model clock does not convert volatility values. Calendar
-trading-year fractions use the calendar's annualization basis.
+closed dates. Rates and continuous dividend yields use Actual/365 Fixed by
+default. Set ``calendar`` on ``RateTermStructure.bounded_flat`` for
+calendar-based accrual independent of the model's variance clock. Changing
+the model clock does not convert volatility values.
 
 ``BlackScholesMertonParameters`` accepts nonnegative volatility; zero selects
 deterministic pricing. ``LocalVolatilityParameters`` uses an absolute time/spot
@@ -18,8 +19,9 @@ support and numerical controls are documented on each engine.
 
 Use ``risk_free_curve`` and ``dividend_curve`` to preserve coverage when passing
 model rates to another constructor. Scalar rate queries discard coverage bounds.
-Use ``RateTermStructure.bounded_flat`` when exact flatness and coverage bounds
-are required; rounded node factors may imply slightly different forward rates.
+Use ``RateTermStructure.bounded_flat`` with the default calendar when you
+need an exact constant forward rate with coverage bounds. Rounded node factors
+may imply slightly different forward rates.
 
 Calendars classify dates without moving contract boundaries. Automatic
 schedules require an explicit observation clock. ``ObservationSchedule`` supports

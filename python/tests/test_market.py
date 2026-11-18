@@ -19,6 +19,9 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     PricingContext,
     RateTermStructure,
+    all_days_calendar,
+    custom_calendar,
+    weekdays_calendar,
 )
 from support.assertions import assert_rejection
 
@@ -153,6 +156,79 @@ def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support():
         for rate in (curve, 0.05)
     ]
     assert prices[0] == prices[1]
+
+
+def test_calendar_bounded_quotes_pause_on_closed_dates():
+    start = datetime(2025, 1, 3, 12)
+    saturday, monday = datetime(2025, 1, 4), datetime(2025, 1, 6)
+    end = start + timedelta(days=3)
+    bounds = {"reference_time": start, "max_time": end}
+    calendar = weekdays_calendar()
+    default = RateTermStructure.bounded_flat(0.05, **bounds)
+    assert (
+        RateTermStructure.bounded_flat(0.05, calendar=all_days_calendar(), **bounds)
+        == default
+    )
+    assert RateTermStructure.bounded_flat(0.05, calendar=None, **bounds) == default
+    curve = RateTermStructure.bounded_flat(0.05, calendar=calendar, **bounds)
+    assert curve.nodes == (saturday, monday)
+    assert curve.exact_flat_rate is None
+    assert curve.factor(saturday, monday) == 1
+    assert curve.forward_rate(saturday) == 0
+    assert curve.forward_rate(monday) == pytest.approx(0.05 * 365 / 252)
+    assert curve.log_factor(start, end) == pytest.approx(-0.05 / 252)
+    assert curve.factors == tuple(curve.factor(start, time) for time in curve.nodes)
+    assert "calendar=" in repr(curve)
+    shifted = curve.shifted(0.01)
+    assert shifted.factor(saturday, monday) == 1
+    assert shifted.log_factor(start, end) == pytest.approx(-0.06 / 252)
+    assert curve.log_factor(start, end) == pytest.approx(-0.05 / 252)
+    with pytest.raises(InvalidInputError):
+        shifted.factor(start, end + timedelta(microseconds=1))
+    with pytest.raises(TypeError):
+        RateTermStructure.bounded_flat(0.05, calendar="weekdays", **bounds)
+
+
+def test_calendar_rate_greeks_use_each_quotes_accrual_time():
+    start = datetime(2025, 1, 3, 12)
+    end = start + timedelta(days=3)
+    bounds = {"reference_time": start, "max_time": end}
+    calendar = weekdays_calendar()
+    risk = RateTermStructure.bounded_flat(0.05, calendar=calendar, **bounds)
+    dividend = RateTermStructure.bounded_flat(
+        -0.02,
+        calendar=custom_calendar(
+            base=calendar,
+            closed_dates=[end.date()],
+            open_dates=[(start + timedelta(days=1)).date()],
+            trading_days_per_year=243,
+        ),
+        **bounds,
+    )
+    risk_time, dividend_time, natural_time = 1 / 252, 1.5 / 243, 3 / 365
+    option = EuropeanOption(
+        option_type="call", strike=100, effective_time=start, expiry_time=end
+    )
+    context = market(rate=risk, dividend=dividend, valuation=start)
+    equivalent = market(
+        rate=0.05 * risk_time / natural_time,
+        dividend=-0.02 * dividend_time / natural_time,
+        valuation=start,
+    )
+    engine = pricing.AnalyticEuropeanEngine()
+    request = ("rho", "dividend_rho")
+    base = engine.price_with_greeks(option, equivalent, request)
+    actual = engine.price_with_greeks(option, context, request)
+    numerical = pricing.numerical_greeks(engine, option, context, request)
+    assert actual.price == pytest.approx(base.price, abs=1e-12)
+    pde = pricing.FiniteDifferenceVanillaEngine(
+        asset_step_count=600, time_step_count=200
+    )
+    assert pde.price(option, context) == pytest.approx(base.price, abs=1e-4)
+    for greek, accrual_time in (("rho", risk_time), ("dividend_rho", dividend_time)):
+        expected = base.require(greek) * accrual_time / natural_time
+        assert actual.require(greek) == pytest.approx(expected, abs=1e-12)
+        assert numerical.require(greek) == pytest.approx(expected, abs=1e-8)
 
 
 def test_flat_rate_queries_and_curve_roundtrips_preserve_coverage(subtests):

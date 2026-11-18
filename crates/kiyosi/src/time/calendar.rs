@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use crate::{Date, Error, Result};
+use crate::{Date, Error, Result, Timestamp};
 
 /// Selects the direction of inclusive business-day adjustment.
 ///
@@ -337,6 +337,30 @@ impl TradingCalendar {
     /// Propagates panics from a custom predicate supplied to [`Self::new`].
     pub fn trading_year_fraction(&self, start: Date, end: Date) -> Result<f64> {
         Ok(f64::from(self.trading_days_between(start, end)?) / f64::from(self.basis))
+    }
+
+    pub(crate) fn transitions(
+        &self,
+        start: Timestamp,
+        end: Timestamp,
+        mut open: bool,
+    ) -> Result<Vec<Timestamp>> {
+        let mut date = start.date();
+        let mut times = Vec::new();
+        while date < end.date() {
+            crate::cancellation::check()?;
+            date = date.add_days(1)?;
+            let time = date.start_of_day();
+            if time == end {
+                break;
+            }
+            let next_open = self.is_trading_day(date);
+            if next_open != open {
+                times.push(time);
+            }
+            open = next_open;
+        }
+        Ok(times)
     }
 }
 

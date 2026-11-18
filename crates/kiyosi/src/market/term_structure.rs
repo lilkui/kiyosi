@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use crate::{Error, Result, Timestamp, error::finite};
+use crate::{Error, Result, Timestamp, TradingCalendar, error::finite, time::MICROS_PER_DAY};
 
 /// Owns a term structure of continuously compounded rates.
 ///
-/// Uses the Actual/365 Fixed day-count convention and log-linear interpolation
-/// of discount factors, starting from an implicit factor of one at the reference
-/// time. This gives piecewise constant instantaneous forward rates.
+/// Uses Actual/365 Fixed by default. Factor nodes interpolate log-linearly
+/// from an implicit factor of one at the reference time.
+/// [`Self::bounded_flat_with_calendar`] supports calendar-based accrual.
 /// Dated curves reject queries before their reference; bounded flat curves and
 /// node-based curves also enforce their upper coverage bounds. Negative rates
 /// are allowed. Clones share immutable node storage; parallel shifts retain that
@@ -20,6 +20,46 @@ pub struct RateTermStructure {
     factors: Arc<[f64]>,
     forwards: Arc<[f64]>,
     spread: f64,
+    calendar_accrual: Option<CalendarAccrual>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct CalendarAccrual {
+    calendar: TradingCalendar,
+    rate: f64,
+    starts_open: bool,
+}
+
+impl CalendarAccrual {
+    fn is_open(&self, segment: usize) -> bool {
+        self.starts_open == (segment % 2 == 0)
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Elapsed microseconds intentionally round to fractional f64 years."
+    )]
+    fn year_fraction(&self, open_micros: i64) -> f64 {
+        open_micros as f64
+            / (MICROS_PER_DAY as f64 * f64::from(self.calendar.trading_days_per_year()))
+    }
+
+    fn forward_rate(&self, segment: usize) -> f64 {
+        if self.is_open(segment) {
+            self.rate * (365.0 / f64::from(self.calendar.trading_days_per_year()))
+        } else {
+            0.0
+        }
+    }
+
+    fn validate_rate(&self, has_transitions: bool) -> Result<()> {
+        finite(self.rate, false, "rate")?;
+        finite(self.forward_rate(0), false, "forward_rate")?;
+        if has_transitions {
+            finite(self.forward_rate(1), false, "forward_rate")?;
+        }
+        Ok(())
+    }
 }
 
 impl RateTermStructure {
@@ -50,6 +90,7 @@ impl RateTermStructure {
             factors: Arc::default(),
             forwards: Arc::default(),
             spread: 0.0,
+            calendar_accrual: None,
         })
     }
 
@@ -85,6 +126,62 @@ impl RateTermStructure {
             ));
         }
         curve.upper_bound = Some(max_time);
+        Ok(curve)
+    }
+
+    /// Creates a bounded constant annual quote that accrues on the supplied calendar.
+    ///
+    /// A full open date accrues `rate / calendar.trading_days_per_year()` and
+    /// partial dates accrue proportionally to their elapsed time. Closed dates
+    /// contribute zero. Both bounds are inclusive. [`TradingCalendar::all_days`]
+    /// gives the same curve as [`Self::bounded_flat`]. Shifts apply to the quote.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, RateTermStructure, TradingCalendar};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let friday = Date::new(2025, 1, 3)?.start_of_day();
+    /// let saturday = friday.add_days(1)?;
+    /// let monday = friday.add_days(3)?;
+    /// let curve = RateTermStructure::bounded_flat_with_calendar(
+    ///     0.05, friday, monday, TradingCalendar::weekdays(),
+    /// )?;
+    /// assert_eq!(curve.factor(saturday, monday)?, 1.0);
+    /// assert!((curve.log_factor(friday, monday)? + 0.05 / 252.0).abs() < 1e-15);
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for reversed bounds, a non-finite quote,
+    /// or a non-finite Actual/365 Fixed forward. Cancellation returns [`Error::Io`]
+    /// with [`std::io::ErrorKind::Interrupted`].
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate.
+    pub fn bounded_flat_with_calendar(
+        rate: f64,
+        reference: Timestamp,
+        max_time: Timestamp,
+        calendar: TradingCalendar,
+    ) -> Result<Self> {
+        let mut curve = Self::bounded_flat(rate, reference, max_time)?;
+        if calendar == TradingCalendar::all_days() {
+            return Ok(curve);
+        }
+        let starts_open = calendar.is_trading_day(reference.date());
+        let nodes = calendar.transitions(reference, max_time, starts_open)?;
+        let accrual = CalendarAccrual {
+            calendar,
+            rate,
+            starts_open,
+        };
+        accrual.validate_rate(!nodes.is_empty())?;
+        curve.rate = None;
+        curve.nodes = nodes.into();
+        curve.calendar_accrual = Some(accrual);
         Ok(curve)
     }
 
@@ -141,6 +238,7 @@ impl RateTermStructure {
             factors: factors.into(),
             forwards: forwards.into(),
             spread: 0.0,
+            calendar_accrual: None,
         })
     }
 
@@ -148,13 +246,17 @@ impl RateTermStructure {
     ///
     /// Node curves qualify only when every implied forward is exactly equal;
     /// their coverage and representation remain unchanged. Rounded factors from a
-    /// flat rate may not qualify; use [`Self::bounded_flat`] to preserve an exact
-    /// constant rate with coverage bounds. See [`Self::shifted`] for an example.
+    /// flat rate may not qualify. Calendar quotes qualify if zero or if their
+    /// coverage contains no change in the effective forward rate. See
+    /// [`Self::bounded_flat`] and [`Self::bounded_flat_with_calendar`].
     #[expect(
         clippy::float_cmp,
         reason = "Flat-rate algorithms require exactly constant forwards, without a numerical tolerance."
     )]
     pub fn exact_flat_rate(&self) -> Option<f64> {
+        if let Some(accrual) = &self.calendar_accrual {
+            return (accrual.rate == 0.0 || self.nodes.is_empty()).then(|| accrual.forward_rate(0));
+        }
         self.rate.or_else(|| {
             self.forwards
                 .first()
@@ -167,7 +269,7 @@ impl RateTermStructure {
     pub(super) fn require_flat_rate(&self, field: &str) -> Result<f64> {
         self.exact_flat_rate().ok_or_else(|| {
             Error::UnsupportedOperation(format!(
-                "{field} curve is not exactly constant; use an explicitly flat curve (bounded_flat preserves coverage)"
+                "{field} curve is not exactly constant; use an Actual/365 Fixed flat curve (bounded_flat preserves coverage)"
             ).into())
         })
     }
@@ -184,7 +286,17 @@ impl RateTermStructure {
     pub fn max_time(&self) -> Option<Timestamp> {
         self.upper_bound.or_else(|| self.nodes.last().copied())
     }
-    /// Borrows the supplied nodes, excluding the implicit reference.
+    /// Returns an explicit annual quote and its calendar, if present.
+    ///
+    /// The calendar borrow is valid for the lifetime of the curve borrow. See
+    /// [`Self::bounded_flat_with_calendar`] for construction. The all-days
+    /// Actual/365 Fixed calendar uses the ordinary bounded-flat representation.
+    pub fn calendar_quote(&self) -> Option<(f64, &TradingCalendar)> {
+        self.calendar_accrual
+            .as_ref()
+            .map(|accrual| (accrual.rate, &accrual.calendar))
+    }
+    /// Borrows factor nodes or calendar transition times, excluding the reference.
     ///
     /// Storage remains valid while the curve is borrowed; [`Self::shifted`] creates
     /// a separate curve without invalidating the borrow. See [`Self::new`].
@@ -194,26 +306,42 @@ impl RateTermStructure {
     /// Borrows the original node factors before parallel shifts; see [`Self::shifted`].
     ///
     /// Together with [`Self::parallel_shift`], these preserve the exact construction
-    /// representation when rebuilding a curve. Storage remains valid for this borrow.
+    /// representation of a factor-node curve. Quote-based curves have no supplied
+    /// node factors. Storage remains valid for this borrow.
     pub fn base_factors(&self) -> &[f64] {
         &self.factors
     }
     /// Returns the accumulated node-curve parallel shift; see [`Self::shifted`].
     ///
-    /// Flat curves incorporate shifts into their rate and return zero here.
+    /// Quote-based curves incorporate shifts into their rate and return zero here.
     pub fn parallel_shift(&self) -> f64 {
         self.spread
     }
     /// Returns owned node factors including any parallel shift.
     ///
-    /// Flat curves return an empty vector; underflow to zero is allowed, as in
-    /// [`Self::factor`]. Zero factors cannot be passed to [`Self::new`]; use
-    /// [`Self::base_factors`] and [`Self::parallel_shift`] for lossless reconstruction.
+    /// Calendar curves return factors at their transition times. Underflow to zero
+    /// is allowed, as in [`Self::factor`]. Rebuild factor-node curves with
+    /// [`Self::base_factors`] and [`Self::parallel_shift`].
     ///
     /// # Errors
     ///
     /// Returns [`Error::ComputationFailure`] for a non-finite log factor or overflow.
     pub fn factors(&self) -> Result<Vec<f64>> {
+        if let (Some(accrual), Some(mut previous)) = (&self.calendar_accrual, self.reference) {
+            let mut open_micros = 0;
+            return self
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(index, &node)| {
+                    if accrual.is_open(index) {
+                        open_micros += previous.micros_until(node);
+                    }
+                    previous = node;
+                    node_factor(-accrual.rate * accrual.year_fraction(open_micros))
+                })
+                .collect();
+        }
         let Some(reference) = self.reference.filter(|_| self.spread != 0.0) else {
             return Ok(self.factors.to_vec());
         };
@@ -221,15 +349,7 @@ impl RateTermStructure {
             .iter()
             .zip(self.factors.iter())
             .map(|(&node, &factor)| {
-                let log = factor.ln() - self.spread * reference.years_until(node);
-                let value = log.exp();
-                if log.is_finite() && value.is_finite() {
-                    Ok(value)
-                } else {
-                    Err(Error::ComputationFailure(
-                        "curve node factor cannot be represented".into(),
-                    ))
-                }
+                node_factor(factor.ln() - self.spread * reference.years_until(node))
             })
             .collect()
     }
@@ -263,7 +383,9 @@ impl RateTermStructure {
             return Err(Error::InvalidInput("curve interval is reversed".into()));
         }
         let mut value = -self.rate.unwrap_or(self.spread) * start_time.years_until(end_time);
-        if self.rate.is_none() {
+        if let Some(accrual) = &self.calendar_accrual {
+            value = -accrual.rate * self.accrual_year_fraction(start_time, end_time);
+        } else if self.rate.is_none() {
             let mut index = self
                 .nodes
                 .partition_point(|&node| node <= start_time)
@@ -284,6 +406,23 @@ impl RateTermStructure {
         }
         Ok(value)
     }
+    pub(crate) fn accrual_year_fraction(&self, start: Timestamp, end: Timestamp) -> f64 {
+        let Some(accrual) = &self.calendar_accrual else {
+            return start.years_until(end);
+        };
+        let mut index = self.nodes.partition_point(|&node| node <= start);
+        let mut current = start;
+        let mut open_micros = 0;
+        while current < end {
+            let next = end.min(self.nodes.get(index).copied().unwrap_or(end));
+            if accrual.is_open(index) {
+                open_micros += current.micros_until(next);
+            }
+            current = next;
+            index += 1;
+        }
+        accrual.year_fraction(open_micros)
+    }
     /// Returns the interval factor, allowing underflow to zero.
     ///
     /// # Errors
@@ -297,15 +436,19 @@ impl RateTermStructure {
         }
         Ok(value)
     }
-    /// Returns the right-hand instantaneous forward rate.
+    /// Returns the right-hand instantaneous forward rate in Actual/365 Fixed units.
     ///
-    /// The last node uses its left interval; see [`Self::new`] for a node-based rate curve.
+    /// The coverage endpoint uses its left interval. See [`Self::new`] and
+    /// [`Self::bounded_flat_with_calendar`].
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] outside curve coverage.
     pub fn forward_rate(&self, time: Timestamp) -> Result<f64> {
         self.validate_time(time)?;
+        if let Some(accrual) = &self.calendar_accrual {
+            return Ok(accrual.forward_rate(self.nodes.partition_point(|&node| node <= time)));
+        }
         Ok(self.rate.unwrap_or_else(|| {
             let index = self
                 .nodes
@@ -316,7 +459,8 @@ impl RateTermStructure {
     }
     /// Returns an owned parallel shift with unchanged coverage.
     ///
-    /// The original curve is unchanged on success and failure.
+    /// The shift uses the calendar's annualization basis for calendar quotes
+    /// and Actual/365 Fixed units for other curves.
     ///
     /// # Errors
     ///
@@ -336,7 +480,10 @@ impl RateTermStructure {
     pub fn shifted(&self, shift: f64) -> Result<Self> {
         finite(shift, false, "shift")?;
         let mut copy = self.clone();
-        if let Some(rate) = self.rate {
+        if let Some(accrual) = &mut copy.calendar_accrual {
+            accrual.rate += shift;
+            accrual.validate_rate(!self.nodes.is_empty())?;
+        } else if let Some(rate) = self.rate {
             let rate = rate + shift;
             finite(rate, false, "rate")?;
             copy.rate = Some(rate);
@@ -373,5 +520,16 @@ impl RateTermStructure {
             ));
         }
         Ok(())
+    }
+}
+
+fn node_factor(log: f64) -> Result<f64> {
+    let factor = log.exp();
+    if log.is_finite() && factor.is_finite() {
+        Ok(factor)
+    } else {
+        Err(Error::ComputationFailure(
+            "curve node factor cannot be represented".into(),
+        ))
     }
 }
