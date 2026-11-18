@@ -85,7 +85,10 @@ def test_model_clock_defaults_replacement_and_validation(kind):
     assert changed.calendar == calendar
     assert "calendar=" in repr(changed)
     assert base.calendar is None
-    assert changed.replace(variance_time_convention="actual_365_fixed", calendar=None) == base
+    assert (
+        changed.replace(variance_time_convention="actual_365_fixed", calendar=None)
+        == base
+    )
     field = "volatility" if kind == "bsm" else "surface"
     assert getattr(changed, field) == getattr(base, field)
     for operation in [
@@ -104,7 +107,9 @@ def test_model_clock_defaults_replacement_and_validation(kind):
     with pytest.raises(ValueError) as error:
         base.replace(variance_time_convention="unknown")
     assert type(error.value) is ValueError
-    assert base == changed.replace(variance_time_convention="actual_365_fixed", calendar=None)
+    assert base == changed.replace(
+        variance_time_convention="actual_365_fixed", calendar=None
+    )
 
 
 def test_heston_rejects_business_clock_at_model_boundary():
@@ -159,9 +164,14 @@ def test_european_matches_independent_two_clock_formula(
 
 def test_all_days_365_matches_natural_clock_and_keeps_surface_dates():
     business = local(
-        FRIDAY, MONDAY, variance_time_convention="business", calendar=all_days_calendar()
+        FRIDAY,
+        MONDAY,
+        variance_time_convention="business",
+        calendar=all_days_calendar(),
     )
-    natural = business.replace(variance_time_convention="actual_365_fixed", calendar=None)
+    natural = business.replace(
+        variance_time_convention="actual_365_fixed", calendar=None
+    )
     engine = fd()
     assert engine.price(european(), context(business)) == pytest.approx(
         engine.price(european(), context(natural)), rel=0, abs=1e-10
@@ -199,7 +209,9 @@ def test_changing_local_volatility_uses_natural_dates_and_business_variance():
 def test_business_clock_every_fd_product_and_scheme(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     calendar = weekdays_calendar()
-    constant = context(bsm(variance_time_convention="business", calendar=calendar), start)
+    constant = context(
+        bsm(variance_time_convention="business", calendar=calendar), start
+    )
     surface = context(
         local(start, end, variance_time_convention="business", calendar=calendar), start
     )
@@ -230,7 +242,9 @@ def test_business_clock_every_fd_product_and_scheme(subtests):
 def test_business_clock_each_supported_contract(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     calendar = weekdays_calendar()
-    constant = context(bsm(variance_time_convention="business", calendar=calendar), start)
+    constant = context(
+        bsm(variance_time_convention="business", calendar=calendar), start
+    )
     surface = context(
         local(start, end, variance_time_convention="business", calendar=calendar), start
     )
@@ -297,7 +311,12 @@ def test_closed_horizon_keeps_carry_discount_and_continuous_monitoring():
     scheduled = barrier.replace(observation_times=[start], calendar=all_days_calendar())
     assert engine.price(scheduled, market) == pytest.approx(expected, rel=0, abs=0.001)
     local_market = context(
-        local(start, end, variance_time_convention="business", calendar=weekdays_calendar()),
+        local(
+            start,
+            end,
+            variance_time_convention="business",
+            calendar=weekdays_calendar(),
+        ),
         start,
     )
     assert engine.price(barrier, local_market) == 0
@@ -617,7 +636,12 @@ def test_snowball_coupon_keeps_natural_day_accrual_on_closed_dates(kind):
     )
     if kind == "local":
         market = context(
-            local(start, end, variance_time_convention="business", calendar=weekdays_calendar()),
+            local(
+                start,
+                end,
+                variance_time_convention="business",
+                calendar=weekdays_calendar(),
+            ),
             start,
         )
     actual = pricing.FiniteDifferenceAutocallableEngine().price(note, market)

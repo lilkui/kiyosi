@@ -809,7 +809,8 @@ class BlackScholesMertonParameters:
         risk_free_rate: _Real | RateTermStructure | EllipsisType = ...,
         dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
         volatility: _Real | EllipsisType = ...,
-        variance_time_convention: Literal["actual_365_fixed", "business"] | EllipsisType = ...,
+        variance_time_convention: Literal["actual_365_fixed", "business"]
+        | EllipsisType = ...,
         calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> BlackScholesMertonParameters:
         """Return a validated owned replacement; omitted fields are retained.
@@ -957,7 +958,8 @@ class HestonParameters:
         mean_reversion_speed: _Real | EllipsisType = ...,
         vol_of_vol: _Real | EllipsisType = ...,
         correlation: _Real | EllipsisType = ...,
-        variance_time_convention: Literal["actual_365_fixed", "business"] | EllipsisType = ...,
+        variance_time_convention: Literal["actual_365_fixed", "business"]
+        | EllipsisType = ...,
         calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> HestonParameters:
         """Return a validated owned replacement; omitted fields are retained.
@@ -1168,7 +1170,8 @@ class LocalVolatilityParameters:
         risk_free_rate: _Real | RateTermStructure | EllipsisType = ...,
         dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
         surface: LocalVolatilitySurface | EllipsisType = ...,
-        variance_time_convention: Literal["actual_365_fixed", "business"] | EllipsisType = ...,
+        variance_time_convention: Literal["actual_365_fixed", "business"]
+        | EllipsisType = ...,
         calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> LocalVolatilityParameters:
         """Return a validated owned replacement; omitted fields are retained.
