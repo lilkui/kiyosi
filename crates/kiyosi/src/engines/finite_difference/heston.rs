@@ -348,6 +348,7 @@ fn prepare(
         (0.1 * spot.max(payoff.strike)).max(f64::MIN_POSITIVE),
         vec![payoff.strike],
     )?;
+    let mut valuation_row = 0;
     let variance = if deterministic {
         None
     } else {
@@ -377,14 +378,14 @@ fn prepare(
             Vec::new(),
         )?;
         if model.initial_variance() > 0.0 {
-            let nearest = (1..grid.count)
+            valuation_row = (1..grid.count)
                 .min_by(|&a, &b| {
                     (grid.nodes[a] - model.initial_variance())
                         .abs()
                         .total_cmp(&(grid.nodes[b] - model.initial_variance()).abs())
                 })
                 .ok_or_else(unstable)?;
-            grid.nodes[nearest] = model.initial_variance();
+            grid.nodes[valuation_row] = model.initial_variance();
         }
         Some(grid)
     };
@@ -474,9 +475,11 @@ fn prepare(
     Ok(HestonState::Grid {
         scale,
         asset,
-        variance,
-        values,
-        initial_variance: model.initial_variance(),
+        values: if variance.is_some() {
+            values[valuation_row * nx..][..nx].to_vec()
+        } else {
+            values
+        },
     })
 }
 
@@ -491,9 +494,7 @@ enum HestonState {
     Grid {
         scale: f64,
         asset: SpatialGrid,
-        variance: Option<SpatialGrid>,
         values: Vec<f64>,
-        initial_variance: f64,
     },
 }
 impl HestonState {
@@ -516,24 +517,13 @@ impl HestonState {
             Self::Grid {
                 scale,
                 asset,
-                variance,
                 values,
-                initial_variance,
             } => {
                 let spot = spot / scale;
                 if spot == 0.0 {
                     return Err(unstable());
                 }
-                let price = if let Some(v) = variance {
-                    let at_asset: Vec<_> = values
-                        .chunks_exact(asset.count + 1)
-                        .map(|row| asset.linear(row, spot))
-                        .collect();
-                    v.linear(&at_asset, *initial_variance)
-                } else {
-                    asset.linear(values, spot)
-                };
-                checked_with_scale(scale * price, *scale)
+                checked_with_scale(scale * asset.linear(values, spot), *scale)
             }
         }
     }
