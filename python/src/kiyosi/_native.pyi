@@ -2110,6 +2110,7 @@ class CoxRossRubinsteinBarrierEngine(_PricingMethods[BarrierOption]):
     ------
     InvalidInputError
         If step_count is outside 1 through 1,000,000.
+        Pricing paths that roll back every tree level also reject counts above 16,000.
 
     See Also
     --------
@@ -2465,6 +2466,7 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
     ------
     InvalidInputError
         If step_count is outside 1 through 1,000,000.
+        Pricing paths that roll back every tree level also reject counts above 16,000.
 
     Notes
     -----
@@ -2579,6 +2581,7 @@ class CoxRossRubinsteinDigitalEngine(
     ------
     InvalidInputError
         If step_count is outside 1 through 1,000,000.
+        Pricing paths that roll back every tree level also reject counts above 16,000.
 
     See Also
     --------

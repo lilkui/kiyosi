@@ -13,7 +13,8 @@ use crate::{
 /// Configures the number of CRR time steps. See [`CoxRossRubinsteinVanillaEngine::new`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BinomialSettings {
-    /// Sets the number of steps, from 1 through 1,000,000 inclusive; defaults to 256.
+    /// Sets the number of steps, from 1 through 1,000,000 inclusive. Defaults to 256.
+    /// Pricing paths that roll back every tree level allow at most 16,000 steps.
     pub step_count: i32,
 }
 
@@ -44,6 +45,16 @@ impl BinomialSettings {
         if !(1..=1_000_000).contains(&self.step_count) {
             return Err(Error::InvalidInput(
                 "step_count must be between 1 and 1000000".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_rollback(self) -> Result<()> {
+        // A 16,000-step rollback visits just over 128 million nodes per layer.
+        if self.step_count > 16_000 {
+            return Err(Error::InvalidInput(
+                "binomial rollback requires step_count at most 16000".into(),
             ));
         }
         Ok(())
@@ -93,7 +104,8 @@ impl CoxRossRubinsteinVanillaEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
-    /// validation, [`Error::InvalidInput`] outside permitted valuation bounds, and
+    /// validation, [`Error::InvalidInput`] outside permitted valuation bounds or above
+    /// 16,000 steps for a tree requiring rollback, and
     /// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
     ///
     /// # Greeks
@@ -297,6 +309,11 @@ fn native(
     if dt == 0.0 {
         return PricingResult::new(payoff.value(spot));
     }
+    let no_early_exercise =
+        !payoff.is_american() || (payoff.sign > 0.0 && dividend <= 0.0 && rate >= 0.0);
+    if !no_early_exercise {
+        settings.validate_rollback()?;
+    }
     let (width, up, down, discount, p) = parameters(context, dt)?;
     let steps = settings.step_count as usize;
     let up_squared = up * up;
@@ -327,8 +344,6 @@ fn native(
     }
     let mut first = [0.0; 2];
     let mut second = [0.0; 3];
-    let no_early_exercise =
-        !payoff.is_american() || (payoff.sign > 0.0 && dividend <= 0.0 && rate >= 0.0);
     let direct = no_early_exercise
         && steps >= 256
         && scaled(
@@ -358,6 +373,7 @@ fn native(
             0.0
         });
     } else {
+        settings.validate_rollback()?;
         node_spot = spot * down.powi(settings.step_count - 1);
         for level in (0..steps).rev() {
             crate::cancellation::check()?;

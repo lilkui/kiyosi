@@ -71,6 +71,14 @@ def option(kind="down_and_out", direction="call", **changes):
     return BarrierOption(**terms)
 
 
+def test_barrier_rollback_budget_preserves_resolved_settlement():
+    contract = option("up_and_out", rebate=2.0, rebate_timing="at_hit")
+    engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=16_001)
+    with pytest.raises(InvalidInputError, match="rollback"):
+        engine.price(contract, market())
+    assert engine.price(contract, market(spot=120)) == 2.0
+
+
 def test_crr_requires_exact_future_observation_alignment():
     contract = option(
         observation_times=[START + timedelta(days=91), END],

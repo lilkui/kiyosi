@@ -88,6 +88,19 @@ def engine_for(kind, steps=256):
     return factory(step_count=steps)
 
 
+def test_american_rollback_budget_preserves_direct_tree_pricing():
+    context = market()
+    put = contract(AmericanOption, "put")
+    call = contract(EuropeanOption)
+    engine = CoxRossRubinsteinVanillaEngine(step_count=16_001)
+    with pytest.raises(InvalidInputError, match="rollback"):
+        engine.price(put, context)
+    boundary = CoxRossRubinsteinVanillaEngine(step_count=16_000)
+    assert boundary.price(put, context) == pytest.approx(6.6606, rel=0, abs=0.001)
+    expected = AnalyticEuropeanEngine().price(call, context)
+    assert engine.price(call, context) == pytest.approx(expected, rel=0, abs=0.001)
+
+
 def rollback(
     kind, direction, steps, spot=100, rate=0.05, dividend=0.02, sigma=0.2, strike=100
 ):

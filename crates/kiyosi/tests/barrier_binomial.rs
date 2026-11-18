@@ -1,6 +1,23 @@
 use kiyosi::*;
 
 #[test]
+fn barrier_rollback_budget_preserves_resolved_settlement() -> Result<()> {
+    let option = BarrierOption::new(BarrierOptionTerms {
+        rebate: 2.0,
+        rebate_timing: RebateTiming::AtHit,
+        ..terms(BarrierType::UpAndOut, 10)
+    })?;
+    let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 16_001 })?;
+    let start = option.effective_time();
+    assert!(matches!(
+        engine.price(&option, &market(start, 100.0, 0.05, 0.2)),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!((engine.price(&option, &market(start, 102.0, 0.05, 0.2))? - 2.0).abs() < 1e-12);
+    Ok(())
+}
+
+#[test]
 fn barrier_crr_prices_an_expiry_only_observation() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2025, 1, 3).unwrap().start_of_day();

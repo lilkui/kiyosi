@@ -57,7 +57,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                         elif case == "tree":
                             option = i.AmericanOption(option_type="put", strike=100,
                                 effective_time=start, expiry_time=end)
-                            engine = p.CoxRossRubinsteinVanillaEngine(step_count=100_000)
+                            engine = p.CoxRossRubinsteinVanillaEngine(step_count=16_000)
                         elif case == "fd":
                             engine = p.FiniteDifferenceVanillaEngine(asset_step_count=4000, time_step_count=100_000)
                         elif case == "fd_solution_solve":
@@ -108,7 +108,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                                 saved.price_many(spots)
                             elif case == "seeded_mc":
                                 engine.price_with_seed(option, context)
-                            elif case == "analytic_greeks":
+                            elif case in ("analytic_greeks", "tree"):
                                 engine.price_with_greeks(option, context, "all")
                             elif case == "numerical_greeks":
                                 p.numerical_greeks(engine, option, context, "all")

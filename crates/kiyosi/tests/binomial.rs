@@ -76,6 +76,24 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
 }
 
 #[test]
+fn american_rollback_budget_preserves_direct_tree_pricing() -> Result<()> {
+    let (start, end) = dates();
+    let context = market(100.0, 0.05, 0.02, 0.2);
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 16_001 })?;
+    assert!(matches!(
+        engine.price(&put, &context),
+        Err(Error::InvalidInput(_))
+    ));
+    let boundary = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 16_000 })?;
+    assert!((boundary.price(&put, &context)? - 6.6606).abs() < 0.001);
+    let expected = AnalyticEuropeanEngine.price(&call, &context)?;
+    assert!((engine.price(&call, &context)? - expected).abs() < 0.001);
+    Ok(())
+}
+
+#[test]
 fn european_tree_refines_to_analytic_price_and_node_greeks() {
     let (start, end) = dates();
     let context = market(100.0, 0.05, 0.02, 0.2);

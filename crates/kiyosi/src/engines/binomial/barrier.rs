@@ -46,7 +46,8 @@ impl CoxRossRubinsteinBarrierEngine {
     /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// fixings. Returns [`Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
+    /// fixings. Returns [`Error::InvalidInput`] outside life, for impossible history,
+    /// outside required curve coverage or above 16,000 steps when rollback is needed.
     /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
     ///
     /// # Examples
@@ -150,6 +151,7 @@ impl CoxRossRubinsteinBarrierEngine {
             return Ok(result);
         }
         context.validate_curve_horizon(option.expiry_time())?;
+        self.settings.validate_rollback()?;
         let time = context.valuation_time();
         let duration = time.micros_until(option.expiry_time());
         let mut observed =

@@ -57,6 +57,7 @@ macro_rules! binomial_engine {
         /// ------
         /// InvalidInputError
         ///     If step_count is outside 1 through 1,000,000.
+        ///     Pricing paths that roll back every tree level also reject counts above 16,000.
         $(#[$doc])*
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
