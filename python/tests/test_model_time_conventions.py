@@ -306,6 +306,66 @@ def test_closed_horizon_keeps_carry_discount_and_continuous_monitoring():
     )
 
 
+@pytest.mark.parametrize("kind", ["bsm", "local"])
+def test_barriers_settle_exact_touches_before_variance_resumes(kind):
+    start = datetime(2026, 11, 14)
+    end = start + timedelta(days=3)
+    clock = {"time_convention": "business", "calendar": weekdays_calendar()}
+    model = bsm(**clock) if kind == "bsm" else local(start, end, **clock)
+    market = context(model, start)
+    terms = {"effective_time": start, "expiry_time": end, "barrier_level": 100.01}
+    barrier = ins.BarrierOption(
+        option_type="call", strike=90, barrier_type="up_and_out", **terms
+    )
+    touch = ins.TouchOption(
+        barrier_type="up_and_in",
+        payoff_type="cash",
+        payout=10,
+        settlement_timing="at_hit",
+        **terms,
+    )
+    hit_time = math.log1p(0.01 / 100) / (0.07 - 0.02)
+    for option, engine, expected in (
+        (barrier, pricing.FiniteDifferenceBarrierEngine(), 0.0),
+        (
+            touch,
+            pricing.FiniteDifferenceBinaryBarrierEngine(),
+            10 * math.exp(-0.07 * hit_time),
+        ),
+    ):
+        saved = engine.solve(option, market, spot_range=(99, 101))
+        assert engine.price(option, market) == pytest.approx(expected, abs=1e-12)
+        assert saved.price(100) == pytest.approx(expected, abs=1e-12)
+
+
+def test_missed_closed_date_fixing_rolls_pending_barrier_to_reopen():
+    start = datetime(2026, 11, 14)
+    sunday, monday, tuesday = [start + timedelta(days=n) for n in (1, 2, 3)]
+    market = context(
+        bsm(time_convention="business", calendar=weekdays_calendar()), start
+    )
+    barrier = ins.BarrierOption(
+        option_type="call",
+        strike=90,
+        effective_time=start,
+        expiry_time=tuesday,
+        barrier_type="up_and_out",
+        barrier_level=100.02,
+        calendar=all_days_calendar(),
+        observation_times=[sunday, tuesday],
+    )
+    engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
+    rolled = market.replace(
+        valuation_time=monday, spot_price=100 * math.exp((0.07 - 0.02) * 2 / 365)
+    )
+    remaining = barrier.replace(observation_times=[tuesday])
+    expected = math.exp(-0.07 * 2 / 365) * engine.price(remaining, rolled)
+    saved = engine.solve(barrier, market, spot_range=(99, 101))
+    assert engine.price(barrier, market) == pytest.approx(expected, abs=1e-12)
+    assert saved.price(100) == pytest.approx(expected, abs=1e-12)
+    assert saved.price(100.01) == 0.0
+
+
 @pytest.mark.parametrize("lower", [0, 0.1])
 def test_implied_volatility_rejects_closed_horizon(lower):
     start = datetime(2026, 11, 14, 12)

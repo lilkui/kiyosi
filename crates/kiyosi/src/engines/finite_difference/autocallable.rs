@@ -1,19 +1,17 @@
-use std::borrow::Cow;
-
 use super::{
     Curve, Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
     diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility,
 };
-use crate::engines::deterministic;
+use crate::engines::deterministic::{self, continuation_context};
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{
     event_times_through, expiry_payment, fixed_value_at, validate,
 };
 use crate::numerics::{scaled_cash, scaled_signed_cash};
-use crate::{AutocallableNote, AutocallableTerms, PricingContextChanges, Timestamp};
+use crate::{AutocallableNote, AutocallableTerms, Timestamp};
 
 impl FiniteDifferenceAutocallableEngine {
     /// Prices remaining snowball or Phoenix cash flows on exact trading and observation dates.
@@ -208,27 +206,6 @@ fn native<T: AutocallableTerms>(
     let upper = grid.as_ref().map(|grid| grid.space.upper);
     let result = AutocallableState { start, grid }.evaluate(note, context, request, shifts)?;
     Ok((result, upper))
-}
-
-fn continuation_context(
-    context: &PricingContext,
-    start: Timestamp,
-) -> Result<(Cow<'_, PricingContext>, f64, f64)> {
-    if start == context.valuation_time() {
-        return Ok((Cow::Borrowed(context), 0.0, 0.0));
-    }
-    let carry = deterministic::log_return(context, start)?;
-    let discount = deterministic::discount(context, start)?;
-    let spot = scaled_cash(context.spot_price(), carry);
-    if !spot.is_finite() || spot <= 0.0 {
-        return Err(super::unstable());
-    }
-    let rolled = context.replace(PricingContextChanges {
-        valuation_time: Some(start),
-        spot_price: Some(spot),
-        ..Default::default()
-    })?;
-    Ok((Cow::Owned(rolled), carry, discount))
 }
 
 #[expect(

@@ -161,6 +161,39 @@ fn european_pde_uses_business_variance_and_natural_day_rates() {
 }
 
 #[test]
+fn continuous_barriers_resolve_before_variance_resumes() -> Result<()> {
+    let start = instant(2026, 11, 14, 0);
+    let expiry = start.add_days(3)?;
+    let clock = ModelTimeConvention::Business(TradingCalendar::weekdays());
+    let model = BlackScholesMertonParameters::new_with_time_convention(0.07, 0.02, 0.3, clock)?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let option = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        90.0,
+        start,
+        expiry,
+        100.01,
+        BarrierType::UpAndOut,
+    ))?;
+    let engine = FiniteDifferenceBarrierEngine::default();
+    assert_eq!(engine.price(&option, &context)?, 0.0);
+    let solution = engine.solve(&option, &context, 99.0..=101.0)?;
+    assert_eq!(solution.price(100.0)?, 0.0);
+    assert!(solution.price(99.0)? > 0.0);
+    assert!(matches!(
+        implied_volatility(
+            &engine,
+            &option,
+            &context,
+            0.0,
+            ImpliedVolatilitySettings::new(0.0, 1.0),
+        ),
+        Err(Error::UnsupportedOperation(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn implied_volatility_rejects_closed_horizon() -> Result<()> {
     let start = instant(2026, 11, 14, 12);
     let end = start.add_days(1)?;

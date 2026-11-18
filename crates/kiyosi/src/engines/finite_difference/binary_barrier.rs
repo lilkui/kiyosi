@@ -1,9 +1,12 @@
+use super::barrier::{evaluate_after_prefix, uses_local_diffusion};
 use super::{
     Curve, Diffusion, FiniteDifferenceBinaryBarrierEngine, FiniteDifferenceDoubleTouchEngine,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionType, Payoff,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, diffusion,
     diffusion_upper, local_volatility, payoff::boundary_value, scaled, step, unstable,
 };
+use crate::Timestamp;
+use crate::engines::deterministic::{self, continuation_context};
 use crate::instruments::binary_barrier::{Contract, Settlement};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::checked;
@@ -25,6 +28,17 @@ macro_rules! binary_pricing {
 
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 local_volatility::validate_model(context)
+            }
+            fn volatility_affects_price(&self, option: &$option, context: &PricingContext) -> bool {
+                let contract = option.contract();
+                contract.volatility_affects_price(context)
+                    && settlement_through_prefix(&contract, context).is_ok_and(|(settlement, _)| {
+                        match settlement {
+                            Settlement::Pending => true,
+                            Settlement::AtExpiry => contract.digital.is_some(),
+                            Settlement::Value(_) => false,
+                        }
+                    })
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 Ok(native(
@@ -89,19 +103,6 @@ fn native(
     if crate::engines::deterministic::enabled_until(context, contract.monitoring.expiry_time())? {
         return PricingResult::new(crate::engines::deterministic::binary(contract, context)?);
     }
-    diffusion::with_diffusion!(context, |diffusion| {
-        native_with_diffusion(contract, context, settings, request, shifts, diffusion)
-    })
-}
-
-fn native_with_diffusion<D: Diffusion>(
-    contract: &Contract<'_>,
-    context: &PricingContext,
-    settings: FiniteDifferenceSettings,
-    request: GreeksRequest,
-    shifts: NumericalShiftSettings,
-    diffusion: D,
-) -> Result<PricingResult> {
     let option = contract.monitoring;
     validate_life(option, context)?;
     let spot = context.spot_price();
@@ -113,14 +114,15 @@ fn native_with_diffusion<D: Diffusion>(
         }
     };
     let expiry = option.expiry_time();
-    match contract.settlement(context)? {
+    let (settlement, end) = settlement_through_prefix(contract, context)?;
+    match settlement {
         Settlement::Value(value) => return PricingResult::new(value),
         Settlement::AtExpiry => {
             if context.valuation_time() == expiry {
                 return PricingResult::new(terminal(spot));
             }
             let value = if let Some(digital) = contract.digital {
-                if D::LOCAL {
+                if uses_local_diffusion(context) {
                     let h =
                         crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
                     let request = if option.spot_discontinuity(context, h, contract.upper_barrier) {
@@ -156,8 +158,37 @@ fn native_with_diffusion<D: Diffusion>(
         }
         Settlement::Pending => {}
     }
-    let saved = solve_grid(contract, context, settings, diffusion)?;
-    saved.evaluate(contract, context, request, shifts)
+    evaluate_after_prefix(
+        context,
+        end,
+        request,
+        shifts,
+        |radius| option.spot_discontinuity(context, radius, contract.upper_barrier),
+        |context, request, shifts| {
+            let grid = diffusion::with_diffusion!(context, |diffusion| solve_grid(
+                contract, context, settings, diffusion
+            ))?;
+            grid.evaluate(contract, context, request, shifts)
+        },
+    )
+}
+
+fn settlement_through_prefix(
+    contract: &Contract<'_>,
+    context: &PricingContext,
+) -> Result<(Settlement, Timestamp)> {
+    let prefix =
+        deterministic::barrier_prefix(contract.monitoring, contract.upper_barrier, context)?;
+    let spot = prefix
+        .hit
+        .as_ref()
+        .map_or(context.spot_price(), |hit| hit.spot);
+    let mut settlement =
+        contract.settlement_with_state((prefix.prior, prefix.touched, prefix.finished), spot);
+    if let (Settlement::Value(value), Some(hit)) = (&mut settlement, prefix.hit) {
+        *value = scaled(*value, hit.log_discount);
+    }
+    Ok((settlement, prefix.end))
 }
 
 fn solve_grid<D: Diffusion>(
@@ -580,7 +611,8 @@ impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
         {
             return PricingResult::new(crate::engines::deterministic::binary(&contract, context)?);
         }
-        match contract.settlement(context)? {
+        let (settlement, end) = settlement_through_prefix(&contract, context)?;
+        match settlement {
             Settlement::Value(value) => PricingResult::new(value),
             Settlement::AtExpiry => {
                 if context.valuation_time() == contract.monitoring.expiry_time() {
@@ -621,11 +653,23 @@ impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
                         .log_factor(context.valuation_time(), contract.monitoring.expiry_time())?,
                 ))?)
             }
-            Settlement::Pending => self
-                .grid
-                .as_ref()
-                .ok_or_else(unstable)?
-                .evaluate(&contract, context, request, shifts),
+            Settlement::Pending => evaluate_after_prefix(
+                context,
+                end,
+                request,
+                shifts,
+                |radius| {
+                    contract
+                        .monitoring
+                        .spot_discontinuity(context, radius, contract.upper_barrier)
+                },
+                |context, request, shifts| {
+                    self.grid
+                        .as_ref()
+                        .ok_or_else(unstable)?
+                        .evaluate(&contract, context, request, shifts)
+                },
+            ),
         }
     }
 }
@@ -642,25 +686,21 @@ fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'sta
     let contract = option.saved_contract();
     let anchor = super::solution::at_spot(context, *range.end())?;
     validate_life(contract.monitoring, &anchor)?;
-    let mut pending = false;
+    let mut pending = None;
     let mut digital = false;
-    let local = local_volatility::local_model(context).is_some()
-        || context
-            .model_parameters()
-            .time_convention()
-            .calendar()
-            .is_some();
-    let levels = [
-        contract.monitoring.barrier_level(),
-        contract
-            .upper_barrier
-            .unwrap_or(contract.monitoring.barrier_level()),
-        contract.digital.map_or(0.0, DigitalOption::strike),
-    ];
+    let local = uses_local_diffusion(context);
+    let mut levels = deterministic::barrier_probe_levels(
+        contract.monitoring,
+        contract.upper_barrier,
+        context,
+        &range,
+    )?;
+    levels.extend(contract.digital.map(DigitalOption::strike));
     for spot in super::solution::probes(&range, levels) {
         let probe = super::solution::at_spot(context, spot)?;
-        match contract.settlement(&probe)? {
-            Settlement::Pending => pending = true,
+        let (settlement, end) = settlement_through_prefix(&contract, &probe)?;
+        match settlement {
+            Settlement::Pending => pending = Some(end),
             Settlement::AtExpiry => {
                 digital |= local
                     && contract.digital.is_some()
@@ -681,23 +721,25 @@ fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'sta
     } else {
         None
     };
-    let grid = if pending
-        && !crate::engines::deterministic::enabled_until(
-            context,
-            contract.monitoring.expiry_time(),
-        )? {
-        if contract.monitoring.observation_mode() != ObservationMode::Scheduled
-            && (contract.monitoring.barrier_type().is_up() || contract.upper_barrier.is_some())
-            && !(local
-                && contract.monitoring.barrier_type().is_knock_in()
-                && contract.digital.is_some())
+    let grid = if let Some(end) = pending {
+        if crate::engines::deterministic::enabled_until(context, contract.monitoring.expiry_time())?
         {
-            settings.asset_upper_boundary = None;
+            None
+        } else {
+            if contract.monitoring.observation_mode() != ObservationMode::Scheduled
+                && (contract.monitoring.barrier_type().is_up() || contract.upper_barrier.is_some())
+                && !(local
+                    && contract.monitoring.barrier_type().is_knock_in()
+                    && contract.digital.is_some())
+            {
+                settings.asset_upper_boundary = None;
+            }
+            let (rolled, _, _) = continuation_context(&anchor, end)?;
+            let rolled = rolled.as_ref();
+            Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
+                &contract, rolled, settings, diffusion
+            ))?)
         }
-        let anchor = &anchor;
-        Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
-            &contract, anchor, settings, diffusion
-        ))?)
     } else {
         None
     };

@@ -433,21 +433,28 @@ pub(crate) enum Settlement {
 
 impl Contract<'_> {
     pub(crate) fn settlement(&self, context: &PricingContext) -> Result<Settlement> {
-        let (prior, touched, finished) = self.state(context)?;
+        Ok(self.settlement_with_state(self.state(context)?, context.spot_price()))
+    }
+
+    pub(crate) fn settlement_with_state(
+        &self,
+        (prior, touched, finished): (bool, bool, bool),
+        spot: f64,
+    ) -> Settlement {
         let at_hit = self.timing == SettlementTiming::AtHit;
         if prior && at_hit {
-            return Ok(Settlement::Value(0.0));
+            return Settlement::Value(0.0);
         }
         if !touched && !finished {
-            return Ok(Settlement::Pending);
+            return Settlement::Pending;
         }
-        Ok(if touched != self.monitoring.barrier_type().is_knock_in() {
+        if touched != self.monitoring.barrier_type().is_knock_in() {
             Settlement::Value(0.0)
         } else if at_hit {
-            Settlement::Value(self.payout.unwrap_or(context.spot_price()))
+            Settlement::Value(self.payout.unwrap_or(spot))
         } else {
             Settlement::AtExpiry
-        })
+        }
     }
 
     pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {

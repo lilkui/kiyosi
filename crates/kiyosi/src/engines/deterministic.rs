@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use super::{Payoff, curve::Curve};
 use crate::instruments::autocallable::pricing::{Initial, event_times_through, initial, validate};
 use crate::instruments::{
@@ -9,8 +11,8 @@ use crate::numerics::{
 };
 use crate::{
     Accumulator, AutocallableNote, AutocallableTerms, BarrierOption, DoubleBarrierOption, Error,
-    ModelParameters, ObservationMode, OptionContract, PricingContext, RebateTiming, Result,
-    SettlementTiming, Timestamp,
+    ModelParameters, ObservationMode, OptionContract, PricingContext, PricingContextChanges,
+    RebateTiming, Result, SettlementTiming, Timestamp,
 };
 
 pub(super) fn enabled(context: &PricingContext) -> bool {
@@ -187,54 +189,141 @@ pub(super) fn discount(context: &PricingContext, time: Timestamp) -> Result<f64>
         .log_factor(context.valuation_time(), time)
 }
 
-struct Touch {
-    spot: f64,
-    log_discount: f64,
+pub(super) fn continuation_context(
+    context: &PricingContext,
+    start: Timestamp,
+) -> Result<(Cow<'_, PricingContext>, f64, f64)> {
+    if start == context.valuation_time() {
+        return Ok((Cow::Borrowed(context), 0.0, 0.0));
+    }
+    let carry = log_return(context, start)?;
+    let discount = discount(context, start)?;
+    let spot = scaled_cash(context.spot_price(), carry);
+    if !spot.is_finite() || spot <= 0.0 {
+        return Err(invalid());
+    }
+    let rolled = context.replace(PricingContextChanges {
+        valuation_time: Some(start),
+        spot_price: Some(spot),
+        ..Default::default()
+    })?;
+    Ok((Cow::Owned(rolled), carry, discount))
 }
 
-fn first_touch(
+pub(super) struct Touch {
+    pub spot: f64,
+    pub log_discount: f64,
+}
+
+pub(super) struct BarrierPrefix {
+    pub prior: bool,
+    pub touched: bool,
+    pub finished: bool,
+    pub hit: Option<Touch>,
+    pub end: Timestamp,
+}
+
+fn monitoring_end(monitoring: &Monitoring) -> Timestamp {
+    monitoring
+        .observation_times()
+        .last()
+        .copied()
+        .unwrap_or(monitoring.expiry_time())
+}
+
+fn monitoring_prefix_end(monitoring: &Monitoring, context: &PricingContext) -> Result<Timestamp> {
+    let start = context.valuation_time();
+    context
+        .model_parameters()
+        .time_convention()
+        .variance_start(start, monitoring_end(monitoring))
+        .map(|end| end.max(start))
+}
+
+pub(super) fn barrier_prefix(
     monitoring: &Monitoring,
     upper: Option<f64>,
     context: &PricingContext,
-) -> Result<Option<Touch>> {
-    let initial = context.spot_price();
-    let lower = log_ratio(monitoring.barrier_level(), initial);
-    let upper_log = upper.map(|level| log_ratio(level, initial));
-    let hit = |x: f64| {
-        if monitoring.barrier_type().is_up() {
-            x >= lower
-        } else {
-            x <= lower || upper_log.is_some_and(|upper| x >= upper)
+) -> Result<BarrierPrefix> {
+    let (prior, touched, finished) = monitoring.state(context, upper)?;
+    let mut prefix = BarrierPrefix {
+        prior,
+        touched,
+        finished,
+        hit: None,
+        end: context.valuation_time(),
+    };
+    if !touched && !finished {
+        prefix.end = monitoring_prefix_end(monitoring, context)?;
+        if prefix.end > context.valuation_time() {
+            prefix.hit = first_touch(monitoring, upper, context, prefix.end)?;
+            prefix.touched = prefix.hit.is_some();
+            prefix.finished = prefix.end == monitoring_end(monitoring);
         }
-    };
+    }
+    Ok(prefix)
+}
+
+pub(super) fn barrier_probe_levels(
+    monitoring: &Monitoring,
+    upper: Option<f64>,
+    context: &PricingContext,
+    range: &std::ops::RangeInclusive<f64>,
+) -> Result<Vec<f64>> {
+    let level = monitoring.barrier_level();
+    let mut levels = vec![level];
+    levels.extend(upper);
     let start = context.valuation_time();
-    let model = context.model_parameters();
-    let mut previous = start;
-    let (mut risk_log, mut dividend_log) = (0.0, 0.0);
-    let mut advance = |time| -> Result<(f64, f64)> {
-        crate::cancellation::check()?;
-        risk_log = finite(risk_log + model.risk_free_curve().log_factor(previous, time)?)?;
-        dividend_log = finite(dividend_log + model.dividend_curve().log_factor(previous, time)?)?;
-        previous = time;
-        Ok((finite(dividend_log - risk_log)?, risk_log))
+    if monitoring.prior(start)? {
+        return Ok(levels);
+    }
+    let up = monitoring.barrier_type().is_up();
+    if monitoring.monitored(start)
+        && (up && *range.start() >= level
+            || !up && *range.end() <= level
+            || upper.is_some_and(|upper| *range.start() >= upper))
+    {
+        return Ok(levels);
+    }
+    let end = monitoring_prefix_end(monitoring, context)?;
+    if end <= start {
+        return Ok(levels);
+    }
+    let knots;
+    let times = if monitoring.continuous() {
+        knots = continuous_knots(context, end);
+        &knots
+    } else {
+        monitoring.observation_times()
     };
-    if monitoring.observation_mode() == ObservationMode::Scheduled {
-        for &time in monitoring
-            .observation_times()
-            .iter()
-            .filter(|&&time| time > start)
-        {
-            let (value, log_discount) = advance(time)?;
-            if hit(value) {
-                return Ok(Some(Touch {
-                    spot: spot(context, time)?,
-                    log_discount,
-                }));
+    let mut forward_to = forward_factors(context);
+    let mut lower = 0.0_f64;
+    let mut higher = f64::INFINITY;
+    for &time in times
+        .iter()
+        .skip_while(|&&time| time <= start)
+        .take_while(|&&time| time <= end)
+    {
+        let (carry, _) = forward_to(time)?;
+        if up {
+            higher = higher.min(scaled_cash(level, -carry));
+        } else {
+            lower = lower.max(scaled_cash(level, -carry));
+            if let Some(upper) = upper {
+                higher = higher.min(scaled_cash(upper, -carry));
             }
         }
-        return Ok(None);
+        if lower >= *range.end() || higher <= *range.start() || lower >= higher {
+            break;
+        }
     }
-    let end = monitoring.expiry_time();
+    levels.extend([lower, higher]);
+    Ok(levels)
+}
+
+fn continuous_knots(context: &PricingContext, end: Timestamp) -> Vec<Timestamp> {
+    let start = context.valuation_time();
+    let model = context.model_parameters();
     let mut times = vec![start, end];
     for curve in [model.risk_free_curve(), model.dividend_curve()] {
         times.extend(
@@ -248,6 +337,58 @@ fn first_touch(
     }
     times.sort_unstable();
     times.dedup();
+    times
+}
+
+fn forward_factors(context: &PricingContext) -> impl FnMut(Timestamp) -> Result<(f64, f64)> + '_ {
+    let model = context.model_parameters();
+    let mut previous = context.valuation_time();
+    let (mut risk_log, mut dividend_log) = (0.0, 0.0);
+    move |time| {
+        crate::cancellation::check()?;
+        risk_log = finite(risk_log + model.risk_free_curve().log_factor(previous, time)?)?;
+        dividend_log = finite(dividend_log + model.dividend_curve().log_factor(previous, time)?)?;
+        previous = time;
+        Ok((finite(dividend_log - risk_log)?, risk_log))
+    }
+}
+
+fn first_touch(
+    monitoring: &Monitoring,
+    upper: Option<f64>,
+    context: &PricingContext,
+    end: Timestamp,
+) -> Result<Option<Touch>> {
+    let initial = context.spot_price();
+    let lower = log_ratio(monitoring.barrier_level(), initial);
+    let upper_log = upper.map(|level| log_ratio(level, initial));
+    let hit = |x: f64| {
+        if monitoring.barrier_type().is_up() {
+            x >= lower
+        } else {
+            x <= lower || upper_log.is_some_and(|upper| x >= upper)
+        }
+    };
+    let start = context.valuation_time();
+    let mut advance = forward_factors(context);
+    if monitoring.observation_mode() == ObservationMode::Scheduled {
+        for &time in monitoring
+            .observation_times()
+            .iter()
+            .skip_while(|&&time| time <= start)
+            .take_while(|&&time| time <= end)
+        {
+            let (value, log_discount) = advance(time)?;
+            if hit(value) {
+                return Ok(Some(Touch {
+                    spot: spot(context, time)?,
+                    log_discount,
+                }));
+            }
+        }
+        return Ok(None);
+    }
+    let times = continuous_knots(context, end);
     for pair in times.windows(2) {
         let (x, a) = advance(pair[0])?;
         if hit(x) {
@@ -297,7 +438,7 @@ pub(super) fn barrier_value(
     upper: Option<f64>,
     context: &PricingContext,
 ) -> Result<f64> {
-    let touch = first_touch(&option.monitoring, upper, context)?;
+    let touch = first_touch(&option.monitoring, upper, context, option.expiry_time())?;
     if touch.is_some() == option.barrier_type().is_knock_in() {
         let vanilla = option.vanilla();
         return self::vanilla(
@@ -325,7 +466,12 @@ pub(super) fn binary(contract: &Contract<'_>, context: &PricingContext) -> Resul
         Settlement::Value(value) => return checked(scaled_cash(value, 0.0)),
         Settlement::AtExpiry => {}
         Settlement::Pending => {
-            let touch = first_touch(monitoring, contract.upper_barrier, context)?;
+            let touch = first_touch(
+                monitoring,
+                contract.upper_barrier,
+                context,
+                monitoring.expiry_time(),
+            )?;
             if touch.is_some() != monitoring.barrier_type().is_knock_in() {
                 return Ok(0.0);
             }

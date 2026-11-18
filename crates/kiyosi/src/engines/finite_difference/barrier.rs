@@ -6,8 +6,10 @@ use super::{
     scaled, step,
 };
 use crate::engines::analytic::barrier::resolved_price;
+use crate::engines::deterministic::{self, BarrierPrefix, continuation_context};
 use crate::instruments::monitoring::validate_life;
-use crate::{BarrierOption, DoubleBarrierOption, ObservationMode, RebateTiming};
+use crate::numerics::scaled_signed_cash;
+use crate::{BarrierOption, DoubleBarrierOption, ObservationMode, RebateTiming, Timestamp};
 
 impl FiniteDifferenceBarrierEngine {
     /// Prices a single barrier with continuous or scheduled monitoring and flat or nonconstant rate curves.
@@ -90,6 +92,9 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
+    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
+        volatility_affects_price(option, context)
+    }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
@@ -111,7 +116,6 @@ trait Contract: OptionContract {
         None
     }
     fn resolved_price(&self, context: &PricingContext) -> Result<Option<f64>>;
-    fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)>;
     fn payoff_requires_touch(&self) -> bool;
 }
 impl Contract for BarrierOption {
@@ -120,9 +124,6 @@ impl Contract for BarrierOption {
     }
     fn resolved_price(&self, context: &PricingContext) -> Result<Option<f64>> {
         resolved_price(self, context)
-    }
-    fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
-        self.state(context)
     }
     fn payoff_requires_touch(&self) -> bool {
         self.payoff_requires_touch()
@@ -137,9 +138,6 @@ impl Contract for DoubleBarrierOption {
     }
     fn resolved_price(&self, context: &PricingContext) -> Result<Option<f64>> {
         crate::engines::analytic::double_barrier::resolved_price(self, context)
-    }
-    fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
-        self.state(context)
     }
     fn payoff_requires_touch(&self) -> bool {
         self.payoff_requires_touch()
@@ -238,6 +236,13 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
+    fn volatility_affects_price(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+    ) -> bool {
+        volatility_affects_price(option, context)
+    }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
@@ -259,6 +264,16 @@ fn default_upper(option: &impl Contract, context: &PricingContext) -> f64 {
     (4.0 * relevant).max(option.upper_barrier().unwrap_or(terms.barrier_level()) + relevant)
 }
 
+fn volatility_affects_price(option: &impl Contract, context: &PricingContext) -> bool {
+    let terms = option.monitoring();
+    option.volatility_affects_price(context)
+        && deterministic::barrier_prefix(&terms.monitoring, option.upper_barrier(), context)
+            .is_ok_and(|prefix| {
+                let knock_in = terms.barrier_type().is_knock_in();
+                !(prefix.touched && !knock_in || !prefix.touched && prefix.finished && knock_in)
+            })
+}
+
 fn native_barrier(
     option: &impl Contract,
     context: &PricingContext,
@@ -278,42 +293,117 @@ fn native_barrier(
             context,
         )?);
     }
-    diffusion::with_diffusion!(context, |diffusion| {
-        native_with_model(option, context, settings, request, shifts, diffusion)
-    })
+    let terms = option.monitoring();
+    validate_life(terms, context)?;
+    let mut end = context.valuation_time();
+    if uses_local_diffusion(context) {
+        let prefix =
+            deterministic::barrier_prefix(&terms.monitoring, option.upper_barrier(), context)?;
+        if let Some(result) =
+            local_resolved_with(option, context, &prefix, request, shifts, |request| {
+                Ok(super::native(
+                    terms.vanilla(),
+                    Payoff::vanilla(terms.option_type(), terms.strike(), false),
+                    context,
+                    settings,
+                    request,
+                    shifts,
+                    false,
+                )?
+                .0)
+            })?
+        {
+            return Ok(result);
+        }
+        end = prefix.end;
+    } else if let Some(value) = option.resolved_price(context)? {
+        return PricingResult::new(value);
+    }
+    evaluate_after_prefix(
+        context,
+        end,
+        request,
+        shifts,
+        |radius| option.at_spot_discontinuity(context, radius),
+        |context, request, shifts| {
+            let grid = diffusion::with_diffusion!(context, |diffusion| solve_grid(
+                option, context, settings, diffusion
+            ))?;
+            grid.evaluate(option, context, request, shifts)
+        },
+    )
 }
 
-fn local_resolved(
-    option: &impl Contract,
+pub(super) fn uses_local_diffusion(context: &PricingContext) -> bool {
+    local_volatility::local_model(context).is_some()
+        || context
+            .model_parameters()
+            .time_convention()
+            .calendar()
+            .is_some()
+}
+
+pub(super) fn evaluate_after_prefix(
     context: &PricingContext,
-    settings: FiniteDifferenceSettings,
+    end: Timestamp,
     request: GreeksRequest,
-    shifts: NumericalShiftSettings,
-) -> Result<Option<PricingResult>> {
-    local_resolved_with(option, context, request, shifts, |request| {
-        let terms = option.monitoring();
-        Ok(super::native(
-            terms.vanilla(),
-            Payoff::vanilla(terms.option_type(), terms.strike(), false),
-            context,
-            settings,
-            request,
-            shifts,
-            false,
-        )?
-        .0)
-    })
+    mut shifts: NumericalShiftSettings,
+    discontinuity: impl FnOnce(f64) -> bool,
+    evaluate: impl FnOnce(
+        &PricingContext,
+        GreeksRequest,
+        NumericalShiftSettings,
+    ) -> Result<PricingResult>,
+) -> Result<PricingResult> {
+    if end == context.valuation_time() {
+        return evaluate(context, request, shifts);
+    }
+    let (rolled, carry, discount) = continuation_context(context, end)?;
+    let spot = context.spot_price();
+    let request = if request != GreeksRequest::new([])
+        && discontinuity(crate::risk::numerical::symmetric_shift(
+            spot,
+            shifts.spot_shift_at(spot),
+        )) {
+        GreeksRequest::new([])
+    } else {
+        request
+    };
+    shifts.spot_shift = Some(scaled(shifts.spot_shift_at(spot), carry));
+    let rolled = evaluate(&rolled, request, shifts)?;
+    let mut result = PricingResult::new(scaled(rolled.price(), discount))?;
+    for (greek, order) in [
+        (Greek::Delta, 1.0),
+        (Greek::Gamma, 2.0),
+        (Greek::Speed, 3.0),
+    ] {
+        if let Some(value) = rolled.get(greek) {
+            result.set(
+                request,
+                greek,
+                scaled_signed_cash(value, discount + order * carry),
+            )?;
+        }
+    }
+    Ok(result)
 }
 
 fn local_resolved_with(
     option: &impl Contract,
     context: &PricingContext,
+    prefix: &BarrierPrefix,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
     vanilla: impl FnOnce(GreeksRequest) -> Result<PricingResult>,
 ) -> Result<Option<PricingResult>> {
     let terms = option.monitoring();
-    let (prior, touched, finished) = option.state(context)?;
+    let BarrierPrefix {
+        prior,
+        touched,
+        finished,
+        hit,
+        ..
+    } = prefix;
     let knock_in = terms.barrier_type().is_knock_in();
     let cash = || {
         if terms.rebate() == 0.0 {
@@ -327,21 +417,29 @@ fn local_resolved_with(
                 .log_factor(context.valuation_time(), terms.expiry_time())?,
         ))
     };
-    if touched && !knock_in {
+    if *touched && !knock_in {
         return if terms.rebate_timing() == RebateTiming::AtHit {
-            PricingResult::new(if prior { 0.0 } else { terms.rebate() }).map(Some)
+            PricingResult::new(if *prior {
+                0.0
+            } else {
+                scaled(
+                    terms.rebate(),
+                    hit.as_ref().map_or(0.0, |hit| hit.log_discount),
+                )
+            })
+            .map(Some)
         } else {
             PricingResult::new(cash()?).map(Some)
         };
     }
-    if !touched && finished && knock_in {
+    if !touched && *finished && knock_in {
         return PricingResult::new(cash()?).map(Some);
     }
     let fixed = terms.rebate() == 0.0 && option.payoff_requires_touch();
     if fixed && !knock_in {
         return PricingResult::new(0.0).map(Some);
     }
-    if touched || finished || fixed {
+    if *touched || *finished || fixed {
         let h = crate::risk::numerical::symmetric_shift(
             context.spot_price(),
             shifts.spot_shift_at(context.spot_price()),
@@ -355,27 +453,6 @@ fn local_resolved_with(
         return vanilla(request).map(Some);
     }
     Ok(None)
-}
-
-fn native_with_model<D: Diffusion>(
-    option: &impl Contract,
-    context: &PricingContext,
-    settings: FiniteDifferenceSettings,
-    request: GreeksRequest,
-    shifts: NumericalShiftSettings,
-    volatility: D,
-) -> Result<PricingResult> {
-    let terms = option.monitoring();
-    validate_life(terms, context)?;
-    if D::LOCAL {
-        if let Some(result) = local_resolved(option, context, settings, request, shifts)? {
-            return Ok(result);
-        }
-    } else if let Some(value) = option.resolved_price(context)? {
-        return PricingResult::new(value);
-    }
-    let saved = solve_grid(option, context, settings, volatility)?;
-    saved.evaluate(option, context, request, shifts)
 }
 
 fn solve_grid<D: Diffusion>(
@@ -786,15 +863,15 @@ impl<I: Contract> super::solution::Backend<I> for BarrierState {
                 context,
             )?);
         }
-        if local_volatility::local_model(context).is_some()
-            || context
-                .model_parameters()
-                .time_convention()
-                .calendar()
-                .is_some()
-        {
+        let mut end = context.valuation_time();
+        if uses_local_diffusion(context) {
+            let prefix = deterministic::barrier_prefix(
+                &option.monitoring().monitoring,
+                option.upper_barrier(),
+                context,
+            )?;
             if let Some(result) =
-                local_resolved_with(option, context, request, shifts, |request| {
+                local_resolved_with(option, context, &prefix, request, shifts, |request| {
                     let state = self.vanilla.as_ref().ok_or_else(super::unstable)?;
                     super::solution::Backend::evaluate(
                         state,
@@ -807,13 +884,23 @@ impl<I: Contract> super::solution::Backend<I> for BarrierState {
             {
                 return Ok(result);
             }
+            end = prefix.end;
         } else if let Some(value) = option.resolved_price(context)? {
             return PricingResult::new(value);
         }
-        self.grid
-            .as_ref()
-            .ok_or_else(super::unstable)?
-            .evaluate(option, context, request, shifts)
+        evaluate_after_prefix(
+            context,
+            end,
+            request,
+            shifts,
+            |radius| option.at_spot_discontinuity(context, radius),
+            |context, request, shifts| {
+                self.grid
+                    .as_ref()
+                    .ok_or_else(super::unstable)?
+                    .evaluate(option, context, request, shifts)
+            },
+        )
     }
 }
 
@@ -829,30 +916,28 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
     let anchor = super::solution::at_spot(context, *range.end())?;
     validate_life(option, &anchor)?;
     let terms = option.monitoring();
-    let local = local_volatility::local_model(context).is_some()
-        || context
-            .model_parameters()
-            .time_convention()
-            .calendar()
-            .is_some();
-    let mut pending = false;
+    let local = uses_local_diffusion(context);
+    let mut pending = None;
     let mut vanilla = false;
-    for spot in super::solution::probes(
+    let levels = deterministic::barrier_probe_levels(
+        &terms.monitoring,
+        option.upper_barrier(),
+        context,
         &range,
-        [
-            terms.barrier_level(),
-            option.upper_barrier().unwrap_or(terms.barrier_level()),
-        ],
-    ) {
+    )?;
+    for spot in super::solution::probes(&range, levels) {
         let probe = super::solution::at_spot(context, spot)?;
-        let (_, touched, finished) = option.state(&probe)?;
         if local {
+            let prefix =
+                deterministic::barrier_prefix(&terms.monitoring, option.upper_barrier(), &probe)?;
+            let (touched, finished) = (prefix.touched, prefix.finished);
             let knock_in = terms.barrier_type().is_knock_in();
             let fixed = terms.rebate() == 0.0 && option.payoff_requires_touch();
             if touched && !knock_in || !touched && finished && knock_in || fixed && !knock_in {
                 local_resolved_with(
                     option,
                     &probe,
+                    &prefix,
                     GreeksRequest::new([]),
                     Default::default(),
                     |_| Err(super::unstable()),
@@ -860,10 +945,10 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
             } else if touched || finished || fixed {
                 vanilla = true;
             } else {
-                pending = true;
+                pending = Some(prefix.end);
             }
-        } else {
-            pending |= option.resolved_price(&probe)?.is_none();
+        } else if option.resolved_price(&probe)?.is_none() {
+            pending = Some(context.valuation_time());
         }
     }
     let continuation = if vanilla {
@@ -877,21 +962,23 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
     } else {
         None
     };
-    let grid = if pending
-        && !crate::engines::deterministic::enabled_until(
-            context,
-            option.monitoring().expiry_time(),
-        )? {
-        if terms.observation_mode() != ObservationMode::Scheduled
-            && (terms.barrier_type().is_up() || option.upper_barrier().is_some())
-            && !(local && terms.barrier_type().is_knock_in())
+    let grid = if let Some(end) = pending {
+        if crate::engines::deterministic::enabled_until(context, option.monitoring().expiry_time())?
         {
-            settings.asset_upper_boundary = None;
+            None
+        } else {
+            if terms.observation_mode() != ObservationMode::Scheduled
+                && (terms.barrier_type().is_up() || option.upper_barrier().is_some())
+                && !(local && terms.barrier_type().is_knock_in())
+            {
+                settings.asset_upper_boundary = None;
+            }
+            let (rolled, _, _) = continuation_context(&anchor, end)?;
+            let rolled = rolled.as_ref();
+            Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
+                option, rolled, settings, diffusion
+            ))?)
         }
-        let anchor = &anchor;
-        Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
-            option, anchor, settings, diffusion
-        ))?)
     } else {
         None
     };

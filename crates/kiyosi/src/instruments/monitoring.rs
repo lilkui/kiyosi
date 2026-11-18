@@ -167,21 +167,23 @@ impl Monitoring {
         radius: f64,
         upper: Option<f64>,
     ) -> bool {
-        let Ok(model) = context.model_parameters().as_bsm() else {
+        let start = context.valuation_time();
+        let Ok(end) = context.deterministic_until(self.expiry_time()) else {
             return false;
         };
-        if model.volatility() != 0.0 {
+        if end <= start {
             return false;
         }
+        let model = context.model_parameters();
         let crosses = |time| {
-            time >= context.valuation_time()
-                && time <= self.expiry_time()
+            time >= start
+                && time <= end
                 && (context.deterministic_crosses(time, self.barrier_level(), radius)
                     || upper
                         .is_some_and(|level| context.deterministic_crosses(time, level, radius)))
         };
         if self.continuous() {
-            [context.valuation_time(), self.expiry_time()]
+            [start, end]
                 .into_iter()
                 .chain(
                     [model.risk_free_curve(), model.dividend_curve()]
@@ -190,7 +192,12 @@ impl Monitoring {
                 )
                 .any(crosses)
         } else {
-            self.observation_times().iter().copied().any(crosses)
+            let times = self.observation_times();
+            times[times.partition_point(|&time| time <= start)..]
+                .iter()
+                .copied()
+                .take_while(|&time| time <= end)
+                .any(crosses)
         }
     }
 
