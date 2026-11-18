@@ -126,8 +126,9 @@ pub(crate) fn expiry_greeks(
 /// at the valuation, such as a terminal payoff kink or zero-volatility boundary,
 /// retains [`crate::GreekStatus::Undefined`].
 /// Time rolls stay within permitted valuation dates, curve coverage and neighboring knots, with
-/// right-hand differences at knots. Automatic time bumps start at one day and are halved
-/// until their stencil avoids observations, down to one microsecond. Explicit time bumps
+/// right-hand differences at knots. Automatic time bumps start at one day, are capped at one
+/// eighth of the remaining life, and are halved until their stencil avoids observations,
+/// down to one microsecond. Explicit time bumps
 /// are not shortened for observations. Feasible bumped pricing errors fail the request.
 /// Returns unscaled partial derivatives in the units documented by [`Greek`].
 /// Volatility and rates use decimals; valuation time uses Actual/365 Fixed years.
@@ -249,6 +250,10 @@ fn time_stencil(
     let mut shift = settings
         .time_shift_micros()?
         .min(lower.micros_until(upper).max(0));
+    if settings.time_shift.is_none() {
+        // Near expiry the price is far from linear in time, so keep the stencil away from it.
+        shift = shift.min((time.micros_until(option.expiry_time()) / 8).max(1));
+    }
     if before_width > 0 && after_width > 0 {
         shift = shift.min(before_width).min(after_width);
     }

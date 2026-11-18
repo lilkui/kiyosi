@@ -398,7 +398,8 @@ pub struct NumericalShiftSettings {
     pub rate_shift: f64,
     /// Sets a positive time bump in whole microseconds, or `None` for automatic selection.
     ///
-    /// Automatic selection starts at one day and shortens the bump to avoid observations.
+    /// Automatic selection starts at one day, keeps the bump within one eighth of the
+    /// remaining life, and shortens it to avoid observations.
     /// Explicit bumps retain their size within life and curve bounds.
     /// See [`crate::numerical_greeks`] for convergence checks.
     pub time_shift: Option<std::time::Duration>,

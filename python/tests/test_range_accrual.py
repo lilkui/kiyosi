@@ -585,7 +585,12 @@ def test_weekend_calendar_full_term_and_zero_coupon():
         market(dividend=short_curve),
     )
     weekend = market(datetime(2025, 1, 4, 12))
-    result = engine.price_with_greeks(option, weekend, ["theta", "charm", "color"])
+    result = engine.price_with_greeks(
+        option,
+        weekend,
+        ["theta", "charm", "color"],
+        time_shift=timedelta(days=1),
+    )
     before = market(datetime(2025, 1, 3, 12))
     after = market(datetime(2025, 1, 5, 12))
     assert result.theta == pytest.approx(
@@ -765,6 +770,7 @@ def test_smoothed_greeks_against_independent_reference(subtests):
             context,
             greeks="all",
             spot_shift=0.1,
+            time_shift=timedelta(days=1),
         )
 
         def price(
@@ -848,7 +854,9 @@ def test_curve_knot_uses_right_hand_time_greek_between_observations():
     )
     context = market(valuation, rate=rate)
     after = market(valuation + timedelta(days=1), rate=rate)
-    result = AnalyticRangeAccrualEngine().price_with_greeks(option, context, "theta")
+    result = AnalyticRangeAccrualEngine().price_with_greeks(
+        option, context, "theta", time_shift=timedelta(days=1)
+    )
     assert result.theta == pytest.approx(
         (reference(option, after) - reference(option, context)) * 365,
         rel=0,

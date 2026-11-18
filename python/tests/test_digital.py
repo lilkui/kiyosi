@@ -630,7 +630,9 @@ def test_expiry_reaching_time_stencils_use_scalar_derivatives_on_both_sides(
     differences = importlib.import_module("price_differences").price_differences
     context = base_context.replace(spot_price=1, valuation_time=datetime(2025, 12, 31))
     for option in make_options(option_type=direction, strike=1):
-        actual = base_engine.price_with_greeks(option, context, ["charm", "color"])
+        actual = base_engine.price_with_greeks(
+            option, context, ["charm", "color"], time_shift=timedelta(days=1)
+        )
         expected = differences(base_engine, option, context, ["charm", "color"])
         assert actual.charm == pytest.approx(expected.charm, rel=0, abs=3.65e-7)
         assert actual.color == pytest.approx(expected.color, rel=0, abs=0.0000365)

@@ -108,6 +108,31 @@ def test_greeks_and_volatility_recovery(base_context, base_engine, base_option):
     ) == pytest.approx(0.2, rel=0, abs=1e-8)
 
 
+def test_automatic_time_stencil_stays_clear_of_expiry(subtests):
+    start = datetime(2025, 1, 1)
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=1.0
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    option = EuropeanOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        expiry_time=start + timedelta(days=1),
+    )
+    engine = AnalyticEuropeanEngine()
+    native = engine.price_with_greeks(option, context, ["theta", "charm", "color"])
+    numerical = numerical_greeks(engine, option, context, ["theta", "charm", "color"])
+    for name in ("theta", "charm", "color"):
+        with subtests.test(greek=name):
+            assert getattr(numerical, name) == pytest.approx(
+                getattr(native, name), rel=0.05
+            )
+
+
 def test_all_selection_matches_explicit_greek_names(
     base_context, base_engine, base_option, subtests
 ):

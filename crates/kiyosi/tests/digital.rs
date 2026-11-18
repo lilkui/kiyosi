@@ -742,8 +742,12 @@ fn expiry_reaching_time_stencils_use_paired_scalar_fallback() {
         })
         .unwrap();
     let request = GreeksRequest::new([Greek::Charm, Greek::Color]);
+    let shifts = NumericalShiftSettings {
+        time_shift: Some(std::time::Duration::from_secs(86_400)),
+        ..Default::default()
+    };
     let actual = AnalyticDigitalEngine
-        .price_with_greeks(&option, &context, request)
+        .price_with_greeks_with_settings(&option, &context, request, shifts)
         .unwrap();
     // Both stencil legs use price differences when one reaches expiry.
     assert!(
@@ -752,14 +756,8 @@ fn expiry_reaching_time_stencils_use_paired_scalar_fallback() {
     assert!(
         (actual.require(Greek::Color).unwrap() - (50_137.338_210_869_29 * 365.0)).abs() < 3.65e-5
     );
-    let numeric = numerical_greeks(
-        &AnalyticDigitalEngine,
-        &option,
-        &context,
-        request,
-        Default::default(),
-    )
-    .unwrap();
+    let numeric =
+        numerical_greeks(&AnalyticDigitalEngine, &option, &context, request, shifts).unwrap();
     assert_eq!(
         actual.require(Greek::Charm).unwrap(),
         numeric.require(Greek::Charm).unwrap()
