@@ -105,6 +105,7 @@ pub(crate) fn resolved_price(
 #[derive(Clone, Copy)]
 pub(super) struct AbsorbingDistribution {
     initial: f64,
+    upper_distance: f64,
     band: f64,
     log_lower: f64,
     volatility: f64,
@@ -123,6 +124,7 @@ impl AbsorbingDistribution {
         let sigma = model.volatility();
         Ok(Self {
             initial: log_ratio(context.spot_price(), lower),
+            upper_distance: log_ratio(upper, context.spot_price()),
             band: log_ratio(upper, lower),
             log_lower: lower.ln(),
             volatility: sigma,
@@ -155,6 +157,7 @@ impl AbsorbingDistribution {
             volatility,
             drift,
             time,
+            ..
         } = *self;
         let deviation = volatility * time.sqrt();
         let variance = deviation * deviation;
@@ -333,7 +336,7 @@ impl AbsorbingDistribution {
         }
         let deviation = self.volatility * time.sqrt();
         let ratio = deviation / self.band;
-        let boundary = |distance: f64, drift: f64| -> Result<f64> {
+        let boundary = |distance: f64, opposite: f64, drift: f64| -> Result<f64> {
             let mut sum = Sum::default();
             let mut converged = false;
             let base;
@@ -353,13 +356,14 @@ impl AbsorbingDistribution {
                 sum.add(1.0);
                 for index in 1..=64 {
                     let shift = f64::from(index) * self.band;
+                    let reflected = f64::from(index - 1) * self.band + opposite;
                     let plus = scaled_signed_cash(
                         1.0 + 2.0 * shift / distance,
                         -2.0 * (shift / deviation) * ((shift + distance) / deviation),
                     );
                     let minus = scaled_signed_cash(
-                        1.0 - 2.0 * shift / distance,
-                        -2.0 * (shift / deviation) * ((shift - distance) / deviation),
+                        -1.0 - 2.0 * reflected / distance,
+                        -2.0 * (shift / deviation) * (reflected / deviation),
                     );
                     sum.add(plus);
                     sum.add(minus);
@@ -376,10 +380,14 @@ impl AbsorbingDistribution {
                     - rate * time;
                 for index in 1..=256 {
                     let frequency = f64::from(index) * PI;
+                    let sine = (frequency * (distance.min(opposite) / self.band)).sin();
+                    let sine = if distance > opposite && index % 2 == 0 {
+                        -sine
+                    } else {
+                        sine
+                    };
                     sum.add(
-                        frequency
-                            * (frequency * (distance / self.band)).sin()
-                            * (first_decay - 0.5 * (frequency * ratio).powi(2)).exp(),
+                        frequency * sine * (first_decay - 0.5 * (frequency * ratio).powi(2)).exp(),
                     );
                     let next = f64::from(index + 1) * PI;
                     if index >= 4 && next.ln() + first_decay - 0.5 * (next * ratio).powi(2) < -40.0
@@ -402,8 +410,8 @@ impl AbsorbingDistribution {
             }
             Ok(base + value.max(0.0).ln())
         };
-        let lower = boundary(self.initial, -self.drift)?;
-        let upper = boundary(self.band - self.initial, self.drift)?;
+        let lower = boundary(self.initial, self.upper_distance, -self.drift)?;
+        let upper = boundary(self.upper_distance, self.initial, self.drift)?;
         let scale = lower.max(upper);
         Ok(if scale == f64::NEG_INFINITY {
             scale
@@ -422,7 +430,7 @@ impl AbsorbingDistribution {
         }
         // Reflection bounds both hit probabilities, including the largest possible discount.
         let distance = (self.initial - (-self.drift).max(0.0) * self.time)
-            .min(self.band - self.initial - self.drift.max(0.0) * self.time)
+            .min(self.upper_distance - self.drift.max(0.0) * self.time)
             .max(0.0);
         let z = distance / (self.volatility * self.time.sqrt());
         let log_bound = amount.ln() + (-rate * self.time).max(0.0) + 4.0_f64.ln() - 0.5 * z * z;
@@ -440,7 +448,7 @@ impl AbsorbingDistribution {
             + 2.0 * rate * self.volatility * self.volatility)
             .max(0.0)
             .sqrt();
-        for distance in [self.initial, self.band - self.initial] {
+        for distance in [self.initial, self.upper_distance] {
             for factor in [0.0625, 1.0, 16.0] {
                 append(factor * (distance / self.volatility).powi(2));
             }
@@ -464,21 +472,27 @@ impl AbsorbingDistribution {
         let mut panels = Vec::with_capacity(breaks.len());
         let mut integral_scale = f64::NEG_INFINITY;
         for pair in breaks.windows(2) {
-            let [left, right] = [pair[0], pair[1]];
-            let width = right - left;
-            let logs = [
-                self.log_exit_density(left, 0.0, rate)?,
-                self.log_exit_density(left, width / 2.0, rate)?,
-                self.log_exit_density(left, width, rate)?,
-            ];
-            let scale = logs.into_iter().fold(f64::NEG_INFINITY, f64::max);
-            if scale == f64::NEG_INFINITY {
-                continue;
+            let [mut left, end] = [pair[0], pair[1]];
+            while left < end {
+                crate::cancellation::check()?;
+                // Bound the time ratio so early exit density cannot set the error scale for a long tail.
+                let right = if left > 0.0 { end.min(4.0 * left) } else { end };
+                let width = right - left;
+                let logs = [
+                    self.log_exit_density(left, 0.0, rate)?,
+                    self.log_exit_density(left, width / 2.0, rate)?,
+                    self.log_exit_density(left, width, rate)?,
+                ];
+                let scale = logs.into_iter().fold(f64::NEG_INFINITY, f64::max);
+                if scale != f64::NEG_INFINITY {
+                    integral_scale = integral_scale.max(width.ln() + scale);
+                    panels.push((left, width, logs, scale));
+                }
+                left = right;
             }
-            integral_scale = integral_scale.max(width.ln() + scale);
-            panels.push((left, width, logs, scale));
         }
         let mut result = Sum::default();
+        let panel_count = panels.len() as f64;
         for (left, width, logs, scale) in panels {
             let evaluate =
                 |u: f64| Ok((self.log_exit_density(left, width * u, rate)? - scale).exp());
@@ -488,7 +502,7 @@ impl AbsorbingDistribution {
                 [0.0, 1.0],
                 values,
                 (values[0] + 4.0 * values[1] + values[2]) / 6.0,
-                1e-13 * (integral_scale - width.ln() - scale).exp() / breaks.len() as f64,
+                1e-13 * (integral_scale - width.ln() - scale).exp() / panel_count,
                 32,
             )?;
             result.add(checked(scaled_cash(
@@ -496,7 +510,16 @@ impl AbsorbingDistribution {
                 amount.ln() + width.ln() + scale,
             ))?);
         }
-        checked(result.total())
+        let value = checked(result.total())?;
+        if rate > 0.0 && value > amount {
+            if value - amount > 1e-12 * amount {
+                return Err(Error::ComputationFailure(
+                    "discounted first-exit value exceeds its payout".into(),
+                ));
+            }
+            return Ok(amount);
+        }
+        Ok(value)
     }
 }
 fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
@@ -566,6 +589,7 @@ mod tests {
     fn unrepresentable_double_barrier_transition_is_computation_failure() {
         let distribution = AbsorbingDistribution {
             initial: 0.5,
+            upper_distance: 0.5,
             band: 1.0,
             log_lower: 0.0,
             volatility: f64::MAX,

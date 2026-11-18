@@ -20,6 +20,31 @@ fn market(spot: f64) -> PricingContext {
 }
 
 #[test]
+fn analytic_at_hit_cash_converges_near_the_upper_barrier() -> Result<()> {
+    let context = market(100.0).replace(PricingContextChanges {
+        model_parameters: Some(BlackScholesMertonParameters::new(0.03, 0.0, 0.2)?.into()),
+        ..Default::default()
+    })?;
+    for (lower, upper, expected, tolerance) in [
+        (80.0, 100.000_001, 1.0, 1e-8),
+        // The lower barrier is over 23 standard deviations away. Use the single-touch value.
+        (1.0, 100.000_000_01, 0.999_999_999_613_655_6, 1e-12),
+        (1.0, libm::nextafter(100.0, f64::INFINITY), 1.0, 1e-12),
+    ] {
+        let mut t = terms(DoubleBarrierType::KnockIn);
+        t.lower_barrier = lower;
+        t.upper_barrier = upper;
+        t.settlement_timing = SettlementTiming::AtHit;
+        let price = AnalyticDoubleTouchEngine.price(&DoubleTouchOption::cash(t, 1.0)?, &context)?;
+        assert!(
+            price <= 1.0 && (price - expected).abs() < tolerance,
+            "barriers {lower}, {upper}: {price}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn analytic_cashflows_match_series_pde_and_payout_scaling() {
     let engine = AnalyticDoubleTouchEngine;
     let pde = FiniteDifferenceDoubleTouchEngine::new(FiniteDifferenceSettings {

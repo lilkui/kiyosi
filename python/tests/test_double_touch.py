@@ -739,6 +739,24 @@ def test_narrow_band_tiny_volatility_settings_and_concurrency():
     assert values == [engine.price(option, market())] * 4
 
 
+def test_analytic_at_hit_cash_converges_near_the_upper_barrier():
+    engine = pricing.AnalyticDoubleTouchEngine()
+    context = market(dividend=0)
+    for lower, upper, expected, tolerance in (
+        (80, 100.000001, 1.0, 1e-8),
+        (1, 100.00000001, 0.9999999996136556, 1e-12),
+        (1, math.nextafter(100, math.inf), 1.0, 1e-12),
+    ):
+        result = engine.price(
+            contract(
+                lower_barrier=lower, upper_barrier=upper, settlement_timing="at_hit"
+            ),
+            context,
+        )
+        assert result <= 1.0
+        assert result == pytest.approx(expected, rel=0, abs=tolerance)
+
+
 def test_analytic_exit_density_series_and_discounted_peaks():
     engine = pricing.AnalyticDoubleTouchEngine()
     for sigma in (0.25, 0.6):
