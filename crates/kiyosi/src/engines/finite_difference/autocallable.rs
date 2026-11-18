@@ -111,8 +111,10 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
             .variance_start(now, note.expiry_time())
         {
             if start > now
-                && deterministic::autocallable_through(note, context, start)
-                    .is_ok_and(|state| state.settlement.is_some())
+                && deterministic::autocallable_through(note, context, start).is_ok_and(|state| {
+                    state.settlement.is_some()
+                        || fixed_value_at(note, context, start, state.knocked_in).is_some()
+                })
             {
                 return false;
             }

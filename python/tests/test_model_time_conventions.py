@@ -437,6 +437,34 @@ def test_closed_prefix_prices_fixed_cashflows_without_surface_at_reopen():
     )
 
 
+def test_implied_volatility_rejects_fixed_cashflows_after_closed_prefix():
+    from test_phoenix import contract
+
+    start = datetime(2026, 11, 14)
+    fixing = start + timedelta(days=1)
+    end = start + timedelta(days=2, hours=12)
+    note = contract(
+        effective_time=start,
+        expiry_time=end,
+        calendar=all_days_calendar(),
+        lower_strike=100,
+        coupon_per_period=0,
+        knock_out_observations=[ins.KnockOutObservation(fixing, 110)],
+        coupon_observations=[ins.CouponObservation(fixing, 100)],
+    )
+    market = context(
+        bsm(time_convention="business", calendar=weekdays_calendar()), start
+    )
+    engine = pricing.FiniteDifferenceAutocallableEngine()
+    observed = math.exp(-0.07 * 2.5 / 365)
+    assert engine.price(note, market) == pytest.approx(observed, abs=1e-12)
+    for lower in (0, 0.1):
+        with pytest.raises(UnsupportedOperationError):
+            pricing.implied_volatility(
+                engine, note, market, observed, lower_bound=lower, upper_bound=1
+            )
+
+
 def test_closed_prefix_carries_knock_in_state_and_spot_into_the_grid():
     from test_phoenix import contract
 
