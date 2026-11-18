@@ -157,7 +157,7 @@ impl ObservationSchedule {
 /// observation_clock_time : datetime.time
 ///     Required observation time of day, without timezone information.
 /// calendar : TradingCalendar, optional
-///     Trading calendar. Defaults to weekdays with a 252-day basis.
+///     Trading calendar. Defaults to weekdays with a 261-day basis.
 ///
 /// Returns
 /// -------
@@ -219,7 +219,7 @@ pub(crate) fn fixed_interval_schedule(
 /// observation_clock_time : datetime.time
 ///     Required observation time of day, without timezone information.
 /// calendar : TradingCalendar, optional
-///     Trading calendar. Defaults to weekdays with a 252-day basis.
+///     Trading calendar. Defaults to weekdays with a 261-day basis.
 ///
 /// Returns
 /// -------

@@ -219,7 +219,7 @@ fn custom_calendars_own_overrides_validate_and_retain_basis() {
             .unwrap(),
         6
     );
-    assert_eq!(calendar.trading_days_per_year(), 252);
+    assert_eq!(calendar.trading_days_per_year(), 261);
     assert!(base.is_trading_day(day(2026, 10, 1)));
     assert!(!calendar.is_trading_day(day(2026, 10, 1)));
     assert!(calendar.is_trading_day(day(2026, 10, 10)));
@@ -546,10 +546,23 @@ fn calendars_count_half_open_ranges_and_adjust_both_directions() {
     let calendar = TradingCalendar::default();
     let start = day(2025, 1, 1);
     let end = day(2025, 1, 6);
+    assert_eq!(calendar.trading_days_per_year(), 261);
+    assert_eq!(
+        calendar
+            .trading_days_between(day(2024, 1, 1), day(2025, 1, 1))
+            .unwrap(),
+        262
+    );
+    assert_eq!(
+        calendar
+            .trading_year_fraction(day(2026, 1, 1), day(2027, 1, 1))
+            .unwrap(),
+        1.0
+    );
     assert_eq!(calendar.trading_days_between(start, end).unwrap(), 3);
     assert_eq!(
         calendar.trading_year_fraction(start, end).unwrap(),
-        3.0 / 252.0
+        3.0 / 261.0
     );
     assert_eq!(calendar.trading_days_between(start, start).unwrap(), 0);
     assert_eq!(

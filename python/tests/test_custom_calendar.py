@@ -31,10 +31,10 @@ def test_overrides_ownership_and_calendar_operations():
         assert calendar.is_trading_day(date(2026, 10, day)) == expected
     assert base.is_trading_day(date(2026, 10, 1))
     assert not (base.is_trading_day(date(2026, 10, 10)))
-    assert calendar.trading_days_per_year == 252
+    assert calendar.trading_days_per_year == 261
     start, end = date(2026, 10, 1), date(2026, 10, 12)
     assert calendar.trading_days_between(start, end) == 6
-    assert_decimal_equal(calendar.trading_year_fraction(start, end), 6 / 252)
+    assert_decimal_equal(calendar.trading_year_fraction(start, end), 6 / 261)
     assert calendar.adjust(start, "following") == date(2026, 10, 5)
     assert list(
         fixed_interval_schedule(

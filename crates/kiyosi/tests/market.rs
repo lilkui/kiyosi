@@ -75,14 +75,14 @@ fn calendar_bounded_quotes_pause_on_closed_dates() -> kiyosi::Result<()> {
     assert_eq!(curve.exact_flat_rate(), None);
     assert_eq!(curve.factor(saturday, monday)?, 1.0);
     assert_eq!(curve.forward_rate(saturday)?, 0.0);
-    assert!((curve.forward_rate(monday)? - 0.05 * 365.0 / 252.0).abs() < 1e-15);
-    assert!((curve.log_factor(friday_noon, monday_noon)? + 0.05 / 252.0).abs() < 1e-15);
+    assert!((curve.forward_rate(monday)? - 0.05 * 365.0 / 261.0).abs() < 1e-15);
+    assert!((curve.log_factor(friday_noon, monday_noon)? + 0.05 / 261.0).abs() < 1e-15);
     for (factor, &node) in curve.factors()?.iter().zip(curve.nodes()) {
         assert_eq!(*factor, curve.factor(friday_noon, node)?);
     }
     let shifted = curve.shifted(0.01)?;
     assert_eq!(shifted.factor(saturday, monday)?, 1.0);
-    assert!((shifted.log_factor(friday_noon, monday_noon)? + 0.06 / 252.0).abs() < 1e-15);
+    assert!((shifted.log_factor(friday_noon, monday_noon)? + 0.06 / 261.0).abs() < 1e-15);
     let zero = RateTermStructure::bounded_flat_with_calendar(
         0.0,
         friday_noon,
@@ -138,7 +138,7 @@ fn calendar_rate_greeks_use_each_quotes_accrual_time() -> kiyosi::Result<()> {
         PricingContext::new(BlackScholesMertonParameters::new(r, q, 0.2)?, 100.0, start)
     };
     let market = context(risk.into(), dividend.into())?;
-    let risk_time = 1.0 / 252.0;
+    let risk_time = 1.0 / 261.0;
     let dividend_time = 1.5 / 243.0;
     let natural_time = start.years_until(end);
     let equivalent = context(

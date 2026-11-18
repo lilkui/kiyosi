@@ -175,14 +175,14 @@ def test_calendar_bounded_quotes_pause_on_closed_dates():
     assert curve.exact_flat_rate is None
     assert curve.factor(saturday, monday) == 1
     assert curve.forward_rate(saturday) == 0
-    assert curve.forward_rate(monday) == pytest.approx(0.05 * 365 / 252)
-    assert curve.log_factor(start, end) == pytest.approx(-0.05 / 252)
+    assert curve.forward_rate(monday) == pytest.approx(0.05 * 365 / 261)
+    assert curve.log_factor(start, end) == pytest.approx(-0.05 / 261)
     assert curve.factors == tuple(curve.factor(start, time) for time in curve.nodes)
     assert "calendar=" in repr(curve)
     shifted = curve.shifted(0.01)
     assert shifted.factor(saturday, monday) == 1
-    assert shifted.log_factor(start, end) == pytest.approx(-0.06 / 252)
-    assert curve.log_factor(start, end) == pytest.approx(-0.05 / 252)
+    assert shifted.log_factor(start, end) == pytest.approx(-0.06 / 261)
+    assert curve.log_factor(start, end) == pytest.approx(-0.05 / 261)
     with pytest.raises(InvalidInputError):
         shifted.factor(start, end + timedelta(microseconds=1))
     with pytest.raises(TypeError):
@@ -205,7 +205,7 @@ def test_calendar_rate_greeks_use_each_quotes_accrual_time():
         ),
         **bounds,
     )
-    risk_time, dividend_time, natural_time = 1 / 252, 1.5 / 243, 3 / 365
+    risk_time, dividend_time, natural_time = 1 / 261, 1.5 / 243, 3 / 365
     option = EuropeanOption(
         option_type="call", strike=100, effective_time=start, expiry_time=end
     )

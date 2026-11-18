@@ -31,7 +31,7 @@ struct CalendarOverrides {
 
 /// Owns a trading-day predicate and positive annualization basis.
 ///
-/// Defaults to [`Self::weekdays`] with a 252-day basis.
+/// Defaults to [`Self::weekdays`] with a 261-day basis.
 /// All instances support shared concurrent reads. Custom predicates must return the same
 /// answer for each date throughout the lifetime of the calendar and every clone, and be
 /// safe for concurrent invocation; query order/count is unspecified. Reading a clock or
@@ -95,13 +95,13 @@ impl TradingCalendar {
         }
     }
 
-    /// Creates a Monday-through-Friday calendar with a 252-day basis.
+    /// Creates a Monday-through-Friday calendar with a 261-day basis.
     ///
     /// Ignores holidays; see [`Self::adjust`] for calendar usage.
     pub fn weekdays() -> Self {
         Self {
             kind: CalendarKind::Weekdays,
-            basis: 252,
+            basis: 261,
         }
     }
 

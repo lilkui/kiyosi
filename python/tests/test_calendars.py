@@ -205,8 +205,11 @@ def test_calendar_amendments_merge_effective_overrides():
 def test_counts_adjustment_and_annualization():
     calendar = weekdays_calendar()
     start, end = date(2025, 1, 1), date(2025, 1, 6)
+    assert calendar.trading_days_per_year == 261
+    assert calendar.trading_days_between(date(2024, 1, 1), date(2025, 1, 1)) == 262
+    assert calendar.trading_year_fraction(date(2026, 1, 1), date(2027, 1, 1)) == 1
     assert calendar.trading_days_between(start, end) == 3
-    assert calendar.trading_year_fraction(start, end) == 3 / 252
+    assert calendar.trading_year_fraction(start, end) == 3 / 261
     assert calendar.trading_days_between(start, start) == 0
     assert calendar.trading_days_between(date(2025, 1, 4), end) == 0
     assert calendar.adjust(date(2025, 1, 5), "following") == end

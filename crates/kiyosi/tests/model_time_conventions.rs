@@ -9,11 +9,11 @@ fn business_time_counts_fractional_trading_dates_with_fixed_basis() {
     let friday = instant(2026, 11, 13, 12);
     let monday = instant(2026, 11, 16, 12);
     let clock = ModelTimeConvention::Business(TradingCalendar::weekdays());
-    assert!((clock.year_fraction(friday, monday).unwrap() - 1.0 / 252.0).abs() < 1e-15);
-    assert!((clock.year_fraction(monday, friday).unwrap() + 1.0 / 252.0).abs() < 1e-15);
+    assert!((clock.year_fraction(friday, monday).unwrap() - 1.0 / 261.0).abs() < 1e-15);
+    assert!((clock.year_fraction(monday, friday).unwrap() + 1.0 / 261.0).abs() < 1e-15);
     assert_eq!(clock.year_fraction(friday, friday).unwrap(), 0.0);
     let micro = friday.add_micros(1).unwrap();
-    let expected = 1.0 / (86_400_000_000.0 * 252.0);
+    let expected = 1.0 / (86_400_000_000.0 * 261.0);
     assert!((clock.year_fraction(friday, micro).unwrap() / expected - 1.0).abs() < 1e-14);
     let weekend = instant(2026, 11, 14, 0);
     assert_eq!(
@@ -196,7 +196,7 @@ fn changing_local_volatility_preserves_natural_dates_and_business_variance() {
     let integral = |days: f64| {
         0.2_f64.powi(2) * days + 0.2 * 0.1 * days.powi(2) + 0.1_f64.powi(2) * days.powi(3) / 3.0
     };
-    let variance = (integral(0.5) + integral(3.0) - integral(2.5)) / 252.0;
+    let variance = (integral(0.5) + integral(3.0) - integral(2.5)) / 261.0;
     let surface = LocalVolatilitySurface::new(
         vec![start, end],
         vec![50.0, 150.0],

@@ -183,7 +183,7 @@ def test_changing_local_volatility_uses_natural_dates_and_business_variance():
     )
     # Sigma is 0.2 + 0.1*d in natural days. Only [0, .5] and [2.5, 3] are open.
     integral = lambda d: 0.2**2 * d + 0.2 * 0.1 * d**2 + 0.1**2 * d**3 / 3
-    variance = (integral(0.5) + integral(3) - integral(2.5)) / 252
+    variance = (integral(0.5) + integral(3) - integral(2.5)) / 261
     sd = math.sqrt(variance)
     tau_c = 3 / 365
     d1 = ((0.07 - 0.02) * tau_c + variance / 2) / sd

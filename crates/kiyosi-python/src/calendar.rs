@@ -153,7 +153,7 @@ impl TradingCalendar {
     }
 }
 
-/// Create a Monday-through-Friday calendar with a 252-day basis.
+/// Create a Monday-through-Friday calendar with a 261-day basis.
 ///
 /// Returns
 /// -------

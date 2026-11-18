@@ -148,7 +148,7 @@ impl RateTermStructure {
     ///     0.05, friday, monday, TradingCalendar::weekdays(),
     /// )?;
     /// assert_eq!(curve.factor(saturday, monday)?, 1.0);
-    /// assert!((curve.log_factor(friday, monday)? + 0.05 / 252.0).abs() < 1e-15);
+    /// assert!((curve.log_factor(friday, monday)? + 0.05 / 261.0).abs() < 1e-15);
     /// # Ok(()) }
     /// ```
     ///
