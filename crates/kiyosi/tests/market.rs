@@ -429,6 +429,31 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
 }
 
 #[test]
+fn deterministic_vanilla_uses_exact_width_between_curve_knots() -> kiyosi::Result<()> {
+    use kiyosi::{
+        AnalyticEuropeanEngine, BlackScholesMertonParameters, EuropeanOption,
+        FiniteDifferenceVanillaEngine, OptionType, PricingContext, PricingEngine,
+    };
+
+    let start = at(2025, 1, 1);
+    let knot = start.add_days(365)?;
+    let expiry = knot.add_micros(1)?;
+    let curve = RateTermStructure::new(start, vec![knot, expiry], vec![1.0, 0.5])?;
+    let expected = 100.0 - 100.0 * curve.factor(start, expiry)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
+    let model = BlackScholesMertonParameters::new(curve, 0.0, 0.0)?;
+    let context = PricingContext::new(model, 100.0, start)?;
+
+    for price in [
+        AnalyticEuropeanEngine.price(&option, &context)?,
+        FiniteDifferenceVanillaEngine::default().price(&option, &context)?,
+    ] {
+        assert!((price - expected).abs() < 1e-12, "{price} vs {expected}");
+    }
+    Ok(())
+}
+
+#[test]
 fn context_validation_timing_replacement_and_concurrent_owned_values() {
     use kiyosi::{
         AnalyticEuropeanEngine, BlackScholesMertonParameterChanges as Changes,

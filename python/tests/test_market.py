@@ -61,6 +61,23 @@ def vanilla(direction="call", strike=103):
     )
 
 
+def test_deterministic_vanilla_uses_exact_width_between_curve_knots():
+    expiry = MATURITY + timedelta(microseconds=1)
+    curve = RateTermStructure(
+        reference_time=REFERENCE, times=[MATURITY, expiry], factors=[1.0, 0.5]
+    )
+    expected = 100.0 - 100.0 * curve.factor(REFERENCE, expiry)
+    option = vanilla(strike=100).replace(expiry_time=expiry)
+    context = market(rate=curve, dividend=0.0, volatility=0.0)
+    for engine in (
+        pricing.AnalyticEuropeanEngine(),
+        pricing.FiniteDifferenceVanillaEngine(),
+    ):
+        assert engine.price(option, context) == pytest.approx(
+            expected, rel=0, abs=1e-12
+        )
+
+
 def test_public_curve_parts_reconstruct_extreme_shifts_without_loss(subtests):
     base = example_curve()
     for shift in (0.0, 1000.0, -1000.0):

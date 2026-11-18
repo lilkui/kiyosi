@@ -2,14 +2,34 @@ use crate::Result;
 
 #[derive(PartialEq)]
 pub(super) struct Curve {
-    segments: Vec<(f64, f64)>,
+    segments: Vec<Segment>,
     from_start: Vec<f64>,
     to_end: Vec<f64>,
 }
 
+#[derive(PartialEq)]
+struct Segment {
+    start: f64,
+    end: f64,
+    width: f64,
+    rate: f64,
+}
+
+impl Segment {
+    fn log_factor(&self, start: f64, end: f64) -> f64 {
+        let width = if start <= self.start && end >= self.end {
+            self.width
+        } else {
+            let overlap = end.min(self.end) - start.max(self.start);
+            overlap * (self.width / (self.end - self.start))
+        };
+        -self.rate * width
+    }
+}
+
 impl Curve {
     pub fn ends(&self) -> impl Iterator<Item = f64> + '_ {
-        self.segments.iter().map(|&(end, _)| end)
+        self.segments.iter().map(|segment| segment.end)
     }
 
     pub fn new(
@@ -27,27 +47,26 @@ impl Curve {
             .filter(|&t| t > valuation && t < expiry)
             .chain([expiry])
         {
-            segments.push((valuation.years_until(end), curve.forward_rate(previous)?));
+            segments.push(Segment {
+                start: valuation.years_until(previous),
+                end: valuation.years_until(end),
+                // Keep the segment width independent of rounding in the absolute coordinates.
+                width: previous.years_until(end),
+                rate: curve.forward_rate(previous)?,
+            });
             previous = end;
         }
         let mut from_start = Vec::with_capacity(segments.len());
-        let mut previous = 0.0;
         let mut log = 0.0;
-        for &(end, rate) in &segments {
+        for segment in &segments {
             from_start.push(log);
-            log -= rate * (end - previous);
-            previous = end;
+            log -= segment.rate * segment.width;
         }
         let mut to_end = vec![0.0; segments.len()];
         log = 0.0;
         for index in (0..segments.len()).rev() {
             to_end[index] = log;
-            let previous = if index == 0 {
-                0.0
-            } else {
-                segments[index - 1].0
-            };
-            log -= segments[index].1 * (segments[index].0 - previous);
+            log -= segments[index].rate * segments[index].width;
         }
         Ok(Self {
             segments,
@@ -59,9 +78,9 @@ impl Curve {
     pub fn rate(&self, time: f64) -> f64 {
         self.segments[self
             .segments
-            .partition_point(|&(end, _)| end <= time)
+            .partition_point(|segment| segment.end <= time)
             .min(self.segments.len() - 1)]
-        .1
+        .rate
     }
 
     #[expect(
@@ -69,39 +88,26 @@ impl Curve {
         reason = "Exact curve endpoints select cached integrals."
     )]
     pub fn log_factor(&self, start: f64, end: f64) -> f64 {
-        let horizon = self.segments[self.segments.len() - 1].0;
+        let horizon = self.segments[self.segments.len() - 1].end;
         let start = start.max(0.0);
         let end = end.min(horizon);
         if start >= end {
             return 0.0;
         }
-        let first = self.segments.partition_point(|&(end, _)| end <= start);
-        let last = self.segments.partition_point(|&(next, _)| next < end);
-        let mut previous = if first == 0 {
-            0.0
-        } else {
-            self.segments[first - 1].0
-        };
+        let first = self
+            .segments
+            .partition_point(|segment| segment.end <= start);
+        let last = self.segments.partition_point(|segment| segment.end < end);
         if start == 0.0 && self.from_start[last].is_finite() {
-            let previous = if last == 0 {
-                0.0
-            } else {
-                self.segments[last - 1].0
-            };
-            return self.from_start[last] - self.segments[last].1 * (end - previous);
+            return self.from_start[last] + self.segments[last].log_factor(start, end);
         }
         if end == horizon && self.to_end[first].is_finite() {
-            return -self.segments[first].1 * (self.segments[first].0 - start) + self.to_end[first];
+            return self.segments[first].log_factor(start, end) + self.to_end[first];
         }
-        let mut log = 0.0;
-        for &(next, rate) in &self.segments[first..=last] {
-            let width = end.min(next) - start.max(previous);
-            if width > 0.0 {
-                log -= rate * width;
-            }
-            previous = next;
-        }
-        log
+        self.segments[first..=last]
+            .iter()
+            .map(|segment| segment.log_factor(start, end))
+            .sum()
     }
 }
 
