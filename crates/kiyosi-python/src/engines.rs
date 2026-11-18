@@ -191,6 +191,9 @@ pub(crate) mod finite_difference;
 pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
 
+// Curve scans cost O(nodes); larger curves go through the cancellable worker.
+const SHORT_CURVE_NODES: usize = 1024;
+
 pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
     py: Python<'_>,
     engine: &(impl kiyosi::PricingEngine<I> + Sync),
@@ -207,7 +210,10 @@ pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
         .len()
         .max(model.dividend_curve().nodes().len());
     let operation = || request.evaluate(engine, instrument, context);
-    let result = if request.is_short(short_pricing && curve_nodes == 0, curve_nodes) {
+    let result = if request.is_short(
+        short_pricing && curve_nodes <= SHORT_CURVE_NODES,
+        curve_nodes,
+    ) {
         py.check_signals()?;
         let result = operation();
         py.check_signals()?;
@@ -362,7 +368,7 @@ pub(crate) struct GreekMethodRequest;
 impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
     fn is_short(self, _short_pricing: bool, curve_nodes: usize) -> bool {
         // Flat-rate applicability checks may scan every curve node.
-        curve_nodes <= 1024
+        curve_nodes <= SHORT_CURVE_NODES
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -391,10 +397,10 @@ mod tests {
         };
         for curve_nodes in [0, 1, 1024, 1025] {
             for short_pricing in [false, true] {
-                let short_pricing = short_pricing && curve_nodes == 0;
+                let short_pricing = short_pricing && curve_nodes <= SHORT_CURVE_NODES;
                 assert_eq!(
                     GreekMethodRequest.is_short(short_pricing, curve_nodes),
-                    curve_nodes <= 1024,
+                    curve_nodes <= SHORT_CURVE_NODES,
                 );
                 assert!(!solver.is_short(short_pricing, curve_nodes));
                 assert!(!NumericalGreeksRequest(greeks).is_short(short_pricing, curve_nodes));
