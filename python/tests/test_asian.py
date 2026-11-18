@@ -375,6 +375,22 @@ def test_non_finite_small_volatility_moments_preserve_invalid_result(sigma):
     )
 
 
+def test_deterministic_forward_start_average_uses_carry_before_and_between_knots():
+    knot = END + timedelta(days=365)
+    expiry = knot + timedelta(days=365)
+    curve = RateTermStructure(
+        reference_time=START, times=[END, knot, expiry], factors=[0.5, 0.25, 0.5]
+    )
+    context = market(rate=curve, dividend=0, volatility=0)
+    option = GeometricAveragePriceOption(
+        **terms(averaging_start_time=END, expiry_time=expiry)
+    )
+    expected = (200 * math.sqrt(2) - option.strike) * 0.5
+    assert AnalyticGeometricAveragePriceEngine().price(
+        option, context
+    ) == pytest.approx(expected, rel=0, abs=1e-12)
+
+
 def test_curve_applicability_coverage_and_expiry_order():
     middle = START + timedelta(days=182)
     curve = RateTermStructure(

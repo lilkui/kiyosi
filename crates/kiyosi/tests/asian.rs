@@ -463,6 +463,27 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
 }
 
 #[test]
+fn deterministic_forward_start_average_uses_carry_before_and_between_knots() -> Result<()> {
+    let (start, averaging) = dates();
+    let knot = averaging.add_days(365)?;
+    let end = knot.add_days(365)?;
+    let curve = RateTermStructure::new(start, vec![averaging, knot, end], vec![0.5, 0.25, 0.5])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let option =
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, averaging, end, None)?;
+    // The spot starts averaging at 200, grows to 400, and returns to 200.
+    let expected = (200.0 * 2.0_f64.sqrt() - 100.0) * 0.5;
+    assert!(
+        (AnalyticGeometricAveragePriceEngine.price(&option, &context)? - expected).abs() < 1e-12
+    );
+    Ok(())
+}
+
+#[test]
 fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_applicability() {
     let (start, end) = dates();
     let knot = Date::new(2025, 7, 2).unwrap().start_of_day();

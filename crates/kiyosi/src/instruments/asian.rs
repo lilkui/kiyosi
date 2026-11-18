@@ -92,14 +92,14 @@ impl AverageTerms {
         let model = context.bsm_parameters()?;
         let valuation = context.valuation_time();
         let expiry = self.terms.expiry_time();
-        let carry = |time| -> Result<f64> {
-            Ok(model.dividend_curve().log_factor(valuation, time)?
-                - model.risk_free_curve().log_factor(valuation, time)?)
+        let carry = |from, to| -> Result<f64> {
+            Ok(model.dividend_curve().log_factor(from, to)?
+                - model.risk_free_curve().log_factor(from, to)?)
         };
         if self.period() == 0.0 {
             return checked(crate::numerics::scaled_cash(
                 context.spot_price(),
-                carry(expiry)?,
+                carry(valuation, expiry)?,
             ));
         }
         let start = self.averaging_start.max(valuation);
@@ -117,14 +117,17 @@ impl AverageTerms {
         times.dedup();
         let prior_weight = (1.0 - start.years_until(expiry) / self.period()).max(0.0);
         let mut total = crate::numerics::Sum::default();
+        let mut cumulative = crate::numerics::Sum::default();
+        cumulative.add(carry(valuation, start)?);
         for pair in times.windows(2) {
-            let a = carry(pair[0])?;
-            let b = carry(pair[1])?;
+            crate::cancellation::check()?;
+            let a = cumulative.total();
+            let delta = carry(pair[0], pair[1])?;
+            cumulative.add(delta);
             let weight = pair[0].years_until(pair[1]) / self.period();
             if geometric {
-                total.add(a.midpoint(b) * weight);
+                total.add(a.midpoint(cumulative.total()) * weight);
             } else {
-                let delta = b - a;
                 let growth = if delta == 0.0 {
                     0.0
                 } else if delta > 0.0 {
