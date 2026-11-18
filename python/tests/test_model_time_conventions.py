@@ -306,6 +306,32 @@ def test_closed_horizon_keeps_carry_discount_and_continuous_monitoring():
     )
 
 
+@pytest.mark.parametrize("lower", [0, 0.1])
+def test_implied_volatility_rejects_closed_horizon(lower):
+    start = datetime(2026, 11, 14, 12)
+    end = start + timedelta(days=1)
+    market = context(
+        bsm(
+            risk_free_rate=0,
+            dividend_yield=0,
+            time_convention="business",
+            calendar=weekdays_calendar(),
+        ),
+        start,
+    )
+    option = european(start, end, 90)
+    engine = fd()
+    with pytest.raises(UnsupportedOperationError):
+        pricing.implied_volatility(
+            engine,
+            option,
+            market,
+            engine.price(option, market),
+            lower_bound=lower,
+            upper_bound=1,
+        )
+
+
 def test_weekend_events_keep_real_timestamp_order():
     start = datetime(2026, 11, 14)
     end = datetime(2026, 11, 16, 12)

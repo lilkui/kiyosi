@@ -161,6 +161,35 @@ fn european_pde_uses_business_variance_and_natural_day_rates() {
 }
 
 #[test]
+fn implied_volatility_rejects_closed_horizon() -> Result<()> {
+    let start = instant(2026, 11, 14, 12);
+    let end = start.add_days(1)?;
+    let model = BlackScholesMertonParameters::new_with_time_convention(
+        0.0,
+        0.0,
+        0.2,
+        ModelTimeConvention::Business(TradingCalendar::weekdays()),
+    )?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let option = EuropeanOption::new(OptionType::Call, 90.0, start, end)?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let price = engine.price(&option, &context)?;
+    for lower in [0.0, 0.1] {
+        assert!(matches!(
+            implied_volatility(
+                &engine,
+                &option,
+                &context,
+                price,
+                ImpliedVolatilitySettings::new(lower, 1.0)
+            ),
+            Err(Error::UnsupportedOperation(_))
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn changing_local_volatility_preserves_natural_dates_and_business_variance() {
     let start = instant(2026, 11, 13, 12);
     let end = start.add_days(3).unwrap();

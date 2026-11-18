@@ -144,19 +144,27 @@ fn solve<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         }
         Ok(residual)
     };
-    let zero_residual = if s.lower_bound == 0.0 {
-        Some(evaluate(0.0)?)
-    } else {
-        None
-    };
-    if zero_residual.is_some_and(|value| value.abs() <= s.price_tolerance) {
-        if context.valuation_time() == option.expiry_time()
+    let require_identifiable = || {
+        if context
+            .model_parameters()
+            .time_convention()
+            .year_fraction(context.valuation_time(), option.expiry_time())?
+            == 0.0
             || !engine.volatility_affects_price(option, context)
         {
             return Err(Error::UnsupportedOperation(
                 "volatility does not affect the remaining payoff".into(),
             ));
         }
+        Ok(())
+    };
+    let zero_residual = if s.lower_bound == 0.0 {
+        Some(evaluate(0.0)?)
+    } else {
+        None
+    };
+    if zero_residual.is_some_and(|value| value.abs() <= s.price_tolerance) {
+        require_identifiable()?;
         return Ok(0.0);
     }
     let s = engine.prepare_implied_volatility(option, context, s)?;
@@ -172,13 +180,7 @@ fn solve<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         },
         evaluate(b)?,
     );
-    if context.valuation_time() == option.expiry_time()
-        || !engine.volatility_affects_price(option, context)
-    {
-        return Err(Error::UnsupportedOperation(
-            "volatility does not affect the remaining payoff".into(),
-        ));
-    }
+    require_identifiable()?;
     if fa.abs() <= s.price_tolerance {
         return Ok(a);
     }
