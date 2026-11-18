@@ -34,6 +34,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                         import signal
                         import threading
                         import sys
+                        import time
                         from datetime import datetime, timedelta
                         from math import exp
                         from kiyosi import instruments as i, market as m, pricing as p
@@ -92,8 +93,14 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             signal.signal(signal.SIGINT, stop)
                         expected = StopCalculation if case == "custom_handler" else KeyboardInterrupt
                         delay = 0.001 if case in ("analytic_greeks", "numerical_greeks", "analytic_solver") else 0.05
-                        timer = threading.Timer(delay, lambda: signal.raise_signal(signal.SIGINT))
+                        ready = threading.Event()
+                        def send_interrupt():
+                            ready.wait()
+                            time.sleep(delay)
+                            signal.raise_signal(signal.SIGINT)
+                        timer = threading.Thread(target=send_interrupt)
                         timer.start()
+                        ready.set()
                         try:
                             if case == "fd_solution_solve":
                                 engine.solve(option, context, spot_range=(80, 120))
