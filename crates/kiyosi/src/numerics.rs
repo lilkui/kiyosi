@@ -212,6 +212,13 @@ pub(crate) fn log_interval_mass(lower: f64, upper: f64) -> f64 {
     } else {
         log_normal_cdf(lower)
     };
+    log_difference(high, low)
+}
+
+pub(crate) fn log_difference(high: f64, low: f64) -> f64 {
+    if high == -INF {
+        return -INF;
+    }
     high + (-(low - high).exp_m1()).ln()
 }
 

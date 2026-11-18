@@ -86,6 +86,18 @@ def reference(direction, kind, spot=100, volatility=0.2, series=20):
         del saved
 
 
+def test_remote_reflections_vanish_in_the_zero_volatility_limit():
+    engine = AnalyticDoubleBarrierEngine()
+    option = contract(strike=90)
+    for rate, dividend in ((0, 0), (0.05, 0.02), (0.02, 0.05)):
+        expected = 100 * math.exp(-dividend) - 90 * math.exp(-rate)
+        for volatility in (1e-150, 1e-160, 1e-170, math.ulp(0.0)):
+            context = market(rate=rate, dividend=dividend, volatility=volatility)
+            assert engine.price(option, context) == pytest.approx(
+                expected, rel=0, abs=1e-12
+            )
+
+
 def test_prices_greeks_and_parity_match_live_quantlib():
     engine = AnalyticDoubleBarrierEngine()
     for direction, kind in product(("call", "put"), ("knock_in", "knock_out")):

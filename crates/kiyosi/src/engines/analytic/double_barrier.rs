@@ -3,8 +3,8 @@ use crate::Timestamp;
 use crate::engines::analytic::barrier::resolved_price_with_state;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{
-    Sum, adaptive_simpson, checked, log_interval_mass, log_normal_tail, log_ratio, scaled_cash,
-    scaled_cdf, scaled_signed_cash,
+    Sum, adaptive_simpson, checked, log_difference, log_interval_mass, log_normal_tail, log_ratio,
+    scaled_cash, scaled_cdf, scaled_signed_cash,
 };
 use crate::{
     AnalyticEuropeanEngine, Error, ObservationMode, OptionType, PricingContext, PricingEngine,
@@ -174,13 +174,14 @@ impl AbsorbingDistribution {
                 + discount;
             let mean = initial + drift * time + order * variance;
             let image = |k: f64, reflected: bool| {
-                let distance = if reflected {
-                    initial + k * band
-                } else {
-                    k * band
-                };
+                let shift = k * band;
+                let distance = if reflected { initial + shift } else { shift };
                 let center = mean - 2.0 * distance;
-                let exponent = base - 2.0 * distance * ((drift / volatility) / volatility + order);
+                let exponent = if distance == 0.0 {
+                    base
+                } else {
+                    base - 2.0 * distance * ((drift / volatility) / volatility + order)
+                };
                 let low = (lower - center) / deviation;
                 let high = (upper - center) / deviation;
                 if low >= high {
@@ -192,12 +193,17 @@ impl AbsorbingDistribution {
                 // Combine reflection and Gaussian exponents before low-volatility cancellation.
                 let tail = |boundary: f64, z: f64| {
                     let free_z = (boundary - mean) / deviation;
-                    let gaussian = base
-                        - 0.5 * free_z * free_z
-                        - 2.0
-                            * (distance / deviation)
-                            * ((boundary - initial + distance) / deviation);
-                    log_normal_tail(z, gaussian)
+                    let reflected_boundary = if reflected {
+                        boundary + shift
+                    } else {
+                        boundary - initial + shift
+                    };
+                    let reflection = if distance == 0.0 || reflected_boundary == 0.0 {
+                        0.0
+                    } else {
+                        2.0 * (distance / deviation) * (reflected_boundary / deviation)
+                    };
+                    log_normal_tail(z, base - 0.5 * free_z * free_z - reflection)
                 };
                 let large = if high < 0.0 {
                     tail(upper, high)
@@ -209,7 +215,7 @@ impl AbsorbingDistribution {
                 } else {
                     tail(upper, -high)
                 };
-                (large + (-(small - large).exp_m1()).ln()).exp()
+                log_difference(large, small).exp()
             };
             if complement {
                 sum.add(scaled_cdf(1.0, discount, -mean / deviation));

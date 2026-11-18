@@ -486,6 +486,26 @@ fn rebates_match_independent_exit_series_including_negative_rates() {
 }
 
 #[test]
+fn remote_reflections_vanish_in_the_zero_volatility_limit() -> Result<()> {
+    let mut contract = terms(OptionType::Call, DoubleBarrierType::KnockOut);
+    contract.strike = 90.0;
+    let start = contract.effective_time;
+    let option = DoubleBarrierOption::new(contract)?;
+    for (rate, dividend) in [(0.0_f64, 0.0_f64), (0.05, 0.02), (0.02, 0.05)] {
+        let expected = 100.0 * (-dividend).exp() - 90.0 * (-rate).exp();
+        for volatility in [1e-150, 1e-160, 1e-170, f64::from_bits(1)] {
+            let context = market(100.0, start, volatility, rate, dividend);
+            let price = AnalyticDoubleBarrierEngine.price(&option, &context)?;
+            assert!(
+                (price - expected).abs() < 1e-12,
+                "{volatility}, {rate}, {dividend}: {price}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn tiny_positive_volatility_preserves_future_hit_timing_and_surviving_payoff() {
     let engine = AnalyticDoubleBarrierEngine;
     for up in [false, true] {
