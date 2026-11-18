@@ -63,6 +63,12 @@ def test_settings_signatures_and_conversion_boundaries(subtests):
         engine.time_step_count = 400
 
 
+def test_american_quadrature_rejects_an_oversized_transition():
+    engine = pricing.QuadratureVanillaEngine(asset_step_count=8000, time_step_count=3)
+    with pytest.raises(InvalidInputError):
+        engine.price(contract(AmericanOption, "put"), market(100, 0.05, 0.02, 0.2))
+
+
 @pytest.mark.parametrize("direction", ("call", "put"))
 @pytest.mark.parametrize(
     "spot,rate,dividend,sigma",

@@ -445,9 +445,9 @@ fn price<T: AutocallableTerms>(
             }
         } else {
             let transition = transitions.get(time, &nodes, drift, deviation)?;
-            transition.integrate(&alive.cells, discount, &mut values)?;
+            transition.integrate(&nodes, &alive.cells, discount, &mut values)?;
             if layers {
-                transition.integrate(&knocked.cells, discount, &mut values_in)?;
+                transition.integrate(&nodes, &knocked.cells, discount, &mut values_in)?;
             }
             for (i, &node) in nodes.iter().enumerate() {
                 values[i] +=

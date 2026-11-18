@@ -40,6 +40,8 @@ macro_rules! quadrature_engine {
         /// InvalidInputError
         ///     If asset_step_count is below 4 or integration_standard_deviations is
         ///     nonpositive or non-finite.
+        ///     Gaussian grid pricing also raises this if the estimated grid or
+        ///     transition workspace exceeds 256 MiB.
         $(#[doc = concat!("    Also raised if ", stringify!($time), " is below 1.")])?
         ///
         $(#[$doc])*

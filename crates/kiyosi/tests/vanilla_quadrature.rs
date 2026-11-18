@@ -43,6 +43,23 @@ fn european_prices_match_analytic_across_moneyness_carry_and_scale() {
 }
 
 #[test]
+fn american_quadrature_rejects_an_oversized_transition() -> Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let context = market(100.0, 0.05, 0.02, 0.2);
+    let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
+        asset_step_count: 8_000,
+        time_step_count: 3,
+        ..Default::default()
+    })?;
+    assert!(matches!(
+        engine.price(&option, &context),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn american_one_interval_is_exercise_now_or_at_expiry() {
     let (start, end) = dates();
     let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {

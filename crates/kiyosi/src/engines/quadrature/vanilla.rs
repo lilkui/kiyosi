@@ -10,7 +10,7 @@ use crate::{AmericanOption, Error, EuropeanOption, PricingContext, PricingEngine
 
 /// Configures vanilla spatial quadrature and American exercise intervals.
 ///
-/// Counts have no extra cap; pricing remains subject to memory and runtime.
+/// American pricing checks Gaussian grid and transition workspace sizes at pricing time.
 /// See [`QuadratureVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct QuadratureVanillaSettings {
@@ -81,8 +81,9 @@ impl QuadratureVanillaSettings {
 ///
 /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
 /// before life validation. Returns [`Error::InvalidInput`] outside permitted
-/// valuation bounds or curve coverage, and [`Error::ComputationFailure`] for unrepresentable grids,
-/// transitions, tails or prices.
+/// valuation bounds or curve coverage, or when the estimated Gaussian grid or transition
+/// workspace exceeds 256 MiB. Returns [`Error::ComputationFailure`] for unrepresentable
+/// grids, transitions, tails or prices.
 ///
 /// # Greeks
 ///
@@ -267,7 +268,7 @@ fn american_price(
         } else {
             cache
                 .get(time / intervals, &nodes, drift_step, deviation)?
-                .integrate(&layer.cells, discount, &mut values)?;
+                .integrate(&nodes, &layer.cells, discount, &mut values)?;
         }
         for ((value, &node), &exercise) in values.iter_mut().zip(&nodes).zip(&intrinsic) {
             let continuation = *value

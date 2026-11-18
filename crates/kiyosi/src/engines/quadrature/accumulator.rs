@@ -358,7 +358,7 @@ fn price(
         for layer in 0..count {
             let mut values = vec![0.0; nodes.len()];
             if let Some(transition) = transition {
-                transition.integrate(&layers[layer].cells, discount, &mut values)?;
+                transition.integrate(&nodes, &layers[layer].cells, discount, &mut values)?;
             }
             for (value, &node) in values.iter_mut().zip(&nodes) {
                 *value += integrate_terminal(

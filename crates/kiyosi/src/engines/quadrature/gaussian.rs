@@ -1,5 +1,17 @@
 use crate::numerics::{Sum, log_interval_mass, scaled_signed_cash};
+use crate::{Error, Result};
+use std::collections::hash_map::{Entry, HashMap};
+
 const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
+const WORKSPACE_BUDGET: usize = 256 << 20;
+// Includes the hash entry and transient capacity growth during construction.
+const BYTES_PER_CACHED_MOMENT: usize = 256;
+
+fn workspace_error() -> Error {
+    Error::InvalidInput(
+        "Gaussian quadrature workspace exceeds 256 MiB; reduce asset_step_count".into(),
+    )
+}
 
 pub(super) struct TerminalPiece {
     pub lower: f64,
@@ -200,7 +212,11 @@ pub(super) fn integration_nodes(
     if !lower.is_finite() || !upper.is_finite() || lower >= upper {
         return Err(invalid());
     }
-    let mut nodes = Vec::with_capacity(steps as usize + 1 + breaks.len());
+    let points = (steps as usize + 1).saturating_add(breaks.len());
+    if points.saturating_mul(size_of::<Cell>()) > WORKSPACE_BUDGET {
+        return Err(workspace_error());
+    }
+    let mut nodes = Vec::with_capacity(points);
     for index in 0..=steps {
         let t = f64::from(index) / f64::from(steps);
         nodes.push(if lower <= 0.0 && upper >= 0.0 {
@@ -392,68 +408,121 @@ impl TransitionCache {
             if self.0.len() == 3 {
                 self.0.remove(0);
             }
+            let row_bytes = Transition::row_bytes(nodes, drift, deviation)?;
+            let mut retained = self
+                .0
+                .iter()
+                .map(|(_, matrix)| matrix.storage_bytes())
+                .sum::<usize>();
+            while retained + row_bytes > WORKSPACE_BUDGET {
+                retained -= self.0.remove(0).1.storage_bytes();
+            }
+            let max_moments = (WORKSPACE_BUDGET - retained - row_bytes) / BYTES_PER_CACHED_MOMENT;
             self.0
-                .push((time, Transition::new(nodes, drift, deviation)?));
+                .push((time, Transition::new(nodes, drift, deviation, max_moments)?));
             self.0.len() - 1
         };
         Ok(&self.0[index].1)
     }
 }
 
+type Row = (usize, Vec<usize>);
+
 pub(super) struct Transition {
     moments: Vec<IntervalMoments>,
-    rows: Vec<(usize, Vec<usize>)>,
+    rows: Vec<Row>,
+    drift: f64,
+    deviation: f64,
 }
 impl Transition {
-    pub fn new(nodes: &[f64], drift: f64, deviation: f64) -> crate::Result<Self> {
-        let mut moments = Vec::new();
-        let mut geometries = std::collections::HashMap::new();
-        let rows = nodes
-            .iter()
-            .map(|&node| {
+    fn storage_bytes(&self) -> usize {
+        self.rows.capacity() * size_of::<Row>()
+            + self.moments.capacity() * size_of::<IntervalMoments>()
+            + self
+                .rows
+                .iter()
+                .map(|(_, indices)| indices.capacity() * size_of::<usize>())
+                .sum::<usize>()
+    }
+
+    fn row_bytes(nodes: &[f64], drift: f64, deviation: f64) -> Result<usize> {
+        nodes.iter().try_fold(
+            nodes.len().saturating_mul(size_of::<Row>()),
+            |bytes, &node| {
                 crate::cancellation::check()?;
-                let mean = node + drift;
-                let range = active_cells(nodes, mean, deviation);
-                let first = range.start;
-                let indices = range
-                    .map(|cell| {
-                        // Reuse only exactly translated cells, including midpoint rounding.
-                        let key = [
-                            nodes[cell + 1] - nodes[cell],
-                            nodes[cell].midpoint(nodes[cell + 1]) - mean,
-                            nodes[cell] - mean,
-                            nodes[cell + 1] - mean,
-                        ]
-                        .map(f64::to_bits);
-                        *geometries.entry(key).or_insert_with(|| {
-                            let index = moments.len();
-                            moments.push(cell_moments(
-                                nodes[cell],
-                                nodes[cell + 1],
-                                mean,
-                                deviation,
-                            ));
-                            index
-                        })
-                    })
-                    .collect();
-                Ok((first, indices))
-            })
-            .collect::<crate::Result<_>>()?;
-        Ok(Self { moments, rows })
+                let cells = active_cells(nodes, node + drift, deviation).len();
+                let bytes = bytes.saturating_add(cells.saturating_mul(size_of::<usize>()));
+                (bytes <= WORKSPACE_BUDGET)
+                    .then_some(bytes)
+                    .ok_or_else(workspace_error)
+            },
+        )
+    }
+
+    fn new(nodes: &[f64], drift: f64, deviation: f64, max_moments: usize) -> Result<Self> {
+        let mut moments = Vec::new();
+        let mut geometries = HashMap::new();
+        let mut rows = Vec::with_capacity(nodes.len());
+        for &node in nodes {
+            crate::cancellation::check()?;
+            let mean = node + drift;
+            let range = active_cells(nodes, mean, deviation);
+            let first = range.start;
+            let mut indices = Vec::with_capacity(range.len());
+            for cell in range {
+                // Reuse only exactly translated cells, including midpoint rounding.
+                let key = [
+                    nodes[cell + 1] - nodes[cell],
+                    nodes[cell].midpoint(nodes[cell + 1]) - mean,
+                    nodes[cell] - mean,
+                    nodes[cell + 1] - mean,
+                ]
+                .map(f64::to_bits);
+                let index = match geometries.entry(key) {
+                    Entry::Occupied(entry) => *entry.get(),
+                    Entry::Vacant(entry) if moments.len() < max_moments => {
+                        let index = moments.len();
+                        moments.push(cell_moments(nodes[cell], nodes[cell + 1], mean, deviation));
+                        *entry.insert(index)
+                    }
+                    // Keep the grid resolution when there is no room to cache another moment.
+                    Entry::Vacant(_) => usize::MAX,
+                };
+                indices.push(index);
+            }
+            rows.push((first, indices));
+        }
+        Ok(Self {
+            moments,
+            rows,
+            drift,
+            deviation,
+        })
     }
     pub fn integrate(
         &self,
+        nodes: &[f64],
         curve: &[Polynomial],
         discount: f64,
         values: &mut [f64],
     ) -> crate::Result<()> {
         let factor = discount.exp();
-        for (value, (first, indices)) in values.iter_mut().zip(&self.rows) {
+        for ((value, (first, indices)), &node) in values.iter_mut().zip(&self.rows).zip(nodes) {
             crate::cancellation::check()?;
             let mut sum = Sum::default();
             for (cell, &index) in indices.iter().enumerate() {
-                let value = self.moments[index].integrate(&curve[first + cell]);
+                let cell = first + cell;
+                let value = if index == usize::MAX {
+                    cell_moments(
+                        nodes[cell],
+                        nodes[cell + 1],
+                        node + self.drift,
+                        self.deviation,
+                    )
+                    .integrate(&curve[cell])
+                } else {
+                    self.moments[index].integrate(&curve[cell])
+                };
                 sum.add(if factor.is_normal() {
                     value * factor
                 } else {
@@ -494,6 +563,20 @@ mod tests {
     }
 
     #[test]
+    fn transition_integrates_when_there_is_no_room_to_cache_moments() -> Result<()> {
+        let nodes = [-1.0, 0.0, 1.0];
+        let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
+        let transition = Transition::new(&nodes, 0.25, 0.5, 0)?;
+        let mut values = [0.0; 3];
+        transition.integrate(&nodes, &curve, -0.05, &mut values)?;
+        for (&node, actual) in nodes.iter().zip(values) {
+            let expected = integrate_curve(&curve, &nodes, node + 0.25, 0.5, -0.05);
+            assert!((actual - expected).abs() < 1e-13);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn transitions_match_normal_probabilities_across_repeated_intervals() {
         let nodes = [-1.0, 0.0, 1.0];
         let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
@@ -504,7 +587,7 @@ mod tests {
             cache
                 .get(time, &nodes, 0.0, deviation)
                 .unwrap()
-                .integrate(&curve, 0.0, &mut values)
+                .integrate(&nodes, &curve, 0.0, &mut values)
                 .unwrap();
             for (&node, value) in nodes.iter().zip(values) {
                 let expected = 0.5

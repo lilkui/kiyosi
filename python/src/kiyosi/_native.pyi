@@ -2227,6 +2227,8 @@ class QuadratureBarrierEngine(_PricingMethods[BarrierOption]):
     InvalidInputError
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
+        Gaussian grid pricing also raises this if the estimated grid or
+        transition workspace exceeds 256 MiB.
 
     See Also
     --------
@@ -2297,6 +2299,8 @@ class QuadratureDigitalEngine(
     InvalidInputError
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
+        Gaussian grid pricing also raises this if the estimated grid or
+        transition workspace exceeds 256 MiB.
 
     See Also
     --------
@@ -2376,6 +2380,8 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     InvalidInputError
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
+        Gaussian grid pricing also raises this if the estimated grid or
+        transition workspace exceeds 256 MiB.
         Also raised if time_step_count is below 1.
 
     See Also
@@ -6423,6 +6429,8 @@ class QuadratureAutocallableEngine(
     InvalidInputError
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
+        Gaussian grid pricing also raises this if the estimated grid or
+        transition workspace exceeds 256 MiB.
 
     See Also
     --------
@@ -8663,6 +8671,8 @@ class QuadratureAccumulatorEngine(_PricingMethods[Accumulator]):
     InvalidInputError
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
+        Gaussian grid pricing also raises this if the estimated grid or
+        transition workspace exceeds 256 MiB.
 
     See Also
     --------

@@ -8,6 +8,8 @@ use crate::{
 
 /// Configures the spatial resolution and integration extent for event-date quadrature.
 ///
+/// Gaussian grid pricing returns [`Error::InvalidInput`] when the estimated grid or
+/// transition workspace exceeds 256 MiB.
 /// Check spatial and domain convergence separately; see [`QuadratureBarrierEngine::new`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct QuadratureSettings {
@@ -566,6 +568,7 @@ fn scheduled_price(
             values.fill(0.0);
         } else {
             transitions.get(time, &nodes, drift, deviation)?.integrate(
+                &nodes,
                 &layer.cells,
                 discount,
                 &mut values,
