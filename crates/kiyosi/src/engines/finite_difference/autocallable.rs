@@ -1,19 +1,26 @@
+use std::borrow::Cow;
+
 use super::{
     Curve, Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
     diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility,
 };
+use crate::engines::deterministic;
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::ObservationEvent;
-use crate::instruments::autocallable::pricing::{expiry_payment, fixed_value, initial, validate};
-use crate::{AutocallableNote, AutocallableTerms};
+use crate::instruments::autocallable::pricing::{
+    event_times_through, expiry_payment, fixed_value_at, validate,
+};
+use crate::numerics::{scaled_cash, scaled_signed_cash};
+use crate::{AutocallableNote, AutocallableTerms, PricingContextChanges, Timestamp};
 
 impl FiniteDifferenceAutocallableEngine {
     /// Prices remaining snowball or Phoenix cash flows on exact trading and observation dates.
     ///
     /// Accepts flat or nonconstant rate curves, retains daily knock-in layers and projects future events.
-    /// Current events use actual spot with strict knock-in and inclusive knock-out/coupon levels.
+    /// Current events and events before variance starts use the deterministic spot path,
+    /// with strict knock-in and inclusive knock-out/coupon levels.
     /// Accepts BSM or local volatility. Surface coverage is required only for remaining
     /// stochastic evolution, after settlement and fixed cash flows are resolved.
     /// See [`Self::price`] for an example.
@@ -92,6 +99,26 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
+    fn volatility_affects_price(
+        &self,
+        note: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> bool {
+        let now = context.valuation_time();
+        if let Ok(start) = context
+            .model_parameters()
+            .time_convention()
+            .variance_start(now, note.expiry_time())
+        {
+            if start > now
+                && deterministic::autocallable_through(note, context, start)
+                    .is_ok_and(|state| state.settlement.is_some())
+            {
+                return false;
+            }
+        }
+        note.volatility_affects_price(context)
+    }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
@@ -152,49 +179,54 @@ fn native<T: AutocallableTerms>(
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled_until(context, note.expiry_time())? {
+    if deterministic::enabled_until(context, note.expiry_time())? {
         return Ok((
-            PricingResult::new(crate::engines::deterministic::autocallable(note, context)?)?,
+            PricingResult::new(deterministic::autocallable(note, context)?)?,
             None,
         ));
     }
-    diffusion::with_diffusion!(context, |diffusion| {
-        native_with_diffusion(note, context, settings, request, shifts, diffusion)
-    })
-}
-
-fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
-    note: &AutocallableNote<T>,
-    context: &PricingContext,
-    settings: FiniteDifferenceSettings,
-    request: GreeksRequest,
-    shifts: NumericalShiftSettings,
-    diffusion: D,
-) -> Result<(PricingResult, Option<f64>)> {
     validate(note, context)?;
-    let state = initial(note, context);
-    let h = crate::risk::numerical::symmetric_shift(
-        context.spot_price(),
-        shifts.spot_shift_at(context.spot_price()),
-    );
-    let spot_greeks = !note.at_spot_discontinuity(context, h);
+    let start = context.deterministic_until(note.expiry_time())?;
+    let state = deterministic::autocallable_through(note, context, start)?;
     if let Some(value) = state.settlement {
         return Ok((PricingResult::new(value)?, None));
     }
-    if let Some(value) = fixed_value(note, context, state.knocked_in) {
-        let mut result = PricingResult::new(value + state.coupon)?;
-        for greek in [Greek::Delta, Greek::Gamma] {
-            if spot_greeks && request.has(greek) {
-                result.set(request, greek, 0.0)?;
-            }
-        }
-        return Ok((result, None));
+    let mut grid = None;
+    if fixed_value_at(note, context, start, state.knocked_in).is_none() {
+        let (rolled, _, _) = continuation_context(context, start)?;
+        let rolled = rolled.as_ref();
+        grid = Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
+            note,
+            rolled,
+            settings,
+            diffusion,
+            state.knocked_in
+        ))?);
     }
-    let saved = solve_grid(note, context, settings, diffusion, state.knocked_in)?;
-    let upper = saved.space.upper;
-    let result =
-        AutocallableState { grid: Some(saved) }.evaluate(note, context, request, shifts)?;
-    Ok((result, Some(upper)))
+    let upper = grid.as_ref().map(|grid| grid.space.upper);
+    let result = AutocallableState { start, grid }.evaluate(note, context, request, shifts)?;
+    Ok((result, upper))
+}
+
+fn continuation_context(
+    context: &PricingContext,
+    start: Timestamp,
+) -> Result<(Cow<'_, PricingContext>, f64, f64)> {
+    if start == context.valuation_time() {
+        return Ok((Cow::Borrowed(context), 0.0, 0.0));
+    }
+    let carry = deterministic::log_return(context, start)?;
+    let discount = deterministic::discount(context, start)?;
+    let spot = scaled_cash(context.spot_price(), carry);
+    if !spot.is_finite() || spot <= 0.0 {
+        return Err(super::unstable());
+    }
+    let rolled = context.replace(PricingContextChanges {
+        valuation_time: Some(start),
+        spot_price: Some(spot),
+        ..Default::default()
+    })?;
+    Ok((Cow::Owned(rolled), carry, discount))
 }
 
 #[expect(
@@ -475,6 +507,7 @@ struct AutocallableGrid {
 
 #[derive(PartialEq)]
 struct AutocallableState {
+    start: Timestamp,
     grid: Option<AutocallableGrid>,
 }
 impl AutocallableState {
@@ -485,20 +518,24 @@ impl AutocallableState {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        if crate::engines::deterministic::enabled_until(context, note.expiry_time())? {
-            return PricingResult::new(crate::engines::deterministic::autocallable(note, context)?);
+        if self.start == note.expiry_time() && deterministic::enabled_until(context, self.start)? {
+            return PricingResult::new(deterministic::autocallable(note, context)?);
         }
-        let state = initial(note, context);
+        let state = deterministic::autocallable_through(note, context, self.start)?;
         let h = crate::risk::numerical::symmetric_shift(
             context.spot_price(),
             shifts.spot_shift_at(context.spot_price()),
         );
-        let spot_greeks = !note.at_spot_discontinuity(context, h);
+        let spot_greeks =
+            request.has(Greek::Delta) || request.has(Greek::Gamma) || request.has(Greek::Speed);
+        let spot_greeks = spot_greeks && !note.at_spot_discontinuity(context, h);
         if let Some(value) = state.settlement {
             return PricingResult::new(value);
         }
-        if let Some(value) = fixed_value(note, context, state.knocked_in) {
-            let mut result = PricingResult::new(value + state.coupon)?;
+        if let Some(value) = fixed_value_at(note, context, self.start, state.knocked_in) {
+            let discount = deterministic::discount(context, self.start)?;
+            let mut result =
+                PricingResult::new(scaled_signed_cash(value, discount) + state.coupon)?;
             for greek in [Greek::Delta, Greek::Gamma] {
                 if spot_greeks {
                     result.set(request, greek, 0.0)?;
@@ -506,24 +543,33 @@ impl AutocallableState {
             }
             return Ok(result);
         }
+        let (rolled, carry, discount) = continuation_context(context, self.start)?;
         let grid = self.grid.as_ref().ok_or_else(super::unstable)?;
         let layer =
             usize::from(state.knocked_in && !grid.starting_knocked && !grid.layers[1].is_empty());
         let alive = &grid.layers[layer];
         let curvature = &grid.curvatures[layer];
         let space = &grid.space;
-        let spot = context.spot_price();
+        let spot = rolled.spot_price();
         let [price, delta, gamma] = space.sample(alive, curvature, spot);
-        let mut result = PricingResult::new(state.coupon + price)?;
-        for (greek, value) in [(Greek::Delta, delta), (Greek::Gamma, gamma)] {
+        let mut result = PricingResult::new(state.coupon + scaled_signed_cash(price, discount))?;
+        for (greek, value, powers) in [(Greek::Delta, delta, 1.0), (Greek::Gamma, gamma, 2.0)] {
             if spot_greeks && request.has(greek) {
-                result.set(request, greek, value)?;
+                result.set(
+                    request,
+                    greek,
+                    scaled_signed_cash(value, discount + powers * carry),
+                )?;
             }
         }
         if spot_greeks && request.has(Greek::Speed) {
-            let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
+            let h = crate::risk::numerical::symmetric_shift(spot, scaled_cash(h, carry));
             if let Some(speed) = space.speed(alive, curvature, spot, h) {
-                result.set(request, Greek::Speed, speed)?;
+                result.set(
+                    request,
+                    Greek::Speed,
+                    scaled_signed_cash(speed, discount + 3.0 * carry),
+                )?;
             }
         }
         Ok(result)
@@ -555,38 +601,59 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
         crate::cancellation::check()?;
         let anchor = super::solution::at_spot(context, *range.end())?;
         validate(note, &anchor)?;
+        let now = context.valuation_time();
+        let start = context.deterministic_until(note.expiry_time())?;
+        let low = super::solution::at_spot(context, *range.start())?;
         let mut levels = vec![note.view().reference_spot()];
-        if let Some(ki) = note.view().knock_in {
-            levels.push(ki.level);
-        }
-        for r in note
-            .events()
-            .iter()
-            .filter(|r| r.time() == context.valuation_time())
-        {
-            if r.has_knock_out() {
-                levels.push(r.knock_out_level());
-            }
-            levels.extend(r.coupon_barrier_level());
-        }
         let mut pending = false;
         let mut starting_knocked = true;
-        for spot in super::solution::probes(&range, levels) {
-            let probe = super::solution::at_spot(context, spot)?;
-            validate(note, &probe)?;
-            let state = initial(note, &probe);
-            if state.settlement.is_none() && fixed_value(note, &probe, state.knocked_in).is_none() {
-                pending = true;
-                starting_knocked &= state.knocked_in;
+        if start < note.expiry_time()
+            && deterministic::autocallable_through(note, &low, start)?
+                .settlement
+                .is_none()
+        {
+            if let Some(ki) = note.view().knock_in {
+                levels.push(ki.level);
+                if start > now && note.view().daily_knock_in() {
+                    for time in event_times_through(note, context, true, start)? {
+                        if note.daily_time(time, note.calendar()) {
+                            levels.push(scaled_cash(
+                                ki.level,
+                                -deterministic::log_return(context, time)?,
+                            ));
+                        }
+                    }
+                }
+            }
+            let events = note.events();
+            for record in events[events.partition_point(|r| r.time() < now)..]
+                .iter()
+                .take_while(|r| r.time() <= start)
+            {
+                if record.has_knock_out() {
+                    levels.push(scaled_cash(
+                        record.knock_out_level(),
+                        -deterministic::log_return(context, record.time())?,
+                    ));
+                }
+            }
+            for spot in super::solution::probes(&range, levels) {
+                let probe = super::solution::at_spot(context, spot)?;
+                let state = deterministic::autocallable_through(note, &probe, start)?;
+                if state.settlement.is_none()
+                    && fixed_value_at(note, &probe, start, state.knocked_in).is_none()
+                {
+                    pending = true;
+                    starting_knocked &= state.knocked_in;
+                }
             }
         }
-        let grid = if pending
-            && !crate::engines::deterministic::enabled_until(context, note.expiry_time())?
-        {
-            let anchor = &anchor;
-            Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
+        let grid = if pending {
+            let (rolled, _, _) = continuation_context(&anchor, start)?;
+            let rolled = rolled.as_ref();
+            Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
                 note,
-                anchor,
+                rolled,
                 self.settings,
                 diffusion,
                 starting_knocked
@@ -594,7 +661,7 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
         } else {
             None
         };
-        let state = AutocallableState { grid };
+        let state = AutocallableState { start, grid };
         state.evaluate(note, &anchor, GreeksRequest::new([]), Default::default())?;
         crate::cancellation::check()?;
         Ok(super::FiniteDifferenceSolution::new(

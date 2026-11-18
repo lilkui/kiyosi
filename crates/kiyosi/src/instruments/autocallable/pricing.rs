@@ -73,22 +73,32 @@ pub(crate) fn future_event_times<T: AutocallableTerms>(
     context: &PricingContext,
     daily: bool,
 ) -> Result<Vec<Timestamp>> {
+    event_times_through(note, context, daily, note.expiry_time())
+}
+
+pub(crate) fn event_times_through<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    daily: bool,
+    horizon: Timestamp,
+) -> Result<Vec<Timestamp>> {
     let mut times: Vec<_> = note
         .events()
         .iter()
         .map(|r| r.time)
-        .filter(|&time| time > context.valuation_time())
+        .skip_while(|&time| time <= context.valuation_time())
+        .take_while(|&time| time <= horizon)
         .collect();
     if let Some(clock) = note.observation_clock_time().filter(|_| daily) {
         times.extend(crate::ObservationSchedule::daily_times(
             context.valuation_time(),
-            note.expiry_time(),
+            horizon,
             note.calendar(),
             false,
             clock,
         )?);
     }
-    times.push(note.expiry_time());
+    times.push(horizon);
     times.sort_unstable();
     times.dedup();
     Ok(times)
@@ -103,26 +113,32 @@ pub(crate) fn validate<T: AutocallableTerms>(
     Ok(())
 }
 
-#[expect(
-    clippy::float_cmp,
-    reason = "Exact payoff terms and exactly recoverable discounted payments determine whether valuation is constant."
-)]
 pub(crate) fn fixed_value<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
     knocked_in: bool,
 ) -> Option<f64> {
+    fixed_value_at(note, context, context.valuation_time(), knocked_in)
+}
+
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact payoff terms and exactly recoverable discounted payments determine whether valuation is constant."
+)]
+pub(crate) fn fixed_value_at<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    time: Timestamp,
+    knocked_in: bool,
+) -> Option<f64> {
     let t = note.view();
     let pending_knock_in = if t.daily_knock_in() {
-        context.valuation_time() < note.expiry_time()
+        time < note.expiry_time()
             && note
-                .has_daily_observation(
-                    context.valuation_time().add_micros(1).ok()?,
-                    note.expiry_time(),
-                )
+                .has_daily_observation(time.add_micros(1).ok()?, note.expiry_time())
                 .ok()?
     } else {
-        t.knock_in.is_some() && context.valuation_time() < note.expiry_time()
+        t.knock_in.is_some() && time < note.expiry_time()
     };
     if knocked_in || pending_knock_in {
         if let Some(d) = t.downside() {
@@ -137,7 +153,7 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
         context
             .model_parameters()
             .risk_free_curve()
-            .factor(context.valuation_time(), date)
+            .factor(time, date)
             .ok()
     };
     let value = note.terminal(context.spot_price(), knocked_in) * discount(note.expiry_time())?;
@@ -145,12 +161,7 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
         return None;
     }
     let mut coupons = 0.0;
-    for record in note
-        .events()
-        .iter()
-        .rev()
-        .filter(|r| r.time > context.valuation_time())
-    {
+    for record in note.events().iter().rev().filter(|r| r.time > time) {
         let discount = discount(record.time)?;
         if !discount.is_normal()
             || record.has_knock_out()

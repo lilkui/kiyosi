@@ -365,6 +365,111 @@ def test_closed_horizon_coupon_jump_has_no_spot_greeks():
             assert result.status("gamma") == status
 
 
+@pytest.mark.parametrize("kind", ["bsm", "local"])
+def test_closed_prefix_pays_coupon_and_knock_out_exactly(kind):
+    from test_phoenix import contract
+
+    start = datetime(2026, 11, 14)
+    sunday = start + timedelta(days=1)
+    end = start + timedelta(days=2, hours=12)
+    note = contract(
+        effective_time=start,
+        expiry_time=end,
+        calendar=all_days_calendar(),
+        rebate_rate=0.02,
+        knock_out_observations=[ins.KnockOutObservation(sunday, 110)],
+        coupon_observations=[ins.CouponObservation(sunday, 100)],
+    )
+    plain = note.replace(coupon_per_period=0)
+    inputs = {
+        "risk_free_rate": 0.04,
+        "dividend_yield": 0.04,
+        "time_convention": "business",
+        "calendar": weekdays_calendar(),
+    }
+    market = context(
+        bsm(**inputs) if kind == "bsm" else local(start, end, **inputs), start
+    )
+    engine = pricing.FiniteDifferenceAutocallableEngine()
+    saved = engine.solve(note, market, spot_range=(99, 111))
+    saved_plain = engine.solve(plain, market, spot_range=(99, 111))
+    discount = math.exp(-0.04 / 365)
+    for spot, expected in ((99, 0), (100, 0.01 * discount)):
+        at_spot = market.replace(spot_price=spot)
+        assert engine.price(note, at_spot) - engine.price(
+            plain, at_spot
+        ) == pytest.approx(expected, abs=1e-12)
+        assert saved.price(spot) - saved_plain.price(spot) == pytest.approx(
+            expected, abs=1e-12
+        )
+    assert engine.price(note, market.replace(spot_price=110)) == pytest.approx(
+        1.03 * discount, abs=1e-12
+    )
+    assert saved.price(110) == pytest.approx(1.03 * discount, abs=1e-12)
+
+
+def test_closed_prefix_prices_fixed_cashflows_without_surface_at_reopen():
+    from test_phoenix import contract
+
+    start = datetime(2026, 11, 14)
+    end = start + timedelta(days=2, hours=12)
+    note = contract(
+        effective_time=start,
+        expiry_time=end,
+        calendar=all_days_calendar(),
+        lower_strike=100,
+        coupon_per_period=0,
+        knock_out_observations=[ins.KnockOutObservation(end, 110)],
+        coupon_observations=[ins.CouponObservation(end, 100)],
+    )
+    model = local(
+        start,
+        start + timedelta(days=1),
+        time_convention="business",
+        calendar=weekdays_calendar(),
+    )
+    market = context(model, start)
+    engine = pricing.FiniteDifferenceAutocallableEngine()
+    expected = math.exp(-0.07 * 2.5 / 365)
+    assert engine.price(note, market) == pytest.approx(expected, abs=1e-12)
+    assert engine.solve(note, market, spot_range=(90, 110)).price(100) == pytest.approx(
+        expected, abs=1e-12
+    )
+
+
+def test_closed_prefix_carries_knock_in_state_and_spot_into_the_grid():
+    from test_phoenix import contract
+
+    start = datetime(2026, 11, 14)
+    opens = start + timedelta(days=2)
+    end = opens + timedelta(hours=12)
+    note = contract(
+        effective_time=start,
+        expiry_time=end,
+        calendar=all_days_calendar(),
+        knock_in_level=95,
+        knock_in_observation=ins.KnockInObservation.every_trading_day(time(12)),
+        knock_out_observations=[ins.KnockOutObservation(end, 110)],
+        coupon_observations=[ins.CouponObservation(end, 90)],
+    )
+    model = bsm(
+        risk_free_rate=0.04,
+        dividend_yield=0,
+        time_convention="business",
+        calendar=weekdays_calendar(),
+    )
+    market = context(model, start, 94)
+    engine = pricing.FiniteDifferenceAutocallableEngine(asset_upper_boundary=400)
+    saved = engine.solve(note, market, spot_range=(92, 102))
+    for spot, state in [(94, "knocked_in"), (97, "no_event")]:
+        factor = math.exp(0.04 * 2 / 365)
+        opened = market.replace(valuation_time=opens, spot_price=spot * factor)
+        expected = engine.price(note.replace(barrier_state=state), opened) / factor
+        actual = engine.price(note, market.replace(spot_price=spot))
+        assert actual == pytest.approx(expected, abs=1e-12)
+        assert saved.price(spot) == pytest.approx(expected, abs=1e-12)
+
+
 def test_weekend_events_keep_real_timestamp_order():
     start = datetime(2026, 11, 14)
     end = datetime(2026, 11, 16, 12)

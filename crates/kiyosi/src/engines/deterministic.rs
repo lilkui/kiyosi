@@ -1,5 +1,5 @@
 use super::{Payoff, curve::Curve};
-use crate::instruments::autocallable::pricing::{future_event_times, initial, validate};
+use crate::instruments::autocallable::pricing::{Initial, event_times_through, initial, validate};
 use crate::instruments::{
     binary_barrier::{Contract, Settlement},
     monitoring::{Monitoring, validate_life},
@@ -141,7 +141,7 @@ pub(super) fn exercise_value(
     Ok(best)
 }
 
-fn log_return(context: &PricingContext, time: Timestamp) -> Result<f64> {
+pub(super) fn log_return(context: &PricingContext, time: Timestamp) -> Result<f64> {
     let model = context.model_parameters();
     let start = context.valuation_time();
     finite(
@@ -150,7 +150,7 @@ fn log_return(context: &PricingContext, time: Timestamp) -> Result<f64> {
     )
 }
 
-fn spot(context: &PricingContext, time: Timestamp) -> Result<f64> {
+pub(super) fn spot(context: &PricingContext, time: Timestamp) -> Result<f64> {
     let value = scaled_cash(context.spot_price(), log_return(context, time)?);
     if value.is_finite() && value > 0.0 {
         Ok(value)
@@ -159,7 +159,7 @@ fn spot(context: &PricingContext, time: Timestamp) -> Result<f64> {
     }
 }
 
-fn discount(context: &PricingContext, time: Timestamp) -> Result<f64> {
+pub(super) fn discount(context: &PricingContext, time: Timestamp) -> Result<f64> {
     context
         .model_parameters()
         .risk_free_curve()
@@ -338,45 +338,61 @@ pub(super) fn autocallable<T: AutocallableTerms>(
     context: &PricingContext,
 ) -> Result<f64> {
     validate(note, context)?;
-    let state = initial(note, context);
-    if let Some(value) = state.settlement {
-        return finite(value);
+    let state = autocallable_through(note, context, note.expiry_time())?;
+    finite(state.settlement.ok_or_else(invalid)?)
+}
+
+pub(super) fn autocallable_through<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    horizon: Timestamp,
+) -> Result<Initial> {
+    let mut state = initial(note, context);
+    if state.settlement.is_some() || horizon == context.valuation_time() {
+        return Ok(state);
     }
-    let mut knocked_in = state.knocked_in;
-    let mut coupons = state.coupon;
+    let daily = note.view().daily_knock_in();
     let mut next = note
         .events()
         .partition_point(|record| record.time() <= context.valuation_time());
-    for time in future_event_times(note, context, note.view().daily_knock_in())? {
-        let spot = spot(context, time)?;
-        if note.view().daily_knock_in() && note.daily_time(time, note.calendar()) {
-            knocked_in |= note.view().below_knock_in(spot);
-        }
-        if let Some(record) = note
+    for time in event_times_through(note, context, daily, horizon)? {
+        crate::cancellation::check()?;
+        let daily_fixing = daily && note.daily_time(time, note.calendar());
+        let record = note
             .events()
             .get(next)
-            .filter(|record| record.time() == time)
-        {
+            .filter(|record| record.time() == time);
+        if !daily_fixing && record.is_none() && time != note.expiry_time() {
+            continue;
+        }
+        let spot = spot(context, time)?;
+        if daily_fixing {
+            state.knocked_in |= note.view().below_knock_in(spot);
+        }
+        if let Some(record) = record {
             next += 1;
             let coupon = note.observation_coupon(record, spot);
             if record.has_knock_out() && spot >= record.knock_out_level() {
-                return finite(
-                    coupons
+                state.settlement = Some(finite(
+                    state.coupon
                         + scaled_signed_cash(
                             note.knock_out_payment(record) + coupon,
                             discount(context, time)?,
                         ),
-                );
+                )?);
+                break;
             }
-            coupons += scaled_signed_cash(coupon, discount(context, time)?);
+            state.coupon += scaled_signed_cash(coupon, discount(context, time)?);
         }
         if time == note.expiry_time() {
-            knocked_in |= note.observes_knock_in(time) && note.view().below_knock_in(spot);
-            let terminal = note.terminal(spot, knocked_in);
-            return finite(coupons + scaled_signed_cash(terminal, discount(context, time)?));
+            state.knocked_in |= note.observes_knock_in(time) && note.view().below_knock_in(spot);
+            let terminal = note.terminal(spot, state.knocked_in);
+            state.settlement = Some(finite(
+                state.coupon + scaled_signed_cash(terminal, discount(context, time)?),
+            )?);
         }
     }
-    Err(invalid())
+    Ok(state)
 }
 
 pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Result<f64> {

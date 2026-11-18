@@ -88,6 +88,62 @@ fn closed_horizon_coupon_jump_has_no_spot_greeks() -> Result<()> {
 }
 
 #[test]
+fn closed_prefix_pays_coupon_and_knock_out_exactly() -> Result<()> {
+    let start = Date::new(2026, 11, 14)?.start_of_day();
+    let sunday = start.add_days(1)?;
+    let end = sunday.add_days(1)?.add_micros(43_200_000_000)?;
+    let mut input = terms();
+    input.effective_time = start;
+    input.expiry_time = end;
+    input.calendar = TradingCalendar::all_days();
+    input.rebate_rate = 0.02;
+    input.knock_out_observations = vec![KnockOutObservation::new(sunday, 110.0)?];
+    input.coupon_observations = vec![CouponObservation::new(sunday, 100.0)?];
+    let paid = PhoenixOption::new(input.clone())?;
+    input.coupon_per_period = 0.0;
+    let plain = PhoenixOption::new(input)?;
+    let model = BlackScholesMertonParameters::new_with_time_convention(
+        0.04,
+        0.04,
+        0.2,
+        ModelTimeConvention::Business(TradingCalendar::weekdays()),
+    )?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let engine = FiniteDifferenceAutocallableEngine::default();
+    let a = engine.solve(&paid, &context, 99.0..=111.0)?;
+    let b = engine.solve(&plain, &context, 99.0..=111.0)?;
+    let discount = (-0.04 / 365.0_f64).exp();
+    for (spot, expected) in [(99.0, 0.0), (100.0, 0.01 * discount)] {
+        let at_spot = context.replace(PricingContextChanges {
+            spot_price: Some(spot),
+            ..Default::default()
+        })?;
+        assert!(
+            (engine.price(&paid, &at_spot)? - engine.price(&plain, &at_spot)? - expected).abs()
+                < 1e-12
+        );
+        assert!((a.price(spot)? - b.price(spot)? - expected).abs() < 1e-12);
+    }
+    let at_knock_out = context.replace(PricingContextChanges {
+        spot_price: Some(110.0),
+        ..Default::default()
+    })?;
+    assert!((engine.price(&paid, &at_knock_out)? - 1.03 * discount).abs() < 1e-12);
+    assert!((a.price(110.0)? - 1.03 * discount).abs() < 1e-12);
+    assert!(matches!(
+        implied_volatility(
+            &engine,
+            &paid,
+            &at_knock_out,
+            1.03 * discount,
+            ImpliedVolatilitySettings::new(0.0, 1.0)
+        ),
+        Err(Error::UnsupportedOperation(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn lockout_preserves_conditional_coupons_and_continuation_in_all_engines() {
     let context = market(100.0, date(1, 1));
     let mut input = terms();
