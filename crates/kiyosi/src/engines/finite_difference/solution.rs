@@ -193,6 +193,12 @@ impl FiniteDifferenceSolution {
                 .into_iter()
                 .filter(|&g| request.has(g) && self.supported.has(g)),
         );
+        if active == GreeksRequest::new([]) {
+            return Ok(self
+                .value
+                .evaluate(&context, active, shifts)?
+                .with_request(request, self.supported));
+        }
         let h =
             crate::risk::numerical::symmetric_shift(spot_price, shifts.spot_shift_at(spot_price));
         let undefined = self.value.contract().at_spot_discontinuity(&context, 0.0);
@@ -261,10 +267,9 @@ impl FiniteDifferenceSolution {
                 }
             }
         }
-        result = result
+        Ok(result
             .with_request(request, self.supported)
-            .with_unavailable_stencils(active);
-        Ok(result.with_request(request, self.supported))
+            .with_unavailable_stencils(active))
     }
 
     /// Evaluates price/Greeks in input order with no partial result on failure.
