@@ -381,19 +381,22 @@ impl PricingContext {
     pub fn model_parameters(&self) -> &ModelParameters {
         &self.model_parameters
     }
+    pub(crate) fn deterministic_until(&self, end: Timestamp) -> Result<Timestamp> {
+        let model = self.model_parameters();
+        if matches!(model, ModelParameters::BlackScholesMerton(m) if m.volatility() == 0.0) {
+            return Ok(end);
+        }
+        model
+            .time_convention()
+            .variance_start(self.valuation_time, end)
+    }
+
     pub(crate) fn deterministic_crosses(&self, time: Timestamp, level: f64, radius: f64) -> bool {
         if time < self.valuation_time {
             return false;
         }
         let model = self.model_parameters();
-        let zero_volatility = matches!(model,
-            ModelParameters::BlackScholesMerton(m) if m.volatility() == 0.0);
-        let clock = model.time_convention();
-        let stopped = clock.calendar().is_some()
-            && clock
-                .year_fraction(self.valuation_time, time)
-                .is_ok_and(|v| v == 0.0);
-        if !zero_volatility && !stopped {
+        if !matches!(self.deterministic_until(time), Ok(end) if end == time) {
             return false;
         }
         let carry = model

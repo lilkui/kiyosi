@@ -112,6 +112,24 @@ impl ModelTimeConvention {
         Ok(())
     }
 
+    pub(crate) fn variance_start(&self, start: Timestamp, end: Timestamp) -> Result<Timestamp> {
+        let Some(calendar) = self.calendar() else {
+            return Ok(start.min(end));
+        };
+        let mut current = start;
+        while current < end {
+            crate::cancellation::check()?;
+            if calendar.is_trading_day(current.date()) {
+                return Ok(current);
+            }
+            if current.date() == end.date() {
+                break;
+            }
+            current = current.date().add_days(1)?.start_of_day();
+        }
+        Ok(end)
+    }
+
     pub(crate) fn variance_rate(&self, date: Date) -> f64 {
         match self {
             Self::Actual365Fixed => 1.0,

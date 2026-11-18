@@ -332,6 +332,39 @@ def test_implied_volatility_rejects_closed_horizon(lower):
         )
 
 
+def test_closed_horizon_coupon_jump_has_no_spot_greeks():
+    from test_phoenix import contract
+
+    start = datetime(2026, 11, 14, 12)
+    end = start + timedelta(days=1)
+    note = contract(
+        effective_time=start,
+        expiry_time=end,
+        calendar=all_days_calendar(),
+        knock_out_observations=[ins.KnockOutObservation(end, 200)],
+        coupon_observations=[ins.CouponObservation(end, 100)],
+    )
+    market = context(
+        bsm(
+            risk_free_rate=0,
+            dividend_yield=0,
+            time_convention="business",
+            calendar=weekdays_calendar(),
+        ),
+        start,
+    )
+    engine = pricing.FiniteDifferenceAutocallableEngine()
+    solution = engine.solve(note, market, spot_range=(99, 101))
+    controls = {"greeks": ("delta", "gamma"), "spot_shift": 0.125}
+    for spot, status in [(100, "undefined"), (100.0625, "stencil_unavailable")]:
+        for result in (
+            engine.price_with_greeks(note, market.replace(spot_price=spot), **controls),
+            solution.price_with_greeks(spot, **controls),
+        ):
+            assert result.status("delta") == status
+            assert result.status("gamma") == status
+
+
 def test_weekend_events_keep_real_timestamp_order():
     start = datetime(2026, 11, 14)
     end = datetime(2026, 11, 16, 12)

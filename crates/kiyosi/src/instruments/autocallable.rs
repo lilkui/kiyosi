@@ -1270,15 +1270,12 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         if self.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
             return false;
         }
-        if context
-            .model_parameters()
-            .as_bsm()
-            .is_ok_and(|model| model.volatility() == 0.0)
-        {
+        if let Ok(until) = context.deterministic_until(self.expiry_time()) {
             for record in self
                 .events()
                 .iter()
-                .filter(|record| record.time > context.valuation_time())
+                .skip_while(|record| record.time <= context.valuation_time())
+                .take_while(|record| record.time <= until)
             {
                 if record.has_knock_out()
                     && context.deterministic_crosses(record.time, record.knock_out_level(), radius)
@@ -1293,20 +1290,23 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
                     return true;
                 }
             }
-            if self.knock_in_affects_payoff() {
+            if until > context.valuation_time() && self.knock_in_affects_payoff() {
                 if let Some(ki) = self.view().knock_in {
                     let times = match ki.observation {
                         KnockInObservation::EveryTradingDay {
                             observation_clock_time,
                         } => crate::ObservationSchedule::daily_times(
                             context.valuation_time().max(self.effective_time()),
-                            self.expiry_time(),
+                            until,
                             self.calendar(),
                             true,
                             observation_clock_time,
                         )
                         .unwrap_or_default(),
-                        KnockInObservation::AtExpiry => vec![self.expiry_time()],
+                        KnockInObservation::AtExpiry if until == self.expiry_time() => {
+                            vec![until]
+                        }
+                        KnockInObservation::AtExpiry => Vec::new(),
                     };
                     let mut knocked_in =
                         self.barrier_state() == Some(AutocallableBarrierState::KnockedIn);

@@ -44,6 +44,50 @@ fn market(spot: f64, valuation: Timestamp) -> PricingContext {
 }
 
 #[test]
+fn closed_horizon_coupon_jump_has_no_spot_greeks() -> Result<()> {
+    let start = Date::new(2026, 11, 14)?.start_of_day();
+    let end = start.add_days(1)?;
+    let mut input = terms();
+    input.effective_time = start;
+    input.expiry_time = end;
+    input.calendar = TradingCalendar::all_days();
+    input.knock_out_observations = vec![KnockOutObservation::new(end, 200.0)?];
+    input.coupon_observations = vec![CouponObservation::new(end, 100.0)?];
+    let note = PhoenixOption::new(input)?;
+    let model = BlackScholesMertonParameters::new_with_time_convention(
+        0.0,
+        0.0,
+        0.2,
+        ModelTimeConvention::Business(TradingCalendar::weekdays()),
+    )?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let engine = FiniteDifferenceAutocallableEngine::default();
+    let solution = engine.solve(&note, &context, 99.0..=101.0)?;
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let shifts = NumericalShiftSettings {
+        spot_shift: Some(0.125),
+        ..Default::default()
+    };
+    for (spot, status) in [
+        (100.0, GreekStatus::Undefined),
+        (100.0625, GreekStatus::StencilUnavailable),
+    ] {
+        let at_spot = context.replace(PricingContextChanges {
+            spot_price: Some(spot),
+            ..Default::default()
+        })?;
+        for result in [
+            engine.price_with_greeks_with_settings(&note, &at_spot, request, shifts)?,
+            solution.price_with_greeks(spot, request, shifts.spot_shift)?,
+        ] {
+            assert_eq!(result.status(Greek::Delta), status);
+            assert_eq!(result.status(Greek::Gamma), status);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn lockout_preserves_conditional_coupons_and_continuation_in_all_engines() {
     let context = market(100.0, date(1, 1));
     let mut input = terms();
