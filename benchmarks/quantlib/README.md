@@ -36,6 +36,7 @@ python3 benchmarks/quantlib/run.py
 | `--case ID` | 选择指定用例，可重复传入。未指定该选项时，即使使用自定义清单，也必须包含全部必测覆盖单元。 |
 | `--cases PATH`, `--references PATH` | 加载 JSON 文件或目录，默认为运行脚本同级的 `cases/` 和 `references/`。使用部分清单时需配合 `--case`。 |
 | `--no-build` | 复用 `target/release/quantlib_bench` 和 `benchmarks/quantlib/build/quantlib_bench`。 |
+| `--rust-executable PATH` | 与 `--no-build` 一起使用，指定已有的 Rust 适配器。默认构建模式使用 Cargo 报告的可执行文件路径。 |
 | `--price-only` | 仅运行精度门限与蒙特卡洛种子集校验，不计时。 |
 | `--target-ms MS` | 自适应计时批次的最短时长，默认为 `20`。 |
 | `--report PATH` | JSON 报告输出路径，默认为 `benchmarks/quantlib/report.json`。 |

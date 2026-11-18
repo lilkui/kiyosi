@@ -6,13 +6,69 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from run import RUST_EXECUTABLE, command, rust_build_command
+from run import RUST_EXECUTABLE, build, command, fingerprint, rust_build_command
 
 RUNNER = Path(__file__).with_name("run.py")
 
 
 class CommandTests(unittest.TestCase):
+    def test_rust_executable_override_requires_no_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "report.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(RUNNER),
+                    "--rust-executable",
+                    str(Path(directory) / "custom"),
+                    "--case",
+                    "european-bsm-atm-call",
+                    "--report",
+                    str(report),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1)
+            data = json.loads(report.read_text())
+            self.assertEqual(data["cases"][0]["status"], "prerequisite_failed")
+            self.assertEqual(data["error"], "--rust-executable requires --no-build")
+
+    def test_build_uses_cargo_reported_artifact_for_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rust = root / "custom" / "release" / "quantlib_bench"
+            rust.parent.mkdir(parents=True)
+            rust.write_bytes(b"rust artifact")
+            quantlib = root / "quantlib"
+            quantlib.write_bytes(b"quantlib artifact")
+            cargo_output = json.dumps(
+                {
+                    "reason": "compiler-artifact",
+                    "target": {"name": "quantlib_bench"},
+                    "executable": str(rust),
+                }
+            )
+            args = SimpleNamespace(
+                quantlib_config="quantlib-config",
+                cxx="c++",
+                cxxflags="",
+                quantlib_executable=quantlib,
+            )
+            with (
+                patch("run.HERE", root),
+                patch(
+                    "run.command", side_effect=["1.44", "", "", cargo_output, "", "c++"]
+                ),
+            ):
+                executable, evidence = build(args)
+            self.assertEqual(executable, rust)
+            self.assertEqual(evidence["executables"]["kiyosi"], fingerprint(rust))
+
     def test_missing_native_executable_writes_failed_report(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"

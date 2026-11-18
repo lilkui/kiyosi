@@ -120,7 +120,7 @@ def build(args):
         raise ValueError(f"QuantLib 1.44 required; quantlib-config reports {version}")
     flags = [*shlex.split(command([*config, "--cflags"])), *shlex.split(args.cxxflags)]
     libs = shlex.split(command([*config, "--libs"]))
-    rust = rust_build_command()
+    rust = [*rust_build_command(), "--message-format=json-render-diagnostics"]
     cpp = [
         *shlex.split(args.cxx),
         "-std=c++17",
@@ -133,7 +133,20 @@ def build(args):
         *libs,
     ]
     args.quantlib_executable.parent.mkdir(parents=True, exist_ok=True)
-    command(rust)
+    artifacts = (json.loads(line) for line in command(rust).splitlines())
+    executable = next(
+        (
+            artifact["executable"]
+            for artifact in artifacts
+            if artifact["reason"] == "compiler-artifact"
+            and artifact["target"]["name"] == "quantlib_bench"
+            and artifact["executable"]
+        ),
+        None,
+    )
+    if executable is None:
+        raise RuntimeError("Cargo did not report the quantlib_bench executable")
+    rust_executable = Path(executable)
     command(cpp)
     evidence = {
         "rust_command": rust,
@@ -142,7 +155,7 @@ def build(args):
         "rust_profile": "Cargo release; thin LTO",
         "installed_quantlib_build_flags": "unavailable: verify optimized installation manually",
         "executables": {
-            "kiyosi": fingerprint(args.rust_executable),
+            "kiyosi": fingerprint(rust_executable),
             "quantlib": fingerprint(args.quantlib_executable),
         },
         "rustflags": os.environ.get("RUSTFLAGS", "unset"),
@@ -150,7 +163,7 @@ def build(args):
     }
     (HERE / "build").mkdir(exist_ok=True)
     (HERE / "build/build.json").write_text(json.dumps(evidence, indent=2) + "\n")
-    return evidence
+    return rust_executable, evidence
 
 
 def native(executable, case, backend, iterations):
@@ -440,7 +453,7 @@ def main(argv=None):
     parser.add_argument(
         "--rust-executable",
         type=Path,
-        default=RUST_EXECUTABLE,
+        help="Rust executable to use with --no-build",
     )
     parser.add_argument(
         "--quantlib-executable", type=Path, default=HERE / "build/quantlib_bench"
@@ -542,6 +555,7 @@ def main(argv=None):
                     )
         references = load_entries(args.references)
         if args.no_build:
+            rust_executable = args.rust_executable or RUST_EXECUTABLE
             build_file = HERE / "build/build.json"
             report["build"] = (
                 json.loads(
@@ -553,9 +567,11 @@ def main(argv=None):
                 else "unavailable: executables supplied with --no-build"
             )
         else:
-            report["build"] = build(args)
+            if args.rust_executable is not None:
+                raise ValueError("--rust-executable requires --no-build")
+            rust_executable, report["build"] = build(args)
         executables = {
-            "kiyosi": args.rust_executable,
+            "kiyosi": rust_executable,
             "quantlib": args.quantlib_executable,
         }
         info = {
