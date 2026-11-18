@@ -25,7 +25,7 @@ context = PricingContext(
         risk_free_rate=0.02,
         dividend_yield=0,
         volatility=0.20,
-        time_convention="business",
+        variance_time_convention="business",
         calendar=times.calendar,
     ),
     spot_price=100,

@@ -8,7 +8,7 @@ fn instant(year: i32, month: u32, day: u32, hour: u32) -> Timestamp {
 fn business_time_counts_fractional_trading_dates_with_fixed_basis() {
     let friday = instant(2026, 11, 13, 12);
     let monday = instant(2026, 11, 16, 12);
-    let clock = ModelTimeConvention::Business(TradingCalendar::weekdays());
+    let clock = VarianceTimeConvention::Business(TradingCalendar::weekdays());
     assert!((clock.year_fraction(friday, monday).unwrap() - 1.0 / 261.0).abs() < 1e-15);
     assert!((clock.year_fraction(monday, friday).unwrap() + 1.0 / 261.0).abs() < 1e-15);
     assert_eq!(clock.year_fraction(friday, friday).unwrap(), 0.0);
@@ -25,14 +25,14 @@ fn business_time_counts_fractional_trading_dates_with_fixed_basis() {
     let leap_start = instant(2024, 2, 28, 12);
     let leap_end = instant(2024, 3, 1, 12);
     assert!(
-        (ModelTimeConvention::default()
+        (VarianceTimeConvention::default()
             .year_fraction(leap_start, leap_end)
             .unwrap()
             - 2.0 / 365.0)
             .abs()
             < 1e-15
     );
-    let all_days = ModelTimeConvention::Business(TradingCalendar::all_days());
+    let all_days = VarianceTimeConvention::Business(TradingCalendar::all_days());
     assert!((all_days.year_fraction(leap_start, leap_end).unwrap() - 2.0 / 365.0).abs() < 1e-15);
     let year_end = instant(2025, 12, 31, 12);
     let next_year = year_end.add_days(1).unwrap();
@@ -44,7 +44,7 @@ fn business_time_counts_fractional_trading_dates_with_fixed_basis() {
     )
     .unwrap();
     assert!(
-        (ModelTimeConvention::Business(amended)
+        (VarianceTimeConvention::Business(amended)
             .year_fraction(year_end, next_year)
             .unwrap()
             - 0.5 / 243.0)
@@ -57,28 +57,28 @@ fn business_time_counts_fractional_trading_dates_with_fixed_basis() {
 fn model_defaults_replacement_and_calendar_validation_preserve_units() {
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap();
     assert_eq!(
-        model.time_convention(),
-        &ModelTimeConvention::Actual365Fixed
+        model.variance_time_convention(),
+        &VarianceTimeConvention::Actual365Fixed
     );
-    let clock = ModelTimeConvention::Business(TradingCalendar::weekdays());
+    let clock = VarianceTimeConvention::Business(TradingCalendar::weekdays());
     let changed = model
         .replace(BlackScholesMertonParameterChanges {
-            time_convention: Some(clock.clone()),
+            variance_time_convention: Some(clock.clone()),
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(changed.time_convention(), &clock);
+    assert_eq!(changed.variance_time_convention(), &clock);
     assert_eq!(changed.volatility(), 0.2);
     assert_eq!(
-        model.time_convention(),
-        &ModelTimeConvention::Actual365Fixed
+        model.variance_time_convention(),
+        &VarianceTimeConvention::Actual365Fixed
     );
     assert!(matches!(
-        ModelTimeConvention::from_inputs(true, None),
+        VarianceTimeConvention::from_inputs(true, None),
         Err(Error::InvalidInput(_))
     ));
     assert!(matches!(
-        ModelTimeConvention::from_inputs(false, Some(TradingCalendar::weekdays())),
+        VarianceTimeConvention::from_inputs(false, Some(TradingCalendar::weekdays())),
         Err(Error::InvalidInput(_))
     ));
     let inputs = HestonParameterInputs {
@@ -91,20 +91,20 @@ fn model_defaults_replacement_and_calendar_validation_preserve_units() {
         correlation: -0.7,
     };
     assert!(matches!(
-        HestonParameters::new_with_time_convention(inputs.clone(), &clock),
+        HestonParameters::new_with_variance_time_convention(inputs.clone(), &clock),
         Err(Error::UnsupportedOperation(_))
     ));
     let heston = HestonParameters::new(inputs).unwrap();
     assert!(matches!(
         heston.replace(HestonParameterChanges {
-            time_convention: Some(clock),
+            variance_time_convention: Some(clock),
             ..Default::default()
         }),
         Err(Error::UnsupportedOperation(_))
     ));
     assert_eq!(
-        heston.time_convention(),
-        &ModelTimeConvention::Actual365Fixed
+        heston.variance_time_convention(),
+        &VarianceTimeConvention::Actual365Fixed
     );
 }
 
@@ -112,11 +112,12 @@ fn model_defaults_replacement_and_calendar_validation_preserve_units() {
 fn european_pde_uses_business_variance_and_natural_day_rates() {
     let start = instant(2026, 11, 13, 12);
     let end = start.add_days(3).unwrap();
-    let clock = ModelTimeConvention::Business(TradingCalendar::weekdays());
+    let clock = VarianceTimeConvention::Business(TradingCalendar::weekdays());
     let variance_time = clock.year_fraction(start, end).unwrap();
     let natural_time = start.years_until(end);
     let model =
-        BlackScholesMertonParameters::new_with_time_convention(0.07, 0.02, 0.3, clock).unwrap();
+        BlackScholesMertonParameters::new_with_variance_time_convention(0.07, 0.02, 0.3, clock)
+            .unwrap();
     let context = PricingContext::new(model, 100.0, start).unwrap();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let reference = PricingContext::new(
@@ -137,11 +138,14 @@ fn european_pde_uses_business_variance_and_natural_day_rates() {
     let surface =
         LocalVolatilitySurface::new(vec![start, end], vec![50.0, 150.0], vec![vec![0.3; 2]; 2])
             .unwrap();
-    let local = LocalVolatilityParameters::new_with_time_convention(
+    let local = LocalVolatilityParameters::new_with_variance_time_convention(
         0.07,
         0.02,
         surface,
-        context.model_parameters().time_convention().clone(),
+        context
+            .model_parameters()
+            .variance_time_convention()
+            .clone(),
     )
     .unwrap();
     let local = context
@@ -164,8 +168,9 @@ fn european_pde_uses_business_variance_and_natural_day_rates() {
 fn continuous_barriers_resolve_before_variance_resumes() -> Result<()> {
     let start = instant(2026, 11, 14, 0);
     let expiry = start.add_days(3)?;
-    let clock = ModelTimeConvention::Business(TradingCalendar::weekdays());
-    let model = BlackScholesMertonParameters::new_with_time_convention(0.07, 0.02, 0.3, clock)?;
+    let clock = VarianceTimeConvention::Business(TradingCalendar::weekdays());
+    let model =
+        BlackScholesMertonParameters::new_with_variance_time_convention(0.07, 0.02, 0.3, clock)?;
     let context = PricingContext::new(model, 100.0, start)?;
     let option = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
@@ -197,11 +202,11 @@ fn continuous_barriers_resolve_before_variance_resumes() -> Result<()> {
 fn implied_volatility_rejects_closed_horizon() -> Result<()> {
     let start = instant(2026, 11, 14, 12);
     let end = start.add_days(1)?;
-    let model = BlackScholesMertonParameters::new_with_time_convention(
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
         0.0,
         0.0,
         0.2,
-        ModelTimeConvention::Business(TradingCalendar::weekdays()),
+        VarianceTimeConvention::Business(TradingCalendar::weekdays()),
     )?;
     let context = PricingContext::new(model, 100.0, start)?;
     let option = EuropeanOption::new(OptionType::Call, 90.0, start, end)?;
@@ -236,11 +241,11 @@ fn changing_local_volatility_preserves_natural_dates_and_business_variance() {
         vec![vec![0.2; 2], vec![0.5; 2]],
     )
     .unwrap();
-    let model = LocalVolatilityParameters::new_with_time_convention(
+    let model = LocalVolatilityParameters::new_with_variance_time_convention(
         0.07,
         0.02,
         surface,
-        ModelTimeConvention::Business(TradingCalendar::weekdays()),
+        VarianceTimeConvention::Business(TradingCalendar::weekdays()),
     )
     .unwrap();
     let context = PricingContext::new(model, 100.0, start).unwrap();

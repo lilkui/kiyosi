@@ -1,4 +1,4 @@
-use crate::ModelTimeConvention;
+use crate::VarianceTimeConvention;
 use std::sync::Arc;
 
 use crate::{Error, Rate, RateTermStructure, Result, Timestamp, error::finite};
@@ -168,7 +168,7 @@ impl LocalVolatilitySurface {
 /// See [`Self::new`] for a complete construction example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalVolatilityParameters {
-    time_convention: ModelTimeConvention,
+    variance_time_convention: VarianceTimeConvention,
     risk_free_curve: RateTermStructure,
     dividend_curve: RateTermStructure,
     surface: LocalVolatilitySurface,
@@ -180,7 +180,7 @@ pub struct LocalVolatilityParameters {
 #[derive(Clone, Debug, Default)]
 pub struct LocalVolatilityParameterChanges {
     /// Replaces the variance clock without converting volatility values.
-    pub time_convention: Option<ModelTimeConvention>,
+    pub variance_time_convention: Option<VarianceTimeConvention>,
     /// Replaces the risk-free rate or curve; see [`LocalVolatilityParameters::new`].
     pub risk_free_rate: Option<Rate>,
     /// Replaces the dividend yield or curve; see [`LocalVolatilityParameters::new`].
@@ -192,9 +192,9 @@ pub struct LocalVolatilityParameterChanges {
 impl LocalVolatilityParameters {
     /// Borrows the variance clock. The rate curves define `r` and `q` accrual.
     ///
-    /// See [`Self::new_with_time_convention`] for construction.
-    pub fn time_convention(&self) -> &ModelTimeConvention {
-        &self.time_convention
+    /// See [`Self::new_with_variance_time_convention`] for construction.
+    pub fn variance_time_convention(&self) -> &VarianceTimeConvention {
+        &self.variance_time_convention
     }
 
     /// Returns a validated replacement.
@@ -206,7 +206,7 @@ impl LocalVolatilityParameters {
     /// Reuses [`Self::new`] validation for replacement rates. The original
     /// retains its rates, surface and coverage on failure.
     pub fn replace(&self, changes: LocalVolatilityParameterChanges) -> Result<Self> {
-        Self::new_with_time_convention(
+        Self::new_with_variance_time_convention(
             changes
                 .risk_free_rate
                 .unwrap_or_else(|| self.risk_free_curve.clone().into()),
@@ -215,8 +215,8 @@ impl LocalVolatilityParameters {
                 .unwrap_or_else(|| self.dividend_curve.clone().into()),
             changes.surface.unwrap_or_else(|| self.surface.clone()),
             changes
-                .time_convention
-                .unwrap_or_else(|| self.time_convention.clone()),
+                .variance_time_convention
+                .unwrap_or_else(|| self.variance_time_convention.clone()),
         )
     }
     /// Creates local-volatility parameters from scalar rates or owned curves.
@@ -246,11 +246,11 @@ impl LocalVolatilityParameters {
         dividend_yield: impl Into<Rate>,
         surface: LocalVolatilitySurface,
     ) -> Result<Self> {
-        Self::new_with_time_convention(
+        Self::new_with_variance_time_convention(
             risk_free_rate,
             dividend_yield,
             surface,
-            ModelTimeConvention::default(),
+            VarianceTimeConvention::default(),
         )
     }
 
@@ -267,24 +267,24 @@ impl LocalVolatilityParameters {
     ///
     /// ```rust
     /// use kiyosi::{Date, LocalVolatilityParameters, LocalVolatilitySurface,
-    ///     ModelTimeConvention, TradingCalendar};
+    ///     VarianceTimeConvention, TradingCalendar};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2026, 11, 13)?.start_of_day();
     /// let surface = LocalVolatilitySurface::new(vec![start, start.add_days(3)?],
     ///     vec![80.0, 120.0], vec![vec![0.2; 2]; 2])?;
-    /// let model = LocalVolatilityParameters::new_with_time_convention(0.05, 0.02, surface,
-    ///     ModelTimeConvention::Business(TradingCalendar::weekdays()))?;
-    /// assert!(model.time_convention().calendar().is_some());
+    /// let model = LocalVolatilityParameters::new_with_variance_time_convention(0.05, 0.02, surface,
+    ///     VarianceTimeConvention::Business(TradingCalendar::weekdays()))?;
+    /// assert!(model.variance_time_convention().calendar().is_some());
     /// # Ok(()) }
     /// ```
-    pub fn new_with_time_convention(
+    pub fn new_with_variance_time_convention(
         risk_free_rate: impl Into<Rate>,
         dividend_yield: impl Into<Rate>,
         surface: LocalVolatilitySurface,
-        time_convention: ModelTimeConvention,
+        variance_time_convention: VarianceTimeConvention,
     ) -> Result<Self> {
         Ok(Self {
-            time_convention,
+            variance_time_convention,
             risk_free_curve: risk_free_rate.into().into_curve("risk_free_rate")?,
             dividend_curve: dividend_yield.into().into_curve("dividend_yield")?,
             surface,

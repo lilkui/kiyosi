@@ -147,7 +147,7 @@ fn solve<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     let require_identifiable = || {
         if context
             .model_parameters()
-            .time_convention()
+            .variance_time_convention()
             .year_fraction(context.valuation_time(), option.expiry_time())?
             == 0.0
             || !engine.volatility_affects_price(option, context)

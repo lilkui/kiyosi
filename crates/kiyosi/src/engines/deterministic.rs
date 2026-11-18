@@ -26,7 +26,7 @@ pub(crate) fn enabled_until(context: &PricingContext, end: Timestamp) -> Result<
     if end < context.valuation_time() {
         return Ok(false);
     }
-    let clock = context.model_parameters().time_convention();
+    let clock = context.model_parameters().variance_time_convention();
     let stopped =
         clock.calendar().is_some() && clock.year_fraction(context.valuation_time(), end)? == 0.0;
     if stopped {
@@ -236,7 +236,7 @@ fn monitoring_prefix_end(monitoring: &Monitoring, context: &PricingContext) -> R
     let start = context.valuation_time();
     context
         .model_parameters()
-        .time_convention()
+        .variance_time_convention()
         .variance_start(start, monitoring_end(monitoring))
         .map(|end| end.max(start))
 }

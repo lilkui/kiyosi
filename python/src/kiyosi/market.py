@@ -3,9 +3,9 @@
 Notes
 -----
 Rates use annual decimal units and continuous compounding; volatility is
-annualized in decimal units under the model time convention. Models default to
-``time_convention="actual_365_fixed"``; BSM and local-volatility PDE models also
-accept ``time_convention="business", calendar=...``. Business time uses the
+annualized in decimal units under the variance time convention. Models default to
+``variance_time_convention="actual_365_fixed"``; BSM and local-volatility PDE models also
+accept ``variance_time_convention="business", calendar=...``. Business time uses the
 calendar's fixed basis and advances uniformly over trading dates, stopping on
 closed dates. Rates and continuous dividend yields use Actual/365 Fixed by
 default. Set ``calendar`` on ``RateTermStructure.bounded_flat`` for

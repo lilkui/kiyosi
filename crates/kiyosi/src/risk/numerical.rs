@@ -236,7 +236,7 @@ fn time_stencil(
     let window_start = time.add_micros(-radius.min(lower.micros_until(time).max(0)))?;
     let window_end = time.add_micros(radius.min(time.micros_until(upper).max(0)))?;
     for boundary in model
-        .time_convention()
+        .variance_time_convention()
         .transitions(window_start, window_end)?
     {
         if boundary <= time {

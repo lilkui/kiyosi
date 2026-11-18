@@ -1,4 +1,4 @@
-use crate::ModelTimeConvention;
+use crate::VarianceTimeConvention;
 use crate::{Date, Error, RateTermStructure, Result, Timestamp, error::finite};
 
 /// Supplies a continuously compounded flat rate or an owned term structure.
@@ -41,7 +41,7 @@ impl Rate {
 #[derive(Clone, Debug, Default)]
 pub struct BlackScholesMertonParameterChanges {
     /// Replaces the variance clock without converting volatility values.
-    pub time_convention: Option<ModelTimeConvention>,
+    pub variance_time_convention: Option<VarianceTimeConvention>,
     /// Replaces the risk-free rate or curve.
     pub risk_free_rate: Option<Rate>,
     /// Replaces the dividend yield or curve.
@@ -59,7 +59,7 @@ pub struct BlackScholesMertonParameterChanges {
 /// sensitivity conventions.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlackScholesMertonParameters {
-    time_convention: ModelTimeConvention,
+    variance_time_convention: VarianceTimeConvention,
     risk_free_curve: RateTermStructure,
     dividend_curve: RateTermStructure,
     volatility: f64,
@@ -68,9 +68,9 @@ pub struct BlackScholesMertonParameters {
 impl BlackScholesMertonParameters {
     /// Borrows the variance clock. The rate curves define `r` and `q` accrual.
     ///
-    /// See [`Self::new_with_time_convention`] for construction.
-    pub fn time_convention(&self) -> &ModelTimeConvention {
-        &self.time_convention
+    /// See [`Self::new_with_variance_time_convention`] for construction.
+    pub fn variance_time_convention(&self) -> &VarianceTimeConvention {
+        &self.variance_time_convention
     }
 
     /// Creates a model from scalar rates, curves or a mixture.
@@ -100,11 +100,11 @@ impl BlackScholesMertonParameters {
         dividend_yield: impl Into<Rate>,
         volatility: f64,
     ) -> Result<Self> {
-        Self::new_with_time_convention(
+        Self::new_with_variance_time_convention(
             risk_free_rate,
             dividend_yield,
             volatility,
-            ModelTimeConvention::default(),
+            VarianceTimeConvention::default(),
         )
     }
 
@@ -120,19 +120,19 @@ impl BlackScholesMertonParameters {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{BlackScholesMertonParameters, ModelTimeConvention, TradingCalendar};
+    /// use kiyosi::{BlackScholesMertonParameters, VarianceTimeConvention, TradingCalendar};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let model = BlackScholesMertonParameters::new_with_time_convention(0.05, 0.02, 0.2,
-    ///     ModelTimeConvention::Business(TradingCalendar::weekdays()))?;
+    /// let model = BlackScholesMertonParameters::new_with_variance_time_convention(0.05, 0.02, 0.2,
+    ///     VarianceTimeConvention::Business(TradingCalendar::weekdays()))?;
     /// assert_eq!(model.volatility(), 0.2);
-    /// assert!(model.time_convention().calendar().is_some());
+    /// assert!(model.variance_time_convention().calendar().is_some());
     /// # Ok(()) }
     /// ```
-    pub fn new_with_time_convention(
+    pub fn new_with_variance_time_convention(
         risk_free_rate: impl Into<Rate>,
         dividend_yield: impl Into<Rate>,
         volatility: f64,
-        time_convention: ModelTimeConvention,
+        variance_time_convention: VarianceTimeConvention,
     ) -> Result<Self> {
         let risk_free_curve = risk_free_rate.into().into_curve("risk_free_rate")?;
         let dividend_curve = dividend_yield.into().into_curve("dividend_yield")?;
@@ -141,7 +141,7 @@ impl BlackScholesMertonParameters {
             return Err(Error::InvalidInput("volatility must be nonnegative".into()));
         }
         Ok(Self {
-            time_convention,
+            variance_time_convention,
             risk_free_curve,
             dividend_curve,
             volatility,
@@ -154,7 +154,7 @@ impl BlackScholesMertonParameters {
     /// Reuses [`Self::new`] validation for the resulting model.
     /// See [`crate::implied_volatility`] for an example of changing volatility.
     pub fn replace(&self, changes: BlackScholesMertonParameterChanges) -> Result<Self> {
-        Self::new_with_time_convention(
+        Self::new_with_variance_time_convention(
             changes
                 .risk_free_rate
                 .unwrap_or_else(|| self.risk_free_curve.clone().into()),
@@ -163,8 +163,8 @@ impl BlackScholesMertonParameters {
                 .unwrap_or_else(|| self.dividend_curve.clone().into()),
             changes.volatility.unwrap_or(self.volatility),
             changes
-                .time_convention
-                .unwrap_or_else(|| self.time_convention.clone()),
+                .variance_time_convention
+                .unwrap_or_else(|| self.variance_time_convention.clone()),
         )
     }
     /// Returns the constant risk-free rate.
@@ -237,12 +237,12 @@ impl From<crate::HestonParameters> for ModelParameters {
     }
 }
 impl ModelParameters {
-    /// Borrows the model variance clock; see [`ModelTimeConvention`].
-    pub fn time_convention(&self) -> &ModelTimeConvention {
+    /// Borrows the model variance clock; see [`VarianceTimeConvention`].
+    pub fn variance_time_convention(&self) -> &VarianceTimeConvention {
         match self {
-            Self::BlackScholesMerton(m) => m.time_convention(),
-            Self::LocalVolatility(m) => m.time_convention(),
-            Self::Heston(m) => m.time_convention(),
+            Self::BlackScholesMerton(m) => m.variance_time_convention(),
+            Self::LocalVolatility(m) => m.variance_time_convention(),
+            Self::Heston(m) => m.variance_time_convention(),
         }
     }
 
@@ -387,7 +387,7 @@ impl PricingContext {
             return Ok(end);
         }
         model
-            .time_convention()
+            .variance_time_convention()
             .variance_start(self.valuation_time, end)
     }
 
@@ -416,7 +416,7 @@ impl PricingContext {
 
     pub(crate) fn natural_bsm_parameters(&self) -> Result<&BlackScholesMertonParameters> {
         self.model_parameters
-            .time_convention()
+            .variance_time_convention()
             .require_actual365()?;
         self.bsm_parameters()
     }

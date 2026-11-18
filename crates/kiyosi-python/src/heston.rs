@@ -22,7 +22,7 @@ use pyo3::prelude::*;
 ///     Correlation between the asset and variance Brownian motions in [-1, 1],
 ///     including endpoints.
 ///
-/// time_convention : {"actual_365_fixed", "business"}, optional
+/// variance_time_convention : {"actual_365_fixed", "business"}, optional
 ///     Volatility annualization and variance clock. The Rust default is
 ///     actual_365_fixed. The rate curves define rate and dividend accrual.
 /// calendar : TradingCalendar or None, optional
@@ -69,7 +69,7 @@ rate_properties!(
     },
     #[expect(clippy::too_many_arguments, reason = "Python exposes named model parameters and the time convention as keyword-only inputs")]
     #[new]
-    #[pyo3(signature = (*, risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation, time_convention=crate::conversions::OMITTED, calendar=None))]
+    #[pyo3(signature = (*, risk_free_rate, dividend_yield, initial_variance, long_run_variance, mean_reversion_speed, vol_of_vol, correlation, variance_time_convention=crate::conversions::OMITTED, calendar=None))]
     fn new(
         risk_free_rate: &Bound<'_, PyAny>,
         dividend_yield: &Bound<'_, PyAny>,
@@ -78,10 +78,10 @@ rate_properties!(
         mean_reversion_speed: &Bound<'_, PyAny>,
         vol_of_vol: &Bound<'_, PyAny>,
         correlation: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] time_convention: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] variance_time_convention: Option<&Bound<'_, PyAny>>,
         calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::HestonParameters::new_with_time_convention(
+        Ok(Self(domain(kiyosi::HestonParameters::new_with_variance_time_convention(
             kiyosi::HestonParameterInputs {
                 risk_free_rate: rate(risk_free_rate)?,
                 dividend_yield: rate(dividend_yield)?,
@@ -91,7 +91,7 @@ rate_properties!(
                 vol_of_vol: real(vol_of_vol)?,
                 correlation: real(correlation)?,
             },
-            &crate::market::updated_time_convention(&kiyosi::ModelTimeConvention::default(), time_convention, calendar)?,
+            &crate::market::updated_variance_time_convention(&kiyosi::VarianceTimeConvention::default(), variance_time_convention, calendar)?,
         ))?))
     },
     /// Return instantaneous variance at valuation.

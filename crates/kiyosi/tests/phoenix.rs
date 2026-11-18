@@ -54,11 +54,11 @@ fn closed_horizon_coupon_jump_has_no_spot_greeks() -> Result<()> {
     input.knock_out_observations = vec![KnockOutObservation::new(end, 200.0)?];
     input.coupon_observations = vec![CouponObservation::new(end, 100.0)?];
     let note = PhoenixOption::new(input)?;
-    let model = BlackScholesMertonParameters::new_with_time_convention(
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
         0.0,
         0.0,
         0.2,
-        ModelTimeConvention::Business(TradingCalendar::weekdays()),
+        VarianceTimeConvention::Business(TradingCalendar::weekdays()),
     )?;
     let context = PricingContext::new(model, 100.0, start)?;
     let engine = FiniteDifferenceAutocallableEngine::default();
@@ -102,11 +102,11 @@ fn closed_prefix_pays_coupon_and_knock_out_exactly() -> Result<()> {
     let paid = PhoenixOption::new(input.clone())?;
     input.coupon_per_period = 0.0;
     let plain = PhoenixOption::new(input)?;
-    let model = BlackScholesMertonParameters::new_with_time_convention(
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
         0.04,
         0.04,
         0.2,
-        ModelTimeConvention::Business(TradingCalendar::weekdays()),
+        VarianceTimeConvention::Business(TradingCalendar::weekdays()),
     )?;
     let context = PricingContext::new(model, 100.0, start)?;
     let engine = FiniteDifferenceAutocallableEngine::default();

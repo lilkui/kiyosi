@@ -17,8 +17,9 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             LocalVolatilityParameters,
             HestonParameters
         ],
-        time_convention =
-            crate::market::time_convention_name(&kiyosi::ModelTimeConvention::default()),
+        variance_time_convention = crate::market::variance_time_convention_name(
+            &kiyosi::VarianceTimeConvention::default()
+        ),
     );
     register!(
         [GeometricAveragePriceOption, ArithmeticAveragePriceOption],

@@ -6,8 +6,8 @@ use pyo3::types::{PyDate, PyTuple};
 macro_rules! rate_properties {
     ($name:ident, @replace $changes:ident [$($parameter:ident),+]
      {$($field:ident: $value:expr),+ $(,)?}, $($extra:item),* $(,)?) => {
-        value_methods!(@documented $name, $changes, [$($parameter),+, time_convention, calendar], |self|
-            {$($field: $value),+, time_convention: Some($crate::market::updated_time_convention(self.0.time_convention(), time_convention, calendar)?)}, [
+        value_methods!(@documented $name, $changes, [$($parameter),+, variance_time_convention, calendar], |self|
+            {$($field: $value),+, variance_time_convention: Some($crate::market::updated_variance_time_convention(self.0.variance_time_convention(), variance_time_convention, calendar)?)}, [
                 /// Return a validated owned replacement; omitted fields are retained.
                 ///
                 /// Parameters
@@ -37,13 +37,13 @@ macro_rules! rate_properties {
 
             /// Return the model volatility annualization choice.
             #[getter]
-            fn time_convention(&self) -> &'static str {
-                $crate::market::time_convention_name(self.0.time_convention())
+            fn variance_time_convention(&self) -> &'static str {
+                $crate::market::variance_time_convention_name(self.0.variance_time_convention())
             }
             /// Return an owned model calendar, or None for A/365F.
             #[getter]
             fn calendar(&self) -> Option<$crate::calendar::TradingCalendar> {
-                self.0.time_convention().calendar().cloned().map($crate::calendar::TradingCalendar)
+                self.0.variance_time_convention().calendar().cloned().map($crate::calendar::TradingCalendar)
             }
 
 
@@ -90,29 +90,31 @@ macro_rules! rate_properties {
 }
 pub(crate) use rate_properties;
 
-pub(crate) fn time_convention_name(value: &kiyosi::ModelTimeConvention) -> &'static str {
+pub(crate) fn variance_time_convention_name(
+    value: &kiyosi::VarianceTimeConvention,
+) -> &'static str {
     match value {
-        kiyosi::ModelTimeConvention::Actual365Fixed => "actual_365_fixed",
-        kiyosi::ModelTimeConvention::Business(_) => "business",
+        kiyosi::VarianceTimeConvention::Actual365Fixed => "actual_365_fixed",
+        kiyosi::VarianceTimeConvention::Business(_) => "business",
     }
 }
 
-pub(crate) fn updated_time_convention(
-    current: &kiyosi::ModelTimeConvention,
+pub(crate) fn updated_variance_time_convention(
+    current: &kiyosi::VarianceTimeConvention,
     choice: Option<&Bound<'_, PyAny>>,
     calendar: Option<&Bound<'_, PyAny>>,
-) -> PyResult<kiyosi::ModelTimeConvention> {
+) -> PyResult<kiyosi::VarianceTimeConvention> {
     let business = match choice {
         Some(value) => match value.extract::<&str>()? {
             "actual_365_fixed" => false,
             "business" => true,
             _ => {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "time_convention must be actual_365_fixed or business",
+                    "variance_time_convention must be actual_365_fixed or business",
                 ));
             }
         },
-        None => matches!(current, kiyosi::ModelTimeConvention::Business(_)),
+        None => matches!(current, kiyosi::VarianceTimeConvention::Business(_)),
     };
     let calendar = match calendar {
         None => current.calendar().cloned(),
@@ -124,7 +126,9 @@ pub(crate) fn updated_time_convention(
                 .clone(),
         ),
     };
-    domain(kiyosi::ModelTimeConvention::from_inputs(business, calendar))
+    domain(kiyosi::VarianceTimeConvention::from_inputs(
+        business, calendar,
+    ))
 }
 
 /// Rate term structure with log-linear discount factors.
@@ -424,7 +428,7 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
 ///     Nonnegative finite annualized log-return volatility in decimal units.
 ///     Zero selects the exact deterministic path implied by the rate curves.
 ///
-/// time_convention : {"actual_365_fixed", "business"}, optional
+/// variance_time_convention : {"actual_365_fixed", "business"}, optional
 ///     Volatility annualization and variance clock. The Rust default is
 ///     actual_365_fixed. The rate curves define rate and dividend accrual.
 /// calendar : TradingCalendar or None, optional
@@ -451,19 +455,19 @@ rate_properties!(
         volatility: volatility.map(real).transpose()?,
     },
     #[new]
-    #[pyo3(signature = (*, risk_free_rate, dividend_yield, volatility, time_convention=crate::conversions::OMITTED, calendar=None))]
+    #[pyo3(signature = (*, risk_free_rate, dividend_yield, volatility, variance_time_convention=crate::conversions::OMITTED, calendar=None))]
     fn new(
         risk_free_rate: &Bound<'_, PyAny>,
         dividend_yield: &Bound<'_, PyAny>,
         volatility: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] time_convention: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] variance_time_convention: Option<&Bound<'_, PyAny>>,
         calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::BlackScholesMertonParameters::new_with_time_convention(
+        Ok(Self(domain(kiyosi::BlackScholesMertonParameters::new_with_variance_time_convention(
             rate(risk_free_rate)?,
             rate(dividend_yield)?,
             real(volatility)?,
-            updated_time_convention(&kiyosi::ModelTimeConvention::default(), time_convention, calendar)?,
+            updated_variance_time_convention(&kiyosi::VarianceTimeConvention::default(), variance_time_convention, calendar)?,
         ))?))
     },
     /// Return nonnegative finite annualized volatility in decimal units.

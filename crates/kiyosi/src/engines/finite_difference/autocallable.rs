@@ -105,7 +105,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         let now = context.valuation_time();
         if let Ok(start) = context
             .model_parameters()
-            .time_convention()
+            .variance_time_convention()
             .variance_start(now, note.expiry_time())
         {
             if start > now
@@ -273,7 +273,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     }
     nearest = context
         .model_parameters()
-        .time_convention()
+        .variance_time_convention()
         .transitions(context.valuation_time(), expiry)?
         .into_iter()
         .map(|t| context.valuation_time().years_until(t))

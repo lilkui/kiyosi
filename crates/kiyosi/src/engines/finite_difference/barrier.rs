@@ -338,7 +338,7 @@ pub(super) fn uses_local_diffusion(context: &PricingContext) -> bool {
     local_volatility::local_model(context).is_some()
         || context
             .model_parameters()
-            .time_convention()
+            .variance_time_convention()
             .calendar()
             .is_some()
 }

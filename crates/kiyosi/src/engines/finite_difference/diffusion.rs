@@ -9,7 +9,7 @@ macro_rules! with_diffusion {
             let base = LocalDiffusion::new($context, model.surface());
             if $context
                 .model_parameters()
-                .time_convention()
+                .variance_time_convention()
                 .calendar()
                 .is_some()
             {
@@ -26,7 +26,7 @@ macro_rules! with_diffusion {
             let base = $context.bsm_parameters()?.volatility();
             if $context
                 .model_parameters()
-                .time_convention()
+                .variance_time_convention()
                 .calendar()
                 .is_some()
             {
@@ -163,7 +163,7 @@ impl<D: Diffusion> Diffusion for BusinessDiffusion<'_, D> {
             .map_or(f64::NAN, |date| {
                 self.context
                     .model_parameters()
-                    .time_convention()
+                    .variance_time_convention()
                     .variance_rate(date)
             })
     }
@@ -183,7 +183,7 @@ pub(super) fn time_grid(
     knots.extend(
         context
             .model_parameters()
-            .time_convention()
+            .variance_time_convention()
             .transitions(start, horizon)?
             .into_iter()
             .map(|t| start.years_until(t)),

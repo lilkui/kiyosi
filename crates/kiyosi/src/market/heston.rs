@@ -1,4 +1,4 @@
-use crate::ModelTimeConvention;
+use crate::VarianceTimeConvention;
 use crate::{Error, Rate, RateTermStructure, Result};
 
 /// Selects Heston replacements; absent fields retain their values.
@@ -7,7 +7,7 @@ use crate::{Error, Rate, RateTermStructure, Result};
 #[derive(Clone, Debug, Default)]
 pub struct HestonParameterChanges {
     /// Requests the model clock; business time is unsupported.
-    pub time_convention: Option<ModelTimeConvention>,
+    pub variance_time_convention: Option<VarianceTimeConvention>,
     /// Replaces the risk-free rate or curve.
     pub risk_free_rate: Option<Rate>,
     /// Replaces the dividend yield or curve.
@@ -69,8 +69,8 @@ pub struct HestonParameters {
 
 impl HestonParameters {
     /// Returns the supported A/365F variance clock; see [`Self::new`].
-    pub fn time_convention(&self) -> &ModelTimeConvention {
-        &ModelTimeConvention::Actual365Fixed
+    pub fn variance_time_convention(&self) -> &VarianceTimeConvention {
+        &VarianceTimeConvention::Actual365Fixed
     }
 
     /// Creates Heston parameters with an explicit clock request.
@@ -79,13 +79,13 @@ impl HestonParameters {
     ///
     /// Returns [`Error::UnsupportedOperation`] for business time, then applies
     /// [`Self::new`] validation. The variance parameters use A/365F units.
-    /// See [`Self::new`]'s example for variance inputs and [`ModelTimeConvention`]
+    /// See [`Self::new`]'s example for variance inputs and [`VarianceTimeConvention`]
     /// for the clock variants.
-    pub fn new_with_time_convention(
+    pub fn new_with_variance_time_convention(
         inputs: HestonParameterInputs,
-        time_convention: &ModelTimeConvention,
+        variance_time_convention: &VarianceTimeConvention,
     ) -> Result<Self> {
-        time_convention.require_actual365()?;
+        variance_time_convention.require_actual365()?;
         Self::new(inputs)
     }
 
@@ -176,7 +176,7 @@ impl HestonParameters {
     /// ```
     pub fn replace(&self, changes: HestonParameterChanges) -> Result<Self> {
         changes
-            .time_convention
+            .variance_time_convention
             .unwrap_or_default()
             .require_actual365()?;
         Self::new(HestonParameterInputs {

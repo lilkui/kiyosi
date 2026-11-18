@@ -8,16 +8,16 @@ use crate::{Date, Error, Result, Timestamp, TradingCalendar};
 /// Instances support shared concurrent reads under [`TradingCalendar`]'s contract.
 ///
 /// ```rust
-/// use kiyosi::{Date, ModelTimeConvention, TradingCalendar};
+/// use kiyosi::{Date, VarianceTimeConvention, TradingCalendar};
 /// # fn main() -> kiyosi::Result<()> {
 /// let friday = Date::new(2026, 11, 13)?.start_of_day();
 /// let monday = friday.add_days(3)?;
-/// let clock = ModelTimeConvention::Business(TradingCalendar::weekdays());
+/// let clock = VarianceTimeConvention::Business(TradingCalendar::weekdays());
 /// assert_eq!(clock.year_fraction(friday, monday)?, 1.0 / 261.0);
 /// # Ok(()) }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq)]
-pub enum ModelTimeConvention {
+pub enum VarianceTimeConvention {
     /// Measures actual elapsed time over a fixed 365-day year; the default.
     #[default]
     Actual365Fixed,
@@ -25,7 +25,7 @@ pub enum ModelTimeConvention {
     Business(TradingCalendar),
 }
 
-impl ModelTimeConvention {
+impl VarianceTimeConvention {
     /// Validates a convention selection and its optional calendar.
     ///
     /// Business time requires a calendar; A/365F has none. Use the enum variants
@@ -39,11 +39,11 @@ impl ModelTimeConvention {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{ModelTimeConvention, TradingCalendar};
+    /// use kiyosi::{VarianceTimeConvention, TradingCalendar};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let clock = ModelTimeConvention::from_inputs(true, Some(TradingCalendar::weekdays()))?;
+    /// let clock = VarianceTimeConvention::from_inputs(true, Some(TradingCalendar::weekdays()))?;
     /// assert_eq!(clock.calendar().map(TradingCalendar::trading_days_per_year), Some(261));
-    /// assert!(ModelTimeConvention::from_inputs(true, None).is_err());
+    /// assert!(VarianceTimeConvention::from_inputs(true, None).is_err());
     /// # Ok(()) }
     /// ```
     pub fn from_inputs(business_time: bool, calendar: Option<TradingCalendar>) -> Result<Self> {
@@ -106,7 +106,7 @@ impl ModelTimeConvention {
     pub(crate) fn require_actual365(&self) -> Result<()> {
         if matches!(self, Self::Business(_)) {
             return Err(Error::UnsupportedOperation(
-                "operation requires the actual_365_fixed model time convention".into(),
+                "operation requires the actual_365_fixed variance time convention".into(),
             ));
         }
         Ok(())

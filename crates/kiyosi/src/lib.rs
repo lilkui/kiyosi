@@ -13,7 +13,7 @@
 //! Annual rates and annualized volatility use decimal units. Rates are continuously
 //! compounded and accrue on Actual/365 Fixed by default. Use
 //! [`RateTermStructure::bounded_flat_with_calendar`] for calendar-based accrual.
-//! [`ModelTimeConvention`] defines volatility units and variance accumulation.
+//! [`VarianceTimeConvention`] defines volatility units and variance accumulation.
 //! BSM and local-volatility PDE models support business time over a calendar's
 //! fixed basis, with no variance accumulation on closed dates. Rate curves govern
 //! carry and discounting independently of variance and contractual dates. Other engines
@@ -231,8 +231,8 @@ pub use risk::coupon::{
 pub use risk::implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use risk::numerical::numerical_greeks;
 pub use time::{
-    BusinessDayConvention, Date, ModelTimeConvention, ObservationSchedule, TimeOfDay, Timestamp,
-    TradingCalendar,
+    BusinessDayConvention, Date, ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar,
+    VarianceTimeConvention,
 };
 
 /// Reports the package version shared with the Python bindings.

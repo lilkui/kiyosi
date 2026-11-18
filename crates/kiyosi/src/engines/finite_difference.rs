@@ -211,7 +211,7 @@ fn diffusion_upper(
     let sigma = sigma
         * context
             .model_parameters()
-            .time_convention()
+            .variance_time_convention()
             .calendar()
             .map_or(1.0, |calendar| {
                 (365.0 / f64::from(calendar.trading_days_per_year())).sqrt()
