@@ -5,6 +5,26 @@ fn day(year: i32, month: u32, day: u32) -> Date {
 }
 
 #[test]
+fn following_schedules_stop_on_the_last_supported_closed_date() -> kiyosi::Result<()> {
+    let last = day(32767, 12, 31);
+    let clock = kiyosi::TimeOfDay::new(0, 0, 0, 0)?;
+    let end = last.at_time(kiyosi::TimeOfDay::new(1, 0, 0, 0)?);
+    let calendar = TradingCalendar::custom(TradingCalendar::all_days(), vec![last], vec![], None)?;
+    let fixed = ObservationSchedule::fixed_interval(
+        last.add_days(-1)?.start_of_day(),
+        end,
+        1,
+        &calendar,
+        clock,
+    )?;
+    let monthly =
+        ObservationSchedule::monthly(day(32767, 10, 31).start_of_day(), end, 2, &calendar, clock)?;
+    assert!(fixed.is_empty());
+    assert!(monthly.is_empty());
+    Ok(())
+}
+
+#[test]
 fn schedules_retain_calendars_for_contract_composition() -> kiyosi::Result<()> {
     use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, OptionType, TimeOfDay};
     let start = day(2025, 1, 2).start_of_day();

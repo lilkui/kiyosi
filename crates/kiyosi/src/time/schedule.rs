@@ -278,7 +278,7 @@ fn push_following(
             times.push(target);
             return Ok(true);
         }
-        if target == end_time {
+        if target.date() == end_time.date() {
             return Ok(false);
         }
         target = target.add_days(1)?;
