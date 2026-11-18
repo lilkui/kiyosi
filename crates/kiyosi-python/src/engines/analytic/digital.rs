@@ -13,7 +13,7 @@ analytic_engine!(
     AnalyticDigitalEngine,
     DigitalInstrument<'_>,
     with_digital,
-    |_option, _context| true,
+    |_option, _context| crate::engines::ShortPricing::ScalarHorizon,
     [
         ///
         /// Notes

@@ -52,7 +52,7 @@ macro_rules! analytic_engine {
                     $short
                 };
                 $with!(&instrument, $contract, crate::engines::evaluate(
-                    py, &kiyosi::$engine, $contract, context, request, short,
+                    py, &kiyosi::$engine, $contract, context, request, short.into(),
                 ))
             }
         }

@@ -41,10 +41,10 @@ impl Curve {
         let mut segments = Vec::new();
         let mut previous = valuation;
         for end in curve
-            .nodes()
+            .nodes_after(valuation)
             .iter()
             .copied()
-            .filter(|&t| t > valuation && t < expiry)
+            .take_while(|&t| t < expiry)
             .chain([expiry])
         {
             segments.push(Segment {

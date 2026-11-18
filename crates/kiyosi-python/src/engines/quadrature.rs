@@ -111,7 +111,7 @@ macro_rules! quadrature_engine {
             ) -> PyResult<R> {
                 let short = quadrature_engine!(@short $name, self, instrument, context);
                 $with!(&instrument, option, crate::engines::evaluate(
-                    py, &self.0, option, context, request, short,
+                    py, &self.0, option, context, request, short.into(),
                 ))
             }
         }

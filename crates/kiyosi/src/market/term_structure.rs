@@ -496,14 +496,18 @@ impl RateTermStructure {
         }
         Ok(copy)
     }
+    pub(crate) fn nodes_after(&self, time: Timestamp) -> &[Timestamp] {
+        &self.nodes[self.nodes.partition_point(|&node| node <= time)..]
+    }
+
     pub(crate) fn validate_horizon(&self, valuation: Timestamp, end: Timestamp) -> Result<()> {
         self.validate_time(end)?;
         let mut previous = 0.0;
         let mut previous_time = valuation;
         for &node in self
-            .nodes
+            .nodes_after(valuation)
             .iter()
-            .filter(|&&node| node > valuation && node <= end)
+            .take_while(|&&node| node <= end)
         {
             let time = valuation.years_until(node);
             if time <= previous {

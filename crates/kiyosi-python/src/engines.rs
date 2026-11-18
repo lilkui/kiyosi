@@ -11,7 +11,9 @@ macro_rules! engine_methods {
                 context: &$crate::market::PricingContext,
                 request: impl $crate::engines::PricingRequest<R>,
             ) -> pyo3::PyResult<R> {
-                $with!(&instrument, option, $crate::engines::evaluate(py, &self.0, option, context, request, false))
+                $with!(&instrument, option, $crate::engines::evaluate(
+                    py, &self.0, option, context, request, $crate::engines::ShortPricing::Never,
+                ))
             }
         }
     };
@@ -194,26 +196,62 @@ pub(crate) mod quadrature;
 // Curve scans cost O(nodes); larger curves go through the cancellable worker.
 const SHORT_CURVE_NODES: usize = 1024;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ShortPricing {
+    Never,
+    WholeCurves,
+    ScalarHorizon,
+}
+
+impl From<bool> for ShortPricing {
+    fn from(short: bool) -> Self {
+        if short {
+            Self::WholeCurves
+        } else {
+            Self::Never
+        }
+    }
+}
+
+impl ShortPricing {
+    fn allows_inline<R>(
+        self,
+        request: impl PricingRequest<R>,
+        context: &kiyosi::PricingContext,
+        expiry: kiyosi::Timestamp,
+    ) -> bool {
+        let model = context.model_parameters();
+        let curves = [
+            model.risk_free_curve().nodes(),
+            model.dividend_curve().nodes(),
+        ];
+        let curve_nodes = curves[0].len().max(curves[1].len());
+        if request.is_short(
+            self != Self::Never && curve_nodes <= SHORT_CURVE_NODES,
+            curve_nodes,
+        ) {
+            return true;
+        }
+        self == Self::ScalarHorizon
+            && request.is_scalar_price()
+            && curves.into_iter().all(|nodes| {
+                let past = nodes.partition_point(|&node| node <= context.valuation_time());
+                nodes[past..].partition_point(|&node| node <= expiry) <= SHORT_CURVE_NODES
+            })
+    }
+}
+
 pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
     py: Python<'_>,
     engine: &(impl kiyosi::PricingEngine<I> + Sync),
     instrument: &I,
     context: &crate::market::PricingContext,
     request: impl PricingRequest<R>,
-    short_pricing: bool,
+    short_pricing: ShortPricing,
 ) -> PyResult<R> {
     let context = &context.0;
-    let model = context.model_parameters();
-    let curve_nodes = model
-        .risk_free_curve()
-        .nodes()
-        .len()
-        .max(model.dividend_curve().nodes().len());
     let operation = || request.evaluate(engine, instrument, context);
-    let result = if request.is_short(
-        short_pricing && curve_nodes <= SHORT_CURVE_NODES,
-        curve_nodes,
-    ) {
+    let result = if short_pricing.allows_inline(request, context, instrument.expiry_time()) {
         py.check_signals()?;
         let result = operation();
         py.check_signals()?;
@@ -234,6 +272,9 @@ pub(crate) enum ScalarRequest {
 }
 
 pub(crate) trait PricingRequest<R>: Copy + Sync {
+    fn is_scalar_price(self) -> bool {
+        false
+    }
     fn is_short(self, _short_pricing: bool, _curve_nodes: usize) -> bool {
         false
     }
@@ -246,8 +287,12 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
 }
 
 impl PricingRequest<f64> for ScalarRequest {
+    fn is_scalar_price(self) -> bool {
+        matches!(self, Self::Price)
+    }
+
     fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
-        short_pricing && matches!(self, Self::Price)
+        short_pricing && self.is_scalar_price()
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -384,6 +429,40 @@ impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scalar_horizon_limits_inline_work_to_remaining_curve_knots() -> kiyosi::Result<()> {
+        let start = kiyosi::Date::new(2025, 1, 1)?.start_of_day();
+        let times = (0..=1024)
+            .map(|day| start.add_days(day))
+            .collect::<kiyosi::Result<Vec<_>>>()?;
+        let curve = kiyosi::RateTermStructure::new(
+            start.add_days(-1)?,
+            times.clone(),
+            vec![1.0; times.len()],
+        )?;
+        let model = kiyosi::BlackScholesMertonParameters::new(curve, 0.0, 0.2)?;
+        let context = kiyosi::PricingContext::new(model, 100.0, times[1023])?;
+        let horizon = ShortPricing::ScalarHorizon;
+        assert!(horizon.allows_inline(ScalarRequest::Price, &context, times[1024]));
+        assert!(!ShortPricing::WholeCurves.allows_inline(
+            ScalarRequest::Price,
+            &context,
+            times[1024],
+        ));
+        let greeks = NativeGreeksRequest {
+            request: kiyosi::GreeksRequest::all(),
+            settings: Default::default(),
+        };
+        assert!(!horizon.allows_inline(greeks, &context, times[1024]));
+        let earlier = context.replace(kiyosi::PricingContextChanges {
+            valuation_time: Some(start.add_days(-1)?),
+            ..Default::default()
+        })?;
+        assert!(horizon.allows_inline(ScalarRequest::Price, &earlier, times[1023]));
+        assert!(!horizon.allows_inline(ScalarRequest::Price, &earlier, times[1024]));
+        Ok(())
+    }
 
     #[test]
     fn bounded_metadata_is_short_independently_of_pricing_but_solvers_are_not() {
