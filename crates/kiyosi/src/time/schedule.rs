@@ -147,6 +147,7 @@ impl ObservationSchedule {
     ///
     /// Returns [`Error::InvalidInput`] for reversed life or nonpositive intervals,
     /// checked in that order. Propagates time-range errors.
+    /// Cancellation returns [`Error::Io`] with [`std::io::ErrorKind::Interrupted`].
     ///
     /// # Examples
     ///
@@ -271,6 +272,7 @@ fn push_following(
         return Ok(true);
     }
     loop {
+        crate::cancellation::check()?;
         if target > end_time {
             return Ok(false);
         }
