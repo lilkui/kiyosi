@@ -7,6 +7,22 @@ from kiyosi.instruments import CashOrNothingOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
+def test_near_certain_digital_payout_allows_rollback_roundoff():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    option = CashOrNothingOption(
+        option_type="call", strike=100, payout=1, effective_time=start, expiry_time=end
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.01
+        ),
+        spot_price=200,
+        valuation_time=start,
+    )
+    price = pricing.FiniteDifferenceDigitalEngine().price(option, context)
+    assert 1 - 1e-12 <= price <= 1
+
+
 @pytest.mark.parametrize("direction,sign", (("call", 1), ("put", -1)))
 def test_finite_difference_digital_preserves_scaled_discounts(direction, sign):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)

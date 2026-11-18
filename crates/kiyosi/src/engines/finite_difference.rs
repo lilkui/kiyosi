@@ -472,11 +472,17 @@ fn solve_model<D: Diffusion>(
     } else {
         0.0
     };
+    // Allow a few ulps per rollback, including up to two substeps per interval.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Allocated time grids fit exactly in f64."
+    )]
+    let roundoff = 8.0 * f64::EPSILON * time_grid.widths.len() as f64;
     Ok(VanillaGrid {
         grid: solution::Grid::new(space, old),
         payoff,
         discount: [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
-        relative_carry_error,
+        relative_upper_error: relative_carry_error + roundoff,
     })
 }
 
@@ -485,7 +491,7 @@ struct VanillaGrid {
     grid: solution::Grid,
     payoff: Payoff,
     discount: [f64; 2],
-    relative_carry_error: f64,
+    relative_upper_error: f64,
 }
 
 #[derive(PartialEq)]
@@ -624,7 +630,7 @@ impl VanillaGrid {
                 spot,
                 self.grid.sample(spot)[0],
                 self.discount,
-                self.relative_carry_error,
+                self.relative_upper_error,
             )
         };
         let mut result = PricingResult::new(price_at(spot)?)?;

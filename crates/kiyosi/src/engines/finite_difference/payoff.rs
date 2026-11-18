@@ -58,7 +58,7 @@ pub(super) fn checked_price(
     spot: f64,
     value: f64,
     [risk_log, dividend_log]: [f64; 2],
-    relative_carry_error: f64,
+    relative_upper_error: f64,
 ) -> Result<f64> {
     if !value.is_finite() {
         return Err(unstable());
@@ -81,12 +81,12 @@ pub(super) fn checked_price(
         },
     );
     let tolerance = 64.0 * f64::EPSILON * bound;
-    let carry_error = bound * relative_carry_error;
+    let upper_error = bound * relative_upper_error;
     if value < -tolerance
         || value - bound
             > tolerance
-                + if carry_error.is_finite() {
-                    carry_error
+                + if upper_error.is_finite() {
+                    upper_error
                 } else {
                     0.0
                 }

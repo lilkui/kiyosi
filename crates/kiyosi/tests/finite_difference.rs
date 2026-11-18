@@ -899,6 +899,19 @@ fn low_volatility_drift_stabilization_converges_and_large_grids_are_supported() 
 }
 
 #[test]
+fn near_certain_digital_payout_allows_rollback_roundoff() -> Result<()> {
+    let (start, end) = dates();
+    let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 1.0, start, end)?;
+    let context = market(200.0, 0.0, 0.0, 0.01);
+    let engine = FiniteDifferenceDigitalEngine::default();
+    let price = engine.price(&option, &context)?;
+    assert!(price <= 1.0 && (price - 1.0).abs() < 1e-12);
+    let solution = engine.solve(&option, &context, 199.0..=201.0)?;
+    assert!((solution.price(200.0)? - price).abs() < 1e-12);
+    Ok(())
+}
+
+#[test]
 fn scaled_digital_discounts_and_strict_expiry_payments_remain_representable() {
     let (start, end) = dates();
     let engine = FiniteDifferenceDigitalEngine::new(FiniteDifferenceSettings {
