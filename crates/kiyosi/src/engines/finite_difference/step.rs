@@ -1,5 +1,6 @@
 use super::{
-    Curve, Diffusion, FiniteDifferenceScheme, Result, SpatialGrid, TimeGrid, invalid_grid, unstable,
+    Curve, Diffusion, FiniteDifferenceScheme, Result, SpatialGrid, TimeGrid, invalid_grid,
+    unstable, validate_workspace,
 };
 
 #[expect(
@@ -90,6 +91,10 @@ pub(super) fn march_with_continuation<D: Diffusion>(
     edges: impl Fn(f64, &[f64]) -> [f64; 2],
     observe: impl Fn(&mut [f64], &[f64], f64),
 ) -> Result<Vec<f64>> {
+    validate_workspace(
+        (values.len() + continuation.len()) as u64,
+        grid.widths.len() as u64,
+    )?;
     let mut next = vec![0.0; values.len()];
     let mut next_continuation = vec![0.0; continuation.len()];
     let mut stepper = diffusion.stepper(space.count);
@@ -139,6 +144,12 @@ pub(super) struct Stepper {
 }
 
 impl Stepper {
+    const FACTOR_CACHE_LEN: usize = 3;
+    // Each factor has three coefficients and four solve values per row. A miss
+    // builds the new factor before eviction, with a separate right-hand side.
+    pub(super) const PEAK_BYTES_PER_NODE: u64 =
+        ((Self::FACTOR_CACHE_LEN + 1) * size_of::<[f64; 7]>() + size_of::<f64>()) as u64;
+
     pub fn new(count: usize) -> Self {
         Self {
             factors: Vec::new(),
@@ -233,11 +244,11 @@ impl Stepper {
                     factors.factor_row(i, dt, theta)?;
                 }
             }
-            if self.factors.len() < 3 {
+            if self.factors.len() < Self::FACTOR_CACHE_LEN {
                 self.factors.push(factors);
                 self.factors.len() - 1
             } else {
-                self.active = (self.active + 1) % 3;
+                self.active = (self.active + 1) % Self::FACTOR_CACHE_LEN;
                 self.factors[self.active] = factors;
                 self.active
             }

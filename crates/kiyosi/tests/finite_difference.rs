@@ -146,6 +146,20 @@ fn settings_reject_oversized_grid_workspace() {
 }
 
 #[test]
+fn settings_reject_grids_that_exceed_the_peak_matrix_cache_budget() {
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 5_000_000,
+        time_step_count: 4,
+        scheme: FiniteDifferenceScheme::ImplicitEuler,
+        ..Default::default()
+    };
+    assert!(matches!(
+        FiniteDifferenceVanillaEngine::new(settings),
+        Err(Error::InvalidInput(_))
+    ));
+}
+
+#[test]
 fn uniform_european_grids_resolve_strike_phases_and_narrow_payoffs() {
     let (start, annual) = dates();
     let short = Date::new(2025, 1, 2).unwrap().start_of_day();

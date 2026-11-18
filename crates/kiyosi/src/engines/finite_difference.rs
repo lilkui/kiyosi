@@ -107,28 +107,34 @@ impl FiniteDifferenceSettings {
     /// # Ok(()) }
     /// ```
     pub fn validate(&self) -> Result<()> {
-        const WORKSPACE_BUDGET: u64 = 1 << 30;
-        // Covers the live operator, rollback buffers and axes per asset node.
-        const BYTES_PER_ASSET_NODE: u64 = 128;
-        const BYTES_PER_TIME_STEP: u64 = 24;
         if self.asset_step_count < 3 {
             return Err(invalid_grid("asset_step_count must be at least 3"));
         }
         if self.time_step_count < 1 {
             return Err(invalid_grid("time_step_count must be positive"));
         }
-        let bytes = (u64::from(self.asset_step_count.unsigned_abs()) + 1) * BYTES_PER_ASSET_NODE
-            + u64::from(self.time_step_count.unsigned_abs()) * BYTES_PER_TIME_STEP;
-        if bytes > WORKSPACE_BUDGET {
-            return Err(invalid_grid(
-                "finite-difference workspace exceeds 1 GiB; reduce grid step counts",
-            ));
-        }
+        validate_workspace(
+            u64::from(self.asset_step_count.unsigned_abs()) + 1,
+            u64::from(self.time_step_count.unsigned_abs()),
+        )?;
         if let Some(boundary) = self.asset_upper_boundary {
             crate::error::finite(boundary, true, "asset_upper_boundary")?;
         }
         Ok(())
     }
+}
+
+fn validate_workspace(asset_nodes: u64, time_steps: u64) -> Result<()> {
+    const WORKSPACE_BUDGET: u64 = 1 << 30;
+    // Allow for rollback layers, interpolation buffers and the spatial axis as well as the stepper.
+    const BYTES_PER_ASSET_NODE: u64 = Stepper::PEAK_BYTES_PER_NODE + 72;
+    const BYTES_PER_TIME_STEP: u64 = 24;
+    if asset_nodes * BYTES_PER_ASSET_NODE + time_steps * BYTES_PER_TIME_STEP > WORKSPACE_BUDGET {
+        return Err(invalid_grid(
+            "finite-difference workspace exceeds 1 GiB; reduce grid step counts",
+        ));
+    }
+    Ok(())
 }
 
 fn invalid_grid(message: &'static str) -> Error {
