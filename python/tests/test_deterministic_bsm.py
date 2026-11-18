@@ -19,6 +19,35 @@ from kiyosi.market import (
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
 
 
+def test_equal_carry_preserves_a_spot_just_above_the_strike():
+    expiry = START + timedelta(days=25 * 365)
+    spot = math.nextafter(100.0, math.inf)
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.1, dividend_yield=0.1, volatility=0
+        ),
+        spot_price=spot,
+        valuation_time=START,
+    )
+    digital = ins.CashOrNothingOption(
+        payout=10,
+        option_type="call",
+        strike=100,
+        effective_time=START,
+        expiry_time=expiry,
+    )
+    vanilla = ins.EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=expiry
+    )
+    discount = math.exp(-2.5)
+    assert pricing.AnalyticDigitalEngine().price(digital, context) == pytest.approx(
+        10 * discount, rel=0, abs=1e-12
+    )
+    assert pricing.AnalyticEuropeanEngine().price(vanilla, context) == pytest.approx(
+        (spot - 100) * discount, rel=1e-13, abs=0
+    )
+
+
 def test_deterministic_american_exercise_kink_has_no_spot_greeks():
     expiry = START + timedelta(days=365)
     option = ins.AmericanOption(

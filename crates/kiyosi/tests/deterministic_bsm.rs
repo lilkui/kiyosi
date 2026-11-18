@@ -26,6 +26,25 @@ fn verify<I: OptionContract>(
 }
 
 #[test]
+fn equal_carry_preserves_a_spot_just_above_the_strike() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let end = start.add_days(25 * 365)?;
+    let spot = libm::nextafter(100.0, f64::INFINITY);
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.1, 0.1, 0.0)?,
+        spot,
+        start,
+    )?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let discount = (-2.5_f64).exp();
+    assert!((AnalyticDigitalEngine.price(&digital, &context)? - 10.0 * discount).abs() < 1e-12);
+    let expected = (spot - 100.0) * discount;
+    assert!((AnalyticEuropeanEngine.price(&vanilla, &context)? / expected - 1.0).abs() < 1e-13);
+    Ok(())
+}
+
+#[test]
 fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
     let start = Date::new(2025, 1, 6)?.start_of_day();
     let end = start.add_days(4)?;

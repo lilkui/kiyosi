@@ -56,7 +56,7 @@ pub(super) fn vanilla(
     if payoff.is_digital() {
         let r = model.risk_free_curve().log_factor(start, end)?;
         let q = model.dividend_curve().log_factor(start, end)?;
-        let forward = log_ratio(context.spot_price(), payoff.strike) + q - r;
+        let forward = log_ratio(context.spot_price(), payoff.strike) + (q - r);
         return checked(if payoff.sign * forward <= 0.0 {
             0.0
         } else if let Some(payout) = payoff.payout() {
@@ -118,7 +118,7 @@ pub(super) fn exercise_value(
                 0.0
             }
         } else {
-            let m = log_ratio(spot, payoff.strike) + dividend_log - risk_log;
+            let m = log_ratio(spot, payoff.strike) + (dividend_log - risk_log);
             if m.is_nan() {
                 return Err(invalid());
             }
