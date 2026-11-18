@@ -25,6 +25,18 @@ from kiyosi.pricing import (
 from test_heston import END, START, context, model, option, reference
 
 
+def test_rejects_oversized_heston_workspace_before_pricing():
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_step_count=4000, variance_step_count=4000, time_step_count=1
+    )
+    market = context()
+    with pytest.raises(InvalidInputError):
+        engine.price(option(), market)
+    with pytest.raises(InvalidInputError):
+        engine.solve(option(), market, spot_range=(90, 110))
+    assert engine.price(option(), market.replace(valuation_time=END)) == 0
+
+
 def test_american_reference_and_exercise_bounds():
     fixture = json.loads(
         (

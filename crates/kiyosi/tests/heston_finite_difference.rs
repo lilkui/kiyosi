@@ -34,6 +34,31 @@ fn context(xi: f64, correlation: f64) -> PricingContext {
 }
 
 #[test]
+fn rejects_oversized_heston_workspace_before_pricing() {
+    let (start, end) = dates();
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 4_000,
+        variance_step_count: 4_000,
+        time_step_count: 1,
+        ..Default::default()
+    })
+    .unwrap();
+    let contract = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    let market = context(0.3, -0.7);
+    assert!(matches!(
+        engine.price(&contract, &market),
+        Err(Error::InvalidInput(_))
+    ));
+    let expired = market
+        .replace(kiyosi::PricingContextChanges {
+            valuation_time: Some(end),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(engine.price(&contract, &expired).unwrap().abs() < 1e-14);
+}
+
+#[test]
 fn european_defaults_match_independent_references_and_parity() {
     let (start, end) = dates();
     let engine = FiniteDifferenceHestonVanillaEngine::default();

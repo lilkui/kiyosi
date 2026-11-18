@@ -3168,8 +3168,8 @@ class FiniteDifferenceHestonVanillaEngine(
     scheme on nonuniform grids, with Ikonen-Toivanen splitting for American
     exercise. Supports HestonParameters and EuropeanOption/AmericanOption,
     including violations of the Feller condition, zero parameters, correlation
-    endpoints and deterministic rate curves. Fixed-grid completion does not
-    establish accuracy. Check spatial/time refinement and domain enlargement
+    endpoints and deterministic rate curves. Pricing rejects grids whose estimated
+    workspace exceeds 1 GiB. Fixed-grid completion does not establish accuracy. Check spatial/time refinement and domain enlargement
     separately. Non-finite or materially negative results raise
     ComputationFailureError. Requested Greeks have status "unsupported";
     implied-parameter solvers raise UnsupportedOperationError. Inputs and settings

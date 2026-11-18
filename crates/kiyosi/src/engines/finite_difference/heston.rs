@@ -113,7 +113,7 @@ impl HestonFiniteDifferenceSettings {
 ///
 /// Returns [`crate::Error::UnsupportedOperation`] for other models,
 /// [`crate::Error::InvalidInput`] outside permitted valuation bounds or curve coverage, or for explicit
-/// bounds that exclude spot, strike or initial variance, and
+/// bounds that exclude spot, strike or initial variance, or estimated workspace above 1 GiB, and
 /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
 /// invalid prices. Fixed grids do not report error-target nonconvergence.
 /// Inputs and settings remain unchanged on success and failure.
@@ -272,6 +272,9 @@ fn prepare(
     mut payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
 ) -> Result<HestonState> {
+    const WORKSPACE_BUDGET: u64 = 1 << 30;
+    const BYTES_PER_GRID_POINT: u64 = 128;
+    const BYTES_PER_TIME_STEP: u64 = 24;
     let model = context.model_parameters().as_heston()?;
     let time = time_to_expiry(option, context)?;
     let start = context.valuation_time();
@@ -319,6 +322,24 @@ fn prepare(
             "Heston asset boundary must exceed spot and strike",
         ));
     }
+    let deterministic = model.vol_of_vol() == 0.0;
+    let assets = u64::try_from(settings.asset_step_count).map_err(|_| unstable())? + 1;
+    let rows = if deterministic {
+        1
+    } else {
+        u64::try_from(settings.variance_step_count).map_err(|_| unstable())? + 1
+    };
+    let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
+    // Reserve for the live operator, rollback buffers, axes and time grid.
+    if (assets * rows)
+        .saturating_mul(BYTES_PER_GRID_POINT)
+        .saturating_add(steps * BYTES_PER_TIME_STEP)
+        > WORKSPACE_BUDGET
+    {
+        return Err(invalid_grid(
+            "Heston finite-difference workspace exceeds 1 GiB; reduce grid step counts",
+        ));
+    }
     // A nearby spot anchor can shrink spacing across the entire concentrated mesh.
     let asset = space(
         settings.asset_step_count,
@@ -327,7 +348,6 @@ fn prepare(
         (0.1 * spot.max(payoff.strike)).max(f64::MIN_POSITIVE),
         vec![payoff.strike],
     )?;
-    let deterministic = model.vol_of_vol() == 0.0;
     let variance = if deterministic {
         None
     } else {
