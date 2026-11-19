@@ -143,7 +143,8 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
     assert result.stdout.strip() == "cancelled and replayed"
 
 
-def test_large_schedule_releases_gil_and_propagates_signals():
+@pytest.mark.parametrize("case", ("schedule", "range_new", "range_replace"))
+def test_large_schedule_releases_gil_and_propagates_signals(case):
     result = subprocess.run(
         [
             sys.executable,
@@ -153,7 +154,28 @@ def test_large_schedule_releases_gil_and_propagates_signals():
                 import sys
                 import threading
                 from datetime import datetime, time
+                from kiyosi.instruments import RangeAccrualOption
                 from kiyosi.market import all_days_calendar, fixed_interval_schedule
+
+                start_time = datetime(1, 1, 1)
+                short_end = datetime(1, 1, 3)
+                long_end = datetime(9999, 12, 31)
+                calendar = all_days_calendar()
+                terms = dict(
+                    notional=100, annual_coupon_rate=0.1, lower_bound=90,
+                    upper_bound=110, effective_time=start_time,
+                    observation_clock_time=time(), calendar=calendar,
+                )
+                original = RangeAccrualOption(expiry_time=short_end, **terms)
+                operations = {
+                    "schedule": lambda: fixed_interval_schedule(
+                        start_time=start_time, end_time=long_end, interval_days=1,
+                        observation_clock_time=time(), calendar=calendar,
+                    ),
+                    "range_new": lambda: RangeAccrualOption(expiry_time=long_end, **terms),
+                    "range_replace": lambda: original.replace(expiry_time=long_end),
+                }
+                operation = operations[sys.argv[1]]
 
                 class StopSchedule(Exception):
                     pass
@@ -179,11 +201,7 @@ def test_large_schedule_releases_gil_and_propagates_signals():
                 try:
                     start.set()
                     try:
-                        fixed_interval_schedule(
-                            start_time=datetime(1, 1, 1), end_time=datetime(9999, 12, 31),
-                            interval_days=1, observation_clock_time=time(),
-                            calendar=all_days_calendar(),
-                        )
+                        operation()
                     except StopSchedule:
                         pass
                     else:
@@ -197,7 +215,13 @@ def test_large_schedule_releases_gil_and_propagates_signals():
                     interval_days=1, observation_clock_time=time(), calendar=all_days_calendar(),
                 )
                 assert schedule.times == (datetime(2025, 1, 2), datetime(2025, 1, 3))
+                assert original.expiry_time == short_end
+                replacement = original.replace(expiry_time=datetime(1, 1, 4))
+                assert replacement.observation_schedule.times == tuple(
+                    datetime(1, 1, day) for day in (2, 3, 4)
+                )
                 """),
+            case,
         ],
         capture_output=True,
         text=True,

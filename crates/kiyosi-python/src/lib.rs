@@ -12,7 +12,8 @@
 // Expand replacement methods before PyO3 parses the complete implementation.
 macro_rules! value_methods {
     ($name:ident, $changes:ident, [$first_parameter:ident $(, $parameter:ident)*],
-     {$($field:ident: $value:expr),+ $(,)?}, {$($method:item)*}) => {
+     {$($field:ident: $value:expr),+ $(,)?}, {$($method:item)*}
+     $(, $py:ident => $replace:path)?) => {
         value_methods!(@documented $name, $changes, [$first_parameter $(, $parameter)*],
             {$($field: $value),+}, [
             /// Return a validated copy with replacement fields.
@@ -37,15 +38,17 @@ macro_rules! value_methods {
             ///     If fields fail constructor validation.
             /// TypeError
             ///     If a field name or representation is invalid.
-        ], {$($method)*});
+        ], {$($method)*} $(, $py => $replace)?);
     };
     (@documented $name:ident, $changes:ident, [$($parameter:ident),+],
-     {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}) => {
+     {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}
+     $(, $py:ident => $replace:path)?) => {
         value_methods!(@documented $name, $changes, [$($parameter),+], |self|
-            {$($field: $value),+}, [$(#[$doc])*], {$($method)*});
+            {$($field: $value),+}, [$(#[$doc])*], {$($method)*} $(, $py => $replace)?);
     };
     (@documented $name:ident, $changes:ident, [$($parameter:ident),+], |$slf:ident|
-     {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}) => {
+     {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}
+     $(, $py:ident => $replace:path)?) => {
         #[pyo3::pymethods]
         impl $name {
             #[classattr]
@@ -56,15 +59,22 @@ macro_rules! value_methods {
             #[allow(clippy::too_many_arguments, reason = "replacement field counts vary by expansion")]
             fn replace(
                 &$slf,
+                $($py: pyo3::Python<'_>,)?
                 $(#[pyo3(from_py_with = crate::conversions::supplied)]
                     $parameter: Option<&pyo3::Bound<'_, pyo3::PyAny>>),+
             ) -> pyo3::PyResult<Self> {
                 let changes = kiyosi::$changes { $($field: $value),+ };
-                Ok(Self($crate::error::domain($slf.0.replace(changes))?))
+                value_methods!(@apply $slf, changes $(, $py => $replace)?)
             }
 
             $($method)*
         }
+    };
+    (@apply $slf:ident, $changes:ident) => {
+        Ok(Self($crate::error::domain($slf.0.replace($changes))?))
+    };
+    (@apply $slf:ident, $changes:ident, $py:ident => $replace:path) => {
+        $replace($slf, $py, $changes)
     };
 }
 

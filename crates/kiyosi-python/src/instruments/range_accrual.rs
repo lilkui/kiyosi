@@ -1,6 +1,5 @@
-use crate::calendar::TradingCalendar;
+use crate::calendar::{TradingCalendar, run_date_scan};
 use crate::conversions::{integer, python_timestamp, real, timestamp};
-use crate::error::domain;
 use pyo3::prelude::*;
 
 fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
@@ -50,11 +49,31 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// observation. Payment is notional times annual coupon times Actual/365 Fixed
 /// life times the fraction of observations inside the range. Payment is at
 /// expiry; a completed observation schedule still has a discounted future
-/// payment.
+/// payment. Long schedule builds release the GIL and poll Python signals during
+/// construction and replacement.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
+
+impl RangeAccrualOption {
+    fn replace_with_date_scan(
+        &self,
+        py: Python<'_>,
+        changes: kiyosi::RangeAccrualOptionChanges,
+    ) -> PyResult<Self> {
+        let start = changes
+            .effective_time
+            .unwrap_or_else(|| self.0.effective_time());
+        let end = changes.expiry_time.unwrap_or_else(|| self.0.expiry_time());
+        run_date_scan(
+            py,
+            start.date().days_until(end.date()).unsigned_abs(),
+            || self.0.replace(changes),
+        )
+        .map(Self)
+    }
+}
 
 value_methods!(RangeAccrualOption, RangeAccrualOptionChanges,
     [notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time,
@@ -73,6 +92,7 @@ value_methods!(RangeAccrualOption, RangeAccrualOptionChanges,
     #[expect(clippy::too_many_arguments, reason = "explicit Python contract terms")]
     #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time, observation_clock_time, realized_hit_count=None, calendar=TradingCalendar::default()))]
     fn new(
+        py: Python<'_>,
         notional: &Bound<'_, PyAny>,
         annual_coupon_rate: &Bound<'_, PyAny>,
         lower_bound: &Bound<'_, PyAny>,
@@ -96,7 +116,8 @@ value_methods!(RangeAccrualOption, RangeAccrualOptionChanges,
             terms.realized_hit_count = history(value)?;
         }
         terms.calendar = calendar.0;
-        Ok(Self(domain(kiyosi::RangeAccrualOption::new(terms))?))
+        let days = terms.effective_time.date().days_until(terms.expiry_time.date());
+        run_date_scan(py, days.unsigned_abs(), || kiyosi::RangeAccrualOption::new(terms)).map(Self)
     }
 
     /// Return the explicitly specified daily observation clock time.
@@ -157,4 +178,4 @@ value_methods!(RangeAccrualOption, RangeAccrualOptionChanges,
     fn realized_hit_count(&self) -> Option<i32> {
         self.0.realized_hit_count()
     }
-});
+}, py => Self::replace_with_date_scan);

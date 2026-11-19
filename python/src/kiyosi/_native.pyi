@@ -5770,7 +5770,8 @@ class RangeAccrualOption:
     observation. Payment is notional times annual coupon times Actual/365 Fixed
     life times the fraction of observations inside the range. Payment is at
     expiry; a completed observation schedule still has a discounted future
-    payment.
+    payment. Long schedule builds release the GIL and poll Python signals during
+    construction and replacement.
     """
 
     @property
