@@ -448,9 +448,13 @@ impl PricingContext {
         strike: f64,
         log_carry: f64,
     ) -> f64 {
+        self.quoted_log_forward_moneyness(time, strike)
+            .unwrap_or_else(|| crate::numerics::log_ratio(self.spot_price, strike) + log_carry)
+    }
+
+    pub(crate) fn quoted_log_forward_moneyness(&self, time: Timestamp, strike: f64) -> Option<f64> {
         self.quoted_spot_products(time, self.spot_price, strike)
             .and_then(|(left, right)| crate::numerics::nearby_product_log_ratio(left, right))
-            .unwrap_or_else(|| crate::numerics::log_ratio(self.spot_price, strike) + log_carry)
     }
 
     pub(crate) fn forward_spot_cmp(

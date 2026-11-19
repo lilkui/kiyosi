@@ -1,6 +1,41 @@
 use kiyosi::*;
 
 #[test]
+fn deterministic_american_exercise_preserves_quoted_payoff() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let fixing = start.add_days(365)?;
+    let spot = 90.549_063;
+    let strike = 99.0_f64;
+    let factor = 0.914_637_f64;
+    let expected = (-strike).mul_add(factor, spot);
+    assert!(expected > 0.0);
+
+    // The rate is positive until the quoted exercise date, then negative.
+    for (expiry, nodes, factors) in [
+        (fixing, vec![fixing], vec![factor]),
+        (
+            fixing.add_days(365)?,
+            vec![fixing, fixing.add_days(365)?],
+            vec![factor, 1.0],
+        ),
+    ] {
+        let curve = RateTermStructure::new(start, nodes, factors)?;
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(curve, 0.0, 0.0)?,
+            spot,
+            start,
+        )?;
+        let option = AmericanOption::new(OptionType::Call, strike, start, expiry)?;
+        let engine = FiniteDifferenceVanillaEngine::default();
+        let saved = engine.solve(&option, &context, 90.0..=91.0)?;
+        for price in [engine.price(&option, &context)?, saved.price(spot)?] {
+            assert!((price / expected - 1.0).abs() < 1e-12, "{price}");
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn deterministic_barrier_can_settle_before_a_bounded_curve_ends() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let coverage_end = start.add_days(180)?;

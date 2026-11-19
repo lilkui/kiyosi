@@ -563,7 +563,7 @@ impl<I: OptionContract> solution::Backend<I> for VanillaState {
             return grid.evaluate(context, request, shifts);
         }
         if let Some(exercise) = &self.exercise {
-            return PricingResult::new(exercise.price(context.spot_price())?);
+            return PricingResult::new(exercise.price(context)?);
         }
         if context.valuation_time() == option.expiry_time() {
             let result = PricingResult::new(self.payoff.value(context.spot_price()))?;

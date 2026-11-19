@@ -3,6 +3,7 @@
 import math
 from datetime import datetime, timedelta
 from datetime import time as clock_time
+from fractions import Fraction
 
 import pytest
 from kiyosi import InvalidInputError, pricing
@@ -17,6 +18,36 @@ from kiyosi.market import (
 )
 
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
+
+
+def test_deterministic_american_exercise_preserves_quoted_payoff():
+    start = datetime(2025, 1, 1)
+    fixing = datetime(2026, 1, 1)
+    spot, strike, factor = 90.549063, 99, 0.914637
+    expected = float(Fraction(spot) - strike * Fraction(factor))
+    assert expected > 0
+
+    end = datetime(2027, 1, 1)
+    for expiry, times, factors in (
+        (fixing, [fixing], [factor]),
+        (end, [fixing, end], [factor, 1.0]),
+    ):
+        curve = RateTermStructure(reference_time=start, times=times, factors=factors)
+        model = BlackScholesMertonParameters(
+            risk_free_rate=curve, dividend_yield=0, volatility=0
+        )
+        context = PricingContext(
+            model_parameters=model, spot_price=spot, valuation_time=start
+        )
+        option = ins.AmericanOption(
+            option_type="call", strike=strike, effective_time=start, expiry_time=expiry
+        )
+        engine = pricing.FiniteDifferenceVanillaEngine()
+        solution = engine.solve(option, context, spot_range=(90, 91))
+        assert engine.price(option, context) == pytest.approx(
+            expected, rel=1e-12, abs=0
+        )
+        assert solution.price(spot) == pytest.approx(expected, rel=1e-12, abs=0)
 
 
 def test_structured_knock_out_uses_exact_quoted_forward():

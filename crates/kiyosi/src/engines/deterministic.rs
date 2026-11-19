@@ -50,7 +50,14 @@ pub(super) fn vanilla(
     if payoff.is_american() {
         let risk = Curve::new(model.risk_free_curve(), start, end)?;
         let dividend = Curve::new(model.dividend_curve(), start, end)?;
-        return exercise_value(payoff, spot, 0.0, start.years_until(end), &risk, &dividend);
+        return market_exercise_value(
+            payoff,
+            context,
+            end,
+            &risk,
+            &dividend,
+            &market_exercise_times(context, end),
+        );
     }
     context.validate_curve_coverage(end)?;
     let risk_log = model.risk_free_curve().log_factor(start, end)?;
@@ -104,8 +111,8 @@ pub(super) struct AmericanExercise {
     payoff: Payoff,
     risk: Curve,
     dividend: Curve,
-    end: f64,
-    knots: Vec<f64>,
+    expiry: Timestamp,
+    times: Vec<Timestamp>,
     boundary: f64,
 }
 
@@ -113,36 +120,89 @@ impl AmericanExercise {
     pub(super) fn new(payoff: Payoff, context: &PricingContext, expiry: Timestamp) -> Result<Self> {
         let model = context.model_parameters();
         let start = context.valuation_time();
-        let end = start.years_until(expiry);
         let risk = Curve::new(model.risk_free_curve(), start, expiry)?;
         let dividend = Curve::new(model.dividend_curve(), start, expiry)?;
-        let knots = exercise_knots(0.0, end, &risk, &dividend);
+        let times = market_exercise_times(context, expiry);
         let boundary = exercise_boundary(payoff, &risk, &dividend)?;
         Ok(Self {
             payoff,
             risk,
             dividend,
-            end,
-            knots,
+            expiry,
+            times,
             boundary,
         })
     }
 
     pub(super) fn metadata(&self) -> (f64, usize) {
-        (self.boundary, self.knots.len() + 1)
+        (self.boundary, self.times.len())
     }
 
-    pub(super) fn price(&self, spot: f64) -> Result<f64> {
-        exercise_value_on_knots(
+    pub(super) fn price(&self, context: &PricingContext) -> Result<f64> {
+        market_exercise_value(
             self.payoff,
-            spot,
-            0.0,
-            self.end,
+            context,
+            self.expiry,
             &self.risk,
             &self.dividend,
-            &self.knots,
+            &self.times,
         )
     }
+}
+
+fn market_exercise_times(context: &PricingContext, expiry: Timestamp) -> Vec<Timestamp> {
+    let start = context.valuation_time();
+    let model = context.model_parameters();
+    let mut times: Vec<_> = [model.risk_free_curve(), model.dividend_curve()]
+        .into_iter()
+        .flat_map(|curve| {
+            curve
+                .nodes_after(start)
+                .iter()
+                .copied()
+                .take_while(|&t| t < expiry)
+        })
+        .collect();
+    times.sort_unstable();
+    times.dedup();
+    times.push(expiry);
+    times
+}
+
+fn market_exercise_value(
+    payoff: Payoff,
+    context: &PricingContext,
+    expiry: Timestamp,
+    risk: &Curve,
+    dividend: &Curve,
+    times: &[Timestamp],
+) -> Result<f64> {
+    let start = context.valuation_time();
+    let spot = context.spot_price();
+    if start == expiry {
+        return Ok(payoff.value(spot));
+    }
+    let model = context.model_parameters();
+    let quoted_start = [model.risk_free_curve(), model.dividend_curve()]
+        .iter()
+        .all(|curve| curve.unshifted_factor_quotes(start, start).is_some());
+    let knots = times.iter().map(|&time| {
+        let moneyness = if quoted_start {
+            context.quoted_log_forward_moneyness(time, payoff.strike)
+        } else {
+            None
+        };
+        (start.years_until(time), moneyness)
+    });
+    exercise_value_on_knots(
+        payoff,
+        spot,
+        0.0,
+        start.years_until(expiry),
+        risk,
+        dividend,
+        knots,
+    )
 }
 
 fn discounted_intrinsic(
@@ -193,7 +253,15 @@ pub(super) fn exercise_value(
     } else {
         Vec::new()
     };
-    exercise_value_on_knots(payoff, spot, start, end, risk, dividend, &knots)
+    exercise_value_on_knots(
+        payoff,
+        spot,
+        start,
+        end,
+        risk,
+        dividend,
+        knots.into_iter().chain([end]).map(|time| (time, None)),
+    )
 }
 
 fn exercise_knots(start: f64, end: f64, risk: &Curve, dividend: &Curve) -> Vec<f64> {
@@ -217,28 +285,32 @@ fn exercise_value_on_knots(
     end: f64,
     risk: &Curve,
     dividend: &Curve,
-    knots: &[f64],
+    knots: impl Iterator<Item = (f64, Option<f64>)>,
 ) -> Result<f64> {
-    let value = |dividend_log, risk_log| {
+    let value = |dividend_log, risk_log, moneyness: Option<f64>| {
         discounted_intrinsic(
             payoff,
             spot,
             dividend_log,
             risk_log,
-            log_ratio(spot, payoff.strike) + (dividend_log - risk_log),
+            moneyness.unwrap_or_else(|| log_ratio(spot, payoff.strike) + (dividend_log - risk_log)),
         )
     };
     if !payoff.is_american() || start >= end {
-        return value(dividend.log_factor(start, end), risk.log_factor(start, end));
+        return value(
+            dividend.log_factor(start, end),
+            risk.log_factor(start, end),
+            None,
+        );
     }
     if spot == 0.0 && payoff.sign > 0.0 {
         return Ok(0.0);
     }
-    let mut best = value(0.0, 0.0)?;
+    let mut best = payoff.value(spot);
     let mut a = start;
     let mut risk_log = Sum::default();
     let mut dividend_log = Sum::default();
-    for b in knots.iter().copied().chain([end]) {
+    for (b, moneyness) in knots {
         crate::cancellation::check()?;
         let middle = a.midpoint(b);
         let r = risk.rate(middle);
@@ -252,13 +324,14 @@ fn exercise_value_on_knots(
                 best = best.max(value(
                     dividend_log.total() + dividend.log_factor(a, t),
                     risk_log.total() + risk.log_factor(a, t),
+                    None,
                 )?);
             }
         }
         // Advance by each interval to preserve short widths without rescanning prior knots.
         risk_log.add(risk.log_factor(a, b));
         dividend_log.add(dividend.log_factor(a, b));
-        best = best.max(value(dividend_log.total(), risk_log.total())?);
+        best = best.max(value(dividend_log.total(), risk_log.total(), moneyness)?);
         a = b;
     }
     Ok(best)

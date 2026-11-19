@@ -529,7 +529,7 @@ impl HestonState {
         let spot = context.spot_price();
         match self {
             Self::Expiry(payoff) => Ok(payoff.value(spot)),
-            Self::Exercise(exercise) => exercise.price(spot),
+            Self::Exercise(exercise) => exercise.price(context),
             Self::Direct(payoff) => deterministic::vanilla(option, *payoff, context),
             Self::Grid {
                 scale,
