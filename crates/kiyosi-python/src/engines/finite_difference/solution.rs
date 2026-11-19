@@ -47,9 +47,10 @@ impl FiniteDifferenceSolution {
     fn evaluate<T: Send>(
         &self,
         py: Python<'_>,
+        queries: usize,
         operation: impl FnOnce() -> kiyosi::Result<T> + Send,
     ) -> PyResult<T> {
-        if self.0.exercise_intervals() > 1024 {
+        if queries > 32 || queries.saturating_mul(self.0.exercise_intervals()) > 1024 {
             domain(crate::cancellation::run(py, operation)?)
         } else {
             domain(operation())
@@ -107,7 +108,7 @@ impl FiniteDifferenceSolution {
     /// TypeError
     ///     If the numeric representation is invalid, including a bool.
     fn price(&self, py: Python<'_>, #[pyo3(from_py_with = real)] spot_price: f64) -> PyResult<f64> {
-        self.evaluate(py, || self.0.price(spot_price))
+        self.evaluate(py, 1, || self.0.price(spot_price))
     }
 
     /// Evaluate saved prices in input order, preserving duplicates.
@@ -142,9 +143,7 @@ impl FiniteDifferenceSolution {
         py: Python<'py>,
         #[pyo3(from_py_with = reals)] spot_prices: Vec<f64>,
     ) -> PyResult<Bound<'py, PyTuple>> {
-        let values = domain(crate::cancellation::run(py, || {
-            self.0.price_many(&spot_prices)
-        })?)?;
+        let values = self.evaluate(py, spot_prices.len(), || self.0.price_many(&spot_prices))?;
         PyTuple::new(py, values)
     }
 
@@ -188,7 +187,7 @@ impl FiniteDifferenceSolution {
     ) -> PyResult<crate::risk::PricingResult> {
         let request = NativeGreeksRequest::from_python(greeks, spot_shift, None, None, None)?;
         let spot = real(spot_price)?;
-        Ok(crate::risk::PricingResult(self.evaluate(py, || {
+        Ok(crate::risk::PricingResult(self.evaluate(py, 1, || {
             self.0
                 .price_with_greeks(spot, request.request, request.settings.spot_shift)
         })?))
@@ -231,10 +230,10 @@ impl FiniteDifferenceSolution {
     ) -> PyResult<Bound<'py, PyTuple>> {
         let request = NativeGreeksRequest::from_python(greeks, spot_shift, None, None, None)?;
         let spots = reals(spot_prices)?;
-        let values = domain(crate::cancellation::run(py, || {
+        let values = self.evaluate(py, spots.len(), || {
             self.0
                 .price_many_with_greeks(&spots, request.request, request.settings.spot_shift)
-        })?)?;
+        })?;
         let objects = values
             .into_iter()
             .map(|value| Py::new(py, crate::risk::PricingResult(value)))
