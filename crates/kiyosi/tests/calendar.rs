@@ -66,6 +66,21 @@ fn calendar_searches_and_counts_stop_after_cancellation() -> kiyosi::Result<()> 
 }
 
 #[test]
+fn custom_calendar_observes_cancellation_during_construction() {
+    let token = CancellationToken::default();
+    let base = TradingCalendar::all_days();
+    let closed = day(2025, 1, 2);
+    let interrupted = token.run(|| {
+        token.cancel();
+        let result = TradingCalendar::custom(base.clone(), vec![closed], vec![], None);
+        assert!(matches!(&result, Err(Error::Io(error)) if error.kind() == ErrorKind::Interrupted));
+        result
+    });
+    assert!(matches!(interrupted, Err(Error::Io(error)) if error.kind() == ErrorKind::Interrupted));
+    assert!(base.is_trading_day(closed));
+}
+
+#[test]
 fn fixed_interval_schedule_interrupts_after_first_closed_candidate() -> kiyosi::Result<()> {
     let start = day(2025, 1, 2).start_of_day();
     let end = day(2025, 1, 5).start_of_day();

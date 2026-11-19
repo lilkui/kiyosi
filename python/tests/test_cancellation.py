@@ -153,6 +153,8 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
         "curve_factors",
         "curve_shift",
         "heston_saved",
+        "calendar_new",
+        "calendar_layer",
         "surface",
     ),
 )
@@ -169,8 +171,8 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 from kiyosi.instruments import AmericanOption, RangeAccrualOption
                 from kiyosi.market import (
                     HestonParameters, LocalVolatilitySurface, PricingContext,
-                    RateTermStructure, all_days_calendar, fixed_interval_schedule,
-                    weekdays_calendar,
+                    RateTermStructure, all_days_calendar, custom_calendar,
+                    fixed_interval_schedule, weekdays_calendar,
                 )
                 from kiyosi.pricing import FiniteDifferenceHestonVanillaEngine
 
@@ -241,6 +243,13 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         option, context, spot_range=(80, 120),
                     )
                     operation = lambda: saved.price_many([90.0] * 32)
+                elif case in ("calendar_new", "calendar_layer"):
+                    closed = [start_time.date() + timedelta(days=i) for i in range(600_000)]
+                    if case == "calendar_layer":
+                        base = custom_calendar(base=calendar, closed_dates=closed)
+                        operation = lambda: custom_calendar(base=base, open_dates=[closed[0]])
+                    else:
+                        operation = lambda: custom_calendar(base=calendar, closed_dates=closed)
                 elif case == "surface":
                     times = tuple(start_time + timedelta(days=i) for i in range(1024))
                     spots = tuple(map(float, range(1, 1025)))
@@ -307,6 +316,12 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     assert curve.parallel_shift == 0.0
                 elif case == "heston_saved":
                     assert all(abs(value - 10.0) < 1e-12 for value in operation())
+                elif case in ("calendar_new", "calendar_layer"):
+                    result = operation()
+                    assert result.is_trading_day(closed[0]) == (case == "calendar_layer")
+                    assert not result.is_trading_day(closed[-1])
+                    if case == "calendar_layer":
+                        assert not base.is_trading_day(closed[0])
                 elif case == "surface":
                     surface = operation()
                     assert surface.volatility(times[100], 50.5) == 0.2

@@ -29,6 +29,26 @@ struct CalendarOverrides {
     open: Vec<Date>,
 }
 
+fn normalize_dates(dates: &mut Vec<Date>) -> Result<()> {
+    crate::cancellation::check()?;
+    dates.sort_unstable();
+    dates.dedup();
+    crate::cancellation::check()
+}
+
+fn merge_overrides(dates: &mut Vec<Date>, previous: &[Date], opposite: &[Date]) -> Result<()> {
+    for chunk in previous.chunks(1024) {
+        crate::cancellation::check()?;
+        dates.extend(
+            chunk
+                .iter()
+                .copied()
+                .filter(|date| opposite.binary_search(date).is_err()),
+        );
+    }
+    normalize_dates(dates)
+}
+
 /// Owns a trading-day predicate and positive annualization basis.
 ///
 /// Defaults to [`Self::weekdays`] with a 261-day basis.
@@ -172,21 +192,23 @@ impl TradingCalendar {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for dates present in both override lists,
-    /// then for a nonpositive basis. See [`Self::adjust`] for calendar usage.
+    /// then for a nonpositive basis. Cancellation returns [`Error::Io`] with
+    /// [`std::io::ErrorKind::Interrupted`]. See [`Self::adjust`] for calendar usage.
     pub fn custom(
         mut base: Self,
         mut closed: Vec<Date>,
         mut open: Vec<Date>,
         basis: Option<i32>,
     ) -> Result<Self> {
-        closed.sort_unstable();
-        closed.dedup();
-        open.sort_unstable();
-        open.dedup();
-        if closed.iter().any(|date| open.binary_search(date).is_ok()) {
-            return Err(Error::InvalidInput(
-                "override date is both open and closed".into(),
-            ));
+        normalize_dates(&mut closed)?;
+        normalize_dates(&mut open)?;
+        for chunk in closed.chunks(1024) {
+            crate::cancellation::check()?;
+            if chunk.iter().any(|date| open.binary_search(date).is_ok()) {
+                return Err(Error::InvalidInput(
+                    "override date is both open and closed".into(),
+                ));
+            }
         }
         let basis = basis.unwrap_or(base.basis);
         if basis <= 0 {
@@ -198,22 +220,8 @@ impl TradingCalendar {
             return Ok(Self { basis, ..base });
         }
         if let Some((underlying, previous_closed, previous_open)) = base.overrides() {
-            closed.extend(
-                previous_closed
-                    .iter()
-                    .copied()
-                    .filter(|date| open.binary_search(date).is_err()),
-            );
-            closed.sort_unstable();
-            closed.dedup();
-            open.extend(
-                previous_open
-                    .iter()
-                    .copied()
-                    .filter(|date| closed.binary_search(date).is_err()),
-            );
-            open.sort_unstable();
-            open.dedup();
+            merge_overrides(&mut closed, previous_closed, &open)?;
+            merge_overrides(&mut open, previous_open, &closed)?;
             base = underlying.clone();
         }
         Ok(Self {

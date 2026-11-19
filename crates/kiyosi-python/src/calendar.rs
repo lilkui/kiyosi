@@ -241,21 +241,31 @@ pub(crate) fn sse_calendar() -> TradingCalendar {
 ///     If a date is both open and closed, or the annualization basis is
 ///     nonpositive.
 ///
+/// Notes
+/// -----
+/// Date conversion polls Python signals. Large override merges release the GIL
+/// and poll Python signals during normalization.
+///
 #[pyfunction]
 #[pyo3(signature = (*, base, closed_dates=Vec::new(), open_dates=Vec::new(), trading_days_per_year=None))]
 pub(crate) fn custom_calendar(
+    py: Python<'_>,
     base: &TradingCalendar,
     #[pyo3(from_py_with = dates)] closed_dates: Vec<kiyosi::Date>,
     #[pyo3(from_py_with = dates)] open_dates: Vec<kiyosi::Date>,
     trading_days_per_year: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<TradingCalendar> {
     let basis = trading_days_per_year.map(integer).transpose()?;
-    Ok(TradingCalendar(domain(kiyosi::TradingCalendar::custom(
-        base.0.clone(),
-        closed_dates,
-        open_dates,
-        basis,
-    ))?))
+    let mut count = closed_dates.len() + open_dates.len();
+    if count != 0 {
+        if let Some((_, closed, open)) = base.0.overrides() {
+            count += closed.len() + open.len();
+        }
+    }
+    run_date_scan(py, count as u64, || {
+        kiyosi::TradingCalendar::custom(base.0.clone(), closed_dates, open_dates, basis)
+    })
+    .map(TradingCalendar)
 }
 
 pub(crate) fn builtin_name(calendar: &kiyosi::TradingCalendar) -> PyResult<&'static str> {

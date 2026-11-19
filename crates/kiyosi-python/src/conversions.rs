@@ -234,7 +234,7 @@ pub(crate) fn integer_index<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'p
 }
 
 pub(crate) fn dates(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Date>> {
-    value.try_iter()?.map(|item| date(&item?)).collect()
+    collect_values(value, date)
 }
 
 pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Date> {

@@ -1412,6 +1412,11 @@ def custom_calendar(
     InvalidInputError
         If a date is both open and closed, or the annualization basis is
         nonpositive.
+
+    Notes
+    -----
+    Date conversion polls Python signals. Large override merges release the GIL
+    and poll Python signals during normalization.
     """
 
 class ObservationSchedule:
