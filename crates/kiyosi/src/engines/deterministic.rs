@@ -55,7 +55,8 @@ pub(super) fn vanilla(
         context.validate_curve_horizon(end)?;
         let r = model.risk_free_curve().log_factor(start, end)?;
         let q = model.dividend_curve().log_factor(start, end)?;
-        let forward = log_ratio(context.spot_price(), payoff.strike) + (q - r);
+        let forward = quoted_spot_distance(context, end, payoff.strike)
+            .unwrap_or_else(|| log_ratio(context.spot_price(), payoff.strike) + (q - r));
         return checked(if payoff.sign * forward <= 0.0 {
             0.0
         } else if let Some(payout) = payoff.payout() {
@@ -184,7 +185,11 @@ fn spot_after_carry(spot: f64, carry: f64) -> Result<f64> {
     }
 }
 
-fn quoted_strike_distance(context: &PricingContext, time: Timestamp, strike: f64) -> Option<f64> {
+pub(super) fn quoted_spot_distance(
+    context: &PricingContext,
+    time: Timestamp,
+    level: f64,
+) -> Option<f64> {
     let model = context.model_parameters();
     let start = context.valuation_time();
     let [risk_start, risk_end] = model
@@ -195,7 +200,7 @@ fn quoted_strike_distance(context: &PricingContext, time: Timestamp, strike: f64
         .unshifted_factor_quotes(start, time)?;
     let ordering = crate::numerics::compare_positive_products(
         [context.spot_price(), dividend_end, risk_start],
-        [strike, risk_end, dividend_start],
+        [level, risk_end, dividend_start],
     );
     Some(f64::from(ordering as i8))
 }
@@ -396,11 +401,18 @@ fn first_touch(
     let initial = context.spot_price();
     let lower = log_ratio(monitoring.barrier_level(), initial);
     let upper_log = upper.map(|level| log_ratio(level, initial));
-    let hit = |x: f64| {
+    let hit = |time, carry: f64| {
+        let level = monitoring.barrier_level();
+        let distance = quoted_spot_distance(context, time, level).unwrap_or(carry - lower);
         if monitoring.barrier_type().is_up() {
-            x >= lower
+            (distance >= 0.0).then_some((level, distance))
+        } else if distance <= 0.0 {
+            Some((level, distance))
         } else {
-            x <= lower || upper_log.is_some_and(|upper| x >= upper)
+            upper.zip(upper_log).and_then(|(level, log)| {
+                let distance = quoted_spot_distance(context, time, level).unwrap_or(carry - log);
+                (distance >= 0.0).then_some((level, distance))
+            })
         }
     };
     let start = context.valuation_time();
@@ -413,9 +425,13 @@ fn first_touch(
             .take_while(|&&time| time <= end)
         {
             let (value, log_discount) = advance(time)?;
-            if hit(value) {
+            if let Some((level, distance)) = hit(time, value) {
                 return Ok(Some(Touch {
-                    spot: spot_after_carry(initial, value)?,
+                    spot: if distance == 0.0 {
+                        level
+                    } else {
+                        spot_after_carry(initial, value)?
+                    },
                     log_discount,
                 }));
             }
@@ -425,23 +441,27 @@ fn first_touch(
     let times = continuous_knots(context, end);
     for pair in times.windows(2) {
         let (x, a) = advance(pair[0])?;
-        if hit(x) {
+        if let Some((level, distance)) = hit(pair[0], x) {
             return Ok(Some(Touch {
-                spot: spot_after_carry(initial, x)?,
+                spot: if distance == 0.0 {
+                    level
+                } else {
+                    spot_after_carry(initial, x)?
+                },
                 log_discount: a,
             }));
         }
         let (y, b) = advance(pair[1])?;
-        if hit(y) {
-            let level = if monitoring.barrier_type().is_up() || y <= lower {
-                monitoring.barrier_level()
+        if let Some((level, distance)) = hit(pair[1], y) {
+            let log_discount = if distance == 0.0 || (y - x).abs() == 0.0 {
+                b
             } else {
-                upper.ok_or_else(invalid)?
+                let fraction = ((log_ratio(level, initial) - x) / (y - x)).clamp(0.0, 1.0);
+                fraction.mul_add(b - a, a)
             };
-            let fraction = (log_ratio(level, initial) - x) / (y - x);
             return Ok(Some(Touch {
                 spot: level,
-                log_discount: fraction.mul_add(b - a, a),
+                log_discount,
             }));
         }
     }
@@ -610,7 +630,7 @@ pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Res
             return finite(quantity * option.unit_payoff(spot) * log_discount.exp());
         }
         if option.accumulates_at(time, option.calendar()) {
-            let distance = quoted_strike_distance(context, time, option.strike())
+            let distance = quoted_spot_distance(context, time, option.strike())
                 .unwrap_or(strike_distance + carry);
             quantity += option.purchase_from_strike_distance(distance);
         }

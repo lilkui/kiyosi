@@ -1009,3 +1009,64 @@ def test_deterministic_boundaries_and_zero_implied_volatility_are_explicit(subte
     for bad in (-0.1, math.nan, math.inf):
         with pytest.raises(InvalidInputError):
             context.model_parameters.replace(volatility=bad)
+
+
+def test_quoted_fixings_use_exact_payoff_boundaries():
+    start = datetime(2025, 1, 2)
+    expiry = start + timedelta(days=365)
+
+    def curve(end, factor):
+        return RateTermStructure(reference_time=start, times=[end], factors=[factor])
+
+    def context(spot, risk, dividend=0):
+        return PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=risk, dividend_yield=dividend, volatility=0
+            ),
+            spot_price=spot,
+            valuation_time=start,
+        )
+
+    digital = ins.CashOrNothingOption(
+        option_type="call",
+        strike=119.125,
+        payout=10,
+        effective_time=start,
+        expiry_time=expiry,
+    )
+    for spot, expected in ((118.75, 0), (math.nextafter(118.75, math.inf), 9.27734375)):
+        market = context(spot, curve(expiry, 0.927734375), curve(expiry, 0.9306640625))
+        assert pricing.AnalyticDigitalEngine().price(digital, market) == pytest.approx(
+            expected
+        )
+
+    touch = ins.TouchOption(
+        payoff_type="cash",
+        payout=10,
+        barrier_level=128,
+        barrier_type="up_and_in",
+        effective_time=start,
+        expiry_time=expiry,
+        observation_times=[expiry],
+    )
+    for spot, expected in ((math.nextafter(80, 0), 0), (80, 6.25)):
+        market = context(spot, curve(expiry, 0.625))
+        assert pricing.AnalyticBinaryBarrierEngine().price(
+            touch, market
+        ) == pytest.approx(expected)
+
+    expiry = start + timedelta(days=1)
+    accrual = ins.RangeAccrualOption(
+        notional=365,
+        annual_coupon_rate=1,
+        lower_bound=127,
+        upper_bound=128,
+        effective_time=start,
+        expiry_time=expiry,
+        observation_clock_time=clock_time(),
+    )
+    for spot, expected in ((120, 0.9375), (math.nextafter(120, math.inf), 0)):
+        market = context(spot, curve(expiry, 0.9375))
+        assert pricing.AnalyticRangeAccrualEngine().price(
+            accrual, market
+        ) == pytest.approx(expected)

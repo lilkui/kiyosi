@@ -967,3 +967,53 @@ fn deterministic_puts_forward_start_averages_and_sobol_statistics_are_consistent
     assert_eq!(estimate.confidence_interval(), None);
     Ok(())
 }
+
+#[test]
+fn quoted_fixings_use_exact_payoff_boundaries() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let expiry = start.add_days(365)?;
+    let curve = |factor| RateTermStructure::new(start, vec![expiry], vec![factor]);
+    let model =
+        BlackScholesMertonParameters::new(curve(0.927_734_375)?, curve(0.930_664_062_5)?, 0.0)?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 119.125, 10.0, start, expiry)?;
+    for (spot, expected) in [
+        (118.75, 0.0),
+        (libm::nextafter(118.75, f64::INFINITY), 9.277_343_75),
+    ] {
+        let context = PricingContext::new(model.clone(), spot, start)?;
+        assert!((AnalyticDigitalEngine.price(&digital, &context)? - expected).abs() < 1e-12);
+    }
+
+    let model = BlackScholesMertonParameters::new(curve(0.625)?, 0.0, 0.0)?;
+    let mut terms = TouchOptionTerms::new(start, expiry, 128.0, BarrierType::UpAndIn);
+    terms.observation_times = Some(vec![expiry]);
+    let touch = TouchOption::cash(terms, 10.0)?;
+    for (spot, expected) in [(libm::nextafter(80.0, 0.0), 0.0), (80.0, 6.25)] {
+        let context = PricingContext::new(model.clone(), spot, start)?;
+        assert!((AnalyticBinaryBarrierEngine.price(&touch, &context)? - expected).abs() < 1e-12);
+    }
+
+    let expiry = start.add_days(1)?;
+    let model = BlackScholesMertonParameters::new(
+        RateTermStructure::new(start, vec![expiry], vec![0.9375])?,
+        0.0,
+        0.0,
+    )?;
+    let option = RangeAccrualOption::new(RangeAccrualTerms::new(
+        365.0,
+        1.0,
+        127.0,
+        128.0,
+        start,
+        expiry,
+        expiry.time_of_day(),
+    ))?;
+    for (spot, expected) in [
+        (120.0, 0.9375),
+        (libm::nextafter(120.0, f64::INFINITY), 0.0),
+    ] {
+        let context = PricingContext::new(model.clone(), spot, start)?;
+        assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - expected).abs() < 1e-12);
+    }
+    Ok(())
+}

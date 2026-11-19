@@ -120,7 +120,13 @@ impl AnalyticRangeAccrualEngine {
                 ));
             }
             if volatility == 0.0 {
-                if lower <= drift && drift <= upper {
+                let distance = |bound, log| {
+                    crate::engines::deterministic::quoted_spot_distance(context, *date, bound)
+                        .unwrap_or(drift - log)
+                };
+                if (option.lower_bound() == 0.0 || distance(option.lower_bound(), lower) >= 0.0)
+                    && distance(option.upper_bound(), upper) <= 0.0
+                {
                     value.add(scale.exp());
                 }
                 continue;
