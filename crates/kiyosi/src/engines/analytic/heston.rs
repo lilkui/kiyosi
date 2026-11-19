@@ -22,9 +22,8 @@ pub struct HestonIntegrationSettings {
     pub relative_tolerance: f64,
     /// Caps characteristic-function calculations across the entire price request.
     ///
-    /// Includes the analytic control variate and transformed tail integration;
-    /// cached values are not counted twice. Defaults to 10,000. Expiry and
-    /// deterministic-variance branches consume no evaluations.
+    /// Counts both Heston and control-variate characteristic-function evaluations.
+    /// Defaults to 10,000. Expiry and deterministic-variance branches consume no evaluations.
     pub max_evaluations: usize,
 }
 
@@ -74,10 +73,11 @@ impl HestonIntegrationSettings {
 /// Prices European calls and puts under Heston using adaptive Fourier integration.
 ///
 /// Uses a continuous square-root/logarithm representation and a deterministic
-/// variance control variate. A variable transform covers the semi-infinite
-/// frequency range; an analytic bound accounts for the unresolved tail.
-/// Zero variance parameters
-/// and correlation endpoints are valid, without imposing the Feller condition.
+/// variance control variate. The integration combines Gauss–Kronrod error
+/// estimates over sampled frequencies with an analytic bound on the remaining
+/// tail. It accepts when their sum is at most one quarter of the target price
+/// error defined by [`HestonIntegrationSettings`].
+/// Zero variance parameters and correlation endpoints are valid without the Feller condition.
 /// Supports deterministic rate/dividend curves and prices only; Greeks and
 /// implied-parameter solvers are unsupported. Owns its settings and supports concurrent
 /// calls on shared instances, with request-local integration state.

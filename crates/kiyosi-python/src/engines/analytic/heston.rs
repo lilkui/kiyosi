@@ -25,9 +25,10 @@ use pyo3::prelude::*;
 /// Supports HestonParameters and EuropeanOption only, including zero variance
 /// parameters and correlation endpoints. Deterministic rates may be curves.
 /// The target price error is absolute_tolerance + relative_tolerance *
-/// abs(price). Error estimates are not a universal accuracy guarantee. The
-/// budget covers Heston and control-variate characteristic functions across
-/// all integrals and tail checks. Expiry and deterministic-variance branches
+/// abs(price). Integration accepts when the estimated quadrature error plus
+/// the analytic bound on the remaining tail is at most one quarter of that
+/// target. The budget counts Heston and control-variate characteristic
+/// function evaluations. Expiry and deterministic-variance branches
 /// need no evaluations. Requested Greeks have status "unsupported";
 /// implied-parameter solvers raise UnsupportedOperationError. Pricing releases
 /// the GIL for core computation, with independent state for concurrent calls.
