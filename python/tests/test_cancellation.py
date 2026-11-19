@@ -140,3 +140,67 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip() == "cancelled and replayed"
+
+
+def test_large_schedule_releases_gil_and_propagates_signals():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent("""
+                import signal
+                import sys
+                import threading
+                from datetime import datetime, time
+                from kiyosi.market import all_days_calendar, fixed_interval_schedule
+
+                class StopSchedule(Exception):
+                    pass
+
+                def stop(*args):
+                    raise StopSchedule
+
+                signal.signal(signal.SIGINT, stop)
+                ready, start = threading.Event(), threading.Event()
+
+                def send_interrupt():
+                    ready.set()
+                    start.wait()
+                    signal.raise_signal(signal.SIGINT)
+
+                timer = threading.Thread(target=send_interrupt)
+                timer.start()
+                ready.wait()
+                # Prevent incidental interpreter switches from masking a native call
+                # that holds the GIL throughout.
+                interval = sys.getswitchinterval()
+                sys.setswitchinterval(100)
+                try:
+                    start.set()
+                    try:
+                        fixed_interval_schedule(
+                            start_time=datetime(1, 1, 1), end_time=datetime(9999, 12, 31),
+                            interval_days=1, observation_clock_time=time(),
+                            calendar=all_days_calendar(),
+                        )
+                    except StopSchedule:
+                        pass
+                    else:
+                        raise AssertionError("schedule returned before processing the signal")
+                finally:
+                    sys.setswitchinterval(interval)
+                    timer.join()
+
+                schedule = fixed_interval_schedule(
+                    start_time=datetime(2025, 1, 1), end_time=datetime(2025, 1, 3),
+                    interval_days=1, observation_clock_time=time(), calendar=all_days_calendar(),
+                )
+                assert schedule.times == (datetime(2025, 1, 2), datetime(2025, 1, 3))
+                """),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

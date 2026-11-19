@@ -1,6 +1,5 @@
-use crate::calendar::TradingCalendar;
+use crate::calendar::{TradingCalendar, run_date_scan};
 use crate::conversions::{integer, integer_index, python_timestamp, python_timestamps, timestamp};
-use crate::error::domain;
 use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PySlice, PyTuple};
@@ -34,6 +33,7 @@ use pyo3::types::{PyBool, PySlice, PyTuple};
 /// Slices return independent schedules with the same calendar. Decreasing
 /// selections raise InvalidInputError. Slice bounds and steps accept integers
 /// excluding bool; a zero step raises ValueError. len(schedule) counts observations.
+/// Long validation and slicing release the GIL and poll Python signals.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -55,17 +55,20 @@ impl ObservationSchedule {
     #[new]
     #[pyo3(signature = (*, times, start_time, end_time, calendar=crate::conversions::OMITTED))]
     fn new(
+        py: Python<'_>,
         times: &Bound<'_, PyAny>,
         start_time: &Bound<'_, PyAny>,
         end_time: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::ObservationSchedule::new(
-            crate::conversions::timestamps(times)?,
-            timestamp(start_time)?,
-            timestamp(end_time)?,
-            &crate::calendar::observation_calendar(calendar, Some(times))?.unwrap_or_default(),
-        ))?))
+        let observations = crate::conversions::timestamps(times)?;
+        let (start, end) = (timestamp(start_time)?, timestamp(end_time)?);
+        let calendar =
+            crate::calendar::observation_calendar(calendar, Some(times))?.unwrap_or_default();
+        run_date_scan(py, observations.len() as u64, || {
+            kiyosi::ObservationSchedule::new(observations, start, end, &calendar)
+        })
+        .map(Self)
     }
 
     /// Return an owned copy of the calendar used to validate the schedule.
@@ -102,21 +105,20 @@ impl ObservationSchedule {
             let length = isize::try_from(self.0.len())
                 .map_err(|_| PyOverflowError::new_err("schedule is too long to slice"))?;
             let indices = slice.indices(length)?;
-            let mut times = Vec::new();
-            let mut position = indices.start;
-            for _ in 0..indices.slicelength {
-                times.push(self.0.times()[position.unsigned_abs()]);
-                position = position.saturating_add(indices.step);
-            }
-            let result = match self.0.times().first().zip(self.0.times().last()) {
-                Some((&start, &end)) => domain(kiyosi::ObservationSchedule::new(
-                    times,
-                    start,
-                    end,
-                    self.0.calendar(),
-                ))?,
-                None => self.0.clone(),
-            };
+            let result = run_date_scan(py, indices.slicelength as u64, || {
+                let mut times = Vec::with_capacity(indices.slicelength);
+                let mut position = indices.start;
+                for _ in 0..indices.slicelength {
+                    times.push(self.0.times()[position.unsigned_abs()]);
+                    position = position.saturating_add(indices.step);
+                }
+                match self.0.times().first().zip(self.0.times().last()) {
+                    Some((&start, &end)) => {
+                        kiyosi::ObservationSchedule::new(times, start, end, self.0.calendar())
+                    }
+                    None => Ok(self.0.clone()),
+                }
+            })?;
             return Ok(Py::new(py, Self(result))?.into_bound(py).into_any());
         }
         let index = integer_index(index)?;
@@ -178,6 +180,7 @@ impl ObservationSchedule {
 /// Exclude start_time and include candidates through end_time. Following
 /// adjustment merges collisions and stops before crossing ``end_time``;
 /// ``end_time`` need not appear.
+/// Long scans release the GIL and poll Python signals.
 ///
 #[pyfunction]
 #[pyo3(signature = (*, start_time, end_time, interval_days, observation_clock_time, calendar=TradingCalendar::default()))]
@@ -186,6 +189,7 @@ impl ObservationSchedule {
     reason = "PyO3 extracts an owned calendar and supplies its default"
 )]
 pub(crate) fn fixed_interval_schedule(
+    py: Python<'_>,
     start_time: &Bound<'_, PyAny>,
     end_time: &Bound<'_, PyAny>,
     interval_days: &Bound<'_, PyAny>,
@@ -195,15 +199,21 @@ pub(crate) fn fixed_interval_schedule(
     let start_time = timestamp(start_time)?;
     let end_time = timestamp(end_time)?;
     let interval_days = integer_index(interval_days)?.extract::<i64>()?;
-    Ok(ObservationSchedule(domain(
-        kiyosi::ObservationSchedule::fixed_interval(
-            start_time,
-            end_time,
-            interval_days,
-            &calendar.0,
-            crate::conversions::clock_time(observation_clock_time)?,
-        ),
-    )?))
+    let clock = crate::conversions::clock_time(observation_clock_time)?;
+    run_date_scan(
+        py,
+        start_time.date().days_until(end_time.date()).unsigned_abs(),
+        || {
+            kiyosi::ObservationSchedule::fixed_interval(
+                start_time,
+                end_time,
+                interval_days,
+                &calendar.0,
+                clock,
+            )
+        },
+    )
+    .map(ObservationSchedule)
 }
 
 /// Create monthly observations anchored to the start_time day.
@@ -238,6 +248,7 @@ pub(crate) fn fixed_interval_schedule(
 /// starting-day anchor for later months. Exclude start_time and include
 /// candidates through end_time. Following adjustment merges collisions and
 /// stops before crossing ``end_time``; ``end_time`` need not appear.
+/// Long scans release the GIL and poll Python signals.
 ///
 #[pyfunction]
 #[pyo3(signature = (*, start_time, end_time, first_observation_month, observation_clock_time, calendar=TradingCalendar::default()))]
@@ -246,19 +257,20 @@ pub(crate) fn fixed_interval_schedule(
     reason = "PyO3 extracts an owned calendar and supplies its default"
 )]
 pub(crate) fn monthly_schedule(
+    py: Python<'_>,
     start_time: &Bound<'_, PyAny>,
     end_time: &Bound<'_, PyAny>,
     first_observation_month: &Bound<'_, PyAny>,
     observation_clock_time: &Bound<'_, PyAny>,
     calendar: TradingCalendar,
 ) -> PyResult<ObservationSchedule> {
-    Ok(ObservationSchedule(domain(
-        kiyosi::ObservationSchedule::monthly(
-            timestamp(start_time)?,
-            timestamp(end_time)?,
-            integer(first_observation_month)?,
-            &calendar.0,
-            crate::conversions::clock_time(observation_clock_time)?,
-        ),
-    )?))
+    let (start, end) = (timestamp(start_time)?, timestamp(end_time)?);
+    let first_month = integer(first_observation_month)?;
+    let clock = crate::conversions::clock_time(observation_clock_time)?;
+    run_date_scan(
+        py,
+        start.date().days_until(end.date()).unsigned_abs(),
+        || kiyosi::ObservationSchedule::monthly(start, end, first_month, &calendar.0, clock),
+    )
+    .map(ObservationSchedule)
 }

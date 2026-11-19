@@ -230,9 +230,14 @@ impl RateTermStructure {
     ///     If the rate or an implied forward is non-finite, or max_time precedes
     ///     reference_time.
     ///
+    /// Notes
+    /// -----
+    /// Long calendar scans release the GIL and poll Python signals.
+    ///
     #[staticmethod]
     #[pyo3(signature = (rate, *, reference_time, max_time, calendar=None))]
     fn bounded_flat(
+        py: Python<'_>,
         rate: &Bound<'_, PyAny>,
         reference_time: &Bound<'_, PyAny>,
         max_time: &Bound<'_, PyAny>,
@@ -242,12 +247,20 @@ impl RateTermStructure {
         let reference = timestamp(reference_time)?;
         let end = timestamp(max_time)?;
         let curve = match calendar {
-            Some(calendar) => kiyosi::RateTermStructure::bounded_flat_with_calendar(
-                rate, reference, end, calendar.0,
-            ),
-            None => kiyosi::RateTermStructure::bounded_flat(rate, reference, end),
+            Some(calendar) => crate::calendar::run_date_scan(
+                py,
+                reference.date().days_until(end.date()).unsigned_abs(),
+                || {
+                    kiyosi::RateTermStructure::bounded_flat_with_calendar(
+                        rate, reference, end, calendar.0,
+                    )
+                },
+            )?,
+            None => domain(kiyosi::RateTermStructure::bounded_flat(
+                rate, reference, end,
+            ))?,
         };
-        Ok(Self(domain(curve)?))
+        Ok(Self(curve))
     }
     /// Return the scalar rate when all implied forwards are exactly constant.
     ///

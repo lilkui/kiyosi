@@ -4,6 +4,18 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
+pub(crate) fn run_date_scan<T: Send>(
+    py: Python<'_>,
+    count: u64,
+    operation: impl FnOnce() -> kiyosi::Result<T> + Send,
+) -> PyResult<T> {
+    if count > 1024 {
+        domain(crate::cancellation::run(py, operation)?)
+    } else {
+        domain(operation())
+    }
+}
+
 pub(crate) fn observation_calendar(
     calendar: Option<&Bound<'_, PyAny>>,
     observations: Option<&Bound<'_, PyAny>>,
@@ -27,6 +39,7 @@ pub(crate) fn observation_calendar(
 /// Use the calendar factory functions to construct instances. Calendars with
 /// equal bases, normalized overrides and annualization bases compare equal.
 /// Empty overrides retain the base calendar's kind.
+/// Long searches and date counts release the GIL and poll Python signals.
 ///
 #[pyclass(frozen, eq, from_py_object, module = "kiyosi._native")]
 #[derive(Clone, Default, PartialEq)]
@@ -99,7 +112,9 @@ impl TradingCalendar {
                 ));
             }
         };
-        python_date(py, domain(self.0.adjust(nominal, convention))?)
+        let closed = self.0.overrides().map_or(0, |(_, dates, _)| dates.len());
+        let adjusted = run_date_scan(py, closed as u64, || self.0.adjust(nominal, convention))?;
+        python_date(py, adjusted)
     }
 
     /// Count trading dates in the half-open interval [start, end).
@@ -121,10 +136,14 @@ impl TradingCalendar {
     ///
     fn trading_days_between(
         &self,
+        py: Python<'_>,
         start: &Bound<'_, PyAny>,
         end: &Bound<'_, PyAny>,
     ) -> PyResult<i32> {
-        domain(self.0.trading_days_between(date(start)?, date(end)?))
+        let (start, end) = (date(start)?, date(end)?);
+        run_date_scan(py, start.days_until(end).unsigned_abs(), || {
+            self.0.trading_days_between(start, end)
+        })
     }
 
     /// Return trading-day count divided by the calendar annualization basis.
@@ -146,10 +165,14 @@ impl TradingCalendar {
     ///
     fn trading_year_fraction(
         &self,
+        py: Python<'_>,
         start: &Bound<'_, PyAny>,
         end: &Bound<'_, PyAny>,
     ) -> PyResult<f64> {
-        domain(self.0.trading_year_fraction(date(start)?, date(end)?))
+        let (start, end) = (date(start)?, date(end)?);
+        run_date_scan(py, start.days_until(end).unsigned_abs(), || {
+            self.0.trading_year_fraction(start, end)
+        })
     }
 }
 

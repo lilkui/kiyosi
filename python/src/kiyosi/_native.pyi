@@ -631,6 +631,10 @@ class RateTermStructure:
         InvalidInputError
             If the rate or an implied forward is non-finite, or max_time precedes
             reference_time.
+
+        Notes
+        -----
+        Long calendar scans release the GIL and poll Python signals.
         """
 
     @property
@@ -1250,6 +1254,7 @@ class TradingCalendar:
     Use the calendar factory functions to construct instances. Calendars with
     equal bases, normalized overrides and annualization bases compare equal.
     Empty overrides retain the base calendar's kind.
+    Long searches and date counts release the GIL and poll Python signals.
     """
 
     def __new__(cls, _token: Never, /) -> Self: ...
@@ -1430,6 +1435,7 @@ class ObservationSchedule:
     Slices return independent schedules with the same calendar. Decreasing
     selections raise InvalidInputError. Slice bounds and steps accept integers
     excluding bool; a zero step raises ValueError. len(schedule) counts observations.
+    Long validation and slicing release the GIL and poll Python signals.
     """
 
     def __init__(
@@ -1498,6 +1504,7 @@ def fixed_interval_schedule(
     Exclude start_time and include candidates through end_time. Following
     adjustment merges collisions and stops before crossing ``end_time``;
     ``end_time`` need not appear.
+    Long scans release the GIL and poll Python signals.
     """
 
 def monthly_schedule(
@@ -1540,6 +1547,7 @@ def monthly_schedule(
     starting-day anchor for later months. Exclude start_time and include
     candidates through end_time. Following adjustment merges collisions and
     stops before crossing ``end_time``; ``end_time`` need not appear.
+    Long scans release the GIL and poll Python signals.
     """
 
 class PricingContext:

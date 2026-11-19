@@ -20,6 +20,7 @@ impl ObservationSchedule {
     ///
     /// Returns [`Error::InvalidInput`] for reversed life, unordered or out-of-life
     /// times, or nontrading observation times, checked in that order.
+    /// Cancellation returns [`Error::Io`] with [`std::io::ErrorKind::Interrupted`].
     ///
     /// # Examples
     ///
@@ -54,19 +55,22 @@ impl ObservationSchedule {
     ) -> Result<()> {
         validate_range(start_time, end_time)?;
         for (index, time) in times.iter().enumerate() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
             if (index > 0 && *time <= times[index - 1]) || *time < start_time || *time > end_time {
                 return Err(Error::InvalidInput(
                     "observation times must be ordered and within life bounds".into(),
                 ));
             }
         }
-        if times
-            .iter()
-            .any(|time| !calendar.is_trading_day(time.date()))
-        {
-            return Err(Error::InvalidInput(
-                "observation time is not a trading day".into(),
-            ));
+        for time in times {
+            crate::cancellation::check()?;
+            if !calendar.is_trading_day(time.date()) {
+                return Err(Error::InvalidInput(
+                    "observation time is not a trading day".into(),
+                ));
+            }
         }
         Ok(())
     }
@@ -196,7 +200,8 @@ impl ObservationSchedule {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for reversed life or a nonpositive first
-    /// offset. Propagates time-range errors.
+    /// offset. Propagates time-range errors. Cancellation returns [`Error::Io`]
+    /// with [`std::io::ErrorKind::Interrupted`].
     /// See [`Self::fixed_interval`] for schedule construction.
     #[expect(
         clippy::cast_possible_wrap,
@@ -268,11 +273,11 @@ fn push_following(
     end_time: Timestamp,
     calendar: &TradingCalendar,
 ) -> Result<bool> {
+    crate::cancellation::check()?;
     if times.last().is_some_and(|last| target <= *last) {
         return Ok(true);
     }
     loop {
-        crate::cancellation::check()?;
         if target > end_time {
             return Ok(false);
         }
@@ -284,6 +289,7 @@ fn push_following(
             return Ok(false);
         }
         target = target.add_days(1)?;
+        crate::cancellation::check()?;
     }
 }
 
@@ -302,6 +308,33 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
+
+    #[test]
+    fn explicit_schedule_validation_polls_between_calendar_queries() -> Result<()> {
+        let token = CancellationToken::default();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calendar = TradingCalendar::new(
+            {
+                let token = token.clone();
+                let calls = Arc::clone(&calls);
+                move |_| {
+                    calls.fetch_add(1, Ordering::Relaxed);
+                    token.cancel();
+                    true
+                }
+            },
+            365,
+        )?;
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(1)?;
+        let result =
+            token.run(|| ObservationSchedule::new(vec![start, end], start, end, &calendar));
+        assert!(
+            matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
 
     #[test]
     fn daily_queries_respect_bounds_calendars_and_filters() -> Result<()> {
