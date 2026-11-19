@@ -28,6 +28,7 @@ struct CalendarAccrual {
     calendar: TradingCalendar,
     rate: f64,
     starts_open: bool,
+    open_micros_at_nodes: Arc<[i64]>,
 }
 
 impl CalendarAccrual {
@@ -173,10 +174,24 @@ impl RateTermStructure {
         }
         let starts_open = calendar.is_trading_day(reference.date());
         let nodes = calendar.transitions(reference, max_time, starts_open)?;
+        let mut open_micros_at_nodes = Vec::with_capacity(nodes.len());
+        let mut previous = reference;
+        let mut open_micros = 0;
+        for (index, &node) in nodes.iter().enumerate() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            if starts_open == (index % 2 == 0) {
+                open_micros += previous.micros_until(node);
+            }
+            open_micros_at_nodes.push(open_micros);
+            previous = node;
+        }
         let accrual = CalendarAccrual {
             calendar,
             rate,
             starts_open,
+            open_micros_at_nodes: open_micros_at_nodes.into(),
         };
         accrual.validate_rate(!nodes.is_empty())?;
         curve.rate = None;
@@ -327,19 +342,11 @@ impl RateTermStructure {
     ///
     /// Returns [`Error::ComputationFailure`] for a non-finite log factor or overflow.
     pub fn factors(&self) -> Result<Vec<f64>> {
-        if let (Some(accrual), Some(mut previous)) = (&self.calendar_accrual, self.reference) {
-            let mut open_micros = 0;
-            return self
-                .nodes
+        if let Some(accrual) = &self.calendar_accrual {
+            return accrual
+                .open_micros_at_nodes
                 .iter()
-                .enumerate()
-                .map(|(index, &node)| {
-                    if accrual.is_open(index) {
-                        open_micros += previous.micros_until(node);
-                    }
-                    previous = node;
-                    node_factor(-accrual.rate * accrual.year_fraction(open_micros))
-                })
+                .map(|&micros| node_factor(-accrual.rate * accrual.year_fraction(micros)))
                 .collect();
         }
         let Some(reference) = self.reference.filter(|_| self.spread != 0.0) else {
@@ -390,18 +397,22 @@ impl RateTermStructure {
             value = -accrual.rate * self.accrual_year_fraction(start_time, end_time);
         } else if let Some(quoted) = self.quoted_log_factor(start_time, end_time) {
             value = quoted;
-        } else if self.rate.is_none() {
-            let mut index = self
-                .nodes
-                .partition_point(|&node| node <= start_time)
-                .min(self.nodes.len() - 1);
-            let mut current = start_time;
-            while current < end_time {
-                let next = end_time.min(self.nodes[index]);
-                // Subtract timestamps before conversion to preserve distant microsecond intervals.
-                value -= self.forwards[index] * current.years_until(next);
-                current = next;
-                index += 1;
+        } else if self.rate.is_none() && start_time < end_time {
+            let first = self.nodes.partition_point(|&node| node <= start_time);
+            let last = self.nodes.partition_point(|&node| node < end_time);
+            if first == last {
+                value -= self.forwards[first] * start_time.years_until(end_time);
+            } else {
+                // Use quoted factors for whole segments and local widths for the two ends.
+                let middle =
+                    crate::numerics::log_ratio(self.factors[last - 1], self.factors[first]);
+                let left = -self.forwards[first] * start_time.years_until(self.nodes[first]);
+                let right = -self.forwards[last] * self.nodes[last - 1].years_until(end_time);
+                let mut sum = crate::numerics::Sum::default();
+                for term in [value, left, middle, right] {
+                    sum.add(term);
+                }
+                value = sum.total();
             }
         }
         if !value.is_finite() {
@@ -450,18 +461,19 @@ impl RateTermStructure {
         let Some(accrual) = &self.calendar_accrual else {
             return start.years_until(end);
         };
-        let mut index = self.nodes.partition_point(|&node| node <= start);
-        let mut current = start;
-        let mut open_micros = 0;
-        while current < end {
-            let next = end.min(self.nodes.get(index).copied().unwrap_or(end));
-            if accrual.is_open(index) {
-                open_micros += current.micros_until(next);
-            }
-            current = next;
-            index += 1;
-        }
-        accrual.year_fraction(open_micros)
+        let open_micros_until = |time| {
+            let index = self.nodes.partition_point(|&node| node <= time);
+            let (previous, accrued) = if index == 0 {
+                (self.reference.unwrap_or(time), 0)
+            } else {
+                (
+                    self.nodes[index - 1],
+                    accrual.open_micros_at_nodes[index - 1],
+                )
+            };
+            accrued + i64::from(accrual.is_open(index)) * previous.micros_until(time)
+        };
+        accrual.year_fraction(open_micros_until(end) - open_micros_until(start))
     }
     /// Returns the interval factor, allowing underflow to zero.
     ///

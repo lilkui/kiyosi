@@ -1151,11 +1151,12 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     pub(crate) fn view(&self) -> sealed::View<'_> {
         self.0.view()
     }
-    pub(crate) fn observation_coupon(&self, record: &ObservationEvent, spot: f64) -> f64 {
-        if record
-            .coupon_barrier_level()
-            .is_some_and(|level| spot >= level)
-        {
+    pub(crate) fn observation_coupon(
+        &self,
+        record: &ObservationEvent,
+        qualifies: impl FnOnce(f64) -> bool,
+    ) -> f64 {
+        if record.coupon_barrier_level().is_some_and(qualifies) {
             self.period_coupon()
         } else {
             0.0
@@ -1271,17 +1272,19 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
             return false;
         }
         if let Ok(until) = context.deterministic_until(self.expiry_time()) {
-            for record in self
-                .events()
+            let events = self.events();
+            for record in events[events.partition_point(|r| r.time <= context.valuation_time())..]
                 .iter()
-                .skip_while(|record| record.time <= context.valuation_time())
                 .take_while(|record| record.time <= until)
             {
+                if crate::cancellation::check().is_err() {
+                    return false;
+                }
                 if record.has_knock_out()
-                    && context.deterministic_crosses(record.time, record.knock_out_level(), radius)
+                    && context.forward_crosses(record.time, record.knock_out_level(), radius)
                     || matches!(self.view().coupon, Coupon::Phoenix(_))
                         && self.period_coupon() != 0.0
-                        && context.deterministic_crosses(
+                        && context.forward_crosses(
                             record.time,
                             record.coupon_barrier_level().unwrap_or_default(),
                             radius,
@@ -1314,34 +1317,32 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
                         .into_iter()
                         .filter(|&time| time >= context.valuation_time())
                     {
-                        if !knocked_in && context.deterministic_crosses(time, ki.level, radius) {
+                        if crate::cancellation::check().is_err() {
+                            return false;
+                        }
+                        if knocked_in {
+                            break;
+                        }
+                        if context.forward_crosses(time, ki.level, radius) {
                             return true;
                         }
-                        let model = context.model_parameters();
-                        let carry = model
-                            .dividend_curve()
-                            .log_factor(context.valuation_time(), time)
-                            .and_then(|q| {
-                                model
-                                    .risk_free_curve()
-                                    .log_factor(context.valuation_time(), time)
-                                    .map(|r| q - r)
-                            });
-                        knocked_in |= carry.is_ok_and(|carry| {
-                            crate::numerics::scaled_cash(context.spot_price(), carry) < ki.level
+                        let spot = context.spot_price();
+                        knocked_in = context.forward_carry(time).is_ok_and(|carry| {
+                            context.quoted_spot_cmp(time, spot, ki.level).map_or_else(
+                                || crate::numerics::scaled_cash(spot, carry) < ki.level,
+                                std::cmp::Ordering::is_lt,
+                            )
                         });
                     }
                     if let Redemption::Downside(d) = ki.redemption {
                         if knocked_in
-                            && (context.deterministic_crosses(
-                                self.expiry_time(),
-                                d.lower_strike,
-                                radius,
-                            ) || context.deterministic_crosses(
-                                self.expiry_time(),
-                                d.upper_strike,
-                                radius,
-                            ))
+                            && until == self.expiry_time()
+                            && (context.forward_crosses(self.expiry_time(), d.lower_strike, radius)
+                                || context.forward_crosses(
+                                    self.expiry_time(),
+                                    d.upper_strike,
+                                    radius,
+                                ))
                         {
                             return true;
                         }
@@ -1351,11 +1352,9 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         }
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
-        if let Some(record) = self
-            .events()
-            .iter()
-            .find(|r| r.time == context.valuation_time())
-        {
+        let events = self.events();
+        if let Ok(index) = events.binary_search_by_key(&context.valuation_time(), |r| r.time) {
+            let record = &events[index];
             if matches!(self.view().coupon, Coupon::Phoenix(_))
                 && self.period_coupon() != 0.0
                 && record.coupon_barrier_level().unwrap_or_default() > 0.0

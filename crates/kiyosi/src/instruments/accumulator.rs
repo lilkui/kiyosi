@@ -509,13 +509,16 @@ impl OptionContract for Accumulator {
             .as_bsm()
             .is_ok_and(|model| model.volatility() == 0.0)
             && self.future_observation_times(context).is_ok_and(|times| {
-                times.into_iter().any(|time| {
-                    self.observes_knock_out(time)
-                        && context.deterministic_crosses(time, self.knock_out_level(), radius)
-                        || self.acceleration_factor() != 1.0
-                            && self.accumulates_at(time, self.calendar())
-                            && context.deterministic_crosses(time, self.strike(), radius)
-                })
+                times
+                    .into_iter()
+                    .take_while(|_| crate::cancellation::check().is_ok())
+                    .any(|time| {
+                        self.observes_knock_out(time)
+                            && context.forward_crosses(time, self.knock_out_level(), radius)
+                            || self.acceleration_factor() != 1.0
+                                && self.accumulates_at(time, self.calendar())
+                                && context.forward_crosses(time, self.strike(), radius)
+                    })
             })
         {
             return true;

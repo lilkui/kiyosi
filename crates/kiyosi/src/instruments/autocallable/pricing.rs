@@ -28,7 +28,9 @@ pub(crate) fn initial<T: AutocallableTerms>(
         .events()
         .iter()
         .find(|r| r.time == context.valuation_time());
-    let coupon = current.map_or(0.0, |r| note.observation_coupon(r, context.spot_price()));
+    let coupon = current.map_or(0.0, |r| {
+        note.observation_coupon(r, |level| context.spot_price() >= level)
+    });
     let settlement = if context.valuation_time() == note.expiry_time() {
         Some(expiry_payment(
             note,
@@ -54,7 +56,7 @@ pub(crate) fn expiry_payment<T: AutocallableTerms>(
     knocked_in: bool,
     record: Option<&ObservationEvent>,
 ) -> f64 {
-    let coupon = record.map_or(0.0, |r| note.observation_coupon(r, spot));
+    let coupon = record.map_or(0.0, |r| note.observation_coupon(r, |level| spot >= level));
     coupon
         + if let Some(r) = record.filter(|r| r.has_knock_out() && spot >= r.knock_out_level()) {
             note.knock_out_payment(r)

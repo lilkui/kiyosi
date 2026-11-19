@@ -23,6 +23,20 @@ from support.assertions import assert_rejection
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
+def test_scheduled_quadrature_rejects_excessive_rollback_work():
+    end = START + timedelta(days=365)
+    contract = option(
+        "up_and_out",
+        expiry_time=end,
+        barrier_level=140,
+        observation_times=[START + timedelta(days=i) for i in range(366)],
+    )
+    engine = pricing.QuadratureBarrierEngine(asset_step_count=4096)
+    with pytest.raises(InvalidInputError, match="rollback"):
+        engine.price(contract, market())
+    assert engine.price(contract, market(spot=140)) == 0.0
+
+
 @pytest.mark.parametrize("rate", (-0.02, 0.04))
 @pytest.mark.parametrize("timing", ("at_hit", "at_expiry"))
 def test_early_observation_rebate_discount(rate, timing):

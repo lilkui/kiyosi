@@ -685,3 +685,22 @@ fn adjacent_factors_preserve_implied_forwards() -> kiyosi::Result<()> {
     assert!((curve.log_factor(node, midpoint)? - log / 2.0).abs() < 1e-30);
     Ok(())
 }
+#[test]
+fn partial_curve_intervals_use_the_quoted_interior() -> kiyosi::Result<()> {
+    let start = at(2025, 1, 1);
+    let nodes = (1..=6)
+        .map(|day| start.add_days(day))
+        .collect::<kiyosi::Result<Vec<_>>>()?;
+    let first = 0.98;
+    let last = libm::nextafter(first, f64::INFINITY);
+    let from = nodes[0]
+        .date()
+        .at_time(kiyosi::TimeOfDay::new(12, 0, 0, 0)?);
+    let to = nodes[4]
+        .date()
+        .at_time(kiyosi::TimeOfDay::new(12, 0, 0, 0)?);
+    let curve =
+        RateTermStructure::new(start, nodes, vec![first, first, 1e-200, 1e200, last, last])?;
+    assert!((curve.log_factor(from, to)? - ((last - first) / first).ln_1p()).abs() < 1e-30);
+    Ok(())
+}

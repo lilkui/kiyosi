@@ -19,6 +19,98 @@ from kiyosi.market import (
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
 
 
+def test_structured_knock_out_uses_exact_quoted_forward():
+    start = datetime(2025, 1, 1, 12)
+    end = datetime(2026, 1, 1)
+    factor = 99 / 128
+    curve = RateTermStructure(reference_time=start, times=[end], factors=[factor])
+    model = BlackScholesMertonParameters(
+        risk_free_rate=curve, dividend_yield=0, volatility=0
+    )
+    calendar = all_days_calendar()
+    note = ins.SnowballOption(
+        calendar=calendar,
+        maturity_coupon_rate=0,
+        initial_spot=99,
+        knock_in_level=80,
+        upper_strike=99,
+        lower_strike=60,
+        effective_time=start,
+        expiry_time=end,
+        knock_in_observation=KnockInObservation.at_expiry(),
+        autocall_observations=[
+            ins.AutocallableObservation.snowball(end, 128, coupon_rate=0.2)
+        ],
+    )
+    downside = note.replace(
+        maturity_coupon_rate=0.2,
+        knock_in_level=128,
+        upper_strike=140,
+        autocall_observations=[
+            ins.AutocallableObservation.snowball(end, 150, coupon_rate=0)
+        ],
+    )
+    phoenix = ins.PhoenixOption(
+        calendar=calendar,
+        coupon_per_period=0.2,
+        initial_spot=99,
+        knock_in_level=80,
+        upper_strike=99,
+        lower_strike=60,
+        effective_time=start,
+        expiry_time=end,
+        knock_in_observation=KnockInObservation.at_expiry(),
+        knock_out_observations=[ins.KnockOutObservation(end, 140)],
+        coupon_observations=[ins.CouponObservation(end, 128)],
+    )
+    accumulator = ins.Accumulator(
+        calendar=calendar,
+        strike=100,
+        knock_out_level=128,
+        daily_quantity=1,
+        acceleration_factor=1,
+        effective_time=start,
+        expiry_time=end,
+        observation_clock_time=clock_time(),
+        knock_out_observation_times=[end],
+    )
+    term = (end - start).total_seconds() / (365 * 86400)
+    for spot, hit in (
+        (math.nextafter(99, 0), False),
+        (99, True),
+        (math.nextafter(99, math.inf), True),
+    ):
+        context = PricingContext(
+            model_parameters=model, spot_price=spot, valuation_time=start
+        )
+        expected = factor * (1 + 0.2 * term * hit)
+        for engine in (
+            pricing.QuadratureAutocallableEngine(),
+            pricing.FiniteDifferenceAutocallableEngine(),
+            pricing.MonteCarloAutocallableEngine(),
+        ):
+            assert engine.price(note, context) == pytest.approx(expected, abs=1e-12)
+            expected_downside = (
+                expected if hit else factor * (1 + (spot / factor - 140) / 99)
+            )
+            assert engine.price(downside, context) == pytest.approx(
+                expected_downside, abs=1e-12
+            )
+            assert engine.price(phoenix, context) == pytest.approx(
+                factor * (1 + 0.2 * hit), abs=1e-12
+            )
+        units = len(accumulator.accumulation_schedule) - hit
+        expected = units * (spot - 100 * factor)
+        for engine in (
+            pricing.QuadratureAccumulatorEngine(),
+            pricing.FiniteDifferenceAccumulatorEngine(),
+            pricing.MonteCarloAccumulatorEngine(),
+        ):
+            assert engine.price(accumulator, context) == pytest.approx(
+                expected, abs=1e-10
+            )
+
+
 def test_scheduled_touch_preserves_the_exact_final_curve_quote():
     start = datetime(2025, 1, 1)
     dates = [start + timedelta(days=days) for days in (30, 61, 365)]

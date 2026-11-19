@@ -1,6 +1,6 @@
 use super::gaussian::{
     CubicInterpolation, Layer, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes,
+    integration_nodes, validate_scheduled_work,
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::Coupon;
@@ -369,6 +369,13 @@ fn price<T: AutocallableTerms>(
     let lower = 0.0_f64.min(breaks[0]) - drift_extent - extent;
     let upper = 0.0_f64.max(breaks[breaks.len() - 1]) + drift_extent + extent;
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks)?;
+    validate_scheduled_work(
+        &nodes,
+        &dates,
+        1 + usize::from(layers),
+        terminal.len(),
+        transition,
+    )?;
     let interpolation = CubicInterpolation::new(&nodes);
     let terminal_in = if layers {
         self::terminal(note, event(note, note.expiry_time()), &breaks, true)

@@ -221,6 +221,11 @@ fn solve<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         } else {
             bisected = false;
         }
+        if trial == a || trial == b {
+            return Err(Error::NonConvergence(
+                "volatility bracket has no representable interior trial".into(),
+            ));
+        }
         let residual = evaluate(trial)?;
         if residual.abs() <= s.price_tolerance {
             return Ok(trial);
@@ -254,6 +259,42 @@ fn solve<I: OptionContract, E: PricingEngine<I> + ?Sized>(
 mod tests {
     use super::*;
     use crate::{Date, EuropeanOption, OptionType};
+
+    #[test]
+    fn adjacent_volatility_bounds_price_only_the_endpoints() -> Result<()> {
+        struct EndpointEngine(std::cell::Cell<usize>);
+        impl PricingEngine for EndpointEngine {
+            fn price(&self, _: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+                self.0.set(self.0.get() + 1);
+                Ok(if context.bsm_parameters()?.volatility() <= 0.125 {
+                    1.0
+                } else {
+                    3.0
+                })
+            }
+        }
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(365)?)?;
+        let context = PricingContext::new(
+            crate::BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+            100.0,
+            start,
+        )?;
+        let engine = EndpointEngine(std::cell::Cell::new(0));
+        let result = implied_volatility(
+            &engine,
+            &option,
+            &context,
+            2.0,
+            ImpliedVolatilitySettings {
+                parameter_tolerance: 1e-30,
+                ..ImpliedVolatilitySettings::new(0.125, libm::nextafter(0.125, f64::INFINITY))
+            },
+        );
+        assert!(matches!(result, Err(Error::NonConvergence(_))));
+        assert_eq!(engine.0.get(), 2);
+        Ok(())
+    }
 
     struct PreparedEngine(bool);
 

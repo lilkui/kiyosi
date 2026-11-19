@@ -1,5 +1,5 @@
 use crate::numerics::{Sum, log_interval_mass, scaled_signed_cash};
-use crate::{Error, Result};
+use crate::{Error, Result, Timestamp};
 use std::collections::hash_map::{Entry, HashMap};
 
 const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
@@ -371,27 +371,70 @@ pub(super) fn validate_rollback_work(
     deviation: f64,
     intervals: i32,
 ) -> Result<()> {
-    const WORK_BUDGET: u64 = 1_000_000_000;
-    let excessive_work = || {
-        Error::InvalidInput(
-            "American quadrature rollback exceeds one billion node and cell visits; reduce step counts"
-                .into(),
-        )
-    };
-    let exercise_steps = u64::from(intervals.unsigned_abs() - 1);
-    let mut remaining = WORK_BUDGET
-        .checked_sub(nodes.len() as u64 * exercise_steps)
-        .ok_or_else(excessive_work)?;
+    let exercise_steps = (intervals.unsigned_abs() - 1) as usize;
+    let work = remaining_rollback_work(nodes, 1, exercise_steps)?;
     // The first rollback integrates terminal pieces directly, without interpolated cells.
     let continuation_steps = exercise_steps.saturating_sub(1);
     if continuation_steps > 0 {
-        for &node in nodes {
-            crate::cancellation::check()?;
-            let cells = active_cells(nodes, node + drift, deviation).len() as u64;
-            remaining = remaining
-                .checked_sub(cells * continuation_steps)
-                .ok_or_else(excessive_work)?;
-        }
+        work.checked_sub(
+            active_cell_visits(nodes, drift, deviation)?.saturating_mul(continuation_steps),
+        )
+        .ok_or_else(excessive_rollback_work)?;
+    }
+    Ok(())
+}
+
+fn excessive_rollback_work() -> Error {
+    Error::InvalidInput(
+        "quadrature rollback exceeds one billion node and cell visits; reduce step counts".into(),
+    )
+}
+
+fn remaining_rollback_work(nodes: &[f64], layers: usize, visits: usize) -> Result<usize> {
+    const WORK_BUDGET: usize = 1_000_000_000;
+    WORK_BUDGET
+        .checked_sub(nodes.len().saturating_mul(layers).saturating_mul(visits))
+        .ok_or_else(excessive_rollback_work)
+}
+
+fn active_cell_visits(nodes: &[f64], drift: f64, deviation: f64) -> Result<usize> {
+    nodes.iter().try_fold(0_usize, |count, &node| {
+        crate::cancellation::check()?;
+        Ok(count.saturating_add(active_cells(nodes, node + drift, deviation).len()))
+    })
+}
+
+pub(super) fn validate_scheduled_work(
+    nodes: &[f64],
+    dates: &[Timestamp],
+    layers: usize,
+    terminal_pieces: usize,
+    transition: impl Fn(f64) -> Result<(f64, f64, f64)>,
+) -> Result<()> {
+    let visits = dates
+        .len()
+        .saturating_add(terminal_pieces.saturating_sub(1));
+    let mut work = remaining_rollback_work(nodes, layers, visits)?;
+    let mut last = None;
+    // A terminal payoff with exact pieces does not integrate interpolated cells.
+    let intervals = dates
+        .len()
+        .saturating_sub(1 + usize::from(terminal_pieces > 0));
+    for pair in dates.windows(2).take(intervals) {
+        crate::cancellation::check()?;
+        let time = pair[0].years_until(pair[1]);
+        let key = time.to_bits();
+        let cells = if let Some((_, cells)) = last.filter(|&(previous, _)| previous == key) {
+            cells
+        } else {
+            let (drift, deviation, _) = transition(time)?;
+            let cells = active_cell_visits(nodes, drift, deviation)?;
+            last = Some((key, cells));
+            cells
+        };
+        work = work
+            .checked_sub(cells.saturating_mul(layers))
+            .ok_or_else(excessive_rollback_work)?;
     }
     Ok(())
 }

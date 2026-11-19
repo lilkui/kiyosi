@@ -65,6 +65,13 @@ def optional_command(argv):
         return f"unavailable: {error}"
 
 
+def source_state():
+    return {
+        "revision": optional_command(["git", "rev-parse", "HEAD"]),
+        "dirty_state": optional_command(["git", "status", "--porcelain"]),
+    }
+
+
 def reject_constant(value):
     """Reject nonfinite JSON numbers at the manifest boundary."""
     raise ValueError(f"nonfinite JSON number: {value}")
@@ -132,6 +139,7 @@ def rust_build_command(binary="quantlib_bench"):
 
 def build(args):
     """Build optimized companions without changing the installed QuantLib."""
+    source = source_state()
     config = shlex.split(args.quantlib_config)
     version = command([*config, "--version"])
     if version != "1.44":
@@ -167,6 +175,7 @@ def build(args):
     rust_executable = Path(executable)
     command(cpp)
     evidence = {
+        "source": source,
         "rust_command": rust,
         "cpp_command": cpp,
         "quantlib_config_version": version,
@@ -515,10 +524,7 @@ def main(argv=None):
             "architecture": platform.machine(),
             "cpu": optional_command(["lscpu"]),
         },
-        "source": {
-            "revision": optional_command(["git", "rev-parse", "HEAD"]),
-            "dirty_state": optional_command(["git", "status", "--porcelain"]),
-        },
+        "source": source_state(),
         "toolchains": {
             "rustc": optional_command(["rustc", "--version"]),
             "cargo": optional_command(["cargo", "--version"]),
@@ -608,6 +614,10 @@ def main(argv=None):
                 report["build"] = (
                     "unavailable: supplied executables differ from recorded build artifacts"
                 )
+        if isinstance(report["build"], dict):
+            report["build"].setdefault(
+                "source", "unavailable: build source was not recorded"
+            )
         report["libraries"] = info
         for backend, metadata in info.items():
             if (

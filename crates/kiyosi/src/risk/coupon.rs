@@ -272,12 +272,17 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         }
     };
     let coupon = interpolate(fraction);
-    if residual(price(coupon)?)?.abs() <= s.price_tolerance {
+    if lo < coupon && coupon < hi && residual(price(coupon)?)?.abs() <= s.price_tolerance {
         return Ok(coupon);
     }
     for _ in 0..s.max_iterations {
         crate::cancellation::check()?;
         let mid = lo.midpoint(hi);
+        if mid == lo || mid == hi {
+            return Err(Error::NonConvergence(
+                "coupon bracket has no representable midpoint".into(),
+            ));
+        }
         let value = residual(price(mid)?)?;
         if value.abs() <= s.price_tolerance {
             return Ok(mid);
@@ -302,6 +307,40 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn adjacent_coupon_bounds_price_only_the_endpoints() -> Result<()> {
+        struct EndpointEngine(std::cell::Cell<usize>);
+        impl PricingEngine<f64> for EndpointEngine {
+            fn price(&self, coupon: &f64, _: &PricingContext) -> Result<f64> {
+                self.0.set(self.0.get() + 1);
+                Ok(if *coupon <= 0.125 { 1.0 } else { 3.0 })
+            }
+        }
+        let context = PricingContext::new(
+            crate::BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+            100.0,
+            crate::Date::new(2025, 1, 1)?.start_of_day(),
+        )?;
+        let engine = EndpointEngine(std::cell::Cell::new(0));
+        let result = solve(
+            &engine,
+            &0.125,
+            &context,
+            2.0,
+            ImpliedCouponSettings {
+                lower_bound: 0.125,
+                upper_bound: libm::nextafter(0.125, f64::INFINITY),
+                parameter_tolerance: 1e-30,
+                ..Default::default()
+            },
+            None,
+            &|_, coupon| Ok(coupon),
+        );
+        assert!(matches!(result, Err(Error::NonConvergence(_))));
+        assert_eq!(engine.0.get(), 2);
+        Ok(())
+    }
 
     struct PreparedEngine(bool);
 

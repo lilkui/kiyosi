@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::VarianceTimeConvention;
 use crate::{Date, Error, RateTermStructure, Result, Timestamp, error::finite};
 
@@ -392,25 +394,54 @@ impl PricingContext {
     }
 
     pub(crate) fn deterministic_crosses(&self, time: Timestamp, level: f64, radius: f64) -> bool {
-        if time < self.valuation_time {
-            return false;
+        time >= self.valuation_time
+            && matches!(self.deterministic_until(time), Ok(end) if end == time)
+            && self.forward_crosses(time, level, radius)
+    }
+
+    pub(crate) fn forward_carry(&self, time: Timestamp) -> Result<f64> {
+        let model = self.model_parameters();
+        let q = model
+            .dividend_curve()
+            .log_factor(self.valuation_time, time)?;
+        let r = model
+            .risk_free_curve()
+            .log_factor(self.valuation_time, time)?;
+        Ok(q - r)
+    }
+
+    pub(crate) fn quoted_spot_cmp(
+        &self,
+        time: Timestamp,
+        spot: f64,
+        level: f64,
+    ) -> Option<Ordering> {
+        if spot <= 0.0 || level <= 0.0 || !spot.is_finite() || !level.is_finite() {
+            return None;
         }
         let model = self.model_parameters();
-        if !matches!(self.deterministic_until(time), Ok(end) if end == time) {
-            return false;
-        }
-        let carry = model
+        let [risk_start, risk_end] = model
+            .risk_free_curve()
+            .unshifted_factor_quotes(self.valuation_time, time)?;
+        let [dividend_start, dividend_end] = model
             .dividend_curve()
-            .log_factor(self.valuation_time, time)
-            .and_then(|q| {
-                model
-                    .risk_free_curve()
-                    .log_factor(self.valuation_time, time)
-                    .map(|r| q - r)
-            });
-        carry.is_ok_and(|carry| {
-            crate::numerics::scaled_cash((self.spot_price - radius).max(0.0), carry) <= level
-                && level <= crate::numerics::scaled_cash(self.spot_price + radius, carry)
+            .unshifted_factor_quotes(self.valuation_time, time)?;
+        Some(crate::numerics::compare_positive_products(
+            [spot, dividend_end, risk_start],
+            [level, risk_end, dividend_start],
+        ))
+    }
+
+    pub(crate) fn forward_crosses(&self, time: Timestamp, level: f64, radius: f64) -> bool {
+        self.forward_carry(time).is_ok_and(|carry| {
+            let lower = (self.spot_price - radius).max(0.0);
+            let upper = self.spot_price + radius;
+            let compare = |spot| {
+                self.quoted_spot_cmp(time, spot, level)
+                    .or_else(|| crate::numerics::scaled_cash(spot, carry).partial_cmp(&level))
+            };
+            compare(lower).is_some_and(Ordering::is_le)
+                && compare(upper).is_some_and(Ordering::is_ge)
         })
     }
 

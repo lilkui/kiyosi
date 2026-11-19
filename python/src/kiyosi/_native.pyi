@@ -2236,7 +2236,8 @@ class QuadratureBarrierEngine(_PricingMethods[BarrierOption]):
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
-        transition workspace exceeds 256 MiB.
+        transition workspace exceeds 256 MiB, or rollback exceeds one
+        billion node and cell visits.
         Simpson integration, when used, rejects more than 250 million panels
         across all sections.
 
@@ -2310,7 +2311,8 @@ class QuadratureDigitalEngine(
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
-        transition workspace exceeds 256 MiB.
+        transition workspace exceeds 256 MiB, or rollback exceeds one
+        billion node and cell visits.
         Simpson integration, when used, rejects more than 250 million panels
         across all sections.
 
@@ -2393,7 +2395,8 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
-        transition workspace exceeds 256 MiB.
+        transition workspace exceeds 256 MiB, or rollback exceeds one
+        billion node and cell visits.
         Simpson integration, when used, rejects more than 250 million panels
         across all sections.
         Also raised if time_step_count is below 1.
@@ -2407,8 +2410,7 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     -----
     Uses Simpson integration for European options and Gaussian backward
     induction with piecewise cubic continuation interpolation for American
-    options. American pricing raises InvalidInputError if rollback would
-    exceed one billion node and cell visits. Requires flat-rate BSM parameters.
+    options. Requires flat-rate BSM parameters.
     Check spatial, time and
     integration-extent convergence separately; fixed-grid completion does not
     estimate error. Higher Greeks near exercise boundaries also require bump
@@ -6486,7 +6488,8 @@ class QuadratureAutocallableEngine(
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
-        transition workspace exceeds 256 MiB.
+        transition workspace exceeds 256 MiB, or rollback exceeds one
+        billion node and cell visits.
         Simpson integration, when used, rejects more than 250 million panels
         across all sections.
 
@@ -8730,7 +8733,8 @@ class QuadratureAccumulatorEngine(_PricingMethods[Accumulator]):
         If asset_step_count is below 4 or integration_standard_deviations is
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
-        transition workspace exceeds 256 MiB.
+        transition workspace exceeds 256 MiB, or rollback exceeds one
+        billion node and cell visits.
         Simpson integration, when used, rejects more than 250 million panels
         across all sections.
 

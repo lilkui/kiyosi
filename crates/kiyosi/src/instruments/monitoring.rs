@@ -178,18 +178,24 @@ impl Monitoring {
         let crosses = |time| {
             time >= start
                 && time <= end
-                && (context.deterministic_crosses(time, self.barrier_level(), radius)
-                    || upper
-                        .is_some_and(|level| context.deterministic_crosses(time, level, radius)))
+                && (context.forward_crosses(time, self.barrier_level(), radius)
+                    || upper.is_some_and(|level| context.forward_crosses(time, level, radius)))
         };
+        let running = |_: &Timestamp| crate::cancellation::check().is_ok();
         if self.continuous() {
             [start, end]
                 .into_iter()
                 .chain(
                     [model.risk_free_curve(), model.dividend_curve()]
                         .into_iter()
-                        .flat_map(|curve| curve.nodes().iter().copied()),
+                        .flat_map(|curve| {
+                            curve.nodes()[curve.nodes().partition_point(|&node| node < start)..]
+                                .iter()
+                                .copied()
+                                .take_while(|&node| node <= end)
+                        }),
                 )
+                .take_while(running)
                 .any(crosses)
         } else {
             let times = self.observation_times();
@@ -197,6 +203,7 @@ impl Monitoring {
                 .iter()
                 .copied()
                 .take_while(|&time| time <= end)
+                .take_while(running)
                 .any(crosses)
         }
     }

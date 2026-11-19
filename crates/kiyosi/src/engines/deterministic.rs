@@ -176,12 +176,7 @@ pub(super) fn exercise_value(
 }
 
 pub(super) fn log_return(context: &PricingContext, time: Timestamp) -> Result<f64> {
-    let model = context.model_parameters();
-    let start = context.valuation_time();
-    finite(
-        model.dividend_curve().log_factor(start, time)?
-            - model.risk_free_curve().log_factor(start, time)?,
-    )
+    finite(context.forward_carry(time)?)
 }
 
 fn spot_after_carry(spot: f64, carry: f64) -> Result<f64> {
@@ -198,19 +193,9 @@ pub(super) fn quoted_spot_distance(
     time: Timestamp,
     level: f64,
 ) -> Option<f64> {
-    let model = context.model_parameters();
-    let start = context.valuation_time();
-    let [risk_start, risk_end] = model
-        .risk_free_curve()
-        .unshifted_factor_quotes(start, time)?;
-    let [dividend_start, dividend_end] = model
-        .dividend_curve()
-        .unshifted_factor_quotes(start, time)?;
-    let ordering = crate::numerics::compare_positive_products(
-        [context.spot_price(), dividend_end, risk_start],
-        [level, risk_end, dividend_start],
-    );
-    Some(f64::from(ordering as i8))
+    context
+        .quoted_spot_cmp(time, context.spot_price(), level)
+        .map(|ordering| f64::from(ordering as i8))
 }
 
 pub(super) fn discount(context: &PricingContext, time: Timestamp) -> Result<f64> {
@@ -595,14 +580,25 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
             continue;
         }
         let (carry, log_discount) = forward_to(time)?;
-        let spot = spot_after_carry(context.spot_price(), carry)?;
+        let initial = context.spot_price();
+        let spot = spot_after_carry(initial, carry)?;
+        let compare = |level| {
+            context
+                .quoted_spot_cmp(time, initial, level)
+                .unwrap_or_else(|| spot.total_cmp(&level))
+        };
+        let below_knock_in = || {
+            note.view()
+                .knock_in
+                .is_some_and(|ki| compare(ki.level).is_lt())
+        };
         if daily_fixing {
-            state.knocked_in |= note.view().below_knock_in(spot);
+            state.knocked_in |= below_knock_in();
         }
         if let Some(record) = record {
             next += 1;
-            let coupon = note.observation_coupon(record, spot);
-            if record.has_knock_out() && spot >= record.knock_out_level() {
+            let coupon = note.observation_coupon(record, |level| compare(level).is_ge());
+            if record.has_knock_out() && compare(record.knock_out_level()).is_ge() {
                 state.settlement = Some(finite(
                     state.coupon
                         + scaled_signed_cash(note.knock_out_payment(record) + coupon, log_discount),
@@ -612,7 +608,7 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
             state.coupon += scaled_signed_cash(coupon, log_discount);
         }
         if time == note.expiry_time() {
-            state.knocked_in |= note.observes_knock_in(time) && note.view().below_knock_in(spot);
+            state.knocked_in |= note.observes_knock_in(time) && below_knock_in();
             let terminal = note.terminal(spot, state.knocked_in);
             state.settlement = Some(finite(
                 state.coupon + scaled_signed_cash(terminal, log_discount),
@@ -634,7 +630,18 @@ pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Res
     for time in option.future_observation_times(context)? {
         let (carry, log_discount) = forward_to(time)?;
         let spot = spot_after_carry(initial, carry)?;
-        if option.observes_knock_out(time) && option.is_knock_out(spot) {
+        let knocked_out = || {
+            context
+                .quoted_spot_cmp(time, initial, option.knock_out_level())
+                .map_or_else(
+                    || option.is_knock_out(spot),
+                    |ordering| match option.option_type() {
+                        crate::OptionType::Call => ordering.is_ge(),
+                        crate::OptionType::Put => ordering.is_le(),
+                    },
+                )
+        };
+        if option.observes_knock_out(time) && knocked_out() {
             return finite(quantity * option.unit_payoff(spot) * log_discount.exp());
         }
         if option.accumulates_at(time, option.calendar()) {

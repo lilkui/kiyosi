@@ -69,12 +69,19 @@ class CommandTests(unittest.TestCase):
             with (
                 patch("run.HERE", root),
                 patch(
+                    "run.source_state",
+                    return_value={"revision": "build-revision", "dirty_state": ""},
+                ),
+                patch(
                     "run.command", side_effect=["1.44", "", "", cargo_output, "", "c++"]
                 ),
             ):
                 executable, evidence = build(args)
             self.assertEqual(executable, rust)
             self.assertEqual(evidence["executables"]["kiyosi"], fingerprint(rust))
+            self.assertEqual(
+                evidence["source"], {"revision": "build-revision", "dirty_state": ""}
+            )
 
     def test_missing_native_executable_writes_failed_report(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -227,6 +234,7 @@ class ReportTests(unittest.TestCase):
         patch=None,
         families=None,
         runtime_name=None,
+        build_source=None,
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -292,10 +300,34 @@ class ReportTests(unittest.TestCase):
                     "PATH": str(root) + os.pathsep + os.environ["PATH"],
                 }
             report = root / "report.json"
+            runner = [str(RUNNER)]
+            if build_source is not None:
+                (root / "build").mkdir()
+                (root / "build" / "build.json").write_text(
+                    json.dumps(
+                        {
+                            "source": build_source,
+                            "executables": dict.fromkeys(
+                                ("kiyosi", "quantlib"), fingerprint(native)
+                            ),
+                        }
+                    )
+                )
+                runner = [
+                    "-c",
+                    (
+                        "import run, sys\n"
+                        "from pathlib import Path\n"
+                        "run.HERE = Path(sys.argv.pop(1))\n"
+                        "run.source_state = lambda: {'revision': 'checkout-revision', 'dirty_state': ''}\n"
+                        "raise SystemExit(run.main())"
+                    ),
+                    str(root),
+                ]
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(RUNNER),
+                    *runner,
                     "--no-build",
                     "--rust-executable",
                     str(native),
@@ -314,9 +346,19 @@ class ReportTests(unittest.TestCase):
                 capture_output=True,
                 check=False,
                 env=environment,
+                cwd=RUNNER.parent,
             )
             self.assertTrue(report.exists(), result.stderr)
             return result, json.loads(report.read_text())
+
+    def test_no_build_retains_the_binary_build_revision(self):
+        build_source = {"revision": "build-revision", "dirty_state": " M Cargo.toml"}
+        result, report = self.run_fixture(
+            extra=("--price-only",), build_source=build_source
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["source"]["revision"], "checkout-revision")
+        self.assertEqual(report["build"]["source"], build_source)
 
     def test_default_rejects_incomplete_manifest_with_explicit_required_rows(self):
         result, report = self.run_fixture(complete=True)

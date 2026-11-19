@@ -33,6 +33,53 @@ const KINDS: [BarrierType; 4] = [
 ];
 
 #[test]
+fn scheduled_quadrature_rejects_excessive_rollback_work() -> Result<()> {
+    let start = day(1, 1);
+    let end = start.add_days(365)?;
+    let clock = start.time_of_day();
+    let calendar = TradingCalendar::all_days();
+    let settings = QuadratureSettings {
+        asset_step_count: 4096,
+        ..Default::default()
+    };
+    let context = market(0.03);
+    let mut barrier = terms(BarrierType::UpAndOut, OptionType::Call);
+    barrier.barrier_level = 140.0;
+    barrier.calendar = calendar.clone();
+    barrier.observation_times = Some(
+        (1..=365)
+            .map(|i| start.add_days(i))
+            .collect::<Result<_>>()?,
+    );
+    let accumulator = Accumulator::new(AccumulatorTerms {
+        calendar: calendar.clone(),
+        ..AccumulatorTerms::new(100.0, 140.0, 1.0, 2.0, start, end, clock)
+    })?;
+    let snowball = SnowballOption::new(SnowballTerms::new(
+        0.06,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        start,
+        end,
+        vec![AutocallableObservation::snowball(end, 140.0, 0.08)?],
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        },
+        calendar,
+    ))?;
+    for price in [
+        QuadratureBarrierEngine::new(settings)?.price(&BarrierOption::new(barrier)?, &context),
+        QuadratureAccumulatorEngine::new(settings)?.price(&accumulator, &context),
+        QuadratureAutocallableEngine::new(settings)?.price(&snowball, &context),
+    ] {
+        assert!(matches!(price, Err(Error::InvalidInput(msg)) if msg.contains("rollback")));
+    }
+    Ok(())
+}
+
+#[test]
 fn prepared_scheduled_prices_match_scalar_after_spot_and_model_changes() {
     let engine = QuadratureBarrierEngine::new(QuadratureSettings {
         asset_step_count: 128,

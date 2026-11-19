@@ -431,7 +431,8 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
                     } else {
                         0.0
                     };
-                    let coupon = record.map_or(0.0, |r| note.observation_coupon(r, asset));
+                    let coupon =
+                        record.map_or(0.0, |r| note.observation_coupon(r, |level| asset >= level));
                     if let Some(r) =
                         record.filter(|r| r.has_knock_out() && asset >= r.knock_out_level())
                     {

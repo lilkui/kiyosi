@@ -1,6 +1,88 @@
 use kiyosi::*;
 
 #[test]
+fn scheduled_barrier_checks_the_deterministic_window_once() -> Result<()> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(2)?;
+    let checks = Arc::new(AtomicUsize::new(0));
+    let calendar = TradingCalendar::new(
+        {
+            let checks = checks.clone();
+            move |_| {
+                checks.fetch_add(1, Ordering::Relaxed);
+                false
+            }
+        },
+        260,
+    )?;
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
+        0.0,
+        0.0,
+        0.2,
+        VarianceTimeConvention::Business(calendar),
+    )?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let mut terms = TouchOptionTerms::new(start, end, 120.0, BarrierType::UpAndIn);
+    terms.observation_times = Some(
+        (1..=100)
+            .map(|i| end.add_micros(-i))
+            .rev()
+            .collect::<Result<_>>()?,
+    );
+    let option = TouchOption::cash(terms, 7.0)?;
+    assert!(!option.at_spot_discontinuity(&context, 0.01));
+    assert_eq!(checks.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[test]
+fn structured_knock_out_uses_exact_quoted_forward() -> Result<()> {
+    let start = Timestamp::new(Date::new(2025, 1, 1)?, 12, 0, 0, 0)?;
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    let factor = 99.0 / 128.0;
+    let curve = RateTermStructure::new(start, vec![end], vec![factor])?;
+    let model = BlackScholesMertonParameters::new(curve, 0.0, 0.0)?;
+    let calendar = TradingCalendar::all_days();
+    let note = SnowballOption::new(SnowballTerms::new(
+        0.0,
+        99.0,
+        80.0,
+        99.0,
+        60.0,
+        start,
+        end,
+        vec![AutocallableObservation::snowball(end, 128.0, 0.2)?],
+        KnockInObservation::AtExpiry,
+        calendar.clone(),
+    ))?;
+    let accumulator = Accumulator::new(AccumulatorTerms {
+        calendar,
+        knock_out_observation_times: Some(vec![end]),
+        ..AccumulatorTerms::new(100.0, 128.0, 1.0, 1.0, start, end, end.time_of_day())
+    })?;
+    let units_before_expiry =
+        f64::from(u32::try_from(accumulator.accumulation_schedule()?.len() - 1).unwrap());
+    for (spot, hit) in [
+        (libm::nextafter(99.0, 0.0), false),
+        (99.0, true),
+        (libm::nextafter(99.0, f64::INFINITY), true),
+    ] {
+        let context = PricingContext::new(model.clone(), spot, start)?;
+        let expected = factor * (1.0 + f64::from(hit) * 0.2 * start.years_until(end));
+        let price = QuadratureAutocallableEngine::default().price(&note, &context)?;
+        assert!((price - expected).abs() < 1e-12);
+        let expected = (units_before_expiry + f64::from(!hit)) * (spot - 100.0 * factor);
+        let price = QuadratureAccumulatorEngine::default().price(&accumulator, &context)?;
+        assert!((price - expected).abs() < 1e-10);
+    }
+    Ok(())
+}
+
+#[test]
 fn scheduled_touch_preserves_the_exact_final_curve_quote() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;

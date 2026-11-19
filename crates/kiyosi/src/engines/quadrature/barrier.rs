@@ -9,7 +9,8 @@ use crate::{
 /// Configures the spatial resolution and integration extent for event-date quadrature.
 ///
 /// Gaussian grid pricing returns [`Error::InvalidInput`] when the estimated grid or
-/// transition workspace exceeds 256 MiB.
+/// transition workspace exceeds 256 MiB, or when scheduled rollback exceeds one
+/// billion node and cell visits.
 /// Simpson integration rejects more than 250 million panels across all sections.
 /// Check spatial and domain convergence separately; see [`QuadratureBarrierEngine::new`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -333,7 +334,7 @@ fn terminal_layer(option: &BarrierOption) -> Vec<super::gaussian::TerminalPiece>
 
 use super::gaussian::{
     CubicInterpolation, Layer, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes,
+    integration_nodes, validate_scheduled_work,
 };
 
 fn event_limit(
@@ -504,12 +505,13 @@ fn scheduled_price(
     let (rate, dividend) = flat_rates(context)?;
     let sigma = context.natural_bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
+    let transition = |time| super::transition(time, drift_rate, sigma, rate);
     let horizon = context.valuation_time().years_until(option.expiry_time());
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
     let barrier = log_ratio(option.barrier_level(), option.strike());
     let current = log_ratio(context.spot_price(), option.strike());
     if dates.len() == 1 && dates[0] == option.expiry_time() {
-        let (drift, deviation, discount) = super::transition(horizon, drift_rate, sigma, rate)?;
+        let (drift, deviation, discount) = transition(horizon)?;
         return checked(integrate_terminal(
             &terminal_layer(option),
             current,
@@ -522,6 +524,8 @@ fn scheduled_price(
     let lower = 0.0_f64.min(barrier).min(current) + (drift_rate * horizon).min(0.0) - extent;
     let upper = 0.0_f64.max(barrier).max(current) + (drift_rate * horizon).max(0.0) + extent;
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &[0.0, barrier])?;
+    let terminal_pieces = usize::from(dates.last() == Some(&option.expiry_time()));
+    validate_scheduled_work(&nodes, &dates, 1, terminal_pieces, transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let mut values = vec![0.0; nodes.len()];
     let mut transitions = TransitionCache::default();
@@ -548,7 +552,7 @@ fn scheduled_price(
         } else {
             dates[event - 1].years_until(dates[event])
         };
-        let (drift, deviation, discount) = super::transition(time, drift_rate, sigma, rate)?;
+        let (drift, deviation, discount) = transition(time)?;
         if event == 0 {
             let value = evaluate(&nodes, &layer, drift, deviation, discount)?;
             if let Some(prepared) = prepared {

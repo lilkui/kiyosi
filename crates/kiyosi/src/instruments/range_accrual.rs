@@ -220,19 +220,18 @@ impl OptionContract for RangeAccrualOption {
         self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+        let times = self.schedule.times();
         if context
             .model_parameters()
             .as_bsm()
             .is_ok_and(|model| model.volatility() == 0.0)
             && self.annual_coupon_rate() != 0.0
-            && self
-                .schedule
-                .times()
+            && times[times.partition_point(|&time| time <= context.valuation_time())..]
                 .iter()
-                .filter(|&&time| time > context.valuation_time())
+                .take_while(|_| crate::cancellation::check().is_ok())
                 .any(|&time| {
-                    context.deterministic_crosses(time, self.lower_bound(), radius)
-                        || context.deterministic_crosses(time, self.upper_bound(), radius)
+                    context.forward_crosses(time, self.lower_bound(), radius)
+                        || context.forward_crosses(time, self.upper_bound(), radius)
                 })
         {
             return true;
