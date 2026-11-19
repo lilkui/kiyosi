@@ -118,6 +118,47 @@ def market(spot=100.25, valuation=None, volatility=0.2, rate=0.04, dividend=0.01
     )
 
 
+def test_outstanding_units_require_zero_curve_coverage():
+    start = datetime(2025, 1, 3)
+    valuation = start + timedelta(hours=12)
+    end = start + timedelta(days=1)
+    option = Accumulator(
+        strike=100,
+        knock_out_level=130,
+        daily_quantity=1,
+        acceleration_factor=2,
+        accumulated_quantity=3,
+        knock_out_settled=False,
+        effective_time=start,
+        expiry_time=end,
+        observation_clock_time=clock_time(10),
+    )
+    for volatility in (0.0, 0.2):
+        for risk_end, dividend_end in ((valuation, end), (end, valuation), (end, end)):
+            risk = RateTermStructure.bounded_flat(
+                0, reference_time=start, max_time=risk_end
+            )
+            dividend = RateTermStructure.bounded_flat(
+                0, reference_time=start, max_time=dividend_end
+            )
+            context = market(
+                spot=105,
+                valuation=valuation,
+                volatility=volatility,
+                rate=risk,
+                dividend=dividend,
+            )
+            for family in ("FiniteDifference", "Quadrature", "MonteCarlo"):
+                engine = getattr(pricing, family + "AccumulatorEngine")()
+                if risk_end == dividend_end == end:
+                    assert engine.price(option, context) == 15
+                else:
+                    with pytest.raises(
+                        InvalidInputError, match="outside curve coverage"
+                    ):
+                        engine.price(option, context)
+
+
 def terminal_reference(option, context):
     horizon = (
         datetime.combine(option.expiry_time, time()) - context.valuation_time

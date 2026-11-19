@@ -12,6 +12,42 @@ fn terms(end: Timestamp) -> AccumulatorTerms {
 }
 
 #[test]
+fn outstanding_units_require_zero_curve_coverage() -> Result<()> {
+    let start = day(1, 3);
+    let valuation = start.add_micros(43_200_000_000)?;
+    let end = day(1, 4);
+    let mut terms = AccumulatorTerms::new(100.0, 130.0, 1.0, 2.0, start, end, start.time_of_day());
+    terms.accumulated_quantity = Some(3.0);
+    terms.knock_out_settled = Some(false);
+    let option = Accumulator::new(terms)?;
+    let engines: [&dyn PricingEngine<Accumulator>; 3] = [
+        &FiniteDifferenceAccumulatorEngine::default(),
+        &QuadratureAccumulatorEngine::default(),
+        &MonteCarloAccumulatorEngine::default(),
+    ];
+    for volatility in [0.0, 0.2] {
+        for (risk_end, dividend_end) in [(valuation, end), (end, valuation), (end, end)] {
+            let risk = RateTermStructure::bounded_flat(0.0, start, risk_end)?;
+            let dividend = RateTermStructure::bounded_flat(0.0, start, dividend_end)?;
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(risk, dividend, volatility)?,
+                105.0,
+                valuation,
+            )?;
+            for engine in engines {
+                let value = engine.price(&option, &context);
+                if risk_end == end && dividend_end == end {
+                    assert_eq!(value?, 15.0);
+                } else {
+                    assert!(matches!(value, Err(Error::InvalidInput(_))));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn termination_history_is_required_after_prior_knock_out_observations() -> Result<()> {
     let start = day(1, 6);
     let end = day(1, 10);

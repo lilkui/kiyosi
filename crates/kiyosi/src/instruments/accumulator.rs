@@ -441,6 +441,7 @@ impl Accumulator {
         let model = context.model_parameters();
         if context.valuation_time() == self.expiry_time()
             || (!accrues
+                && context.validate_curve_coverage(self.expiry_time()).is_ok()
                 && model.risk_free_curve().exact_flat_rate() == Some(0.0)
                 && model.dividend_curve().exact_flat_rate() == Some(0.0))
         {
