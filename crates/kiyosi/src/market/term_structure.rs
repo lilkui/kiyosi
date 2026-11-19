@@ -19,6 +19,7 @@ pub struct RateTermStructure {
     nodes: Arc<[Timestamp]>,
     factors: Arc<[f64]>,
     forwards: Arc<[f64]>,
+    node_flat_rate: Option<f64>,
     spread: f64,
     calendar_accrual: Option<CalendarAccrual>,
 }
@@ -90,6 +91,7 @@ impl RateTermStructure {
             nodes: Arc::default(),
             factors: Arc::default(),
             forwards: Arc::default(),
+            node_flat_rate: None,
             spread: 0.0,
             calendar_accrual: None,
         })
@@ -223,6 +225,10 @@ impl RateTermStructure {
     /// assert_eq!(curve.max_time(), Some(end));
     /// # Ok(()) }
     /// ```
+    #[expect(
+        clippy::float_cmp,
+        reason = "Flat-rate algorithms require exactly constant forwards."
+    )]
     pub fn new(reference: Timestamp, nodes: Vec<Timestamp>, factors: Vec<f64>) -> Result<Self> {
         if nodes.is_empty() || nodes.len() != factors.len() {
             return Err(Error::InvalidInput(
@@ -232,6 +238,7 @@ impl RateTermStructure {
         let mut previous = reference;
         let mut previous_factor = 1.0;
         let mut forwards = Vec::with_capacity(nodes.len());
+        let mut node_flat_rate = None;
         for (index, (&node, &factor)) in nodes.iter().zip(&factors).enumerate() {
             if index % 1024 == 0 {
                 crate::cancellation::check()?;
@@ -245,6 +252,11 @@ impl RateTermStructure {
             let forward =
                 -crate::numerics::log_ratio(factor, previous_factor) / previous.years_until(node);
             finite(forward, false, "forward_rate")?;
+            node_flat_rate = if index == 0 {
+                Some(forward)
+            } else {
+                node_flat_rate.filter(|&rate| rate == forward)
+            };
             forwards.push(forward);
             previous = node;
             previous_factor = factor;
@@ -256,6 +268,7 @@ impl RateTermStructure {
             nodes: nodes.into(),
             factors: factors.into(),
             forwards: forwards.into(),
+            node_flat_rate,
             spread: 0.0,
             calendar_accrual: None,
         })
@@ -268,21 +281,12 @@ impl RateTermStructure {
     /// flat rate may not qualify. Calendar quotes qualify if zero or if their
     /// coverage contains no change in the effective forward rate. See
     /// [`Self::bounded_flat`] and [`Self::bounded_flat_with_calendar`].
-    #[expect(
-        clippy::float_cmp,
-        reason = "Flat-rate algorithms require exactly constant forwards, without a numerical tolerance."
-    )]
     pub fn exact_flat_rate(&self) -> Option<f64> {
         if let Some(accrual) = &self.calendar_accrual {
             return (accrual.rate == 0.0 || self.nodes.is_empty()).then(|| accrual.forward_rate(0));
         }
-        self.rate.or_else(|| {
-            self.forwards
-                .first()
-                .copied()
-                .filter(|rate| self.forwards.iter().all(|other| other == rate))
-                .map(|rate| rate + self.spread)
-        })
+        self.rate
+            .or_else(|| self.node_flat_rate.map(|rate| rate + self.spread))
     }
 
     pub(super) fn require_flat_rate(&self, field: &str) -> Result<f64> {
