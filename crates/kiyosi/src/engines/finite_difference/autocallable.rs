@@ -3,6 +3,7 @@ use super::{
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
     diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility, validate_work,
+    validate_workspace,
 };
 use crate::engines::deterministic::{self, continuation_context};
 use crate::instruments::autocallable::Coupon;
@@ -276,6 +277,10 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     let near_steps = if layered { 64 } else { 128 };
     let intervals = grid.times.partition_point(|&v| v < nearest);
     if intervals < near_steps {
+        validate_workspace(
+            u64::from(settings.asset_step_count.unsigned_abs()) + 1,
+            (grid.widths.len() - intervals + near_steps) as u64,
+        )?;
         let mut times: Vec<_> = (0..near_steps)
             .map(|i| nearest * i as f64 / near_steps as f64)
             .collect();

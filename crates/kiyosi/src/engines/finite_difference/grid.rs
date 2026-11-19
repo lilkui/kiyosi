@@ -546,6 +546,7 @@ impl TimeGrid {
         risk: &Curve,
         dividend: &Curve,
         observations: &[f64],
+        validate_workspace: impl Fn(u64) -> Result<()>,
     ) -> Result<Self> {
         crate::cancellation::check()?;
         let mut events: Vec<_> = risk.ends().chain(dividend.ends()).collect();
@@ -553,21 +554,42 @@ impl TimeGrid {
         events.push(0.0);
         events.sort_by(f64::total_cmp);
         events.dedup();
-        let mut times = events.clone();
         let tolerance = 4.0 * f64::EPSILON * time;
-        for index in 1..steps {
-            if index % 1024 == 0 {
-                crate::cancellation::check()?;
-            }
+        let uniform_node = |index| {
             let node = time * f64::from(index) / f64::from(steps);
             let next = events.partition_point(|&event| event < node);
-            if !events[next.saturating_sub(1)..(next + 1).min(events.len())]
+            (!events[next.saturating_sub(1)..(next + 1).min(events.len())]
                 .iter()
-                .any(|event| (event - node).abs() <= tolerance)
-            {
-                times.push(node);
+                .any(|event| (event - node).abs() <= tolerance))
+            .then_some(node)
+        };
+        let uniform_nodes = || {
+            (1..steps).map(|index| -> Result<Option<f64>> {
+                if index % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                Ok(uniform_node(index))
+            })
+        };
+        let event_intervals = events.len() - 1;
+        let mut intervals = event_intervals + steps.unsigned_abs() as usize - 1;
+        if validate_workspace(intervals as u64).is_err() {
+            // Only count the exact grid near the limit, where events may replace uniform nodes.
+            intervals = event_intervals;
+            validate_workspace(intervals as u64)?;
+            for node in uniform_nodes() {
+                if node?.is_some() {
+                    intervals += 1;
+                    validate_workspace(intervals as u64)?;
+                }
             }
         }
+        let mut times = Vec::with_capacity(intervals + 1);
+        times.extend_from_slice(&events);
+        for node in uniform_nodes() {
+            times.extend(node?);
+        }
+        drop(events);
         crate::cancellation::check()?;
         times.sort_by(f64::total_cmp);
         times.dedup();
@@ -645,13 +667,25 @@ mod tests {
             0.5 + 4.0 * f64::EPSILON,
             0.75 + 8.0 * f64::EPSILON,
         ];
-        let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &events).unwrap();
+        let validate = |limit| {
+            move |steps| {
+                if steps > limit {
+                    return Err(invalid_grid("test workspace limit"));
+                }
+                Ok(())
+            }
+        };
+        let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &events, validate(5)).unwrap();
         assert_eq!(
             grid.times,
             vec![0.0, events[0], events[1], 0.75, events[2], 1.0]
         );
         assert!(grid.widths.iter().all(|&width| width > 0.0));
         assert!((grid.widths.iter().sum::<f64>() - 1.0).abs() < f64::EPSILON);
+        assert!(matches!(
+            TimeGrid::with_events(1.0, 4, &curve, &curve, &events, validate(4)),
+            Err(crate::Error::InvalidInput(message)) if message == "test workspace limit"
+        ));
     }
 
     #[test]
@@ -665,7 +699,7 @@ mod tests {
         let token = crate::CancellationToken::default();
         let result = token.run(|| {
             token.cancel();
-            let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &[]);
+            let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &[], |_| Ok(()));
             assert!(matches!(grid, Err(crate::Error::Io(ref error)) if error.kind() == std::io::ErrorKind::Interrupted));
             grid
         });

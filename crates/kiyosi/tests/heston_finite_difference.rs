@@ -59,6 +59,34 @@ fn rejects_oversized_heston_workspace_before_pricing() {
 }
 
 #[test]
+fn heston_workspace_includes_off_grid_curve_knots() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let curve = RateTermStructure::new(start, vec![start.add_days(1)?, end], vec![0.999, 0.95])?;
+    let model = context(0.3, -0.7).model_parameters().as_heston()?.replace(
+        kiyosi::HestonParameterChanges {
+            risk_free_rate: Some(curve.into()),
+            ..Default::default()
+        },
+    )?;
+    let market = PricingContext::new(model, 100.0, start)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 3,
+        variance_step_count: 2_097_150,
+        time_step_count: 21,
+        // Stop before the large allocation if the workspace check regresses.
+        variance_upper_boundary: Some(0.01),
+        ..Default::default()
+    })?;
+    let result = engine.price(&option, &market);
+    assert!(
+        matches!(&result, Err(Error::InvalidInput(message)) if message.contains("workspace")),
+        "{result:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn heston_grid_rejects_oversized_rollback_before_pricing() {
     let (start, end) = dates();
     let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {

@@ -1,6 +1,6 @@
 use super::{
     Curve, FiniteDifferenceSettings, PricingContext, Result, SpatialGrid, Stepper, TimeGrid,
-    local_volatility, validate_work,
+    local_volatility, validate_work, validate_workspace,
 };
 use crate::{Error, LocalVolatilitySurface, Timestamp};
 
@@ -202,11 +202,16 @@ pub(super) fn time_grid(
                 .map(|&t| start.years_until(t)),
         );
     }
-    let grid = TimeGrid::with_events(time, settings.time_step_count, risk, dividend, &knots)?;
-    validate_work(
-        u64::from(settings.asset_step_count.unsigned_abs()),
-        grid.widths.len() as u64,
+    let asset_steps = u64::from(settings.asset_step_count.unsigned_abs());
+    let grid = TimeGrid::with_events(
+        time,
+        settings.time_step_count,
+        risk,
+        dividend,
+        &knots,
+        |steps| validate_workspace(asset_steps + 1, steps),
     )?;
+    validate_work(asset_steps, grid.widths.len() as u64)?;
     Ok(grid)
 }
 

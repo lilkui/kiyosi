@@ -335,17 +335,28 @@ fn prepare(
     };
     let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
     // Reserve for the live operator, rollback buffers, axes and time grid.
-    if (assets * rows)
-        .saturating_mul(BYTES_PER_GRID_POINT)
-        .saturating_add(steps * BYTES_PER_TIME_STEP)
-        > WORKSPACE_BUDGET
-    {
-        return Err(invalid_grid(
-            "Heston finite-difference workspace exceeds 1 GiB; reduce grid step counts",
-        ));
-    }
+    let validate_workspace = |time_steps| {
+        if (assets * rows)
+            .saturating_mul(BYTES_PER_GRID_POINT)
+            .saturating_add(time_steps * BYTES_PER_TIME_STEP)
+            > WORKSPACE_BUDGET
+        {
+            return Err(invalid_grid(
+                "Heston finite-difference workspace exceeds 1 GiB; reduce grid step counts",
+            ));
+        }
+        Ok(())
+    };
+    validate_workspace(steps)?;
     validate_work(assets * rows, steps)?;
-    let times = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &[])?;
+    let times = TimeGrid::with_events(
+        time,
+        settings.time_step_count,
+        &risk,
+        &dividend,
+        &[],
+        validate_workspace,
+    )?;
     validate_work(assets * rows, times.widths.len() as u64)?;
     if payoff.is_american() {
         let knots = risk.ends().len() + dividend.ends().len() - 2;

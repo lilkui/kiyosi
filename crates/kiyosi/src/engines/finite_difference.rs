@@ -95,8 +95,9 @@ impl FiniteDifferenceSettings {
     /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
     /// fewer than one time interval, an estimated grid workspace above 1 GiB, more than
     /// one billion spatial intervals times time intervals, or an invalid explicit boundary.
-    /// Pricing checks the work limit after adding event and curve steps and damping half-steps, as well as
-    /// domain coverage and scheme stability.
+    /// Pricing includes event and curve steps in the workspace estimate and
+    /// damping half-steps in the work limit. It also checks domain coverage
+    /// and scheme stability.
     ///
     /// # Examples
     ///

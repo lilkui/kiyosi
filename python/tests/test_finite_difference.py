@@ -57,6 +57,23 @@ def engine_for(kind, **settings):
     )(**settings)
 
 
+def test_grid_workspace_includes_off_grid_curve_knots():
+    curve = RateTermStructure(
+        reference_time=START,
+        times=[START + timedelta(days=1), END],
+        factors=[0.999, 0.95],
+    )
+    context = market(spot=100, rate=curve, dividend=0, sigma=0.2)
+    option = EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    engine = FiniteDifferenceVanillaEngine(
+        asset_step_count=3_532_044, time_step_count=6, scheme="explicit_euler"
+    )
+    with pytest.raises(InvalidInputError, match="workspace"):
+        engine.price(option, context)
+
+
 def test_coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks(
     subtests,
 ):
