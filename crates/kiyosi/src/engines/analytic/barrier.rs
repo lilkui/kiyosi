@@ -21,6 +21,8 @@ impl AnalyticBarrierEngine {
     ///
     /// Current boundary hits settle before future monitoring. Prior at-hit rebates are paid.
     /// Curve coverage is required only for remaining cash flows and stochastic evolution.
+    /// Continuous knock-outs use survival-weighted quadrature when closed-form
+    /// payoff terms nearly cancel.
     /// Unresolved scheduled monitoring uses the Broadie-Glasserman-Kou (BGK)
     /// continuity correction and must end at expiry.
     ///
@@ -224,6 +226,35 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
                 )
         }
     };
+    let knock_out_value = |legs: [f64; 4]| -> Result<f64> {
+        let [a, b, c, d] = legs;
+        let payoff = a - b + c - d;
+        let scale = legs.into_iter().map(f64::abs).fold(0.0, f64::max);
+        if option.monitoring.continuous()
+            && scale > 0.0
+            && scale.is_finite()
+            && payoff.abs() <= f64::EPSILON.sqrt() * scale
+        {
+            let payoff = crate::engines::quadrature::continuous_barrier_price(
+                option,
+                context,
+                crate::QuadratureSettings {
+                    // Include representable tails when the quadrature can use the exact paying interval.
+                    integration_standard_deviations: if upper == call
+                        && barrier_strike.abs() <= width
+                    {
+                        55.0
+                    } else {
+                        12.0
+                    },
+                    ..Default::default()
+                },
+                0.0,
+            )?;
+            return Ok(payoff + rebate());
+        }
+        Ok(payoff + rebate())
+    };
     let value = if requires_touch {
         if knock_in { a + e() } else { rebate() }
     } else {
@@ -234,10 +265,14 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
             (true, true, false, false) | (false, true, true, true) => a - b() + d() + e(),
             (true, false, true, true) | (false, false, false, false) => rebate(),
             (true, false, true, false) | (false, false, false, true) => {
-                a - b() + c() - d() + rebate()
+                knock_out_value([a, b(), c(), d()])?
             }
-            (true, false, false, true) | (false, false, true, false) => a - c() + rebate(),
-            (true, false, false, false) | (false, false, true, true) => b() - d() + rebate(),
+            (true, false, false, true) | (false, false, true, false) => {
+                knock_out_value([a, c(), 0.0, 0.0])?
+            }
+            (true, false, false, false) | (false, false, true, true) => {
+                knock_out_value([b(), d(), 0.0, 0.0])?
+            }
         }
     };
     let scale = scaled_cash(spot, -dividend * t)

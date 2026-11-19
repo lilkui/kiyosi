@@ -164,7 +164,7 @@ fn price(
     }
     context.validate_curve_horizon(option.expiry_time())?;
     if option.observation_mode() == crate::ObservationMode::Continuous {
-        continuous_price(option, context, settings)
+        continuous_price(option, context, settings, option.rebate())
     } else {
         scheduled_price(option, context, settings, prepared)
     }
@@ -187,10 +187,11 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
 fn invalid_transition() -> Error {
     Error::ComputationFailure("quadrature transition is not representable".into())
 }
-fn continuous_price(
+pub(in crate::engines) fn continuous_price(
     option: &BarrierOption,
     context: &PricingContext,
     settings: QuadratureSettings,
+    rebate: f64,
 ) -> Result<f64> {
     let (rate, dividend) = flat_rates(context)?;
     let time = context.valuation_time().years_until(option.expiry_time());
@@ -209,14 +210,8 @@ fn continuous_price(
         } else {
             0.0
         };
-    let mut breaks = vec![-extent, upper];
-    for point in [(strike - drift) / width, (barrier - drift) / width] {
-        if point > -extent && point < upper {
-            breaks.push(point);
-        }
-    }
-    breaks.sort_by(f64::total_cmp);
-    breaks.dedup();
+    let strike_normal = (strike - drift) / width;
+    let barrier_normal = (barrier - drift) / width;
     let knock_in = option.barrier_type().is_knock_in();
     let up = option.barrier_type().is_up();
     let sign = if option.option_type() == OptionType::Call {
@@ -225,15 +220,14 @@ fn continuous_price(
         -1.0
     };
     let log_discount = -rate * time;
-    let integrand = |z: f64| {
-        let terminal = drift + width * z;
+    let integrand = |z: f64, distance: f64, to_barrier: f64, log_measure: f64| {
         let live = if up {
-            terminal < barrier
+            to_barrier > 0.0
         } else {
-            terminal > barrier
+            to_barrier < 0.0
         };
         let exponent = if live {
-            -2.0 * (barrier / width) * ((barrier - terminal) / width)
+            -2.0 * (barrier / width) * (to_barrier / width)
         } else {
             0.0
         };
@@ -242,8 +236,8 @@ fn continuous_price(
         } else {
             f64::NEG_INFINITY
         };
-        let log_density = log_discount - 0.5 * z * z - 0.5 * (2.0 * std::f64::consts::PI).ln();
-        let distance = terminal - strike;
+        let log_density =
+            log_measure + log_discount - 0.5 * z * z - 0.5 * (2.0 * std::f64::consts::PI).ln();
         let mut value = 0.0;
         if sign * distance > 0.0 {
             let log_payoff = option.strike().ln()
@@ -255,23 +249,55 @@ fn continuous_price(
             value =
                 (log_payoff + if knock_in { exponent } else { log_survival } + log_density).exp();
         }
-        if knock_in || option.rebate_timing() == RebateTiming::AtExpiry {
+        if rebate != 0.0 && (knock_in || option.rebate_timing() == RebateTiming::AtExpiry) {
             value += scaled_cash(
-                option.rebate(),
+                rebate,
                 if knock_in { log_survival } else { exponent } + log_density,
             );
         }
         value
     };
+    let band = log_ratio(option.barrier_level(), option.strike());
+    let band_normal = band / width;
+    if !knock_in
+        && rebate == 0.0
+        && up == (sign > 0.0)
+        && sign * band_normal > 0.0
+        && band_normal.abs() <= 1.0
+        && strike_normal.min(strike_normal + band_normal) >= -extent
+        && strike_normal.max(strike_normal + band_normal) <= upper
+    {
+        // Keep the paying interval and both distances even when its normal endpoints round together.
+        let log_measure = band_normal.abs().ln();
+        return checked(super::simpson(
+            &[0.0, 1.0],
+            settings.asset_step_count,
+            |u| {
+                integrand(
+                    band_normal.mul_add(u, strike_normal),
+                    u * band,
+                    (1.0 - u) * band,
+                    log_measure,
+                )
+            },
+        )?);
+    }
+    let mut breaks = vec![-extent, upper];
+    for point in [strike_normal, barrier_normal] {
+        if point > -extent && point < upper {
+            breaks.push(point);
+        }
+    }
+    breaks.sort_by(f64::total_cmp);
+    breaks.dedup();
     let mut result = crate::numerics::Sum::default();
-    result.add(super::simpson(
-        &breaks,
-        settings.asset_step_count,
-        integrand,
-    )?);
-    if !knock_in && option.rebate_timing() == RebateTiming::AtHit && option.rebate() != 0.0 {
+    result.add(super::simpson(&breaks, settings.asset_step_count, |z| {
+        let terminal = drift + width * z;
+        integrand(z, terminal - strike, barrier - terminal, 0.0)
+    })?);
+    if !knock_in && option.rebate_timing() == RebateTiming::AtHit && rebate != 0.0 {
         result.add(hit_value(
-            option.rebate(),
+            rebate,
             barrier.abs(),
             up,
             drift / time,

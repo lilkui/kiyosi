@@ -3,6 +3,7 @@ pub use accumulator::QuadratureAccumulatorEngine;
 mod autocallable;
 pub use autocallable::QuadratureAutocallableEngine;
 mod barrier;
+pub(super) use barrier::continuous_price as continuous_barrier_price;
 pub(crate) mod gaussian;
 pub use barrier::{QuadratureBarrierEngine, QuadratureSettings};
 mod digital;

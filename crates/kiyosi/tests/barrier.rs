@@ -20,6 +20,31 @@ fn market(spot: f64, time: Timestamp) -> PricingContext {
 }
 
 #[test]
+fn analytic_knock_out_preserves_narrow_paying_interval() -> Result<()> {
+    let adjacent = libm::nextafter(100.0, 0.0);
+    for (scale, strike, dividend, reference) in [
+        (1.0, 99.999_99, 0.0, 1.494_266_104e-19),
+        (1e6, 99.999_99, 0.0, 1.494_266_104e-19),
+        (1.0, adjacent, 0.0, 4.288_333_082e-46),
+        (1.0, adjacent, 3.0, 2.199_619_212e-98),
+    ] {
+        let mut t = terms(BarrierType::UpAndOut);
+        t.strike = strike * scale;
+        t.barrier_level = 100.0 * scale;
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.02, dividend, 0.2)?,
+            90.0 * scale,
+            t.effective_time,
+        )?;
+        let option = BarrierOption::new(t)?;
+        let price = AnalyticBarrierEngine.price(&option, &context)?;
+        // Absorbed lognormal density, integrated directly or expanded over the adjacent band.
+        assert!((price / (scale * reference) - 1.0).abs() < 1e-7, "{price}");
+    }
+    Ok(())
+}
+
+#[test]
 fn history_is_strictly_prior_and_boundary_hit_rebates_are_not_paid_twice() {
     let mut t = terms(BarrierType::UpAndOut);
     t.rebate = 7.0;

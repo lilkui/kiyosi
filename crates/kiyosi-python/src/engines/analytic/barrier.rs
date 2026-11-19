@@ -6,7 +6,8 @@ analytic_engine!(
     /// Analytic single-barrier pricing with flat rates.
     ///
     /// Scheduled monitoring uses the Broadie-Glasserman-Kou (BGK) continuity
-    /// correction.
+    /// correction. Continuous knock-outs use survival-weighted quadrature when
+    /// closed-form payoff terms nearly cancel.
     ///
     /// See Also
     /// --------

@@ -57,6 +57,26 @@ def make_context(spot=100, time=datetime(2025, 1, 1), **changes):
     )
 
 
+def test_analytic_knock_out_preserves_narrow_paying_interval():
+    adjacent = math.nextafter(100.0, 0.0)
+    for scale, strike, dividend, expected in (
+        (1, 99.99999, 0, 1.494266104e-19),
+        (1e6, 99.99999, 0, 1.494266104e-19),
+        (1, adjacent, 0, 4.288333082e-46),
+        (1, adjacent, 3, 2.199619212e-98),
+    ):
+        model = BlackScholesMertonParameters(
+            risk_free_rate=0.02, dividend_yield=dividend, volatility=0.2
+        )
+        option = BarrierOption(
+            **make_terms(strike=strike * scale, barrier_level=100 * scale)
+        )
+        context = make_context(90 * scale).replace(model_parameters=model)
+        assert AnalyticBarrierEngine().price(option, context) == pytest.approx(
+            expected * scale, rel=1e-7, abs=0
+        )
+
+
 def test_history_is_prior_and_paid_hit_rebate_does_not_recur():
     engine = AnalyticBarrierEngine()
     option = BarrierOption(**make_terms(rebate=7, rebate_timing="at_hit"))
