@@ -24,6 +24,26 @@ from test_binomial import END, GREEKS, START, contract, market
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)
 
 
+@pytest.mark.parametrize("kind", DIGITAL)
+@pytest.mark.parametrize("direction", ("call", "put"))
+def test_exactly_at_forward_strike_preserves_half_the_discounted_payout(
+    kind, direction
+):
+    end = START + timedelta(days=7)
+    factor = 0.9993896484375
+    curve = RateTermStructure(reference_time=START, times=[end], factors=[factor])
+    context = market(spot=100 * factor, rate=curve, dividend=0, sigma=1e-20)
+    option = kind(
+        option_type=direction,
+        strike=100,
+        effective_time=START,
+        expiry_time=end,
+        **({"payout": 100} if kind is CashOrNothingOption else {}),
+    )
+    price = pricing.QuadratureDigitalEngine().price(option, context)
+    assert price == pytest.approx(50 * factor, rel=0, abs=1e-11)
+
+
 def test_settings_signatures_and_conversion_boundaries(subtests):
     factory = pricing.QuadratureDigitalEngine
     engine = factory()

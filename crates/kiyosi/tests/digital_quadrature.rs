@@ -24,6 +24,28 @@ fn options(direction: OptionType, strike: f64, payout: f64, end: Timestamp) -> [
 }
 
 #[test]
+fn exactly_at_forward_strike_preserves_half_the_discounted_payout() -> Result<()> {
+    let start = dates().0;
+    let end = start.add_days(7)?;
+    let factor = 0.999_389_648_437_5;
+    let strike = 100.0;
+    let curve = RateTermStructure::new(start, vec![end], vec![factor])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 1e-20)?,
+        strike * factor,
+        start,
+    )?;
+    let expected = 0.5 * strike * factor;
+    for direction in [OptionType::Call, OptionType::Put] {
+        for option in options(direction, strike, strike, end) {
+            let price = QuadratureDigitalEngine::default().price(&option, &context)?;
+            assert!((price - expected).abs() < 1e-11, "{price} != {expected}");
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn prices_match_analytic_across_payoffs_moneyness_maturity_and_carry() {
     let engine = QuadratureDigitalEngine::new(QuadratureSettings {
         asset_step_count: 2048,

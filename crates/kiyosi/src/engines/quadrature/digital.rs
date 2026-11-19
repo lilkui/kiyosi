@@ -1,6 +1,7 @@
 use super::{QuadratureSettings, flat_rates, simpson};
+use crate::engines::analytic::european::black_scholes_arguments;
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{checked, log_ratio, standardize};
+use crate::numerics::checked;
 use crate::{DigitalOption, Error, OptionType, PricingContext, PricingEngine, Result};
 
 /// Prices European cash-or-nothing and asset-or-nothing options by BSM quadrature.
@@ -89,7 +90,7 @@ impl PricingEngine<DigitalOption> for QuadratureDigitalEngine {
     }
 
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        let (rate, dividend) = flat_rates(context)?;
+        self.validate_applicability(context)?;
         validate_life(option, context)?;
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::vanilla(
@@ -101,19 +102,24 @@ impl PricingEngine<DigitalOption> for QuadratureDigitalEngine {
         context.validate_curve_horizon(option.expiry_time())?;
         let spot = context.spot_price();
         let call = option.option_type() == OptionType::Call;
-        let time = context.valuation_time().years_until(option.expiry_time());
+        let valuation = context.valuation_time();
+        let expiry = option.expiry_time();
+        let time = valuation.years_until(expiry);
         if time == 0.0 {
             return Ok(crate::engines::Payoff::digital(option).value(spot));
         }
-        let sigma = context.natural_bsm_parameters()?.volatility();
+        let model = context.natural_bsm_parameters()?;
+        let risk = model.risk_free_curve().log_factor(valuation, expiry)?;
+        let dividend = model.dividend_curve().log_factor(valuation, expiry)?;
+        let sigma = model.volatility();
         let root = time.sqrt();
         let width = sigma * root;
-        let forward = log_ratio(spot, option.strike()) + (rate - dividend) * time;
-        let center = standardize(forward, sigma, root);
+        let forward = context.log_forward_moneyness(expiry, option.strike(), dividend - risk);
+        let (d1, d2) = black_scholes_arguments(forward, sigma, root);
         let (argument, log_weight) = if let Some(payout) = option.payout() {
-            (center - 0.5 * width, payout.ln() - rate * time)
+            (d2, payout.ln() + risk)
         } else {
-            (center + 0.5 * width, spot.ln() - dividend * time)
+            (d1, spot.ln() + dividend)
         };
         if !width.is_finite()
             || !forward.is_finite()
