@@ -5,7 +5,7 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates, simpson};
 use crate::engines::Payoff;
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash};
+use crate::numerics::{checked, checked_with_scale, discounted_product, log_ratio, scaled_cash};
 use crate::{AmericanOption, Error, EuropeanOption, PricingContext, PricingEngine, Result};
 
 /// Configures vanilla spatial quadrature and American exercise intervals.
@@ -172,11 +172,16 @@ macro_rules! vanilla_pricing {
                 } else {
                     let forward =
                         context.log_forward_moneyness(option.expiry_time(), payoff.strike, carry);
+                    let discount = if payoff.sign > 0.0 {
+                        (context.spot_price(), -dividend * time)
+                    } else {
+                        (payoff.strike, -rate * time)
+                    };
                     european_price(
-                        payoff,
+                        payoff.sign,
                         forward - half_variance,
                         width,
-                        -rate * time,
+                        discount,
                         self.settings,
                     )
                 }
@@ -194,14 +199,16 @@ fn invalid_transition() -> Error {
 }
 
 fn european_price(
-    payoff: Payoff,
+    sign: f64,
     log_moneyness: f64,
     width: f64,
-    log_discount: f64,
+    (amount, log_discount): (f64, f64),
     settings: QuadratureVanillaSettings,
 ) -> Result<f64> {
     let extent = settings.integration_standard_deviations;
-    let upper = extent + if payoff.sign > 0.0 { width } else { 0.0 };
+    let call = sign > 0.0;
+    let density_center = if call { width } else { 0.0 };
+    let upper = extent + density_center;
     if !upper.is_finite() {
         return Err(invalid_transition());
     }
@@ -210,20 +217,29 @@ fn european_price(
     if kink > -extent && kink < upper {
         breaks.insert(1, kink);
     }
+    // Factor out the largest density on the paying side to preserve scaled tails.
+    let edge = kink.clamp(-extent, upper);
+    let peak = if call {
+        (edge - density_center).max(0.0)
+    } else {
+        edge.min(0.0)
+    };
     let integrand = |z: f64| {
         let distance = width.mul_add(z, log_moneyness);
-        if payoff.sign * distance <= 0.0 {
+        if sign * distance <= 0.0 {
             return 0.0;
         }
-        let log_payoff = payoff.strike.ln()
-            + if distance > 0.0 {
-                distance + (-(-distance).exp_m1()).ln()
-            } else {
-                (-distance.exp_m1()).ln()
-            };
-        (log_payoff + log_discount - 0.5 * z * z - 0.918_938_533_204_672_7).exp()
+        // Call payoffs are fractions of the terminal asset, put payoffs of the strike.
+        let normalized = -(-distance.abs()).exp_m1();
+        let offset = z - density_center;
+        normalized * (-0.5 * (offset - peak) * (offset + peak)).exp()
     };
-    checked(simpson(&breaks, settings.asset_step_count, integrand)?)
+    let mass = simpson(&breaks, settings.asset_step_count, integrand)?;
+    checked(discounted_product(
+        amount,
+        mass,
+        log_discount - 0.5 * peak * peak - 0.918_938_533_204_672_7,
+    ))
 }
 
 fn american_price(

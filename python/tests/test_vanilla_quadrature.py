@@ -42,6 +42,16 @@ def test_european_quadrature_and_sampling_preserve_quoted_forward(direction):
     assert mc.price(option, context) == pytest.approx(expected, abs=1e-3, rel=0)
 
 
+@pytest.mark.parametrize("direction", ("call", "put"))
+def test_european_quadrature_preserves_finite_large_prices(direction):
+    option = contract(EuropeanOption, direction, strike=1e308)
+    context = market(spot=1e308)
+    expected = pricing.AnalyticEuropeanEngine().price(option, context)
+    assert pricing.QuadratureVanillaEngine().price(option, context) == pytest.approx(
+        expected, rel=1e-7
+    )
+
+
 def test_settings_signatures_and_conversion_boundaries(subtests):
     factory = pricing.QuadratureVanillaEngine
     engine = factory()

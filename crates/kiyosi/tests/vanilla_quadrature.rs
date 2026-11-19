@@ -55,6 +55,22 @@ fn european_quadrature_and_sampling_preserve_quoted_forward_at_tiny_volatility()
 }
 
 #[test]
+fn european_quadrature_preserves_finite_large_prices() -> Result<()> {
+    let (start, end) = dates();
+    let context = market(1e308, 0.05, 0.02, 0.2);
+    for kind in [OptionType::Call, OptionType::Put] {
+        let option = EuropeanOption::new(kind, 1e308, start, end)?;
+        let expected = AnalyticEuropeanEngine.price(&option, &context)?;
+        let actual = QuadratureVanillaEngine::default().price(&option, &context)?;
+        assert!(
+            (actual / expected - 1.0).abs() < 1e-7,
+            "{kind:?}: {actual} != {expected}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn european_prices_match_analytic_across_moneyness_carry_and_scale() {
     let (start, end) = dates();
     for kind in [OptionType::Call, OptionType::Put] {
