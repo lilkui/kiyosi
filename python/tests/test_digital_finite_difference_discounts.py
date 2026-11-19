@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 from kiyosi import pricing
-from kiyosi.instruments import CashOrNothingOption
+from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
@@ -21,6 +21,33 @@ def test_near_certain_digital_payout_allows_rollback_roundoff():
     )
     price = pricing.FiniteDifferenceDigitalEngine().price(option, context)
     assert 1 - 1e-12 <= price <= 1
+
+
+@pytest.mark.parametrize("rate", [-0.05, 0.05])
+def test_implicit_euler_prices_digitals_with_near_certain_payouts(rate):
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    terms = {
+        "option_type": "call",
+        "strike": 100,
+        "effective_time": start,
+        "expiry_time": end,
+    }
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=rate, dividend_yield=rate, volatility=0.15
+        ),
+        spot_price=250,
+        valuation_time=start,
+    )
+    engine = pricing.FiniteDifferenceDigitalEngine(scheme="implicit_euler")
+    for option, payout in (
+        (CashOrNothingOption(**terms, payout=10), 10),
+        (AssetOrNothingOption(**terms), 250),
+    ):
+        price = engine.price(option, context)
+        expected = pricing.AnalyticDigitalEngine().price(option, context)
+        assert price <= payout * math.exp(-rate) + 1e-12
+        assert price == pytest.approx(expected, rel=1e-7)
 
 
 @pytest.mark.parametrize("direction,sign", (("call", 1), ("put", -1)))

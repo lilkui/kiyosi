@@ -930,6 +930,38 @@ fn low_volatility_drift_stabilization_converges_and_large_grids_are_supported() 
 }
 
 #[test]
+fn implicit_euler_prices_digitals_with_near_certain_payouts() -> Result<()> {
+    let (start, end) = dates();
+    let engine = FiniteDifferenceDigitalEngine::new(FiniteDifferenceSettings {
+        scheme: FiniteDifferenceScheme::ImplicitEuler,
+        ..Default::default()
+    })?;
+    for rate in [-0.05_f64, 0.05] {
+        let context = market(250.0, rate, rate, 0.15);
+        for (option, payout) in [
+            (
+                DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?,
+                10.0,
+            ),
+            (
+                DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end)?,
+                250.0,
+            ),
+        ] {
+            let price = engine.price(&option, &context)?;
+            let expected = AnalyticDigitalEngine.price(&option, &context)?;
+            let bound = payout * (-rate).exp();
+            assert!(price <= bound + 1e-12);
+            assert!(
+                (price - expected).abs() <= 1e-7 * expected,
+                "{price} vs {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn near_certain_digital_payout_allows_rollback_roundoff() -> Result<()> {
     let (start, end) = dates();
     let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 1.0, start, end)?;

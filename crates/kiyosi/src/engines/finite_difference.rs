@@ -431,7 +431,7 @@ fn solve_model<D: Diffusion>(
             } else {
                 dividend.rate(if D::LOCAL { current + 0.5 * dt } else { 0.0 })
             };
-            if payoff.is_digital() && theta == 0.5 && (weight != 0.5 || carry < 0.0) {
+            if payoff.is_digital() && (weight == 1.0 || (weight == 0.5 && carry < 0.0)) {
                 let exponent = carry * dt;
                 let implicit = weight * exponent;
                 let explicit = -(1.0 - weight) * exponent;
