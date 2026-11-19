@@ -246,6 +246,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         );
     }
     observations.extend_from_slice(&trading);
+    observations.sort_unstable_by(f64::total_cmp);
     diffusion::validate_event_resolution(context.valuation_time(), expiry, &event_times)?;
     let mut grid =
         diffusion::time_grid(context, expiry, settings, &risk, &dividend, &observations)?;
@@ -286,7 +287,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     let layers = if layered { 2 } else { 1 };
     validate_work(
         u64::from(settings.asset_step_count.unsigned_abs()) * layers,
-        grid.widths.len() as u64,
+        grid.rollback_steps(settings.scheme, &observations)?,
     )?;
     let highest = highest(note);
     let upper = match settings.asset_upper_boundary {

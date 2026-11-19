@@ -3,7 +3,7 @@ use super::{
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid,
     diffusion, diffusion_upper, grid::project_in_spot, local_volatility, payoff::boundary_value,
-    scaled, step,
+    scaled, step, validate_work,
 };
 use crate::engines::analytic::barrier::resolved_price;
 use crate::engines::deterministic::{self, BarrierPrefix, continuation_context};
@@ -511,6 +511,15 @@ fn solve_grid<D: Diffusion>(
         terms.observation_times().unwrap_or(&[]),
     )?;
     let grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &observations)?;
+    let knock_in = terms.barrier_type().is_knock_in();
+    let local_in = D::LOCAL && knock_in;
+    if !local_in {
+        let mut steps = grid.rollback_steps(settings.scheme, &observations)?;
+        if knock_in {
+            steps += grid.rollback_steps(settings.scheme, &[])?;
+        }
+        validate_work(space.count as u64, steps)?;
+    }
     let theta = settings.scheme.theta();
     if !D::LOCAL {
         grid.validate_stability(
@@ -665,7 +674,6 @@ fn solve_grid<D: Diffusion>(
             |values, current| observe(values, current, false),
         )
     };
-    let local_in = D::LOCAL && terms.barrier_type().is_knock_in();
     let mut values = if local_in {
         // Evolve activation directly to avoid cancellation between independently meshed prices.
         let full_space = SpatialGrid::new(
@@ -742,7 +750,7 @@ fn solve_grid<D: Diffusion>(
     } else {
         march(initial.clone(), true)?
     };
-    if terms.barrier_type().is_knock_in() && !local_in {
+    if knock_in && !local_in {
         let vanilla = march(initial, false)?;
         let cash = scaled(terms.rebate(), risk.log_factor(0.0, time));
         for (value, vanilla) in values.iter_mut().zip(vanilla) {

@@ -465,3 +465,27 @@ fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
         Error::InvalidInput(_)
     ));
 }
+
+#[test]
+fn scheduled_barrier_work_limit_counts_damping_half_steps() -> Result<()> {
+    let mut terms = terms(BarrierType::UpAndOut, OptionType::Call);
+    let start = terms.effective_time;
+    terms.expiry_time = start.add_days(2000)?;
+    terms.calendar = TradingCalendar::all_days();
+    terms.observation_times = Some(
+        (1..=2000)
+            .map(|day| start.add_days(day))
+            .collect::<Result<_>>()?,
+    );
+    let option = BarrierOption::new(terms)?;
+    let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 300_000,
+        time_step_count: 1,
+        ..Default::default()
+    })?;
+    assert!(matches!(
+        engine.price(&option, &market(100.0)),
+        Err(Error::InvalidInput(message)) if message.contains("rollback")
+    ));
+    Ok(())
+}

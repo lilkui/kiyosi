@@ -458,6 +458,31 @@ pub(super) struct TimeGrid {
 }
 
 impl TimeGrid {
+    pub fn rollback_steps(
+        &self,
+        scheme: FiniteDifferenceScheme,
+        sorted_observations: &[f64],
+    ) -> Result<u64> {
+        let intervals = self.widths.len();
+        if scheme != FiniteDifferenceScheme::Rannacher {
+            return Ok(intervals as u64);
+        }
+        let mut first_damped = intervals.saturating_sub(2);
+        let mut extra = intervals - first_damped;
+        for (i, time) in sorted_observations.iter().rev().enumerate() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            if let Ok(index) = self.times.binary_search_by(|node| node.total_cmp(time)) {
+                // Each event damps the preceding two intervals. Count their union.
+                let start = index.saturating_sub(2);
+                extra += index.min(first_damped).saturating_sub(start);
+                first_damped = first_damped.min(start);
+            }
+        }
+        Ok(intervals as u64 + extra as u64)
+    }
+
     pub fn substeps(
         &self,
         step: usize,
@@ -689,6 +714,16 @@ mod tests {
             times: vec![0.0, 0.25, 0.5, 1.0],
             widths: vec![0.25, 0.25, 0.5],
         };
+        assert_eq!(
+            grid.rollback_steps(FiniteDifferenceScheme::Rannacher, &[])
+                .unwrap(),
+            5
+        );
+        assert_eq!(
+            grid.rollback_steps(FiniteDifferenceScheme::Rannacher, &[0.25, 0.5, 0.5, 1.0])
+                .unwrap(),
+            6
+        );
         let mut damping = 2;
         assert_eq!(
             grid.substeps(2, FiniteDifferenceScheme::Rannacher, &mut damping)

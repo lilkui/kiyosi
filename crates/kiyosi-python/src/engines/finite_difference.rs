@@ -66,8 +66,8 @@ macro_rules! fd_engine {
         ///     If asset_step_count is below 3, time_step_count is below 1, the
         ///     estimated grid workspace exceeds 1 GiB, the asset and time step counts
         ///     multiply to more than one billion, or an explicit upper boundary is invalid.
-        ///     Pricing checks the work limit after adding event and curve steps, as well
-        ///     as boundary coverage and explicit-Euler stability.
+        ///     Pricing checks the work limit after adding event and curve steps and
+        ///     damping half-steps. It also checks boundary coverage and explicit-Euler stability.
         ///
         /// Notes
         /// -----

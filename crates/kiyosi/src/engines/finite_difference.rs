@@ -95,7 +95,7 @@ impl FiniteDifferenceSettings {
     /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
     /// fewer than one time interval, an estimated grid workspace above 1 GiB, more than
     /// one billion spatial intervals times time intervals, or an invalid explicit boundary.
-    /// Pricing checks the work limit after adding event and curve steps, as well as
+    /// Pricing checks the work limit after adding event and curve steps and damping half-steps, as well as
     /// domain coverage and scheme stability.
     ///
     /// # Examples
@@ -355,6 +355,10 @@ fn solve_model<D: Diffusion>(
         }
     }
     let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &[])?;
+    validate_work(
+        space.count as u64,
+        time_grid.rollback_steps(settings.scheme, &[])?,
+    )?;
     let theta = settings.scheme.theta();
     if !D::LOCAL {
         time_grid.validate_stability(

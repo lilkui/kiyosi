@@ -181,7 +181,10 @@ fn solve_grid<D: Diffusion>(
     let trading = diffusion::observation_times(context.valuation_time(), expiry, &dates)?;
     let grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &trading)?;
     let count = if option.accrues(context) { 2 } else { 1 };
-    validate_work(space.count as u64 * count as u64, grid.widths.len() as u64)?;
+    validate_work(
+        space.count as u64 * count as u64,
+        grid.rollback_steps(settings.scheme, &trading)?,
+    )?;
     if !D::LOCAL {
         grid.validate_stability(
             &space,

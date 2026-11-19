@@ -386,3 +386,21 @@ def test_scheduled_explicit_stability_retains_the_uniform_grid_bound():
         contract,
         market(rate=0.04),
     )
+
+
+def test_scheduled_barrier_work_limit_counts_damping_half_steps():
+    from kiyosi.market import all_days_calendar
+
+    dates = [START + timedelta(days=day) for day in range(1, 2001)]
+    instrument = option(
+        "up_and_out",
+        "call",
+        expiry_time=dates[-1],
+        observation_times=dates,
+        calendar=all_days_calendar(),
+    )
+    engine = pricing.FiniteDifferenceBarrierEngine(
+        asset_step_count=300_000, time_step_count=1
+    )
+    with pytest.raises(InvalidInputError, match="rollback"):
+        engine.price(instrument, market(100))

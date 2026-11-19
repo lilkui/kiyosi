@@ -97,7 +97,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
     )?;
     validate_work(
         (space.count + full_space.count) as u64,
-        grid.widths.len() as u64,
+        grid.rollback_steps(scheme, observations)?,
     )?;
     let mut next = vec![0.0; values.len()];
     let mut next_continuation = vec![0.0; continuation.len()];

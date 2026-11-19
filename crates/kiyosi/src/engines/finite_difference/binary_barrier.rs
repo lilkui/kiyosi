@@ -4,6 +4,7 @@ use super::{
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionType, Payoff,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, diffusion,
     diffusion_upper, local_volatility, payoff::boundary_value, scaled, step, unstable,
+    validate_work,
 };
 use crate::Timestamp;
 use crate::engines::deterministic::{self, continuation_context};
@@ -259,6 +260,14 @@ fn solve_grid<D: Diffusion>(
     let observations =
         diffusion::observation_times(context.valuation_time(), expiry, option.observation_times())?;
     let grid = diffusion::time_grid(context, horizon, settings, &risk, &dividend, &observations)?;
+    let digital_knock_in = knock_in && contract.digital.is_some();
+    if !(D::LOCAL && digital_knock_in) {
+        let mut steps = grid.rollback_steps(settings.scheme, &observations)?;
+        if digital_knock_in {
+            steps += grid.rollback_steps(settings.scheme, &[])?;
+        }
+        validate_work(space.count as u64, steps)?;
+    }
     let theta = settings.scheme.theta();
     if !D::LOCAL {
         grid.validate_stability(
@@ -407,7 +416,7 @@ fn solve_grid<D: Diffusion>(
             observe,
         )
     };
-    let mut values = if D::LOCAL && knock_in && contract.digital.is_some() {
+    let mut values = if D::LOCAL && digital_knock_in {
         local_digital_knock_in(
             contract,
             settings,
@@ -421,7 +430,7 @@ fn solve_grid<D: Diffusion>(
     } else {
         march(true)?
     };
-    if contract.digital.is_some() && knock_in && !D::LOCAL {
+    if digital_knock_in && !D::LOCAL {
         for (value, vanilla) in values.iter_mut().zip(march(false)?) {
             *value = vanilla - *value;
         }
