@@ -65,20 +65,12 @@ impl AnalyticBinaryBarrierEngine {
 }
 
 impl Contract<'_> {
-    fn vanilla(&self, context: &PricingContext, time: f64) -> Result<f64> {
-        context.validate_curve_horizon(self.monitoring.expiry_time())?;
+    fn vanilla(&self, context: &PricingContext) -> Result<f64> {
         if let Some(digital) = self.digital {
+            context.validate_curve_horizon(self.monitoring.expiry_time())?;
             AnalyticDigitalEngine.price(digital, context)
         } else {
-            let model = context.natural_bsm_parameters()?;
-            checked(scaled_cash(
-                self.payout.unwrap_or(context.spot_price()),
-                -if self.payout.is_some() {
-                    model.flat_risk_free_rate()?
-                } else {
-                    model.flat_dividend_yield()?
-                } * time,
-            ))
+            crate::engines::deterministic::touch_value_at_expiry(self, context)
         }
     }
     fn price(&self, context: &PricingContext) -> Result<f64> {
@@ -96,12 +88,12 @@ impl Contract<'_> {
         let at_hit = self.timing == SettlementTiming::AtHit;
         match self.settlement(context)? {
             Settlement::Value(value) => return Ok(value),
-            Settlement::AtExpiry => return self.vanilla(context, t),
+            Settlement::AtExpiry => return self.vanilla(context),
             Settlement::Pending => {}
         }
         if self.payoff_requires_touch() {
             return if knock_in {
-                self.vanilla(context, t)
+                self.vanilla(context)
             } else {
                 Ok(0.0)
             };

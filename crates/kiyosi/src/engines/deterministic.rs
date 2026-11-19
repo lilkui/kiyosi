@@ -628,9 +628,16 @@ pub(super) fn binary(contract: &Contract<'_>, context: &PricingContext) -> Resul
     if let Some(digital) = contract.digital {
         return vanilla(digital, Payoff::digital(digital), context);
     }
+    touch_value_at_expiry(contract, context)
+}
+
+pub(super) fn touch_value_at_expiry(
+    contract: &Contract<'_>,
+    context: &PricingContext,
+) -> Result<f64> {
     let model = context.model_parameters();
     let start = context.valuation_time();
-    let end = monitoring.expiry_time();
+    let end = contract.monitoring.expiry_time();
     checked(if let Some(amount) = contract.payout {
         scaled_cash(amount, model.risk_free_curve().log_factor(start, end)?)
     } else {

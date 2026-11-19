@@ -20,6 +20,47 @@ fn market(spot: f64) -> PricingContext {
 }
 
 #[test]
+fn analytic_touch_payments_require_only_the_settlement_curve() -> Result<()> {
+    let terms = terms(DoubleBarrierType::KnockIn);
+    let start = terms.effective_time;
+    let end = terms.expiry_time;
+    let single = TouchOptionTerms::new(start, end, 120.0, BarrierType::UpAndIn);
+    let cash = TouchOption::cash(single.clone(), 10.0)?;
+    let asset = TouchOption::asset(single)?;
+    let double = DoubleTouchOption::cash(terms, 10.0)?;
+    let short = RateTermStructure::bounded_flat(0.02, start, start.add_days(180)?)?;
+    let cash_context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, short.clone(), 0.2)?,
+        120.0,
+        start,
+    )?;
+    let asset_context = PricingContext::new(
+        BlackScholesMertonParameters::new(short, 0.01, 0.2)?,
+        120.0,
+        start,
+    )?;
+    for value in [
+        AnalyticBinaryBarrierEngine.price(&cash, &cash_context)?,
+        AnalyticDoubleTouchEngine.price(&double, &cash_context)?,
+    ] {
+        assert!((value - 10.0 * (-0.05_f64).exp()).abs() < 1e-13);
+    }
+    assert!(
+        (AnalyticBinaryBarrierEngine.price(&asset, &asset_context)? - 120.0 * (-0.01_f64).exp())
+            .abs()
+            < 1e-13
+    );
+    for result in [
+        AnalyticBinaryBarrierEngine.price(&cash, &asset_context),
+        AnalyticDoubleTouchEngine.price(&double, &asset_context),
+        AnalyticBinaryBarrierEngine.price(&asset, &cash_context),
+    ] {
+        assert!(matches!(result, Err(Error::InvalidInput(_))));
+    }
+    Ok(())
+}
+
+#[test]
 fn analytic_at_hit_cash_converges_near_the_upper_barrier() -> Result<()> {
     let context = market(100.0).replace(PricingContextChanges {
         model_parameters: Some(BlackScholesMertonParameters::new(0.03, 0.0, 0.2)?.into()),

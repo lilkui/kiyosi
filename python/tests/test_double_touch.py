@@ -16,7 +16,7 @@ from kiyosi import (
     UnsupportedOperationError,
     pricing,
 )
-from kiyosi.instruments import DoubleTouchOption
+from kiyosi.instruments import DoubleTouchOption, TouchOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -55,6 +55,41 @@ def market(spot=100, *, time=START, volatility=0.2, rate=0.03, dividend=0.01):
         spot_price=spot,
         valuation_time=time,
     )
+
+
+def test_analytic_touch_payments_require_only_the_settlement_curve():
+    short = RateTermStructure.bounded_flat(0.02, reference_time=START, max_time=FIRST)
+    cash_context = market(120, rate=0.05, dividend=short)
+    asset_context = market(120, rate=short)
+    single = TouchOption(
+        effective_time=START,
+        expiry_time=END,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="cash",
+        payout=10,
+    )
+    asset = single.replace(payoff_type="asset", payout=None)
+    double = contract(payout=10)
+    single_engine = pricing.AnalyticBinaryBarrierEngine()
+    double_engine = pricing.AnalyticDoubleTouchEngine()
+    expected = 10 * math.exp(-0.05)
+    assert single_engine.price(single, cash_context) == pytest.approx(
+        expected, abs=1e-13
+    )
+    assert double_engine.price(double, cash_context) == pytest.approx(
+        expected, abs=1e-13
+    )
+    assert single_engine.price(asset, asset_context) == pytest.approx(
+        120 * math.exp(-0.01), abs=1e-13
+    )
+    for engine, option, context in (
+        (single_engine, single, asset_context),
+        (double_engine, double, asset_context),
+        (single_engine, asset, cash_context),
+    ):
+        with pytest.raises(InvalidInputError):
+            engine.price(option, context)
 
 
 def continuous_reference(

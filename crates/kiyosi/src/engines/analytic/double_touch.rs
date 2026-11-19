@@ -1,7 +1,6 @@
 use super::double_barrier::AbsorbingDistribution;
 use crate::instruments::binary_barrier::Settlement;
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{checked, scaled_cash};
 use crate::{
     DoubleTouchOption, Error, ObservationMode, PricingContext, PricingEngine, Result,
     SettlementTiming,
@@ -78,15 +77,11 @@ impl AnalyticDoubleTouchEngine {
             return crate::engines::deterministic::binary(&option.contract(), context);
         }
         let at_hit = option.settlement_timing() == SettlementTiming::AtHit;
-        match option.contract().settlement(context)? {
+        let contract = option.contract();
+        match contract.settlement(context)? {
             Settlement::Value(value) => return Ok(value),
             Settlement::AtExpiry => {
-                let rate = context.natural_bsm_parameters()?.flat_risk_free_rate()?;
-                context.validate_curve_horizon(option.expiry_time())?;
-                return checked(scaled_cash(
-                    option.payout(),
-                    -rate * context.valuation_time().years_until(option.expiry_time()),
-                ));
+                return crate::engines::deterministic::touch_value_at_expiry(&contract, context);
             }
             Settlement::Pending => {}
         }
