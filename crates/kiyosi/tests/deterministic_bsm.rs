@@ -805,6 +805,33 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
             &MonteCarloAccumulatorEngine::default(),
         ],
     )?;
+    let intraday_knots = vec![
+        Timestamp::new(start.add_days(30)?.date(), 12, 0, 0, 0)?,
+        Timestamp::new(middle.date(), 12, 0, 0, 0)?,
+        end,
+    ];
+    let factors = intraday_knots
+        .iter()
+        .map(|&time| (-0.1 * start.years_until(time)).exp())
+        .collect();
+    let curve = RateTermStructure::new(start, intraday_knots, factors)?;
+    let curved = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    assert!(
+        (FiniteDifferenceAccumulatorEngine::default().price(&accumulator, &curved)? - expected)
+            .abs()
+            < 1e-10
+    );
+    assert!(
+        (FiniteDifferenceAutocallableEngine::default().price(&note, &curved)?
+            - (1.0 + 0.1 * 180.0 / 365.0) * (-0.1_f64 * 180.0 / 365.0).exp())
+        .abs()
+            < 1e-12
+    );
+
     let recovery = PricingContext::new(
         BlackScholesMertonParameters::new(0.6, 0.0, 0.0)?,
         70.0,

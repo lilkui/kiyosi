@@ -907,6 +907,27 @@ def test_future_structured_events_discount_coupons_and_settle_accumulated_units(
                 accumulator, context
             ) == pytest.approx(expected, rel=0, abs=1e-8)
 
+    clock_offset = timedelta(hours=12)
+    knots = [START + timedelta(days=30) + clock_offset, middle + clock_offset, end]
+    curve = RateTermStructure(
+        reference_time=START,
+        times=knots,
+        factors=[
+            math.exp(-0.1 * ((date - START) / timedelta(days=365))) for date in knots
+        ],
+    )
+    curved = context.replace(
+        model_parameters=context.model_parameters.replace(risk_free_rate=curve)
+    )
+    assert pricing.FiniteDifferenceAccumulatorEngine().price(
+        accumulator, curved
+    ) == pytest.approx(expected, rel=0, abs=1e-8)
+    assert pricing.FiniteDifferenceAutocallableEngine().price(
+        note, curved
+    ) == pytest.approx(
+        (1 + 0.1 * 180 / 365) * math.exp(-0.1 * 180 / 365), rel=0, abs=1e-12
+    )
+
 
 @pytest.mark.parametrize("family", ("Quadrature", "FiniteDifference", "MonteCarlo"))
 def test_expiry_only_knock_in_ignores_earlier_recovered_breaches(family):

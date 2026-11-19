@@ -175,10 +175,6 @@ pub(super) fn log_return(context: &PricingContext, time: Timestamp) -> Result<f6
     )
 }
 
-pub(super) fn spot(context: &PricingContext, time: Timestamp) -> Result<f64> {
-    spot_after_carry(context.spot_price(), log_return(context, time)?)
-}
-
 fn spot_after_carry(spot: f64, carry: f64) -> Result<f64> {
     let value = scaled_cash(spot, carry);
     if value.is_finite() && value > 0.0 {
@@ -419,7 +415,7 @@ fn first_touch(
             let (value, log_discount) = advance(time)?;
             if hit(value) {
                 return Ok(Some(Touch {
-                    spot: spot(context, time)?,
+                    spot: spot_after_carry(initial, value)?,
                     log_discount,
                 }));
             }
@@ -431,7 +427,7 @@ fn first_touch(
         let (x, a) = advance(pair[0])?;
         if hit(x) {
             return Ok(Some(Touch {
-                spot: spot(context, pair[0])?,
+                spot: spot_after_carry(initial, x)?,
                 log_discount: a,
             }));
         }
@@ -560,8 +556,8 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
     let mut next = note
         .events()
         .partition_point(|record| record.time() <= context.valuation_time());
+    let mut forward_to = forward_factors(context);
     for time in event_times_through(note, context, daily, horizon)? {
-        crate::cancellation::check()?;
         let daily_fixing = daily && note.daily_time(time, note.calendar());
         let record = note
             .events()
@@ -570,7 +566,8 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
         if !daily_fixing && record.is_none() && time != note.expiry_time() {
             continue;
         }
-        let spot = spot(context, time)?;
+        let (carry, log_discount) = forward_to(time)?;
+        let spot = spot_after_carry(context.spot_price(), carry)?;
         if daily_fixing {
             state.knocked_in |= note.view().below_knock_in(spot);
         }
@@ -580,20 +577,17 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
             if record.has_knock_out() && spot >= record.knock_out_level() {
                 state.settlement = Some(finite(
                     state.coupon
-                        + scaled_signed_cash(
-                            note.knock_out_payment(record) + coupon,
-                            discount(context, time)?,
-                        ),
+                        + scaled_signed_cash(note.knock_out_payment(record) + coupon, log_discount),
                 )?);
                 break;
             }
-            state.coupon += scaled_signed_cash(coupon, discount(context, time)?);
+            state.coupon += scaled_signed_cash(coupon, log_discount);
         }
         if time == note.expiry_time() {
             state.knocked_in |= note.observes_knock_in(time) && note.view().below_knock_in(spot);
             let terminal = note.terminal(spot, state.knocked_in);
             state.settlement = Some(finite(
-                state.coupon + scaled_signed_cash(terminal, discount(context, time)?),
+                state.coupon + scaled_signed_cash(terminal, log_discount),
             )?);
         }
     }
@@ -608,11 +602,12 @@ pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Res
     }
     let initial = context.spot_price();
     let strike_distance = log_ratio(initial, option.strike());
+    let mut forward_to = forward_factors(context);
     for time in option.future_observation_times(context)? {
-        let carry = log_return(context, time)?;
+        let (carry, log_discount) = forward_to(time)?;
         let spot = spot_after_carry(initial, carry)?;
         if option.observes_knock_out(time) && option.is_knock_out(spot) {
-            return finite(quantity * option.unit_payoff(spot) * discount(context, time)?.exp());
+            return finite(quantity * option.unit_payoff(spot) * log_discount.exp());
         }
         if option.accumulates_at(time, option.calendar()) {
             let distance = quoted_strike_distance(context, time, option.strike())
@@ -620,7 +615,7 @@ pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Res
             quantity += option.purchase_from_strike_distance(distance);
         }
         if time == option.expiry_time() {
-            return finite(quantity * option.unit_payoff(spot) * discount(context, time)?.exp());
+            return finite(quantity * option.unit_payoff(spot) * log_discount.exp());
         }
     }
     Err(invalid())
