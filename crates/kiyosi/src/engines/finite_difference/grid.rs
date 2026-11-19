@@ -516,6 +516,7 @@ impl TimeGrid {
     ) -> Result<()> {
         if theta == 0.0 {
             for (index, &dt) in self.widths.iter().enumerate() {
+                crate::cancellation::check()?;
                 let middle = self.times[index].midpoint(self.times[index + 1]);
                 let rate = risk.rate(middle);
                 let q = dividend.rate(middle);
@@ -667,6 +668,30 @@ mod tests {
             let grid = TimeGrid::with_events(1.0, 4, &curve, &curve, &[]);
             assert!(matches!(grid, Err(crate::Error::Io(ref error)) if error.kind() == std::io::ErrorKind::Interrupted));
             grid
+        });
+        assert!(
+            matches!(result, Err(crate::Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_stability_scan_observes_cancellation() -> Result<()> {
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let curve = Curve::new(
+            &crate::RateTermStructure::flat(0.0, None)?,
+            start,
+            start.add_days(365)?,
+        )?;
+        let grid = TimeGrid {
+            times: vec![0.0, 1.0],
+            widths: vec![1.0],
+        };
+        let space = SpatialGrid::new(FiniteDifferenceSettings::default(), 200.0, 100.0, 100.0)?;
+        let token = crate::CancellationToken::default();
+        let result = token.run(|| {
+            token.cancel();
+            grid.validate_stability(&space, 0.000_001, 0.0, false, &curve, &curve)
         });
         assert!(
             matches!(result, Err(crate::Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
