@@ -107,36 +107,12 @@ impl AnalyticRangeAccrualEngine {
         let upper = log_ratio(option.upper_bound(), context.spot_price());
         let mut value = Sum::default();
         value.add(scaled_cash(hits, scale));
-        let mut risk = Sum::default();
-        let mut dividend = Sum::default();
-        let mut previous = valuation;
-        let log_factor = |curve: &crate::RateTermStructure, total: &mut Sum, previous, date| {
-            // Direct flat factors preserve exact deterministic boundary comparisons.
-            if curve.nodes().is_empty() {
-                curve.log_factor(valuation, date)
-            } else {
-                if let Some(quoted) = curve.quoted_log_factor(valuation, date) {
-                    if !quoted.is_finite() {
-                        return Err(Error::ComputationFailure(
-                            "log_factor must be finite".into(),
-                        ));
-                    }
-                    *total = Sum::default();
-                    total.add(quoted);
-                } else {
-                    total.add(curve.log_factor(previous, date)?);
-                }
-                Ok(total.total())
-            }
-        };
+        let mut forward_to = crate::engines::deterministic::forward_factors(context);
         for date in &dates[future..] {
-            crate::cancellation::check()?;
-            let risk_log = log_factor(model.risk_free_curve(), &mut risk, previous, *date)?;
-            let dividend_log = log_factor(model.dividend_curve(), &mut dividend, previous, *date)?;
-            previous = *date;
+            let (carry, _) = forward_to(*date)?;
             let time = valuation.years_until(*date);
             let volatility = model.volatility();
-            let drift = -risk_log + dividend_log - 0.5 * volatility * volatility * time;
+            let drift = carry - 0.5 * volatility * volatility * time;
             let root = time.sqrt();
             if !drift.is_finite() || !(volatility * root).is_finite() {
                 return Err(Error::ComputationFailure(

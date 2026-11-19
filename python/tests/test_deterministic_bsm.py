@@ -19,6 +19,35 @@ from kiyosi.market import (
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
 
 
+def test_scheduled_touch_preserves_the_exact_final_curve_quote():
+    start = datetime(2025, 1, 1)
+    dates = [start + timedelta(days=days) for days in (30, 61, 365)]
+    curve = RateTermStructure(
+        reference_time=start, times=dates, factors=[1.01, 1.05, 1.0]
+    )
+    model = BlackScholesMertonParameters(
+        risk_free_rate=curve, dividend_yield=0, volatility=0
+    )
+    option = ins.TouchOption(
+        payoff_type="cash",
+        effective_time=start,
+        expiry_time=dates[-1],
+        barrier_level=100,
+        barrier_type="up_and_in",
+        payout=7,
+        settlement_timing="at_hit",
+        observation_times=dates,
+    )
+    engine = pricing.FiniteDifferenceBinaryBarrierEngine()
+    for spot, expected in [(math.nextafter(100, 0), 0), (100, 7)]:
+        context = PricingContext(
+            model_parameters=model, spot_price=spot, valuation_time=start
+        )
+        assert engine.price(option, context) == pytest.approx(
+            expected, rel=0, abs=1e-12
+        )
+
+
 def test_equal_carry_preserves_a_spot_just_above_the_strike():
     expiry = START + timedelta(days=25 * 365)
     spot = math.nextafter(100.0, math.inf)

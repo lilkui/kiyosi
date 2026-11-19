@@ -1,5 +1,24 @@
 use kiyosi::*;
 
+#[test]
+fn scheduled_touch_preserves_the_exact_final_curve_quote() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let dates = vec![start.add_days(30)?, start.add_days(61)?, end];
+    let curve = RateTermStructure::new(start, dates.clone(), vec![1.01, 1.05, 1.0])?;
+    let model = BlackScholesMertonParameters::new(curve, 0.0, 0.0)?;
+    let mut terms = TouchOptionTerms::new(start, end, 100.0, BarrierType::UpAndIn);
+    terms.observation_times = Some(dates);
+    terms.settlement_timing = SettlementTiming::AtHit;
+    let option = TouchOption::cash(terms, 7.0)?;
+    let engine = FiniteDifferenceBinaryBarrierEngine::default();
+    for (spot, expected) in [(libm::nextafter(100.0, 0.0), 0.0), (100.0, 7.0)] {
+        let context = PricingContext::new(model.clone(), spot, start)?;
+        assert!((engine.price(&option, &context)? - expected).abs() < 1e-12);
+    }
+    Ok(())
+}
+
 fn verify<I: OptionContract>(
     option: &I,
     context: &PricingContext,

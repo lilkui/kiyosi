@@ -7,12 +7,13 @@ use crate::instruments::{
     monitoring::{Monitoring, validate_life},
 };
 use crate::numerics::{
-    checked, checked_with_scale, finite_price as finite, log_ratio, scaled_cash, scaled_signed_cash,
+    Sum, checked, checked_with_scale, finite_price as finite, log_ratio, scaled_cash,
+    scaled_signed_cash,
 };
 use crate::{
     Accumulator, AutocallableNote, AutocallableTerms, BarrierOption, DoubleBarrierOption, Error,
     ModelParameters, ObservationMode, OptionContract, PricingContext, PricingContextChanges,
-    RebateTiming, Result, SettlementTiming, Timestamp,
+    RateTermStructure, RebateTiming, Result, SettlementTiming, Timestamp,
 };
 
 pub(super) fn enabled(context: &PricingContext) -> bool {
@@ -341,14 +342,30 @@ fn continuous_knots(context: &PricingContext, end: Timestamp) -> Vec<Timestamp> 
     times
 }
 
-fn forward_factors(context: &PricingContext) -> impl FnMut(Timestamp) -> Result<(f64, f64)> + '_ {
+pub(super) fn forward_factors(
+    context: &PricingContext,
+) -> impl FnMut(Timestamp) -> Result<(f64, f64)> + '_ {
     let model = context.model_parameters();
-    let mut previous = context.valuation_time();
-    let (mut risk_log, mut dividend_log) = (0.0, 0.0);
+    let start = context.valuation_time();
+    let mut previous = start;
+    let [mut risk, mut dividend] = [Sum::default(), Sum::default()];
+    let advance = move |curve: &RateTermStructure, total: &mut Sum, previous, time| {
+        if curve.nodes().is_empty() {
+            return curve.log_factor(start, time);
+        }
+        // Re-anchor at quoted endpoints so earlier fixings cannot move a payoff boundary.
+        if let Some(quoted) = curve.quoted_log_factor(start, time) {
+            *total = Sum::default();
+            total.add(finite(quoted)?);
+        } else {
+            total.add(curve.log_factor(previous, time)?);
+        }
+        finite(total.total())
+    };
     move |time| {
         crate::cancellation::check()?;
-        risk_log = finite(risk_log + model.risk_free_curve().log_factor(previous, time)?)?;
-        dividend_log = finite(dividend_log + model.dividend_curve().log_factor(previous, time)?)?;
+        let risk_log = advance(model.risk_free_curve(), &mut risk, previous, time)?;
+        let dividend_log = advance(model.dividend_curve(), &mut dividend, previous, time)?;
         previous = time;
         Ok((finite(dividend_log - risk_log)?, risk_log))
     }
