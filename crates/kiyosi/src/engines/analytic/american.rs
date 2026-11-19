@@ -337,8 +337,7 @@ impl BjerksundStenslandVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
-        context.natural_bsm_parameters()?;
-        crate::engines::flat_rates(context)?;
+        let (rate, dividend) = crate::engines::flat_rates(context)?;
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::vanilla(
                 option,
@@ -350,9 +349,8 @@ impl BjerksundStenslandVanillaEngine {
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         let time = valuation.years_until(expiry);
-        let model = context.natural_bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;
-        let (rate, dividend) = (model.flat_risk_free_rate()?, model.flat_dividend_yield()?);
+        let volatility = context.bsm_parameters()?.volatility();
         let call = option.option_type() == OptionType::Call;
         if time > 0.0 && (if call { rate } else { dividend }) < 0.0 {
             return Err(Error::UnsupportedOperation(
@@ -363,25 +361,9 @@ impl BjerksundStenslandVanillaEngine {
         let continuation = AnalyticEuropeanEngine.price(option.vanilla(), context)?;
         let (spot, strike) = (context.spot_price(), option.strike());
         let value = if call {
-            bjerksund_call(
-                spot,
-                strike,
-                time,
-                rate,
-                dividend,
-                model.volatility(),
-                continuation,
-            )?
+            bjerksund_call(spot, strike, time, rate, dividend, volatility, continuation)?
         } else {
-            bjerksund_call(
-                strike,
-                spot,
-                time,
-                dividend,
-                rate,
-                model.volatility(),
-                continuation,
-            )?
+            bjerksund_call(strike, spot, time, dividend, rate, volatility, continuation)?
         };
         if !value.is_finite() {
             return Err(Error::ComputationFailure(
